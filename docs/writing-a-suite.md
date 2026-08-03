@@ -127,7 +127,9 @@ conformance_profile: mock.yaml
 ```
 
 Built-in suites use a `driver: real | mock` field for this, where `mock`
-synthesises results without contacting a unit.
+synthesises results without contacting a unit. `suites/system_stats/` needs no
+such field: it measures the host it runs on, so its `quick.yaml` is both the
+conformance profile and a real measurement.
 
 ## Overrides
 
@@ -135,10 +137,11 @@ Values an operator may change per run without editing a profile:
 
 ```yaml
 overrides:
-  - {name: duration_s, flag: --duration-s, type: number, label: Duration, unit: s}
+  - {name: duration_s, flag: --duration-s, type: number, label: Duration, unit: s, minimum: 0.1}
 ```
 
-Undeclared keys are rejected by the API.
+Undeclared keys are rejected by the API. `label`, `unit`, `choices`, `minimum`
+and `maximum` are what the run form builds its control from, so fill them in.
 
 ## Verify
 

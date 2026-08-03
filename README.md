@@ -1,25 +1,55 @@
 # Gauntlet
 
-Gauntlet runs test suites. It launches a suite, streams its progress, and
-indexes the artifacts it produces.
+Gauntlet runs test suites. It launches a suite, streams its progress, indexes
+the artifacts it produces, and serves an operator UI over the same port.
 
 Gauntlet holds no suite-specific code. A suite declares itself in a
 `suite.yaml`, writes its results into a directory Gauntlet provides, and can be
 written in any language and stored in any repository.
 
+## Quickstart
+
 ```bash
-make setup          # create .venv, install both packages
-make run            # http://127.0.0.1:7100
+git clone <url> gauntlet
+cd gauntlet
+git submodule update --init      # extras/trl-ui-kit, the component library
+make setup                       # create .venv, install both packages
+make run                         # build the frontend and serve
 ```
+
+Open <http://localhost:7100>. `make run` prints the address it is serving on.
+
+Requires Python 3.10 or later, and Node with npm for the frontend. Without npm
+the frontend is skipped and the API is served alone, with a placeholder at `/`
+linking to the OpenAPI docs at `/docs`.
+
+The first thing to try is the `system_stats` suite: it samples the host it runs
+on, needs no hardware, and finishes in three seconds on the `quick` profile.
 
 System packages the suites' transports need are listed in
 [`dependencies.txt`](dependencies.txt). [`requirements.txt`](requirements.txt)
 installs both packages editable for anyone preferring `pip` to `make setup`.
 
+## The screens
+
+Navigation is a top tab bar. `?` lists the keyboard shortcuts; `g` followed by
+one key jumps between pages.
+
+| Screen | What it does |
+|---|---|
+| Dashboard | Active runs with live progress, host CPU/memory/disk, instrument availability, pass-and-fail counts over the last day and week, the ten most recent runs, and a launcher. |
+| Tests | Every discovered suite by category. Pick one to see its profiles, declared overrides, artifacts it produces and capabilities it requires. A profile can be edited against its schema, diffed against the file on disk, duplicated or deleted. Rescan re-reads the suite roots; Verify runs the contract check. |
+| History | Every recorded run, filtered by suite, unit, status and date range, sorted and paged on the server. Rows expand to their details and can be exported as CSV. |
+| Run | One run. Verdict and phases, live log, metric charts, per-iteration table, artifact list, and notes. Live runs stream over SSE and can be stopped or aborted. |
+| Units | Everything that has been on the bench, with run counts and outcomes. Open one for its history and notes; rename it, and its runs follow; forget it, and the runs stay. |
+| Instruments | One panel per registered capability provider, generated from what that provider declares: its state as rows, each of its commands as a form. Scan re-probes availability. |
+| Settings | Service configuration, paths, suite-discovery errors, versions, and static host facts. |
+
 ## Built-in suites
 
 | Suite | Description |
 |---|---|
+| `system_stats` | Samples the Linux host: CPU, load, memory, swap, disks, thermal zones, network counters, processes, uptime. No hardware. |
 | `ssd` | SSD bandwidth, SHA-256 write-verify and SMART counters over SSH. One unit or many, probed concurrently. |
 | `ethernet` | Timed upload and download between the unit and the lab host. |
 | `hardware_trigger` | GPIO trigger pulse train over SSH. |
@@ -80,9 +110,10 @@ Specification: [`docs/contract.md`](docs/contract.md).
 | Path | Contents |
 |---|---|
 | `packages/gauntlet-suite/` | Library for suite authors. Requires pydantic and pyyaml. |
-| `packages/gauntlet/` | Application: discovery, supervisor, REST API, web UI. |
+| `packages/gauntlet/` | Application: discovery, supervisor, REST API, and the built frontend. |
 | `suites/` | Built-in and reference suites. |
-
+| `web/` | React operator UI, built into `gauntlet/web_dist`. |
+| `extras/trl-ui-kit/` | Component library, a git submodule the UI consumes as source. |
 | `docs/` | Contract specification and guides. |
 
 ## Suites in other repositories
@@ -106,7 +137,20 @@ Gauntlet verifies each capability is available before spawning and rejects the
 run otherwise. A granted capability is passed as `GAUNTLET_CAP_PSU_URL`, an
 HTTP endpoint the suite drives.
 
-Mock providers for `psu`, `daq`, and `chamber` are registered by default.
+Mock providers for `psu`, `daq`, and `chamber` are registered by default. Each
+declares its own state and commands, and the Instruments screen builds its panel
+from that declaration.
+
+## Frontend
+
+```bash
+make web            # build the bundle into packages/gauntlet/src/gauntlet/web_dist
+make web-dev        # Vite on 7101, proxying /api to the API on 7100
+make web-check      # prettier --check, eslint, tsc, vitest
+```
+
+`make run` and `make serve` build the bundle first. See
+[`docs/frontend.md`](docs/frontend.md) and [`web/README.md`](web/README.md).
 
 ## Devcontainer
 
@@ -139,12 +183,19 @@ confusing `bad interpreter`.
 | Command | Action |
 |---|---|
 | `make setup` | Create `.venv`, install both packages editable |
-| `make dev` / `make dev-stop` | Start or stop the devcontainer |
-| `make run` | Run with auto-reload |
+| `make dev` / `make dev-stop` / `make dev-status` | Start, stop, or query the devcontainer |
+| `make run` | Build the frontend and serve on `$(PORT)`, default 7100 |
+| `make serve` | The same, with auto-reload |
+| `make web` | Build the frontend bundle |
+| `make web-dev` | Frontend dev server on 7101, proxying `/api` to 7100 |
+| `make web-check` | `prettier --check`, eslint, `tsc --noEmit`, vitest |
 | `make new-suite NAME=x` | Scaffold a suite (`TEMPLATE=python\|shell`) |
 | `make templates` | List the available suite templates |
 | `make list` | List discovered suites |
 | `make verify` / `make verify-run` | Contract checks, static or executing |
-| `make check` | format-check, lint, typecheck, test |
+| `make check` | format-check, lint, typecheck, test, test-suites, web-check |
+| `make test` / `make test-suites` | Python tests, then each suite's own tests |
+| `make schemas` / `make api-spec` | Print contract schema names; write `build/openapi.json` |
+| `make clean` / `make distclean` | Remove build output; also remove `.venv` and `output/` |
 
-`gauntlet --help` lists the full CLI.
+`make help` lists them with descriptions. `gauntlet --help` lists the full CLI.

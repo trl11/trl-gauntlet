@@ -58,13 +58,14 @@ rejected.
 
 ```yaml
 overrides:
-  - {name: duration_s, flag: --duration-s, type: number, label: Duration, unit: s}
+  - {name: duration_s, flag: --duration-s, type: number, label: Duration, unit: s, minimum: 0.1}
   - {name: stop_on_failure, flag: --stop-on-failure, type: boolean}
 ```
 
 A `boolean` override renders as the bare flag when true and is omitted when
 false. A `string` override with `choices` renders as a select and rejects
-values outside the list.
+values outside the list. A `number` or `integer` override may carry `minimum`
+and `maximum`, which bound the form control and reject a value outside them.
 
 `requires` lists capabilities the suite needs. Gauntlet checks each against its
 capability registry before spawning and rejects the run when one is

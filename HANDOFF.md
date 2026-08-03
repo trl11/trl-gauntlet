@@ -1,8 +1,7 @@
 # Handoff
 
-State of the project at the point it was copied out of `trl-xclops/gauntlet/`.
-Delete this file once the project has its own history and the open items are
-tracked elsewhere.
+State of the project after the frontend was built. Delete this file once the
+open items below are tracked elsewhere.
 
 ## Moving the directory
 
@@ -20,46 +19,50 @@ make check
 
 `make distclean` performs most of this.
 
-The directory is not under version control. Run `git init` in the copy.
+`extras/trl-ui-kit` is a git submodule. A fresh clone needs
+`git submodule update --init` before the frontend will build.
 
-Requires Python 3.10 or later; developed against 3.10.20. `uv` is used when
-present, `pip` otherwise.
+Requires Python 3.10 or later, and Node with npm for the frontend. `uv` is used
+when present, `pip` otherwise. Without npm, `make check` skips the frontend
+checks and the application serves the API with a placeholder at `/`.
 
 ## Contents
 
 | Path | Contents |
 |---|---|
 | `packages/gauntlet-suite/` | Library suite authors install. pydantic + pyyaml; SSH via the `remote` extra. |
-| `packages/gauntlet/` | Application: discovery, supervisor, REST+SSE API, conformance, CLI. |
-| `suites/` | Eight suites: `ssd`, `ethernet`, `hardware_trigger`, `can_bus`, `rs422`, `piezo`, plus two references. |
+| `packages/gauntlet/` | Application: discovery, supervisor, REST+SSE API, conformance, CLI, and the built frontend under `src/gauntlet/web_dist/`. |
+| `suites/` | Nine suites: `ssd`, `ethernet`, `hardware_trigger`, `can_bus`, `rs422`, `piezo`, `system_stats`, plus two references. |
+| `web/` | React operator UI. Vite builds it into `gauntlet/web_dist`. |
+| `extras/trl-ui-kit/` | Component library, a submodule consumed as source through the `@trl11` alias. |
 | `packages/gauntlet/.../scaffold/` | Suite scaffolder and the `python` / `shell` templates. |
-| `docs/` | `contract.md`, `architecture.md`, `writing-a-suite.md`. |
+| `docs/` | `contract.md`, `architecture.md`, `frontend.md`, `writing-a-suite.md`, `scaffolding.md`. |
 | `CLAUDE.md` | Agent guidance. |
 
 ## Verified
 
-- `make setup`, `make run`: server on `:7100`, all suites discovered.
-- `POST /api/runs` with an override: override applied to argv; log, metrics,
-  phase and iteration events streamed over SSE; verdict written and indexed.
-- `make new-suite NAME=x`: scaffolded suite passes `verify --run`.
-- `make check`: 127 tests, ruff, mypy strict.
-- `make verify-run`: all eight suites pass.
-- `make new-suite` with both templates: rendered suites pass `verify --run`.
-- Clean-room build in `/tmp` with no other virtualenv on `PATH`.
-- `GET /api/suites/{key}/profile-schema` returns JSON Schema with descriptions,
-  defaults and constraints.
+- `make check`: ruff format-check, ruff, mypy strict over both packages and
+  every suite, pytest, each suite's own tests, then `make web-check`.
+- `make web-check`: eslint, `tsc --noEmit`, vitest.
+- `make verify-run`: all nine suites, every check passing.
+- `make list`, `make templates`, `make schemas`, `make api-spec` — the last
+  writes an OpenAPI document with 38 paths.
+- `make run` builds the bundle, prints the address, and serves `index.html` at
+  `/` with its assets and favicon resolving; `/api/health`, `/api/units`,
+  `/api/instruments`, `/api/system/info` and `/api/system/data` answer 200, and
+  an unknown `/api/...` path answers 404 rather than the SPA shell.
+- `npm run dev` serves on 7101 and proxies `/api` to the API on 7100.
+  `VITE_API_BASE` is baked into a production build and prefixes every request.
+- `git submodule update --init` is idempotent on an existing checkout.
 
 ## Outstanding
 
-### Frontend
+### Electron packaging
 
-Not started. `web/` does not exist; `make web` reports this and succeeds,
-`make web-dev` fails. The application serves a placeholder at `/` linking to
-`/docs`.
-
-The REST and SSE API is complete. `docs/architecture.md` lists which endpoint
-feeds each UI surface. `trl-xclops/lab/web/` contains a React implementation of
-a comparable UI and `lab/DESIGN.md` its design tokens; the API shapes differ.
+Not started. The frontend was written for it — hash routing, and every request
+prefixed with `VITE_API_BASE` so the bundle can be loaded from `file://` and
+pointed at a Gauntlet process on another origin — but nothing packages the two
+together, and there is no launcher that starts the backend beside the shell.
 
 ### Suites not ported
 
@@ -75,34 +78,43 @@ for adapters other than FTDI `0403:6001`.
 
 ### Instrument drivers
 
-`psu`, `daq`, and `chamber` are registered as `MockInstrument`. Real drivers
-exist in `trl-xclops/lab/src/xcng_lab/instruments/`: `hm310t.py`, `di2008.py`,
-`can.py`, `rs422.py`. They must satisfy the `CapabilityProvider` protocol in
+`psu`, `daq`, and `chamber` are registered as `MockPsu`, `MockDaq` and
+`MockChamber`, one class per module in `gauntlet/capabilities/`, sharing the
+command and argument helpers in `mock_instrument.py`. Real drivers exist in
+`trl-xclops/lab/src/xcng_lab/instruments/`: `hm310t.py`, `di2008.py`, `can.py`,
+`rs422.py`. They must satisfy the `CapabilityProvider` protocol in
 `gauntlet/capabilities/registry.py` — `available()`, `describe()`,
-`instance_id()`, plus `read()` and `write()` for the HTTP proxy.
+`instance_id()`, plus `read()` and `write()` for the HTTP proxy. The operator
+panel additionally reads the optional `state()`, `commands()` and `command()`
+facets, and shows `describe()["unavailable_reason"]` when a driver reports
+itself unavailable.
+
+The panel is generated from those declarations, so a real driver needs no
+frontend change.
 
 ### Naming
 
 The two ported suites were renamed from `rad_hardware_trigger` and `rad_ssd`.
 The remaining five carry the same prefix in the source repository.
 
-## Suggested sequence
-
-1. `git init`, commit, CI running `make check` and `make verify-run`.
-2. Port the remaining suites.
-3. Frontend.
-4. Real instrument drivers.
-5. Publish `gauntlet-suite` to an index once suites live in other repositories.
-
 ## Known gaps
 
 - `_write_scratch_profile` leaves files under `<runs>/_scratch/`. Nothing prunes
   them.
-- Coverage is approximately 71%. `cli.py` and the SSE streaming path in
-  `api/runs.py` are the least covered.
+- Coverage is approximately 80%. `gauntlet_suite/cli.py` and the SSE streaming
+  path in `gauntlet/api/runs.py` are the least covered.
 - Every ported suite has been exercised only through its mock driver. The SSH,
-  serial, CAN and MQTT paths are untested against hardware.
+  serial, CAN and MQTT paths are untested against hardware. `system_stats` is
+  the exception: it reads the host it runs on.
 - `ssd` provisioning (`profiles/bare-disk.yaml`) is likewise mock-only.
+- Instrument state comes only from the three mocks, so the Instruments screen
+  has never been driven against a provider that can fail or go offline
+  mid-command.
+- `prettier . -c` reports five unformatted files under `web/src`. `npm run lint`
+  does not run prettier, so `make web-check` passes regardless.
+- `ProfileEditor.test.tsx` prints a React "component suspended inside an act
+  scope" warning. The test passes; nothing in `web/src` or the ui-kit uses
+  `lazy`, `Suspense` or `use()`.
 
 ## Origins
 
@@ -119,3 +131,4 @@ The remaining five carry the same prefix in the source repository.
 | `suites/ssd/` | `testing/rad_ssd/` and `xcng_testing/radiation/ssd.py` |
 | `suites/hardware_trigger/` | `testing/rad_hardware_trigger/` |
 | `suite.yaml` schema | `lab/src/xcng_lab/supervisor/discovery.py::_SUITE_SPEC` |
+| `web/` (UX, not code) | `lab/web/src/` |
