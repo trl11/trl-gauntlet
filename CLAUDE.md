@@ -99,6 +99,7 @@ behind a toggle below 900px. There is no sidebar.
 | Shell format-check, lint, typecheck | `make app-check` |
 | Run the server image | `make docker-run` / `make docker-stop` |
 | Write the image to `dist/` | `make docker-save` |
+| Build the SDK wheel into `dist/` | `make sdk-build` |
 
 Run `make check` before committing. Run `make suite-verify-run` as well when
 changing the launcher, the contract models, or the conformance checker,
@@ -107,10 +108,15 @@ changing the launcher, the contract models, or the conformance checker,
 it: the frontend build, `check`, the end-to-end test, and a real run of every
 conformance profile.
 
-`app/` and `docker/` each own a Makefile that does their work; the top-level
-`app-*` and `docker-*` targets only delegate to it, so `make -C app build` and
+Every directory that builds something shippable owns the Makefile that builds
+it — `app/`, `docker/`, `packages/gauntlet-sdk/` — and the top-level `app-*`,
+`docker-*` and `sdk-*` targets only delegate, so `make -C app build` and
 `make app-build` are the same thing. Paths, ports and `dist/` are declared once
-in `common.mk`, which all three include.
+in `common.mk`, which they all include.
+
+`dist/` holds what someone who does not have this repository needs: the two
+installers, the image as a loadable tarball, and the SDK wheel a suite author
+installs. It is gitignored, and nothing else is written there.
 
 ## Behaviour to preserve
 

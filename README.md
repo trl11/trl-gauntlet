@@ -34,6 +34,15 @@ the server image, and is the transports alone.
 [`requirements.txt`](requirements.txt) installs both packages editable for
 anyone preferring `pip` to `make setup`.
 
+Writing a suite needs `gauntlet-sdk` and nothing else from this repository.
+`make sdk-build` writes its wheel to `dist/`, to install wherever the suite
+runs:
+
+```bash
+make sdk-build
+pip install dist/gauntlet_sdk-*.whl        # add [remote] for the SSH transport
+```
+
 ## The screens
 
 Navigation is a top tab bar. `?` lists the keyboard shortcuts; `g` followed by

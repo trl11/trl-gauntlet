@@ -43,6 +43,9 @@ help:
 	@echo "    make app-build         build the AppImage and the deb into dist/"
 	@echo "    make app-check         format-check, lint and typecheck the shell"
 	@echo ""
+	@echo "  Ship: the SDK"
+	@echo "    make sdk-build         build the gauntlet-sdk wheel into dist/"
+	@echo ""
 	@echo "  Suites"
 	@echo "    make suite-new NAME=x  scaffold a suite (TEMPLATE=python|shell)"
 	@echo "    make suite-templates   list the available suite templates"
@@ -170,13 +173,16 @@ frontend-check: frontend-install
 # exist so that one `make help` lists everything; each delegates and adds
 # nothing.
 
-.PHONY: app-build app-check app-dev app-runtime docker-build docker-run docker-save docker-stop
+.PHONY: app-build app-check app-dev app-runtime docker-build docker-run docker-save docker-stop sdk-build
 
 app-build app-check app-dev app-runtime:
 	@$(MAKE) --no-print-directory -C $(DESKTOP) $(patsubst app-%,%,$@)
 
 docker-build docker-run docker-save docker-stop:
 	@$(MAKE) --no-print-directory -C $(DOCKER) $(patsubst docker-%,%,$@)
+
+sdk-build:
+	@$(MAKE) --no-print-directory -C $(SDK) $(patsubst sdk-%,%,$@)
 
 # ---------------------------------------------------------------------------
 # Suites
