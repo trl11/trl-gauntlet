@@ -30,6 +30,16 @@ class TestPlaceholders:
         assert Placeholders.from_key("my_probe").class_name.isidentifier()
 
 
+class TestAvailableTemplates:
+    def test_both_templates_are_offered(self):
+        assert set(available_templates()) == {"python", "shell"}
+
+    def test_a_missing_template_directory_offers_nothing(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(generator, "TEMPLATES_DIR", tmp_path / "absent")
+
+        assert generator.available_templates() == []
+
+
 class TestRender:
     @pytest.mark.parametrize("template", available_templates())
     def test_every_template_renders_a_loadable_suite(self, template, tmp_path):

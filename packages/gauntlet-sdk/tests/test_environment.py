@@ -47,6 +47,18 @@ class TestRunEnvironment:
         assert env.capability("psu").url.endswith("/psu")
         assert env.capability("psu").instance_id == "psu0"
 
+    def test_a_capability_variable_with_no_name_is_ignored(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("GAUNTLET_RUN_DIR", str(tmp_path))
+        monkeypatch.setenv("GAUNTLET_CAP__URL", "http://localhost/api/capabilities/")
+
+        assert run_environment().capabilities == {}
+
+    def test_a_capability_variable_with_no_value_is_ignored(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("GAUNTLET_RUN_DIR", str(tmp_path))
+        monkeypatch.setenv("GAUNTLET_CAP_PSU_URL", "")
+
+        assert run_environment().capabilities == {}
+
     def test_missing_capability_names_what_was_granted(self, tmp_path, monkeypatch):
         monkeypatch.setenv("GAUNTLET_RUN_DIR", str(tmp_path))
         monkeypatch.setenv("GAUNTLET_CAP_DAQ_URL", "http://localhost/api/capabilities/daq")

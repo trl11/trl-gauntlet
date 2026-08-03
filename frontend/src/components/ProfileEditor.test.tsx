@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -143,7 +143,12 @@ describe("ProfileEditor", () => {
     renderEditor({ onClose });
     await user.click(await screen.findByRole("tab", { name: "YAML" }));
     await user.type(screen.getByLabelText("Profile YAML"), "extra: 1\n");
-    await user.keyboard("{Escape}");
+    // Opening the dialog focuses its button from an effect, which leaves work
+    // queued behind the synchronous act userEvent dispatches through. Nesting
+    // it in an awaited act is what React asks for when that happens.
+    await act(async () => {
+      await user.keyboard("{Escape}");
+    });
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByText(/Discard unsaved changes/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Confirm" }));

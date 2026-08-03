@@ -266,6 +266,17 @@ class TestTemperatures:
         monkeypatch.setattr(host_stats, "_thermal_zones", lambda: [])
         assert host_stats.temperatures() == []
 
+    def test_a_thermal_directory_that_cannot_be_listed_reports_nothing(self, monkeypatch, tmp_path: Path) -> None:
+        def _refuse(_pattern: str):
+            raise PermissionError("denied")
+
+        closed = tmp_path / "thermal"
+        closed.mkdir()
+        monkeypatch.setattr(host_stats, "_THERMAL", closed)
+        monkeypatch.setattr(type(closed), "glob", lambda _self, pattern: _refuse(pattern))
+
+        assert host_stats.temperatures() == []
+
 
 class TestStaticInfo:
     def test_carries_the_versions_it_was_given(self, proc: Path) -> None:

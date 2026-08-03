@@ -70,6 +70,20 @@ class TestOverrides:
         suite = make_suite("demo", overrides=OVERRIDES)
         assert _launch(suite, tmp_path, overrides={"verbose": True}).argv[-1] == "--verbose"
 
+    def test_a_none_override_is_skipped_entirely(self, make_suite, tmp_path):
+        suite = make_suite("alpha", overrides=OVERRIDES)
+        assert "--cycles" not in _launch(suite, tmp_path, overrides={"cycles": None}).argv
+
+    @pytest.mark.parametrize("value", ["true", "yes", "on", "1", " TRUE "])
+    def test_a_truthy_string_boolean_becomes_the_flag(self, make_suite, tmp_path, value):
+        suite = make_suite("alpha", overrides=OVERRIDES)
+        assert "--verbose" in _launch(suite, tmp_path, overrides={"verbose": value}).argv
+
+    @pytest.mark.parametrize("value", ["false", "no", "off", "0", "anything else"])
+    def test_a_falsy_string_boolean_omits_the_flag(self, make_suite, tmp_path, value):
+        suite = make_suite("alpha", overrides=OVERRIDES)
+        assert "--verbose" not in _launch(suite, tmp_path, overrides={"verbose": value}).argv
+
     def test_false_boolean_is_omitted(self, make_suite, tmp_path):
         suite = make_suite("demo", overrides=OVERRIDES)
         assert "--verbose" not in _launch(suite, tmp_path, overrides={"verbose": False}).argv

@@ -95,10 +95,12 @@ def _find_manifests(root: Path) -> list[Path]:
         if depth > _MAX_DEPTH:
             return
         manifest = directory / "suite.yaml"
-        if manifest.is_file():
-            found.append(manifest)
-            return
+        # A directory the process cannot read is skipped rather than raised:
+        # `is_file()` propagates a permission error, unlike a missing path.
         try:
+            if manifest.is_file():
+                found.append(manifest)
+                return
             children = sorted(p for p in directory.iterdir() if p.is_dir())
         except OSError:
             return

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import textwrap
 import time
 
@@ -9,6 +10,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from gauntlet.app import create_app
+from gauntlet.supervisor.supervisor import (
+    _epoch,
+    _read_verdict,
+    _schedule,
+    _snapshot_profile,
+    _write_scratch_profile,
+)
 
 # Runs until told to stop, then writes a passing verdict and exits.
 _GRACEFUL = textwrap.dedent(
@@ -190,6 +198,151 @@ class TestInlineProfiles:
         run_id = client.post("/api/runs", json={"suite": "alpha", "profile": "quick.yaml"}).json()["run_id"]
         wait_for_status(client, run_id, {"passed", "failed", "error", "aborted"})
         assert "description: fast" in client.get(f"/api/runs/{run_id}/artifacts/profile.yaml").text
+
+
+class TestRunsThatNeverStart:
+    def test_a_command_that_cannot_be_executed_is_an_error(self, make_suite, settings) -> None:
+        make_suite("broken")
+        (settings.suite_roots[0] / "broken" / "run.sh").chmod(0o644)
+
+        with TestClient(create_app(settings)) as client:
+            run_id = client.post("/api/runs", json={"suite": "broken"}).json()["run_id"]
+            finished = wait_for_status(client, run_id, {"error", "aborted", "failed", "passed"})
+
+            assert finished["status"] == "error"
+            assert "failed to spawn" in finished["fail_reason"]
+
+    def test_a_suite_needing_an_unregistered_instrument_is_rejected(self, make_suite, settings) -> None:
+        make_suite("needy", requires=["laser_cutter"])
+
+        with TestClient(create_app(settings)) as client:
+            response = client.post("/api/runs", json={"suite": "needy"})
+
+            assert response.status_code == 422
+            assert "laser_cutter" in response.json()["detail"]
+
+
+class TestSignallingAProcessThatHasGone:
+    """The process can exit between the status check and the signal."""
+
+    def _detach(self, client, run_id: str):
+        handle = client.app.state.supervisor.get(run_id)
+        original = handle.process.send_signal
+
+        def _gone(_signum):
+            raise ProcessLookupError("no such process")
+
+        handle.process.send_signal = _gone
+        return handle, original
+
+    def _clean_up(self, client, handle, original, run_id: str) -> None:
+        handle.process.send_signal = original
+        client.post(f"/api/runs/{run_id}/abort")
+        wait_for_status(client, run_id, {"passed", "failed", "error", "aborted"})
+
+    def test_stopping_it_is_409(self, app_with) -> None:
+        with app_with(slow=_GRACEFUL) as client:
+            run_id = start(client)
+            handle, original = self._detach(client, run_id)
+
+            try:
+                assert client.post(f"/api/runs/{run_id}/stop").status_code == 409
+            finally:
+                self._clean_up(client, handle, original, run_id)
+
+    def test_aborting_it_is_409(self, app_with) -> None:
+        with app_with(slow=_GRACEFUL) as client:
+            run_id = start(client)
+            handle, original = self._detach(client, run_id)
+
+            try:
+                assert client.post(f"/api/runs/{run_id}/abort").status_code == 409
+            finally:
+                self._clean_up(client, handle, original, run_id)
+
+
+class TestEviction:
+    def test_only_the_configured_number_of_finished_runs_stay_in_memory(self, app_with) -> None:
+        with app_with(quick=script_writing('{"passed": true, "reason": ""}')) as client:
+            client.app.state.supervisor._history_size = 2
+            run_ids = []
+            for _ in range(4):
+                run_id = start(client, suite="quick")
+                wait_for_status(client, run_id, {"passed", "failed", "error", "aborted"})
+                run_ids.append(run_id)
+
+            live = {handle.run_id for handle in client.app.state.supervisor.list_runs()}
+
+            # Eviction runs when a run starts, so the last one to finish is
+            # still held; which of the older ones went is not defined.
+            assert len(live) < len(run_ids)
+            # Every run is still in history, which is what the index is for.
+            assert {row["run_id"] for row in client.get("/api/runs").json()["runs"]} == set(run_ids)
+
+
+class TestSupervisorHelpers:
+    def test_a_verdict_that_cannot_be_read_is_none(self, tmp_path) -> None:
+        assert _read_verdict(tmp_path / "absent.json") is None
+
+    def test_a_verdict_that_is_not_json_is_none(self, tmp_path) -> None:
+        path = tmp_path / "verdict.json"
+        path.write_text("{ truncated")
+
+        assert _read_verdict(path) is None
+
+    def test_a_verdict_that_does_not_match_the_contract_is_none(self, tmp_path) -> None:
+        path = tmp_path / "verdict.json"
+        path.write_text('{"passed": "sort of"}')
+
+        assert _read_verdict(path) is None
+
+    def test_a_conforming_verdict_is_parsed(self, tmp_path) -> None:
+        path = tmp_path / "verdict.json"
+        path.write_text('{"passed": false, "reason": "too hot"}')
+
+        assert _read_verdict(path).reason == "too hot"
+
+    def test_an_inline_profile_is_written_to_its_own_scratch_file(self, tmp_path) -> None:
+        first = _write_scratch_profile(tmp_path, "alpha", "iterations: 1\n")
+        second = _write_scratch_profile(tmp_path, "alpha", "iterations: 2\n")
+
+        assert first.read_text() == "iterations: 1\n"
+        assert first != second
+        assert first.parent == tmp_path / "_scratch" / "alpha"
+
+    def test_the_profile_snapshot_does_not_overwrite_an_existing_one(self, tmp_path) -> None:
+        source = tmp_path / "quick.yaml"
+        source.write_text("new\n")
+        run_dir = tmp_path / "run"
+        run_dir.mkdir()
+        (run_dir / "profile.yaml").write_text("already here\n")
+
+        _snapshot_profile(source, run_dir)
+
+        assert (run_dir / "profile.yaml").read_text() == "already here\n"
+
+    def test_a_profile_snapshot_that_cannot_be_read_is_not_fatal(self, tmp_path) -> None:
+        run_dir = tmp_path / "run"
+        run_dir.mkdir()
+
+        _snapshot_profile(tmp_path / "absent.yaml", run_dir)
+
+        assert not (run_dir / "profile.yaml").exists()
+
+    def test_a_timestamp_that_cannot_be_parsed_falls_back_to_now(self) -> None:
+        assert _epoch("not a timestamp") == pytest.approx(time.time(), abs=5)
+
+    def test_a_well_formed_timestamp_is_parsed_as_utc(self) -> None:
+        assert _epoch("2026-01-01T00:00:00Z") == 1_767_225_600.0
+
+    def test_scheduling_onto_a_closed_loop_does_not_raise(self) -> None:
+        loop = asyncio.new_event_loop()
+        loop.close()
+
+        async def _work() -> None:
+            pass
+
+        _schedule(loop, _work())
 
 
 class TestRunIdentifiers:

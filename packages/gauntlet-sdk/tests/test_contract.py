@@ -81,6 +81,10 @@ class TestMetricsRecord:
         record = MetricsRecord.model_validate({"timestamp": 1.0, "iteration": 1})
         assert any("success" in p for p in record.problems())
 
+    def test_iteration_record_without_an_iteration_number_is_flagged(self):
+        record = MetricsRecord.model_validate({"timestamp": 1.0, "success": True})
+        assert any("`iteration` is required" in p for p in record.problems())
+
     def test_live_record_needs_neither(self):
         record = MetricsRecord.model_validate({"kind": "live", "timestamp": 1.0, "metrics": {"v": 1}})
         assert record.problems() == []

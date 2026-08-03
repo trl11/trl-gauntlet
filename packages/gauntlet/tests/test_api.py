@@ -120,6 +120,21 @@ class TestRuns:
         assert run_id in {r["run_id"] for r in client.get("/api/runs").json()["runs"]}
 
 
+class TestRunLookup:
+    def test_a_finished_run_missing_from_the_index_is_answered_from_memory(self, client, monkeypatch):
+        run_id = client.post("/api/runs", json={"suite": "alpha"}).json()["run_id"]
+        _wait_for_finish(client, run_id)
+        monkeypatch.setattr(client.app.state.runs_index, "get", lambda _run_id: None)
+
+        body = client.get(f"/api/runs/{run_id}").json()
+
+        assert body["run_id"] == run_id
+        assert body["status"] == "passed"
+
+    def test_an_unknown_run_is_404(self, client):
+        assert client.get("/api/runs/nope").status_code == 404
+
+
 class TestRunHistoryFilters:
     def test_total_counts_every_match_not_just_the_page(self, client, add_run):
         for index in range(5):

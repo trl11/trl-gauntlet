@@ -57,11 +57,68 @@ class TestDiscovery:
         )
         assert sorted(discover_suites([suite_root]).suites) == ["outer"]
 
+    def test_a_suite_nested_deeper_than_the_search_depth_is_not_found(self, make_suite, suite_root):
+        make_suite("deep")
+        buried = suite_root / "a" / "b" / "c" / "d"
+        buried.mkdir(parents=True)
+        (suite_root / "deep").rename(buried / "deep")
+
+        assert discover_suites([suite_root]).suites == {}
+
+    def test_directories_that_cannot_be_listed_are_skipped(self, make_suite, suite_root):
+        make_suite("alpha")
+        closed = suite_root / "closed"
+        closed.mkdir()
+        closed.chmod(0o000)
+
+        try:
+            assert list(discover_suites([suite_root]).suites) == ["alpha"]
+        finally:
+            closed.chmod(0o700)
+
+    def test_dot_and_underscore_directories_are_skipped(self, make_suite, suite_root):
+        make_suite("alpha")
+        for name in (".hidden", "_scratch", "__pycache__", "node_modules"):
+            hidden = suite_root / name
+            hidden.mkdir()
+            (hidden / "suite.yaml").write_text("apiVersion: 1\nkey: hidden\ntitle: Hidden\n")
+
+        assert list(discover_suites([suite_root]).suites) == ["alpha"]
+
 
 class TestManifestErrors:
     def test_missing_file(self, tmp_path):
         with pytest.raises(ManifestError, match=r"no suite\.yaml"):
             load_suite(tmp_path)
+
+    def test_a_manifest_that_cannot_be_read(self, suite_root):
+        directory = suite_root / "alpha"
+        directory.mkdir()
+        manifest = directory / "suite.yaml"
+        manifest.write_text("apiVersion: 1\nkey: alpha\n")
+        manifest.chmod(0o000)
+
+        try:
+            with pytest.raises(ManifestError, match="cannot read"):
+                load_suite(directory)
+        finally:
+            manifest.chmod(0o644)
+
+    def test_malformed_yaml_names_the_file(self, suite_root):
+        directory = suite_root / "alpha"
+        directory.mkdir()
+        (directory / "suite.yaml").write_text("key: [alpha\n")
+
+        with pytest.raises(ManifestError, match="invalid YAML"):
+            load_suite(directory)
+
+    def test_a_manifest_that_is_not_a_mapping(self, suite_root):
+        directory = suite_root / "alpha"
+        directory.mkdir()
+        (directory / "suite.yaml").write_text("- alpha\n")
+
+        with pytest.raises(ManifestError, match="expected a mapping"):
+            load_suite(directory)
 
     def test_wrong_api_version(self, suite_root):
         directory = suite_root / "old"

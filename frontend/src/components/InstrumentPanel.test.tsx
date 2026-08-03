@@ -176,3 +176,131 @@ describe("InstrumentPanel draws an instrument it has never seen", () => {
     expect(onCommand).toHaveBeenCalledWith("spin_up", { direction: "ccw", rpm: 4500 });
   });
 });
+
+describe("InstrumentPanel lays out declared readouts", () => {
+  function withReadouts(overrides: Partial<Instrument> = {}): Instrument {
+    return instrument({
+      commands: [],
+      connection: "/dev/ttyUSB0",
+      readouts: [
+        {
+          group: "Channel A",
+          key: "rails.main",
+          label: "Main rail",
+          precision: 2,
+          role: "headline",
+          unit: "V",
+        },
+        {
+          group: "Channel A",
+          key: "current_a",
+          label: "Current",
+          precision: 3,
+          role: "summary",
+          unit: "A",
+        },
+      ],
+      state: { armed: false, current_a: 0.125, rails: { main: 4.987 } },
+      ...overrides,
+    });
+  }
+
+  it("shows a headline reading as a tile with its unit and precision", () => {
+    render(<InstrumentPanel instrument={withReadouts()} onCommand={vi.fn()} />);
+
+    expect(screen.getByText("Main rail")).toBeInTheDocument();
+    expect(screen.getByText("4.99")).toBeInTheDocument();
+    expect(screen.getByText("V")).toBeInTheDocument();
+  });
+
+  it("shows a summary reading in the compact strip", () => {
+    render(<InstrumentPanel instrument={withReadouts()} onCommand={vi.fn()} />);
+
+    expect(screen.getByText("Current")).toBeInTheDocument();
+    expect(screen.getByText("0.125")).toBeInTheDocument();
+  });
+
+  it("names the group it declared", () => {
+    render(<InstrumentPanel instrument={withReadouts()} onCommand={vi.fn()} />);
+
+    expect(screen.getByRole("heading", { name: "Channel A" })).toBeInTheDocument();
+  });
+
+  it("puts the instance and the connection in the subtitle", () => {
+    render(<InstrumentPanel instrument={withReadouts()} onCommand={vi.fn()} />);
+
+    expect(screen.getByText("thing0 · /dev/ttyUSB0")).toBeInTheDocument();
+  });
+
+  it("falls back to the generic state list when nothing is declared", () => {
+    render(<InstrumentPanel instrument={instrument({ readouts: [] })} onCommand={vi.fn()} />);
+
+    expect(screen.getByText("rails.main")).toBeInTheDocument();
+  });
+
+  it("shows the reason an unavailable instrument gave", () => {
+    render(
+      <InstrumentPanel
+        instrument={instrument({ available: false, unavailable_reason: "port is held elsewhere" })}
+        onCommand={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("port is held elsewhere")).toBeInTheDocument();
+  });
+
+  it("explains an unavailable instrument that gave no reason", () => {
+    render(
+      <InstrumentPanel
+        instrument={instrument({ available: false, unavailable_reason: "" })}
+        onCommand={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText(/controls are read-only/)).toBeInTheDocument();
+  });
+});
+
+describe("InstrumentPanel arranges commands by shape", () => {
+  const noFields = { name: "arm", label: "Arm", fields: [] };
+  const primary = { name: "run", label: "Run", fields: [] };
+
+  it("renders a command that takes no fields as a plain button", async () => {
+    const onCommand = vi.fn();
+    render(
+      <InstrumentPanel instrument={instrument({ commands: [noFields] })} onCommand={onCommand} />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Arm" }));
+
+    expect(onCommand).toHaveBeenCalledWith("arm", {});
+  });
+
+  it("gives the declared primary command its own control", async () => {
+    const onCommand = vi.fn();
+    render(
+      <InstrumentPanel
+        instrument={instrument({ commands: [noFields, primary], primary_command: "run" })}
+        onCommand={onCommand}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Run" }));
+
+    expect(onCommand).toHaveBeenCalledWith("run", {});
+  });
+
+  it("disables every command while one is in flight", () => {
+    render(
+      <InstrumentPanel
+        busy
+        instrument={instrument({ commands: [noFields, primary], primary_command: "run" })}
+        onCommand={vi.fn()}
+      />
+    );
+
+    for (const button of screen.getAllByRole("button")) {
+      expect(button).toBeDisabled();
+    }
+  });
+});

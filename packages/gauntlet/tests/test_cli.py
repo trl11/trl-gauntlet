@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import runpy
+import sys
 from pathlib import Path
 
 import pytest
@@ -153,6 +155,17 @@ class TestTemplates:
     def test_lists_both_templates(self, capsys) -> None:
         assert cli.main(["templates"]) == 0
         assert set(capsys.readouterr().out.split()) == {"python", "shell"}
+
+
+class TestModuleEntryPoint:
+    def test_python_dash_m_gauntlet_runs_the_cli(self, capsys, monkeypatch) -> None:
+        monkeypatch.setattr(sys, "argv", ["gauntlet", "templates"])
+
+        with pytest.raises(SystemExit) as exit_code:
+            runpy.run_module("gauntlet", run_name="__main__")
+
+        assert exit_code.value.code == 0
+        assert "python" in capsys.readouterr().out
 
 
 class TestServe:
