@@ -22,12 +22,17 @@ changing anything in `web/`.
   `GET /api/schemas/{name}`.
 - No suite-specific or instrument-specific code in `web/`. Forms and views are
   built from `overrides`, `produces`, `requires` and the capability providers'
-  declared `state()` and `commands()`. A suite key or an instrument name in
-  `web/src/` outside a test fixture is a defect.
+  declared `state()`, `commands()` and `readouts()`. A suite key or an
+  instrument name in `web/src/` outside a test fixture is a defect. A provider
+  that declares nothing still renders, through the generic fallback.
 - `extras/trl-ui-kit` is a submodule consumed as source through the `@trl11`
   alias, and installs nothing; `web/package.json` declares the dependencies its
   files import. Import only from `@trl11/components/ui` and `@trl11/hooks`;
   `components/vip` and `components/media` pull dependencies that do not resolve.
+  Because the kit sits outside `web/`, resolution from it never reaches
+  `web/node_modules`: its bare imports need `paths` entries in
+  `web/tsconfig.json` and `clsx` in vite's `resolve.dedupe`, or nothing
+  compiles or builds.
 - Colours, fonts and spacing come from `@trl11/styles/theme.scss`. Dark only.
   One `X.scss` beside each `X.tsx`, opening with
   `@use "@trl11/styles/theme.scss" as *;`. No hex literals.
@@ -90,6 +95,13 @@ changing the launcher, the contract models, or the conformance checker, and
   raising.
 - Renaming a unit rewrites `unit_serial` on its run rows; forgetting a unit
   drops only its metadata and notes, never a run.
+- A run id ends in randomness, not anything constant within a process. Two runs
+  starting in the same second must not share a directory.
+- `manifest.json` and the other artifacts exist only once the suite process
+  ends, and `cpu_percent` is null until a second sample. Callers wait rather
+  than treating either as an error.
+- Stopping the app signals the process group, so a reloader and any suite the
+  run spawned go with it.
 - `vite build` writes into `packages/gauntlet/src/gauntlet/web_dist/`. The app
   serves it at `/`, falls back to a placeholder when it is absent, and still
   answers unknown `/api/...` paths with a JSON 404 rather than the SPA shell.
@@ -106,6 +118,10 @@ Tests construct real suite directories on disk; see
 `packages/gauntlet/tests/conftest.py`.
 
 A new check in `gauntlet.conformance` needs a test with a suite that fails it.
+
+`npm run screenshots` renders every page in headless Chrome and fails on a
+console error or a 4xx. A page that compiles and passes jsdom tests can still
+paint nothing in a browser; only this catches that.
 
 Frontend tests are vitest with jsdom and Testing Library, in an `X.test.tsx`
 beside the file they cover. They mock `@api/client`. The fixtures in
