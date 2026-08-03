@@ -1,0 +1,3 @@
+[submodule "extras/trl-ui-kit"]
+	path = extras/trl-ui-kit
+	url = git@github.com:trl11/trl-ui-kit.git
