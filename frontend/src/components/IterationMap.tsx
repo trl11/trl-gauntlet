@@ -1,13 +1,11 @@
+import { Tooltip } from "@trl11/components/ui";
 import clsx from "clsx";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { formatDuration } from "../utils/format";
 import type { IterationRow } from "./IterationTable";
 
 import "./IterationMap.scss";
-
-/** How far from a window edge the tooltip is allowed to sit. */
-const TOOLTIP_MARGIN = 150;
 
 /** One completed phase inside an iteration. */
 export interface PhaseRow {
@@ -35,13 +33,6 @@ export interface IterationMapProps {
   phases: PhaseRow[];
   /** Called with the iteration number when a square is clicked. */
   onSelect?: (iteration: number) => void;
-}
-
-/** Where the tooltip is drawn, in viewport coordinates. */
-interface Hover {
-  cell: IterationCell;
-  left: number;
-  top: number;
 }
 
 /**
@@ -112,7 +103,6 @@ function describePhases(cell: IterationCell): string {
  */
 export const IterationMap: React.FC<IterationMapProps> = ({ iterations, onSelect, phases }) => {
   const cells = useMemo(() => toCells(iterations, phases), [iterations, phases]);
-  const [hover, setHover] = useState<Hover | null>(null);
 
   if (cells.length === 0) {
     return <p className="iteration-map__empty">No iterations have been reported for this run.</p>;
@@ -120,51 +110,33 @@ export const IterationMap: React.FC<IterationMapProps> = ({ iterations, onSelect
 
   const failures = cells.filter((cell) => !cell.success).length;
 
-  const show = (cell: IterationCell, target: HTMLElement) => {
-    const rect = target.getBoundingClientRect();
-    setHover({
-      cell,
-      left: Math.min(
-        Math.max(rect.left + rect.width / 2, TOOLTIP_MARGIN),
-        window.innerWidth - TOOLTIP_MARGIN
-      ),
-      top: rect.bottom + 8,
-    });
-  };
-
   return (
     <section className="iteration-map" aria-label="Iterations">
       <p className="iteration-map__count">{`${cells.length} iterations, ${failures} failed`}</p>
 
       <div className="iteration-map__grid">
         {cells.map((cell, index) => (
-          <button
-            aria-label={describe(cell)}
-            className={clsx(
-              "iteration-map__cell",
-              cell.success ? "iteration-map__cell--ok" : "iteration-map__cell--failed"
-            )}
+          <Tooltip
+            content={
+              <span className="iteration-map__tooltip">
+                <span className="iteration-map__tooltip-head">{describe(cell)}</span>
+                {cell.phases.length > 0 && <span>{describePhases(cell)}</span>}
+              </span>
+            }
             key={`${cell.iteration}-${index}`}
-            onBlur={() => setHover(null)}
-            onClick={() => cell.iteration != null && onSelect?.(cell.iteration)}
-            onFocus={(event) => show(cell, event.currentTarget)}
-            onMouseEnter={(event) => show(cell, event.currentTarget)}
-            onMouseLeave={() => setHover(null)}
-            type="button"
-          />
+          >
+            <button
+              aria-label={describe(cell)}
+              className={clsx(
+                "iteration-map__cell",
+                cell.success ? "iteration-map__cell--ok" : "iteration-map__cell--failed"
+              )}
+              onClick={() => cell.iteration != null && onSelect?.(cell.iteration)}
+              type="button"
+            />
+          </Tooltip>
         ))}
       </div>
-
-      {hover && (
-        <div
-          className="iteration-map__tooltip"
-          role="tooltip"
-          style={{ left: hover.left, top: hover.top }}
-        >
-          <span className="iteration-map__tooltip-head">{describe(hover.cell)}</span>
-          {hover.cell.phases.length > 0 && <span>{describePhases(hover.cell)}</span>}
-        </div>
-      )}
     </section>
   );
 };

@@ -38,7 +38,7 @@ describe("IterationMap", () => {
     render(<IterationMap iterations={ITERATIONS} phases={PHASES} />);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     await userEvent.hover(screen.getByRole("button", { name: "#1 · passed · 2s" }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("soak 1s · check 500ms");
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("soak 1s · check 500ms");
     await userEvent.unhover(screen.getByRole("button", { name: "#1 · passed · 2s" }));
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });

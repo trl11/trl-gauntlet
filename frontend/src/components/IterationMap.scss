@@ -46,20 +46,13 @@
   }
 
   &__tooltip {
-    position: fixed;
-    z-index: 150;
     display: flex;
     flex-direction: column;
     gap: 2px;
-    transform: translateX(-50%);
     max-width: 280px;
-    padding: 6px 10px;
-    background-color: $trl-dark;
-    border: 1px solid $trl-dark-gray;
     font-family: $font-mono;
     font-size: 11px;
     color: $trl-gray;
-    pointer-events: none;
   }
 
   &__tooltip-head {
