@@ -3,7 +3,7 @@
 #
 # Start here:
 #   make setup    one-time: create .venv and install everything
-#   make run      run the app with auto-reload
+#   make run      build the frontend and serve the app
 #   make check    format + lint + type-check + test
 #
 
@@ -41,8 +41,14 @@ else
   VENV_CREATE = $(UV) venv --seed --python $(SYS_PYTHON) $(VENV)
 endif
 
+# The frontend is optional: a Python-only environment has no npm, and `check`
+# skips the web targets rather than failing there.
+NPM := $(shell command -v npm 2>/dev/null)
+
 PORT ?= 7100
-HOST ?= 127.0.0.1
+# Every interface, so the app is reachable from another machine and from
+# outside a container. Set HOST=127.0.0.1 to keep it on loopback.
+HOST ?= 0.0.0.0
 
 include $(ROOT)/.devcontainer/devcontainer.mk
 
@@ -62,10 +68,11 @@ help:
 	@echo "    make dev-status       show whether the devcontainer is running"
 	@echo ""
 	@echo "  Develop"
-	@echo "    make run              run the app with auto-reload (port $(PORT))"
-	@echo "    make serve            run the app without reload"
+	@echo "    make run              build the frontend and serve (port $(PORT))"
+	@echo "    make serve            the same, with auto-reload"
 	@echo "    make web              build the frontend bundle"
 	@echo "    make web-dev          frontend dev server with hot reload"
+	@echo "    make web-check        lint and test the frontend"
 	@echo ""
 	@echo "  Suites"
 	@echo "    make new-suite NAME=x scaffold a suite (TEMPLATE=python|shell)"
@@ -75,11 +82,13 @@ help:
 	@echo "    make verify-run       ...and execute each conformance profile"
 	@echo ""
 	@echo "  Quality"
-	@echo "    make check            format-check + lint + typecheck + test"
+	@echo "    make check            format-check + lint + typecheck + test + web-check"
 	@echo "    make format           auto-format"
 	@echo "    make lint             ruff"
 	@echo "    make typecheck        mypy"
 	@echo "    make test             pytest with coverage"
+	@echo "    make test-e2e         drive a real suite run end to end"
+	@echo "    make test-suites      each suite's own tests"
 	@echo ""
 	@echo "  Docs"
 	@echo "    make schemas          print contract schema names"
@@ -125,29 +134,44 @@ ensure-setup:
 # Develop
 # ---------------------------------------------------------------------------
 
-.PHONY: run
-run: ensure-setup ## Run with auto-reload
-	@$(BIN)/gauntlet serve --host $(HOST) --port $(PORT) --reload
+# The app serves whatever bundle is on disk and falls back to a link to /docs
+# when there is none, so building here is a convenience, not a requirement.
+.PHONY: web-bundle
+# Always rebuilds, so `make run` alone is enough after any change. Without npm
+# the bundle cannot be built and the app serves the API only.
+web-bundle:
+	@if [ -n "$(NPM)" ]; then \
+		$(MAKE) --no-print-directory web; \
+	else \
+		echo "npm is not installed; serving the API without the frontend"; \
+	fi
 
-.PHONY: serve
-serve: ensure-setup ## Run without reload
+.PHONY: run
+run: ensure-setup web-bundle ## Set up, build the frontend, and serve
+	@echo "Gauntlet   http://$(if $(filter 0.0.0.0,$(HOST)),localhost,$(HOST)):$(PORT)"
 	@$(BIN)/gauntlet serve --host $(HOST) --port $(PORT)
 
+.PHONY: serve
+serve: ensure-setup web-bundle ## Serve with auto-reload, for working on the app
+	@$(BIN)/gauntlet serve --host $(HOST) --port $(PORT) --reload
+
+.PHONY: web-install
+web-install:
+	@test -n "$(NPM)" || { echo "npm is not installed"; exit 2; }
+	@test -d $(WEB)/node_modules || \
+		(cd $(WEB) && npm install --no-audit --no-fund --loglevel=warn)
+
 .PHONY: web
-web: ## Build the frontend bundle
-	@if [ ! -d "$(WEB)" ]; then \
-		echo "No web/ directory yet. The API is at http://$(HOST):$(PORT)/docs"; \
-	else \
-		cd $(WEB) && npm install --no-audit --no-fund --loglevel=warn && npm run build; \
-	fi
+web: web-install ## Build the frontend bundle into the app package
+	@cd $(WEB) && npm run build
 
 .PHONY: web-dev
-web-dev: ## Frontend dev server with hot reload
-	@if [ ! -d "$(WEB)" ]; then \
-		echo "No web/ directory yet."; \
-		exit 1; \
-	fi
+web-dev: web-install ## Frontend dev server on 7101, proxying /api to $(PORT)
 	@cd $(WEB) && npm run dev
+
+.PHONY: web-check
+web-check: web-install ## Format-check, lint and test the frontend
+	@cd $(WEB) && npm run format-check && npm run lint && npm run test
 
 # ---------------------------------------------------------------------------
 # Suites
@@ -179,7 +203,12 @@ verify-run: ensure-setup ## Contract checks including a real run of each conform
 # ---------------------------------------------------------------------------
 
 .PHONY: check
-check: format-check lint typecheck test ## Everything CI runs
+check: format-check lint typecheck test test-suites ## Everything CI runs
+	@if [ -n "$(NPM)" ]; then \
+		$(MAKE) --no-print-directory web-check; \
+	else \
+		echo "==> skipping frontend checks: npm is not installed"; \
+	fi
 
 .PHONY: format
 format: ensure-setup ## Auto-format
@@ -195,16 +224,33 @@ lint: ensure-setup ## Lint
 	@$(BIN)/ruff check $(SDK) $(APP) $(SUITES)
 
 .PHONY: typecheck
-typecheck: ensure-setup ## Type-check both packages
-	@$(BIN)/mypy --config-file $(ROOT)/mypy.ini $(SDK)/src $(APP)/src
+typecheck: ensure-setup ## Type-check both packages and every suite
+	@$(BIN)/mypy --config-file $(ROOT)/mypy.ini $(SDK)/src $(APP)/src $(SUITES)
 
 .PHONY: test
 test: ensure-setup ## Run tests with coverage
-	@$(BIN)/pytest $(SDK)/tests $(APP)/tests \
+	@$(BIN)/pytest $(SDK)/tests $(APP)/tests -m "not e2e" \
 		--cov=gauntlet --cov=gauntlet_suite \
 		--cov-report=term-missing:skip-covered \
 		--cov-report=xml:$(ROOT)/build/coverage.xml \
 		--junitxml=$(ROOT)/build/junit.xml
+
+# Spawns the system_stats suite as a real subprocess and consumes its event
+# stream, so it takes seconds rather than milliseconds and `test` leaves it out.
+.PHONY: test-e2e
+test-e2e: ensure-setup ## Run the end-to-end test against a real suite
+	@$(BIN)/pytest $(APP)/tests -m e2e
+
+# Every suite's tests import a package literally named `suite`, so two suites
+# cannot share one pytest process. Each gets its own, rooted at its directory.
+.PHONY: test-suites
+test-suites: ensure-setup ## Run each suite's own tests
+	@for tests in $(SUITES)/*/tests; do \
+		test -d "$$tests" || continue; \
+		suite=$$(dirname "$$tests"); \
+		echo "==> $$(basename $$suite)"; \
+		(cd "$$suite" && $(BIN)/pytest tests -q -p no:cacheprovider) || exit 1; \
+	done
 
 # ---------------------------------------------------------------------------
 # Docs

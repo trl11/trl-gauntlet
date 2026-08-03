@@ -46,6 +46,12 @@
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/gauntlet,type=bind,consistency=cached",
 
   // 7100 is the app; 7101 is reserved for the frontend dev server.
+  //
+  // forwardPorts tunnels through the editor and only reaches the machine the
+  // editor runs on. appPort publishes the same ports on the Docker host, so a
+  // browser on another machine can reach them. Both need the server bound to
+  // every interface: `make run HOST=0.0.0.0`.
+  "appPort": ["7100:7100", "7101:7101"],
   "forwardPorts": [7100, 7101],
   "portsAttributes": {
     "7100": { "label": "Gauntlet", "onAutoForward": "notify" },

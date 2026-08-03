@@ -12,12 +12,18 @@ coverage.xml
 # Build output
 build/
 dist/
-packages/gauntlet/src/gauntlet/web_dist/
+tmp/
 
 # Run artifacts and local settings
 output/
 gauntlet-runs/
 .env
 
+# Screenshots written by `npm run screenshots`
+files/
+
 # Frontend
 node_modules/
+web/node_modules/
+web/dist/
+packages/gauntlet/src/gauntlet/web_dist/
