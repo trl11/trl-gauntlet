@@ -2,9 +2,12 @@
 # after a # are ignored. The devcontainer installs these at image build time;
 # a bare host wanting to run the suites needs the same set.
 #
-# Gauntlet itself needs none of these. They belong to the transports the
-# built-in suites drive, so a checkout that only runs the mock profiles will
-# not miss them.
+# Apart from lsof, none of these are Gauntlet's own. They belong to the
+# transports the built-in suites drive, so a checkout that only runs the mock
+# profiles will not miss them.
+
+# `make stop` finds the server by the port it listens on.
+lsof
 
 # ssd, ethernet, hardware_trigger reach a unit over SSH.
 openssh-client

@@ -186,6 +186,7 @@ confusing `bad interpreter`.
 | `make dev` / `make dev-stop` / `make dev-status` | Start, stop, or query the devcontainer |
 | `make run` | Build the frontend and serve on `$(PORT)`, default 7100 |
 | `make serve` | The same, with auto-reload |
+| `make stop` | Stop the server either started, and any suite it was running |
 | `make web` | Build the frontend bundle |
 | `make web-dev` | Frontend dev server on 7101, proxying `/api` to 7100 |
 | `make web-check` | `prettier --check`, eslint, `tsc --noEmit`, vitest |

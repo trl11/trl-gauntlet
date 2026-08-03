@@ -66,6 +66,7 @@ behind a toggle below 900px. There is no sidebar.
 | Devcontainer | `make dev` / `make dev-stop` |
 | Build the frontend and serve | `make run` |
 | Same, with auto-reload | `make serve` |
+| Stop what either started | `make stop` |
 | Frontend dev server on 7101 | `make web-dev` |
 | Everything CI runs | `make check` |
 | Python tests only | `make test` / `make test-suites` |

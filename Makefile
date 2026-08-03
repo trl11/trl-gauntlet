@@ -46,6 +46,8 @@ endif
 NPM := $(shell command -v npm 2>/dev/null)
 
 PORT ?= 7100
+# The port `make web-dev` serves the frontend on, declared in web/vite.config.ts.
+WEB_PORT ?= 7101
 # Every interface, so the app is reachable from another machine and from
 # outside a container. Set HOST=127.0.0.1 to keep it on loopback.
 HOST ?= 0.0.0.0
@@ -70,6 +72,7 @@ help:
 	@echo "  Develop"
 	@echo "    make run              build the frontend and serve (port $(PORT))"
 	@echo "    make serve            the same, with auto-reload"
+	@echo "    make stop             stop what run or serve started"
 	@echo "    make web              build the frontend bundle"
 	@echo "    make web-dev          frontend dev server with hot reload"
 	@echo "    make web-check        lint and test the frontend"
@@ -154,6 +157,40 @@ run: ensure-setup web-bundle ## Set up, build the frontend, and serve
 .PHONY: serve
 serve: ensure-setup web-bundle ## Serve with auto-reload, for working on the app
 	@$(BIN)/gauntlet serve --host $(HOST) --port $(PORT) --reload
+
+# Kills the process group, so a reloader and any suite the run spawned go with
+# the server rather than being left behind. Run artifacts are kept; only the
+# scratch profiles written for inline-profile runs are removed.
+.PHONY: stop
+stop: ## Stop what `make run` or `make serve` started, and clear its scratch files
+	@own=$$(ps -o pgid= -p $$$$ | tr -d ' '); \
+	stopped=0; \
+	for port in $(PORT) $(WEB_PORT); do \
+		for pid in $$(lsof -t -iTCP:$$port -sTCP:LISTEN 2>/dev/null); do \
+			pgid=$$(ps -o pgid= -p $$pid 2>/dev/null | tr -d ' '); \
+			[ -n "$$pgid" ] || continue; \
+			if [ "$$pgid" = "$$own" ]; then \
+				echo "port $$port: skipping pid $$pid, it shares this shell's process group"; \
+				continue; \
+			fi; \
+			kill -TERM -$$pgid 2>/dev/null || true; \
+			for _ in 1 2 3 4 5 6 7 8 9 10; do \
+				kill -0 $$pid 2>/dev/null || break; \
+				sleep 0.5; \
+			done; \
+			if kill -0 $$pid 2>/dev/null; then kill -KILL -$$pgid 2>/dev/null || true; fi; \
+			echo "stopped pid $$pid on port $$port"; \
+			stopped=1; \
+		done; \
+	done; \
+	[ "$$stopped" = "1" ] || echo "nothing was listening on $(PORT) or $(WEB_PORT)"
+	@if [ -x $(PY) ]; then \
+		runs=$$($(PY) -c "from gauntlet.config import load_settings; print(load_settings().runs_dir)" 2>/dev/null); \
+		if [ -n "$$runs" ] && [ -d "$$runs/_scratch" ]; then \
+			rm -rf "$$runs/_scratch"; \
+			echo "removed $$runs/_scratch"; \
+		fi; \
+	fi
 
 .PHONY: web-install
 web-install:
