@@ -4,10 +4,10 @@
  */
 
 import type { LogLevel, MetricsRecord } from "@api/types";
+import type { PhaseRow } from "@components/IterationMap";
 import type { IterationRow } from "@components/IterationTable";
 import type { LogLine } from "@components/LogStream";
 import type { MetricSample } from "@components/MetricsChart";
-import type { PhaseRow } from "@components/PhaseTimeline";
 import { toDate } from "./format";
 
 /** A probe reading outside its envelope, live or replayed. */

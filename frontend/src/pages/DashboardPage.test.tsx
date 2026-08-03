@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Instrument, RunRow, Suite, SystemData } from "@api/types";
+import type { Instrument, RunRow, Suite, SystemData, Unit } from "@api/types";
 
 import DashboardPage from "./DashboardPage";
 import { pending, spinners } from "../test/queries";
@@ -15,6 +15,7 @@ const listCapabilities = vi.fn();
 const listInstruments = vi.fn();
 const listRuns = vi.fn();
 const listSuites = vi.fn();
+const listUnits = vi.fn();
 const stopRun = vi.fn();
 
 vi.mock("@api/client", async (importOriginal) => {
@@ -27,6 +28,7 @@ vi.mock("@api/client", async (importOriginal) => {
     listInstruments: () => listInstruments(),
     listRuns: (...args: unknown[]) => listRuns(...args),
     listSuites: () => listSuites(),
+    listUnits: () => listUnits(),
     stopRun: (...args: unknown[]) => stopRun(...args),
   };
 });
@@ -79,6 +81,20 @@ function instrument(): Instrument {
   };
 }
 
+function unit(overrides: Partial<Unit> = {}): Unit {
+  return {
+    failed: 2,
+    first_seen: "2026-01-01T00:00:00Z",
+    last_run: { ended_at: "2026-01-08T09:00:00Z", run_id: "r1", status: "passed", suite: "s" },
+    last_seen: "2026-01-08T09:00:00Z",
+    note_count: 0,
+    passed: 5,
+    run_count: 7,
+    serial: "HC-001",
+    ...overrides,
+  };
+}
+
 function suite(): Suite {
   return {
     apiVersion: 1,
@@ -104,6 +120,12 @@ function suite(): Suite {
   };
 }
 
+/** The units table, which the page renders alongside the recent runs table. */
+async function unitsTable(): Promise<HTMLElement> {
+  const header = await screen.findByRole("columnheader", { name: "Last tested" });
+  return header.closest("table") as HTMLElement;
+}
+
 function renderDashboard() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -124,6 +146,7 @@ beforeEach(() => {
   listInstruments.mockResolvedValue({ instruments: [instrument()] });
   listRuns.mockResolvedValue({ runs: [run()] });
   listSuites.mockResolvedValue({ errors: [], suites: [suite()] });
+  listUnits.mockResolvedValue({ units: [unit()] });
   stopRun.mockResolvedValue({ run_id: "r2", status: "stopping" });
 });
 
@@ -134,9 +157,40 @@ afterEach(() => {
 describe("DashboardPage", () => {
   it("says so when nothing is running and nothing has been on the bench", async () => {
     listRuns.mockResolvedValue({ runs: [] });
+    listUnits.mockResolvedValue({ units: [] });
     renderDashboard();
     expect(await screen.findByText("Nothing running")).toBeInTheDocument();
     expect(screen.getByText("No unit has been on the bench yet.")).toBeInTheDocument();
+  });
+
+  it("heads each column of the units table", async () => {
+    renderDashboard();
+    const table = await unitsTable();
+    for (const header of ["Serial", "Last tested", "Runs", "Passed", "Failed", "Last run"]) {
+      expect(within(table).getByRole("columnheader", { name: header })).toBeInTheDocument();
+    }
+  });
+
+  it("counts every run of a unit, not only the ones the dashboard lists", async () => {
+    renderDashboard();
+    const rows = within(await unitsTable()).getAllByRole("row");
+    expect(rows[1]).toHaveTextContent("7");
+    expect(rows[1]).toHaveTextContent("5");
+    expect(rows[1]).toHaveTextContent("2");
+  });
+
+  it("orders the units by when each was last tested", async () => {
+    listUnits.mockResolvedValue({
+      units: [
+        unit({ last_seen: "2026-01-02T00:00:00Z", serial: "OLDER" }),
+        unit({ last_seen: "2026-01-09T00:00:00Z", serial: "NEWER" }),
+      ],
+    });
+    renderDashboard();
+    const serials = within(await unitsTable())
+      .getAllByRole("link")
+      .map((link) => link.textContent);
+    expect(serials).toEqual(["NEWER", "OLDER"]);
   });
 
   it("shows the last unit under test when no run is in flight", async () => {
@@ -213,9 +267,10 @@ describe("DashboardPage", () => {
     listInstruments.mockReturnValue(pending());
     listRuns.mockReturnValue(pending());
     listSuites.mockReturnValue(pending());
+    listUnits.mockReturnValue(pending());
     renderDashboard();
-    // Host health, the active-run card, and the instrument list.
-    expect(spinners()).toHaveLength(3);
+    // Host health, the active-run card, the instrument list and the units table.
+    expect(spinners()).toHaveLength(4);
     expect(screen.queryByText("Nothing running")).not.toBeInTheDocument();
   });
 

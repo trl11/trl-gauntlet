@@ -129,7 +129,7 @@ describe("RunPage", () => {
   it("hydrates the verdict of a finished run from the stored files", async () => {
     renderPage();
     expect(await screen.findByText("FAILED")).toBeInTheDocument();
-    expect(screen.getByLabelText("Phases")).toBeInTheDocument();
+    expect(screen.getByLabelText("Iterations")).toBeInTheDocument();
     expect(screen.getByText("bench-1")).toBeInTheDocument();
   });
 

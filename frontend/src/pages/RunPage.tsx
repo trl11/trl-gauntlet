@@ -20,12 +20,12 @@ import {
 import ArtifactList from "@components/ArtifactList";
 import DefinitionRows from "@components/DefinitionRows";
 import EmptyState from "@components/EmptyState";
+import IterationMap from "@components/IterationMap";
 import IterationTable from "@components/IterationTable";
 import LogStream from "@components/LogStream";
 import MetricsChart from "@components/MetricsChart";
 import NotesPanel from "@components/NotesPanel";
 import PageHeader from "@components/PageHeader";
-import PhaseTimeline from "@components/PhaseTimeline";
 import StatusPill from "@components/StatusPill";
 import VerdictSummary from "@components/VerdictSummary";
 import useEventStream from "@hooks/useEventStream";
@@ -45,12 +45,13 @@ const TABS = ["overview", "log", "metrics", "iterations", "artifacts", "notes"] 
 
 type Tab = (typeof TABS)[number];
 
-/** One run: its log, metrics, phases, iterations, artifacts, verdict and notes. */
+/** One run: its log, metrics, iterations, artifacts, verdict and notes. */
 export const RunPage: React.FC = () => {
   const { runId = "" } = useParams<{ runId: string }>();
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("overview");
   const [pending, setPending] = useState<"abort" | "stop" | null>(null);
+  const [selected, setSelected] = useState<number | null>(null);
 
   const run = useQuery({
     queryKey: ["run", runId],
@@ -242,8 +243,15 @@ export const RunPage: React.FC = () => {
         {tab === "overview" && (
           <div className="run-page__overview">
             <VerdictSummary verdict={outcome} summaryText={summaryFile.data ?? null} />
-            <h2 className="run-page__section">Phases</h2>
-            <PhaseTimeline phases={phases} />
+            <h2 className="run-page__section">Iterations</h2>
+            <IterationMap
+              iterations={iterations}
+              phases={phases}
+              onSelect={(iteration) => {
+                setSelected(iteration);
+                setTab("iterations");
+              }}
+            />
             {manifest.data && (
               <>
                 <h2 className="run-page__section">Provenance</h2>
@@ -262,7 +270,9 @@ export const RunPage: React.FC = () => {
 
         {tab === "log" && <LogStream lines={logs} name={detail.run_id} />}
         {tab === "metrics" && <MetricsChart samples={samples} />}
-        {tab === "iterations" && <IterationTable iterations={iterations} samples={samples} />}
+        {tab === "iterations" && (
+          <IterationTable iterations={iterations} samples={samples} selected={selected} />
+        )}
         {tab === "artifacts" && <ArtifactList runId={runId} live={live} />}
         {tab === "notes" && (
           <NotesPanel

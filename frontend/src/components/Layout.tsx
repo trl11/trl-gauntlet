@@ -1,3 +1,4 @@
+import type { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 import {
   faBars,
   faChartLine,
@@ -13,7 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@trl11/components/ui";
 import clsx from "clsx";
 import { useEffect, useState } from "react";
-import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import { Link, Outlet, useLocation, useNavigate } from "react-router";
 
 import { getVersion, listRuns } from "@api/client";
 import type { RunRow } from "@api/types";
@@ -27,9 +28,17 @@ import { isLive } from "../utils/run_status";
 
 import "./Layout.scss";
 
-const NAV = [
+/** One tab: where it goes, and any route outside its own subtree it owns. */
+interface NavItem {
+  icon: IconDefinition;
+  label: string;
+  owns?: string;
+  path: string;
+}
+
+const NAV: NavItem[] = [
   { icon: faChartLine, label: "Dashboard", path: "/" },
-  { icon: faClockRotateLeft, label: "History", path: "/history" },
+  { icon: faClockRotateLeft, label: "History", owns: "/runs/", path: "/history" },
   { icon: faPlay, label: "Tests", path: "/tests" },
   { icon: faMicrochip, label: "Units", path: "/units" },
   { icon: faSliders, label: "Instruments", path: "/instruments" },
@@ -38,6 +47,16 @@ const NAV = [
 
 function activeRun(runs: RunRow[] | undefined): RunRow | null {
   return runs?.find((run) => isLive(run.status)) ?? null;
+}
+
+/**
+ * Whether a tab owns a path: its own route and anything below it, plus the
+ * route it claims. A run view is reached from anywhere, so History holds it.
+ */
+function isTabActive(item: NavItem, pathname: string): boolean {
+  if (item.owns && pathname.startsWith(item.owns)) return true;
+  if (item.path === "/") return pathname === "/";
+  return pathname === item.path || pathname.startsWith(`${item.path}/`);
 }
 
 /** The app shell: top tab bar, live-run indicator, routed page. */
@@ -64,10 +83,13 @@ export const Layout: React.FC = () => {
       </a>
 
       <nav className="layout__bar" aria-label="Primary">
-        <Link to="/" className="layout__brand">
-          <img src={logo} alt="" width={26} height={26} />
-          <span className="layout__wordmark">Gauntlet</span>
-        </Link>
+        <div className="layout__brand-group">
+          <Link to="/" className="layout__brand">
+            <img src={logo} alt="" width={26} height={26} />
+            <span className="layout__wordmark">Gauntlet</span>
+          </Link>
+          {version.data && <span className="layout__version">{`v${version.data.gauntlet}`}</span>}
+        </div>
 
         <Button
           className="layout__tabs-toggle"
@@ -81,18 +103,21 @@ export const Layout: React.FC = () => {
         </Button>
 
         <ul id="primary-tabs" className={clsx("layout__tabs", tabsOpen && "is-open")}>
-          {NAV.map((item) => (
-            <li key={item.path}>
-              <NavLink
-                to={item.path}
-                end={item.path === "/"}
-                className={({ isActive }) => clsx("layout__tab", isActive && "is-active")}
-              >
-                <FontAwesomeIcon icon={item.icon} aria-hidden="true" fixedWidth />
-                <span>{item.label}</span>
-              </NavLink>
-            </li>
-          ))}
+          {NAV.map((item) => {
+            const active = isTabActive(item, location.pathname);
+            return (
+              <li key={item.path}>
+                <Link
+                  to={item.path}
+                  aria-current={active ? "page" : undefined}
+                  className={clsx("layout__tab", active && "is-active")}
+                >
+                  <FontAwesomeIcon icon={item.icon} aria-hidden="true" fixedWidth />
+                  <span>{item.label}</span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
 
         <div className="layout__bar-end">
@@ -111,8 +136,6 @@ export const Layout: React.FC = () => {
             <FontAwesomeIcon icon={faPlay} />
             Run a test
           </Button>
-
-          {version.data && <span className="layout__version">{`v${version.data.gauntlet}`}</span>}
         </div>
       </nav>
 

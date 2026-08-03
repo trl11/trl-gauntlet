@@ -69,8 +69,8 @@ Inside `frontend/src`: `api/` (client and types), `components/`, `hooks/`,
 `utils/`. Aliases `@api @assets @components @hooks @pages @styles @trl11` are
 declared in both `vite.config.ts` and `tsconfig.json` and must agree.
 
-Navigation is a fixed top tab bar: brand on the left, one tab per page, then the
-live run, a "Run a test" button and the version on the right. It collapses
+Navigation is a fixed top tab bar: brand and version on the left, one tab per
+page, then the live run and a "Run a test" button on the right. It collapses
 behind a toggle below 900px. There is no sidebar.
 
 ## Commands

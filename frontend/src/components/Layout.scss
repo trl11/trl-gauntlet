@@ -35,6 +35,12 @@ $collapse-at: 900px;
     z-index: 100;
   }
 
+  &__brand-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   &__brand {
     display: flex;
     align-items: center;

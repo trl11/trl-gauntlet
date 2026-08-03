@@ -219,10 +219,10 @@ function withoutGeneratedIds(html: string): string {
 /** Everything one render of one tab put on the page. */
 interface Capture {
   anomalies: string;
+  iterationMap: string;
   logLines: string[];
   logTimes: string[];
   panel: string;
-  phases: string;
   provenance: boolean;
   series: number;
   verdict: string;
@@ -239,6 +239,7 @@ async function capture(tab: string): Promise<Capture> {
   const rows = document.querySelectorAll(".log-stream__row");
   return {
     anomalies: withoutGeneratedIds(screen.getByRole("region", { name: "Anomalies" }).innerHTML),
+    iterationMap: screen.queryByRole("region", { name: "Iterations" })?.innerHTML ?? "",
     logLines: [...rows].map(
       (row) =>
         `${row.querySelector(".log-stream__level")?.textContent} ` +
@@ -246,7 +247,6 @@ async function capture(tab: string): Promise<Capture> {
     ),
     logTimes: [...rows].map((row) => row.querySelector(".log-stream__time")?.textContent ?? ""),
     panel: withoutGeneratedIds(screen.getByRole("tabpanel").innerHTML),
-    phases: screen.queryByRole("region", { name: "Phases" })?.innerHTML ?? "",
     provenance: screen.queryByText("Provenance") !== null,
     series: screen.queryAllByLabelText("rail.volts").length,
     verdict: screen.queryByRole("region", { name: "Verdict" })?.innerHTML ?? "",
@@ -331,11 +331,11 @@ describe("RunPage renders a run the same live and from history", () => {
     expect(live.verdict).toBe(stored.verdict);
   });
 
-  it("draws the same phases", async () => {
+  it("draws the same iteration map", async () => {
     const live = await fromStream("overview");
     const stored = await fromHistory("overview");
-    expect(live.phases).toContain("soak");
-    expect(live.phases).toBe(stored.phases);
+    expect(live.iterationMap).toContain("#1 · passed");
+    expect(live.iterationMap).toBe(stored.iterationMap);
   });
 
   it("names the host only once the run has finished", async () => {

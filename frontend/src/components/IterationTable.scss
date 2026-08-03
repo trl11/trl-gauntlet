@@ -26,7 +26,10 @@
 
   &__scroll {
     overflow-x: auto;
-    max-height: 460px;
+    // The run header, the tabs and these controls sit above; the rest of the
+    // window is the table, however many iterations it holds.
+    max-height: calc(100vh - 420px);
+    min-height: 280px;
     overflow-y: auto;
     border: 1px solid $trl-dark-gray;
   }
@@ -61,6 +64,11 @@
 
       &:last-child {
         border-bottom: none;
+      }
+
+      &.is-selected {
+        background-color: rgba($indicator-blue, 0.14);
+        box-shadow: inset 2px 0 0 $indicator-blue;
       }
     }
   }

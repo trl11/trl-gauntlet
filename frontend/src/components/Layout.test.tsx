@@ -89,6 +89,21 @@ describe("Layout", () => {
     const { container } = renderLayout("/tests");
     const active = container.querySelector(".layout__tab.is-active");
     expect(active).toHaveTextContent("Tests");
+    expect(active).toHaveAttribute("aria-current", "page");
+  });
+
+  it("keeps History active on a run view, whatever page reached it", () => {
+    const { container } = renderLayout("/runs/20260101T000000Z-0001");
+    const active = container.querySelectorAll(".layout__tab.is-active");
+    expect(active).toHaveLength(1);
+    expect(active[0]).toHaveTextContent("History");
+  });
+
+  it("leaves the dashboard tab inactive on every other route", () => {
+    const { container } = renderLayout("/tests");
+    const dashboard = screen.getByRole("link", { name: "Dashboard" });
+    expect(dashboard).not.toHaveClass("is-active");
+    expect(container.querySelectorAll(".layout__tab.is-active")).toHaveLength(1);
   });
 
   it("renders the routed page through the outlet", () => {

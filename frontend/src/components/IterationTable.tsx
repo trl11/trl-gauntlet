@@ -1,5 +1,6 @@
 import { Badge, Checkbox } from "@trl11/components/ui";
-import { useId, useMemo, useState } from "react";
+import clsx from "clsx";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { formatDuration, formatNumber } from "../utils/format";
 import type { MetricSample } from "./MetricsChart";
@@ -21,6 +22,8 @@ export interface IterationTableProps {
   iterations: IterationRow[];
   /** Metric samples, used to show the values recorded against each iteration. */
   samples: MetricSample[];
+  /** Iteration to scroll to and mark, set when one is opened from elsewhere. */
+  selected?: number | null;
 }
 
 /** The last sample reported for each iteration number. */
@@ -39,9 +42,14 @@ function valuesByIteration(samples: MetricSample[]): Map<number, Record<string, 
  * `elapsed_run_s` counts from the start of the run, so one iteration's own
  * duration is the gap to the iteration before it.
  */
-export const IterationTable: React.FC<IterationTableProps> = ({ iterations, samples }) => {
+export const IterationTable: React.FC<IterationTableProps> = ({
+  iterations,
+  samples,
+  selected = null,
+}) => {
   const fieldId = useId();
   const [failuresOnly, setFailuresOnly] = useState(false);
+  const rows = useRef(new Map<number, HTMLTableRowElement>());
 
   const values = useMemo(() => valuesByIteration(samples), [samples]);
   const timed = useMemo(
@@ -54,6 +62,11 @@ export const IterationTable: React.FC<IterationTableProps> = ({ iterations, samp
   );
   const shown = failuresOnly ? timed.filter((entry) => !entry.row.success) : timed;
   const failures = iterations.filter((row) => !row.success).length;
+
+  useEffect(() => {
+    if (selected == null) return;
+    rows.current.get(selected)?.scrollIntoView({ block: "center" });
+  }, [failuresOnly, iterations, selected]);
 
   if (iterations.length === 0) {
     return <p className="iteration-table__empty">No iterations have completed yet.</p>;
@@ -88,7 +101,15 @@ export const IterationTable: React.FC<IterationTableProps> = ({ iterations, samp
             {shown.map(({ duration, row }, index) => {
               const sample = row.iteration == null ? undefined : values.get(row.iteration);
               return (
-                <tr key={`${row.iteration}-${index}`}>
+                <tr
+                  className={clsx(row.iteration === selected && "is-selected")}
+                  key={`${row.iteration}-${index}`}
+                  ref={(node) => {
+                    if (row.iteration == null) return;
+                    if (node) rows.current.set(row.iteration, node);
+                    else rows.current.delete(row.iteration);
+                  }}
+                >
                   <td className="iteration-table__mono">{row.iteration ?? "-"}</td>
                   <td>
                     <Badge color={row.success ? "green" : "red"}>

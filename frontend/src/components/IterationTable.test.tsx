@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import IterationTable, { type IterationRow } from "./IterationTable";
 import type { MetricSample } from "./MetricsChart";
@@ -46,6 +46,17 @@ describe("IterationTable", () => {
     await userEvent.click(screen.getByLabelText("Failures only"));
     expect(screen.getAllByRole("row")).toHaveLength(2);
     expect(screen.queryByText("PASS")).not.toBeInTheDocument();
+  });
+
+  it("marks and scrolls to the iteration it was opened at", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    const { container } = render(
+      <IterationTable iterations={ITERATIONS} samples={SAMPLES} selected={2} />
+    );
+    expect(container.querySelectorAll("tr.is-selected")).toHaveLength(1);
+    expect(container.querySelector("tr.is-selected")).toHaveTextContent("rail low");
+    expect(scrollIntoView).toHaveBeenCalled();
   });
 
   it("says so when a filter to failures leaves nothing", async () => {
