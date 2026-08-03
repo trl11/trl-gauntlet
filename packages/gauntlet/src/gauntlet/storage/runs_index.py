@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-_SCHEMA = """
+RUNS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
     run_id      TEXT PRIMARY KEY,
     suite       TEXT NOT NULL,
@@ -46,6 +46,61 @@ _COLUMNS = (
     "unit_serial",
     "run_dir",
 )
+
+#: Columns :meth:`RunsIndex.list` will sort by. Anything else falls back to
+#: ``started_at``, so caller text never reaches the statement.
+SORT_COLUMNS = frozenset(
+    {
+        "duration_s",
+        "ended_at",
+        "profile",
+        "run_id",
+        "started_at",
+        "status",
+        "suite",
+        "unit_serial",
+    }
+)
+
+
+@dataclass(frozen=True)
+class RunFilters:
+    """Which runs a query is restricted to.
+
+    ``after`` and ``before`` are inclusive bounds compared against
+    ``started_at``. Both are ISO 8601, which sorts lexicographically, so a bare
+    date such as ``2026-08-03`` bounds a whole day.
+    """
+
+    suite: str | None = None
+    unit_serial: str | None = None
+    status: tuple[str, ...] = ()
+    after: str | None = None
+    before: str | None = None
+
+
+def _where(filters: RunFilters) -> tuple[str, list[Any]]:
+    """SQL ``WHERE`` clause and its parameters for one filter set."""
+    clauses: list[str] = []
+    params: list[Any] = []
+    if filters.suite:
+        clauses.append("suite = ?")
+        params.append(filters.suite)
+    if filters.unit_serial:
+        clauses.append("unit_serial = ?")
+        params.append(filters.unit_serial)
+    if filters.status:
+        clauses.append(f"status IN ({', '.join('?' for _ in filters.status)})")
+        params.extend(filters.status)
+    if filters.after:
+        clauses.append("started_at >= ?")
+        params.append(filters.after)
+    if filters.before:
+        # A bare date must include the whole day, so the bound is the largest
+        # string that starts with it.
+        clauses.append("started_at <= ?")
+        params.append(filters.before + "\uffff")
+    return (f"WHERE {' AND '.join(clauses)}" if clauses else "", params)
 
 
 @dataclass
@@ -89,7 +144,7 @@ class RunsIndex:
         path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
-        self._conn.executescript(_SCHEMA)
+        self._conn.executescript(RUNS_SCHEMA)
         self._conn.commit()
         self._lock = threading.Lock()
 
@@ -108,26 +163,33 @@ class RunsIndex:
             )
             self._conn.commit()
 
+    def count(self, filters: RunFilters | None = None) -> int:
+        """How many rows match, ignoring limit and offset."""
+        where, params = _where(filters or RunFilters())
+        with self._lock:
+            row = self._conn.execute(f"SELECT COUNT(*) FROM runs {where}", params).fetchone()
+        return int(row[0])
+
     def list(
         self,
+        filters: RunFilters | None = None,
         *,
-        suite: str | None = None,
-        unit_serial: str | None = None,
         limit: int = 100,
         offset: int = 0,
+        sort: str = "started_at",
+        descending: bool = True,
     ) -> list[RunRow]:
-        """Most recent runs first, optionally filtered."""
-        clauses, params = [], []
-        if suite:
-            clauses.append("suite = ?")
-            params.append(suite)
-        if unit_serial:
-            clauses.append("unit_serial = ?")
-            params.append(unit_serial)
-        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+        """Matching runs, sorted by one column.
+
+        An unknown sort column falls back to ``started_at`` rather than
+        interpolating caller text into the statement.
+        """
+        column = sort if sort in SORT_COLUMNS else "started_at"
+        order = "DESC" if descending else "ASC"
+        where, params = _where(filters or RunFilters())
         with self._lock:
             rows = self._conn.execute(
-                f"SELECT * FROM runs {where} ORDER BY started_at DESC LIMIT ? OFFSET ?",
+                f"SELECT * FROM runs {where} ORDER BY {column} {order}, run_id {order} LIMIT ? OFFSET ?",
                 [*params, limit, offset],
             ).fetchall()
         return [_to_row(r) for r in rows]
@@ -172,9 +234,12 @@ class RunsIndex:
 def _row_from_disk(run_dir: Path, verdict_path: Path) -> RunRow | None:
     verdict = _read_json(verdict_path) or {}
     manifest = _read_json(run_dir / "manifest.json") or {}
-    passed = bool(verdict.get("passed"))
-    aborted = bool(verdict.get("aborted"))
-    status = "passed" if passed else ("aborted" if aborted else "failed")
+    if verdict.get("passed"):
+        status, code = "passed", "PASS"
+    elif verdict.get("aborted"):
+        status, code = "aborted", "ABORTED"
+    else:
+        status, code = "failed", "FAIL"
     return RunRow(
         run_id=run_dir.name,
         suite=str(manifest.get("suite") or run_dir.parent.name),
@@ -183,7 +248,7 @@ def _row_from_disk(run_dir: Path, verdict_path: Path) -> RunRow | None:
         run_dir=str(run_dir),
         ended_at=str(verdict.get("ended_at_utc") or "") or None,
         duration_s=_as_float(verdict.get("duration_s")),
-        verdict="PASS" if passed else ("ABORTED" if aborted else "FAIL"),
+        verdict=code,
         fail_reason=str(verdict.get("reason") or "") or None,
         profile=_basename(manifest.get("profile_path")),
         target=_as_str(manifest.get("target")),

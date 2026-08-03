@@ -18,10 +18,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from gauntlet.api import artifacts, runs, suites, system
-from gauntlet.capabilities import CapabilityRegistry, MockInstrument
+from gauntlet.api import artifacts, instruments, runs, suites, system, units
+from gauntlet.capabilities import CapabilityRegistry, MockChamber, MockDaq, MockPsu
 from gauntlet.config import Settings, load_settings
-from gauntlet.storage import RunRow, RunsIndex
+from gauntlet.storage import NotesIndex, RunRow, RunsIndex, UnitsIndex
 from gauntlet.suites import SuiteCatalog, discover_suites
 from gauntlet.supervisor import RunHandle, RunSupervisor
 
@@ -68,10 +68,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     capabilities = CapabilityRegistry(api_base=settings.api_base)
     # Mock providers are registered by default and replaced by name when real
     # hardware is configured.
-    for name in ("chamber", "daq", "psu"):
-        capabilities.register(MockInstrument(name))
+    for instrument in (MockChamber(), MockDaq(), MockPsu()):
+        capabilities.register(instrument)
 
+    # Notes and units share the runs database: a unit is an aggregate over the
+    # runs table, and a note points at a row in one of the two.
     runs_index = RunsIndex(settings.runs_index_path)
+    notes_index = NotesIndex(settings.runs_index_path)
+    units_index = UnitsIndex(settings.runs_index_path, notes_index)
     stale = runs_index.reconcile_stale()
     if stale:
         log.warning("marked %d interrupted run(s) from a previous session", stale)
@@ -102,7 +106,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.catalog = current_catalog
     app.state.rescan = rescan
     app.state.capabilities = capabilities
+    app.state.notes_index = notes_index
     app.state.runs_index = runs_index
+    app.state.units_index = units_index
+    # The previous /proc/stat reading, which CPU percentages are measured
+    # against. Empty until the first request for system data takes one.
+    app.state.cpu_sample = {}
     app.state.supervisor = RunSupervisor(
         reports_base=settings.runs_dir,
         user_profiles_dir=settings.profiles_dir,
@@ -116,6 +125,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(suites.router, prefix="/api", tags=["suites"])
     app.include_router(runs.router, prefix="/api", tags=["runs"])
     app.include_router(artifacts.router, prefix="/api", tags=["artifacts"])
+    app.include_router(units.router, prefix="/api", tags=["units"])
+    app.include_router(instruments.router, prefix="/api", tags=["instruments"])
 
     _mount_frontend(app)
     return app

@@ -2,20 +2,39 @@
 
 from __future__ import annotations
 
+import difflib
 import json
 import subprocess
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from gauntlet_suite.contract import CONTRACT_MODELS, json_schema
+from pydantic import BaseModel, ConfigDict
 
 from gauntlet.conformance import verify_suite
-from gauntlet.suites import list_profiles, resolve_profile
+from gauntlet.suites import ProfileInfo, list_profiles, resolve_profile
 from gauntlet.supervisor.launcher import suite_environment
 
 router = APIRouter()
 
 _PROFILE_SCHEMA_TIMEOUT_S = 15.0
+
+
+class ProfileContentBody(BaseModel):
+    """Request body carrying edited profile text."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    content: str
+
+
+class ProfileNameBody(BaseModel):
+    """Request body naming a new profile."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
 
 
 def _catalog(request: Request) -> Any:
@@ -27,6 +46,38 @@ def _suite_or_404(request: Request, key: str) -> Any:
     if suite is None:
         raise HTTPException(status_code=404, detail=f"unknown suite {key!r}")
     return suite
+
+
+def _profile_filename(name: str) -> str:
+    """Normalize a profile name to a filename inside the suite's directory."""
+    if "/" in name or "\\" in name or name.startswith("."):
+        raise HTTPException(status_code=422, detail="invalid profile name")
+    return name if name.endswith((".yaml", ".yml")) else f"{name}.yaml"
+
+
+def _profile_info_or_404(request: Request, key: str, name: str) -> ProfileInfo:
+    """The listing entry for one profile, with where it came from."""
+    suite = _suite_or_404(request, key)
+    settings = request.app.state.settings
+    for info in list_profiles(suite, settings.profiles_dir):
+        if info.name == name or Path(info.name).stem == name:
+            return info
+    raise HTTPException(status_code=404, detail=f"profile {name!r} not found for suite {key!r}")
+
+
+def _write_profile(request: Request, key: str, filename: str, content: str) -> dict[str, Any]:
+    """Save profile text under the user profile directory.
+
+    Callers resolve the suite first; this only writes the file.
+    """
+    directory = request.app.state.settings.profiles_dir / key
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / filename
+    try:
+        path.write_text(content)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"name": filename, "path": str(path), "user_authored": True}
 
 
 @router.get("/suites")
@@ -112,23 +163,58 @@ async def put_profile(request: Request, key: str, name: str, payload: dict[str, 
 
     Writes to the user profile directory; a suite's own files are not modified.
     """
-    suite = _suite_or_404(request, key)
+    _suite_or_404(request, key)
     body = payload.get("body")
     if not isinstance(body, str):
         raise HTTPException(status_code=422, detail="`body` must be a string")
-    if "/" in name or "\\" in name or name.startswith("."):
-        raise HTTPException(status_code=422, detail="invalid profile name")
-    filename = name if name.endswith((".yaml", ".yml")) else f"{name}.yaml"
+    return _write_profile(request, key, _profile_filename(name), body)
 
-    settings = request.app.state.settings
-    directory = settings.profiles_dir / suite.key
-    directory.mkdir(parents=True, exist_ok=True)
-    path = directory / filename
+
+@router.delete("/suites/{key}/profiles/{name}")
+async def delete_profile(request: Request, key: str, name: str) -> dict[str, Any]:
+    """Delete an operator-authored profile. A suite's own files are protected."""
+    info = _profile_info_or_404(request, key, name)
+    if not info.user_authored:
+        raise HTTPException(status_code=409, detail=f"profile {info.name!r} ships with suite {key!r}")
     try:
-        path.write_text(body)
+        info.path.unlink()
     except OSError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return {"name": filename, "path": str(path), "user_authored": True}
+    return {"name": info.name, "deleted": True}
+
+
+@router.post("/suites/{key}/profiles/{name}/diff")
+async def post_profile_diff(request: Request, key: str, name: str, body: ProfileContentBody) -> dict[str, str]:
+    """Unified diff between edited profile text and the file on disk."""
+    info = _profile_info_or_404(request, key, name)
+    try:
+        current = info.path.read_text()
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    diff = difflib.unified_diff(
+        current.splitlines(),
+        body.content.splitlines(),
+        fromfile=f"a/{info.name}",
+        tofile=f"b/{info.name}",
+        lineterm="",
+    )
+    return {"diff": "\n".join(diff)}
+
+
+@router.post("/suites/{key}/profiles/{name}/duplicate", status_code=201)
+async def post_profile_duplicate(request: Request, key: str, name: str, body: ProfileNameBody) -> dict[str, Any]:
+    """Copy a profile under a new name into the user profile directory."""
+    info = _profile_info_or_404(request, key, name)
+    filename = _profile_filename(body.name)
+    suite = _suite_or_404(request, key)
+    settings = request.app.state.settings
+    if resolve_profile(suite, filename, settings.profiles_dir) is not None:
+        raise HTTPException(status_code=409, detail=f"profile {filename!r} already exists for suite {key!r}")
+    try:
+        content = info.path.read_text()
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return _write_profile(request, key, filename, content)
 
 
 @router.post("/suites/{key}/verify")

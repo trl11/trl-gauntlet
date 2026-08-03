@@ -6,13 +6,14 @@ import asyncio
 import contextlib
 import json
 from collections.abc import AsyncIterator
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
-from gauntlet.storage import RunRow
+from gauntlet.api.notes import NoteBody, add_note, delete_note, list_notes
+from gauntlet.storage import SUBJECT_RUN, RunFilters, RunRow
 from gauntlet.supervisor import Event, RunConflict, RunHandle, RunRejected, RunRequest
 
 router = APIRouter()
@@ -42,17 +43,35 @@ async def list_runs(
     request: Request,
     suite: str | None = None,
     unit_serial: str | None = None,
+    status: Annotated[list[str] | None, Query()] = None,
+    after: str | None = None,
+    before: str | None = None,
+    sort: str = "started_at",
+    direction: str = "desc",
     limit: int = 100,
     offset: int = 0,
 ) -> dict[str, Any]:
-    """Live runs first, then history from the index."""
+    """One page of run history.
+
+    ``status`` may be repeated to accept several. ``after`` and ``before`` are
+    inclusive bounds on ``started_at``, as a date or a full timestamp. ``total``
+    counts every run matching the filters, not just this page.
+    """
     supervisor = request.app.state.supervisor
     index = request.app.state.runs_index
-    live = {h.run_id: h.to_dict() for h in supervisor.list_runs()}
-    rows = index.list(suite=suite, unit_serial=unit_serial, limit=limit, offset=offset)
-    merged = [live.pop(row.run_id, row.to_dict()) for row in rows]
-    # Runs not yet in the index are live-only and are listed first.
-    return {"runs": [*live.values(), *merged]}
+    filters = RunFilters(
+        suite=suite,
+        unit_serial=unit_serial,
+        status=tuple(status or ()),
+        after=after,
+        before=before,
+    )
+    live = {h.run_id: h.to_dict() for h in supervisor.list_runs() if not h.finished}
+    rows = index.list(filters, limit=limit, offset=offset, sort=sort, descending=direction != "asc")
+    # A run is indexed as soon as it starts, so the in-flight handle stands in
+    # for its row and carries the fresher status. Once the run has finished the
+    # row wins, because that is what a rename or any later edit rewrites.
+    return {"runs": [live.get(row.run_id, row.to_dict()) for row in rows], "total": index.count(filters)}
 
 
 @router.post("/runs", status_code=201)
@@ -80,14 +99,42 @@ async def start_run(request: Request, body: StartRunBody) -> dict[str, Any]:
 
 @router.get("/runs/{run_id}")
 async def get_run(request: Request, run_id: str) -> dict[str, Any]:
-    """One run, live or from history."""
+    """One run, live or from history.
+
+    An in-flight run is answered from its handle, which carries the fresher
+    status and the argv it was spawned with. A finished run is answered from
+    the index, which is what a rename or any later edit rewrites.
+    """
     handle = request.app.state.supervisor.get(run_id)
-    if handle is not None:
+    if handle is not None and not handle.finished:
         return handle.to_dict()
     row = request.app.state.runs_index.get(run_id)
-    if row is None:
-        raise HTTPException(status_code=404, detail=f"unknown run {run_id!r}")
-    return row.to_dict()
+    if row is not None:
+        return row.to_dict()
+    if handle is not None:
+        return handle.to_dict()
+    raise HTTPException(status_code=404, detail=f"unknown run {run_id!r}")
+
+
+@router.get("/runs/{run_id}/notes")
+async def get_run_notes(request: Request, run_id: str) -> dict[str, Any]:
+    """Notes against one run."""
+    _run_or_404(request, run_id)
+    return list_notes(request, SUBJECT_RUN, run_id)
+
+
+@router.post("/runs/{run_id}/notes", status_code=201)
+async def post_run_note(request: Request, run_id: str, body: NoteBody) -> dict[str, Any]:
+    """Attach a note to one run."""
+    _run_or_404(request, run_id)
+    return add_note(request, SUBJECT_RUN, run_id, body)
+
+
+@router.delete("/runs/{run_id}/notes/{note_id}")
+async def delete_run_note(request: Request, run_id: str, note_id: int) -> dict[str, Any]:
+    """Remove one note from a run."""
+    _run_or_404(request, run_id)
+    return delete_note(request, SUBJECT_RUN, run_id, note_id)
 
 
 @router.post("/runs/{run_id}/stop")
@@ -132,6 +179,11 @@ async def _events(request: Request, handle: RunHandle, since: int) -> AsyncItera
     try:
         for replayed in replay:
             yield _frame(replayed.to_dict())
+        # A bus that closed before this subscription will never deliver the
+        # sentinel, so the replay is the whole stream.
+        if bus.closed:
+            yield _frame({"type": "end", "run_id": handle.run_id})
+            return
         while True:
             if await request.is_disconnected():
                 return
@@ -153,6 +205,14 @@ async def _events(request: Request, handle: RunHandle, since: int) -> AsyncItera
 
 def _frame(payload: dict[str, Any]) -> str:
     return f"event: {payload.get('type', 'message')}\ndata: {json.dumps(payload)}\n\n"
+
+
+def _run_or_404(request: Request, run_id: str) -> None:
+    """Reject a run id no live run and no history row answers to."""
+    if request.app.state.supervisor.get(run_id) is not None:
+        return
+    if request.app.state.runs_index.get(run_id) is None:
+        raise HTTPException(status_code=404, detail=f"unknown run {run_id!r}")
 
 
 def _to_row(handle: RunHandle) -> RunRow:

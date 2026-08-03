@@ -8,11 +8,15 @@ HTTP endpoint the suite drives in place of the device.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol, runtime_checkable
 
 
 class CapabilityError(RuntimeError):
     """A required capability is not available."""
+
+
+class CommandRejected(ValueError):
+    """A capability refused a command, because of its name or its arguments."""
 
 
 @dataclass(frozen=True)
@@ -33,7 +37,13 @@ class Grant:
 
 
 class CapabilityProvider(Protocol):
-    """Something that can satisfy a named capability."""
+    """Something that can satisfy a named capability.
+
+    These four members are the whole obligation. Reading, writing, reporting
+    state, and accepting commands are optional facets, each declared as its own
+    runtime-checkable protocol below; callers test for them and degrade when a
+    provider does not implement one.
+    """
 
     @property
     def name(self) -> str: ...
@@ -46,6 +56,76 @@ class CapabilityProvider(Protocol):
 
     def instance_id(self) -> str:
         """Identifier the suite addresses through the API."""
+
+
+@runtime_checkable
+class ReadableCapability(Protocol):
+    """A provider whose current values can be read."""
+
+    def read(self) -> dict[str, Any]:
+        """Current values."""
+
+
+@runtime_checkable
+class WritableCapability(Protocol):
+    """A provider that accepts settings."""
+
+    def write(self, values: dict[str, Any]) -> dict[str, Any]:
+        """Apply settings and return the resulting values."""
+
+
+@runtime_checkable
+class StatefulCapability(Protocol):
+    """A provider that publishes structured state for the operator UI."""
+
+    def state(self) -> dict[str, Any]:
+        """Everything the UI renders for this instrument."""
+
+
+@runtime_checkable
+class CommandableCapability(Protocol):
+    """A provider that can be driven by named commands."""
+
+    def command(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
+        """Carry out one command and return its result.
+
+        Raises :class:`CommandRejected` for an unknown command or an argument
+        it cannot use.
+        """
+
+    def commands(self) -> list[dict[str, Any]]:
+        """The commands on offer, each with the fields it takes."""
+
+
+@runtime_checkable
+class PresentableCapability(Protocol):
+    """A provider that says how its state should be laid out.
+
+    Without this facet the UI lists every value in ``state()`` as a key and a
+    value. With it, the provider nominates which values are worth a large tile,
+    which belong in the compact strip beneath them, and which command is the
+    one an operator reaches for. Nothing here changes what the instrument does;
+    it is presentation, declared by the side that knows the instrument.
+    """
+
+    def connection(self) -> str:
+        """How the instrument is attached, for the panel subtitle."""
+
+    def primary_command(self) -> str:
+        """Name of the command the panel gives its full width to."""
+
+    def readouts(self) -> list[dict[str, Any]]:
+        """Which state values to show, and how.
+
+        Each entry names a dotted path into ``state()`` and how to draw it::
+
+            {"key": "channels.1.voltage", "label": "Voltage", "unit": "V",
+             "precision": 2, "role": "headline", "group": "Channel 1"}
+
+        ``role`` is ``"headline"`` for a large tile or ``"summary"`` for a row
+        in the compact strip. ``group`` splits a multi-channel instrument into
+        sections and may be empty.
+        """
 
 
 class CapabilityRegistry:

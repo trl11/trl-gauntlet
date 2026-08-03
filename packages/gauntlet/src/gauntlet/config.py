@@ -37,7 +37,10 @@ def default_suite_roots() -> list[Path]:
 class Settings:
     """Runtime configuration."""
 
-    host: str = "127.0.0.1"
+    # Every interface, so the app is reachable from another machine and from
+    # outside a container. Suites always reach the API over loopback, so this
+    # does not affect them.
+    host: str = "0.0.0.0"
     port: int = 7100
     suite_roots: list[Path] = field(default_factory=default_suite_roots)
     data_dir: Path = field(default_factory=default_data_dir)
@@ -94,12 +97,8 @@ class Settings:
         # Resolved locations, rather than the null that means "derived".
         payload["runs_dir"] = str(self.runs_dir)
         payload["profiles_dir"] = str(self.profiles_dir)
+        payload["runs_index_path"] = str(self.runs_index_path)
         return payload
-
-    def save(self) -> None:
-        """Persist to ``config.yaml``."""
-        self.ensure_dirs()
-        self.config_path.write_text(yaml.safe_dump(self.to_dict(), sort_keys=True))
 
 
 def load_settings(overrides: dict[str, Any] | None = None) -> Settings:
