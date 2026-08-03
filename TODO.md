@@ -60,11 +60,25 @@ at all. Confirmed in the real browser rather than jsdom — a live run delivered
 that the window cannot paint the UI until the backend answers, so it shows a
 dark placeholder first, and the backend's stderr if the wait ends badly.
 
-Verified packaged, not just in `make app-dev`: the installed app runs its own
-CPython, discovers the nine suites beside it, keeps state in `userData`, and
-passes both a shell suite and a Python one — which is the real test of the
-`sys.executable` constraint above. Quitting kills the backend's process group,
-so a suite mid-run goes with it.
+**The backend is started as `python3 -m gauntlet`, never through the `gauntlet`
+console script beside it.** pip writes that script an absolute shebang naming
+the interpreter as it stood when `make app-runtime` ran, so on any machine but
+the build host it fails to exec with `ENOENT` — reported against a file that
+plainly exists, because it is the interpreter that is missing, not the script.
+The interpreter is the one thing python-build-standalone makes relocatable, so
+it is the one thing invoked by path.
+
+Verifying this needs the build tree gone. An unpacked app tested on the machine
+that built it finds `app/runtime/` still sitting at the shebang's path and
+passes either way. Test by moving `app/runtime` aside and running the extracted
+AppImage, which is how it was verified: the installed app runs its own CPython,
+discovers the nine suites beside it, keeps state in `userData`, passes a shell
+suite and two Python ones — the real test of the `sys.executable` constraint
+above — and takes the backend's process group with it when it quits.
+
+An AppImage needs libfuse2, which the devcontainer does not have and the server
+image has no use for, so neither installs it. Run it with
+`--appimage-extract-and-run` in there.
 
 ### Next
 

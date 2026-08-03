@@ -28,14 +28,26 @@ let backend: ChildProcess | null = null;
 let backendErrors: string[] = [];
 
 /**
- * The `gauntlet` entry point to run.
+ * The command that starts the backend, as program and arguments.
  *
- * Packaged, it belongs to the relocatable CPython in `resources/runtime`.
- * Otherwise it is the checkout's virtualenv, which is what `make run` uses.
+ * Packaged, this is the relocatable CPython in `resources/runtime` running
+ * `gauntlet` as a module. It is deliberately not the `gauntlet` console script
+ * beside it: pip writes an absolute shebang naming the interpreter as it stood
+ * when the runtime was built, and that path does not exist on the machine the
+ * app is installed on, so exec fails with ENOENT. The interpreter itself is
+ * relocatable, which is why it is the one thing invoked by path.
+ *
+ * In development it is the checkout's virtualenv, which is what `make run`
+ * uses, and whose shebang is correct because nothing moved.
  */
-function backendExecutable(): string {
-  if (app.isPackaged) return path.join(process.resourcesPath, "runtime", "bin", "gauntlet");
-  return path.join(REPO_ROOT, ".venv", "bin", "gauntlet");
+function backendCommand(): { args: string[]; program: string } {
+  if (app.isPackaged) {
+    return {
+      program: path.join(process.resourcesPath, "runtime", "bin", "python3"),
+      args: ["-m", "gauntlet"],
+    };
+  }
+  return { program: path.join(REPO_ROOT, ".venv", "bin", "gauntlet"), args: [] };
 }
 
 /**
@@ -84,7 +96,8 @@ function delay(ms: number): Promise<void> {
  */
 function startBackend(port: number): void {
   backendErrors = [];
-  backend = spawn(backendExecutable(), ["serve", "--host", "127.0.0.1", "--port", String(port)], {
+  const { args, program } = backendCommand();
+  backend = spawn(program, [...args, "serve", "--host", "127.0.0.1", "--port", String(port)], {
     cwd: app.isPackaged ? app.getPath("userData") : REPO_ROOT,
     detached: true,
     env: backendEnvironment(),
