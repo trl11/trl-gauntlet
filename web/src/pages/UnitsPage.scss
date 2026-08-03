@@ -1,0 +1,143 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.units-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+
+  &__panel {
+    overflow-x: auto;
+  }
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+
+    th,
+    td {
+      text-align: left;
+      padding: 8px 12px;
+      white-space: nowrap;
+
+      &.is-right {
+        text-align: right;
+      }
+    }
+
+    thead th {
+      background-color: $trl-dark;
+      color: $trl-gray;
+      font-weight: 500;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid $trl-dark-gray;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba($trl-dark-gray, 0.6);
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+
+      &:hover,
+      &:focus-visible {
+        background-color: rgba($trl-dark-gray, 0.5);
+        outline: none;
+      }
+
+      &:focus-visible {
+        box-shadow: inset 2px 0 0 $indicator-blue;
+      }
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+  }
+
+  &__sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+
+    svg {
+      font-size: 10px;
+      opacity: 0.6;
+    }
+
+    &:hover svg {
+      opacity: 1;
+    }
+  }
+
+  &__serial {
+    font-family: $font-mono;
+    font-size: 13px;
+    color: $trl-light-gray;
+  }
+
+  &__rate {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  &__rate-track {
+    display: inline-block;
+    width: 80px;
+    height: 6px;
+    background-color: $trl-dark-gray;
+  }
+
+  &__rate-fill {
+    display: block;
+    height: 100%;
+
+    &.is-good {
+      background-color: $indicator-green;
+    }
+
+    &.is-fair {
+      background-color: $indicator-yellow;
+    }
+
+    &.is-poor {
+      background-color: $indicator-red;
+    }
+  }
+
+  &__rate-text {
+    font-family: $font-mono;
+    font-size: 12px;
+    min-width: 4ch;
+  }
+
+  &__quiet {
+    color: $trl-gray;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+  }
+
+  &__error {
+    font-size: 13px;
+    color: $indicator-red;
+  }
+}
+
+@media (max-width: 900px) {
+  .units-page__rate-track {
+    width: 48px;
+  }
+}

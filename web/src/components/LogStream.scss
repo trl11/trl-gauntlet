@@ -1,0 +1,119 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.log-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  &__controls {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+
+    > div:nth-child(2) {
+      flex: 1 1 240px;
+      min-width: 0;
+    }
+  }
+
+  &__nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-bottom: 4px;
+  }
+
+  &__matches {
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+    min-width: 9ch;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 6px;
+    margin-left: auto;
+    padding-bottom: 4px;
+  }
+
+  &__view {
+    height: clamp(280px, 46vh, 620px);
+    overflow: auto;
+    background-color: $trl-dark;
+    border: 1px solid $trl-dark-gray;
+    font-family: $font-mono;
+    font-size: 12px;
+    line-height: 20px;
+  }
+
+  &__empty {
+    padding: 16px;
+    color: $trl-gray;
+  }
+
+  &__row {
+    display: flex;
+    gap: 10px;
+    height: 20px;
+    padding: 0 10px;
+    white-space: pre;
+    color: $trl-light-gray;
+
+    &--warning .log-stream__level {
+      color: $indicator-yellow;
+    }
+
+    &--error {
+      color: $indicator-red;
+    }
+
+    &--active {
+      background-color: rgba($trl-blue, 0.35);
+    }
+  }
+
+  &__view--wrap &__row {
+    height: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  &__time {
+    color: $trl-gray;
+    flex: 0 0 auto;
+  }
+
+  &__level {
+    color: $trl-gray;
+    flex: 0 0 7ch;
+    text-transform: uppercase;
+    font-size: 10px;
+  }
+
+  &__message {
+    flex: 1 1 auto;
+    min-width: 0;
+
+    mark {
+      background-color: $trl-cantaloupe;
+      color: $trl-background;
+    }
+  }
+
+  &__status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+  }
+
+  @media (max-width: 900px) {
+    &__actions {
+      margin-left: 0;
+    }
+  }
+}

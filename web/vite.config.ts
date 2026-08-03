@@ -1,0 +1,59 @@
+import react from "@vitejs/plugin-react";
+import path from "node:path";
+import { defineConfig } from "vitest/config";
+
+const root = path.resolve(__dirname, "src");
+
+export default defineConfig({
+  root,
+  plugins: [react()],
+  publicDir: path.resolve(__dirname, "public"),
+  resolve: {
+    alias: {
+      "@api": path.resolve(root, "api"),
+      "@assets": path.resolve(root, "assets"),
+      "@components": path.resolve(root, "components"),
+      "@hooks": path.resolve(root, "hooks"),
+      "@pages": path.resolve(root, "pages"),
+      "@styles": path.resolve(root, "styles"),
+      "@trl11": path.resolve(__dirname, "../extras/trl-ui-kit"),
+    },
+    // The ui-kit is consumed as source and installs nothing of its own, so
+    // its bare imports have to resolve to this app's copies.
+    dedupe: [
+      "clsx",
+      "react",
+      "react-dom",
+      "@fortawesome/fontawesome-svg-core",
+      "@fortawesome/free-solid-svg-icons",
+      "@fortawesome/react-fontawesome",
+    ],
+  },
+  esbuild: {
+    legalComments: "none",
+  },
+  server: {
+    port: 7101,
+    strictPort: true,
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:7100",
+        changeOrigin: true,
+        ws: true,
+      },
+    },
+  },
+  build: {
+    outDir: path.resolve(__dirname, "../packages/gauntlet/src/gauntlet/web_dist"),
+    emptyOutDir: true,
+    sourcemap: false,
+    chunkSizeWarningLimit: 1500,
+  },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: [path.resolve(root, "test/setup.ts")],
+    include: [path.resolve(root, "**/*.{test,spec}.{ts,tsx}")],
+    css: false,
+  },
+});

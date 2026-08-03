@@ -1,0 +1,23 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.status-pill {
+  letter-spacing: 0.04em;
+
+  &__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: currentColor;
+    animation: status-pill-pulse 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes status-pill-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}

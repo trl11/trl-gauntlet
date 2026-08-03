@@ -1,0 +1,125 @@
+@use "@trl11/styles/theme.scss" as *;
+
+@font-face {
+  font-family: "Jost";
+  src: url("/font/Jost[wght].ttf") format("truetype");
+  font-weight: 100 900;
+}
+
+@font-face {
+  font-family: "Jost";
+  src: url("/font/Jost-Italic[wght].ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Martian Mono";
+  src: url("/font/MartianMono[wdth\,wght].ttf") format("truetype");
+  font-weight: 100 800;
+}
+
+:root {
+  font-family: $font-primary;
+  font-size: 16px;
+  font-weight: 400;
+  width: 100%;
+
+  color: $trl-light-gray;
+  background-color: $trl-background;
+  color-scheme: dark;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  display: flex;
+  flex-direction: column;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  box-sizing: border-box;
+}
+
+#root,
+html,
+body {
+  height: 100%;
+}
+
+h1 {
+  font-weight: 600;
+}
+
+h2 {
+  font-size: 26px;
+  font-weight: 500;
+}
+
+h3 {
+  font-size: 22px;
+  font-weight: 500;
+}
+
+a {
+  color: inherit;
+}
+
+hr {
+  border: none;
+  border-top: 2px solid $trl-dark-gray;
+}
+
+code,
+pre,
+kbd {
+  font-family: $font-mono;
+}
+
+:focus-visible {
+  outline: 2px solid $indicator-blue;
+  outline-offset: 2px;
+}
+
+.row {
+  display: flex;
+  gap: 20px;
+}
+
+.mono {
+  font-family: $font-mono;
+}
+
+.muted {
+  color: $trl-gray;
+}
+
+#indicator-red,
+#failed,
+#error {
+  color: $indicator-red;
+}
+
+#indicator-green,
+#passed {
+  color: $indicator-green;
+}
+
+#indicator-blue,
+#running {
+  color: $indicator-blue;
+}
+
+#indicator-yellow,
+#aborted,
+#interrupted {
+  color: $indicator-yellow;
+}
+
+#indicator-purple {
+  color: $indicator-purple;
+}

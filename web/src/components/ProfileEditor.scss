@@ -1,0 +1,112 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.profile-editor {
+  width: min(900px, 94vw);
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px;
+    overflow-y: auto;
+  }
+
+  &__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+
+  &__modes {
+    display: flex;
+    gap: 6px;
+    margin-right: auto;
+  }
+
+  &__spinner {
+    align-self: center;
+    font-size: 20px;
+    color: $trl-gray;
+  }
+
+  &__copy {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 14px 16px;
+    background-color: rgba($trl-dark, 0.6);
+    border: 1px solid $trl-dark-gray;
+  }
+
+  &__note {
+    padding: 10px 12px;
+    font-size: 13px;
+    color: $trl-cantaloupe;
+    border-left: 2px solid $trl-cantaloupe;
+    background-color: rgba($trl-dark, 0.6);
+  }
+
+  &__error {
+    padding: 10px 12px;
+    font-size: 13px;
+    color: $indicator-red;
+    border-left: 2px solid $indicator-red;
+    background-color: rgba($trl-dark, 0.6);
+  }
+
+  &__yaml {
+    width: 100%;
+    min-height: 320px;
+    padding: 14px 16px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: $trl-light-gray;
+    background-color: $trl-background;
+    border: 1px solid $trl-dark-gray;
+    resize: vertical;
+    tab-size: 2;
+  }
+
+  &__diff {
+    display: flex;
+    flex-direction: column;
+    max-height: 320px;
+    padding: 12px 14px;
+    overflow: auto;
+    font-size: 12px;
+    line-height: 1.6;
+    background-color: $trl-background;
+    border: 1px solid $trl-dark-gray;
+  }
+
+  &__diff-add {
+    color: $indicator-green;
+  }
+
+  &__diff-del {
+    color: $indicator-red;
+  }
+
+  &__diff-hunk {
+    color: $indicator-blue;
+  }
+
+  &__diff-meta,
+  &__diff-same {
+    color: $trl-gray;
+  }
+
+  &__path {
+    font-size: 12px;
+    color: $trl-gray;
+    word-break: break-all;
+  }
+}
+
+@media (max-width: 900px) {
+  .profile-editor__toolbar {
+    align-items: stretch;
+  }
+}

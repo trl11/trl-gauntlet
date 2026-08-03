@@ -1,0 +1,69 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid $trl-dark-gray;
+  background-color: rgba($trl-dark, 0.6);
+  min-width: 0;
+
+  --stat-tone: #{$trl-light-gray};
+
+  &--warning {
+    --stat-tone: #{$indicator-yellow};
+  }
+
+  &--critical {
+    --stat-tone: #{$indicator-red};
+  }
+
+  &__label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: $trl-gray;
+  }
+
+  &__value {
+    font-family: $font-mono;
+    font-size: 22px;
+    line-height: 1.1;
+    color: var(--stat-tone);
+    overflow-wrap: anywhere;
+  }
+
+  &__detail {
+    font-size: 12px;
+    color: $trl-gray;
+    overflow-wrap: anywhere;
+  }
+
+  &__meter {
+    height: 4px;
+    background-color: $trl-dark-gray;
+    overflow: hidden;
+  }
+
+  &__meter-fill {
+    display: block;
+    height: 100%;
+    background-color: var(--stat-tone);
+  }
+
+  &__spark {
+    width: 100%;
+    height: 28px;
+
+    polyline {
+      fill: none;
+      stroke: var(--stat-tone);
+      stroke-width: 2;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+      vector-effect: non-scaling-stroke;
+      opacity: 0.75;
+    }
+  }
+}

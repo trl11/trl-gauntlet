@@ -1,0 +1,15 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.not-found-page {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 20px;
+
+  &__code {
+    font-family: $font-mono;
+    font-size: 64px;
+    font-weight: 300;
+    color: $trl-dark-gray;
+  }
+}

@@ -1,0 +1,100 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.iteration-table {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__empty {
+    padding: 16px;
+    color: $trl-gray;
+  }
+
+  &__controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  &__count {
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+    margin-left: auto;
+  }
+
+  &__scroll {
+    overflow-x: auto;
+    max-height: 460px;
+    overflow-y: auto;
+    border: 1px solid $trl-dark-gray;
+  }
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+
+    th,
+    td {
+      text-align: left;
+      padding: 8px 12px;
+      vertical-align: top;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background-color: $trl-dark;
+      color: $trl-gray;
+      font-weight: 500;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid $trl-dark-gray;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba($trl-dark-gray, 0.6);
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+  }
+
+  &__mono {
+    font-family: $font-mono;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  &__reason {
+    color: $trl-gray;
+    max-width: 40ch;
+  }
+
+  &__values {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  &__chip {
+    font-family: $font-mono;
+    font-size: 10px;
+    padding: 2px 6px;
+    background-color: $trl-dark;
+    border: 1px solid $trl-dark-gray;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 900px) {
+    &__count {
+      margin-left: 0;
+    }
+  }
+}

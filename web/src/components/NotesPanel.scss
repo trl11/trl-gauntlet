@@ -1,0 +1,84 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.notes-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  background-color: rgba($trl-dark, 0.6);
+  border: 1px solid $trl-dark-gray;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  &__title {
+    font-size: 18px;
+    font-weight: 500;
+    color: $trl-light-gray;
+  }
+
+  &__spinner {
+    font-size: 14px;
+    color: $trl-gray;
+  }
+
+  &__form {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+
+    > div {
+      flex: 1 1 200px;
+      min-width: 0;
+    }
+  }
+
+  &__empty {
+    font-size: 14px;
+    color: $trl-gray;
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    list-style: none;
+  }
+
+  &__note {
+    padding: 12px 14px;
+    background-color: rgba($trl-dark-gray, 0.35);
+    border-left: 2px solid $trl-dark-gray;
+  }
+
+  &__meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+
+  &__author {
+    font-family: $font-mono;
+    font-size: 12px;
+    color: $trl-light-gray;
+  }
+
+  &__time {
+    font-size: 12px;
+    color: $trl-gray;
+    margin-right: auto;
+  }
+
+  &__body {
+    font-size: 14px;
+    line-height: 1.6;
+    color: $trl-light-gray;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}

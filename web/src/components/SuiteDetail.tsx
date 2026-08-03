@@ -1,0 +1,148 @@
+import { faCircleCheck, faCircleXmark } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { Badge, Button, Spinner } from "@trl11/components/ui";
+import clsx from "clsx";
+
+import type { Suite, VerifyReport } from "@api/types";
+
+import "./SuiteDetail.scss";
+
+/** Props for {@link SuiteDetail}. */
+export interface SuiteDetailProps {
+  onEditProfile: (name: string) => void;
+  onSelectProfile: (name: string) => void;
+  onStart: () => void;
+  onVerify: () => void;
+  selectedProfile: string | null;
+  suite: Suite;
+  unmet: string[];
+  verify: VerifyReport | null;
+  verifyError: Error | null;
+  verifyPending: boolean;
+}
+
+/** Everything known about one suite, and the actions it offers. */
+const SuiteDetail: React.FC<SuiteDetailProps> = ({
+  onEditProfile,
+  onSelectProfile,
+  onStart,
+  onVerify,
+  selectedProfile,
+  suite,
+  unmet,
+  verify,
+  verifyError,
+  verifyPending,
+}) => {
+  const profiles = suite.profiles_available ?? [];
+
+  return (
+    <section className="suite-detail__detail" aria-label={suite.title}>
+      <header className="suite-detail__detail-head">
+        <div>
+          <h2 className="suite-detail__detail-title">{suite.title}</h2>
+          <p className="suite-detail__detail-key mono">{suite.key}</p>
+        </div>
+        <div className="suite-detail__detail-actions">
+          <Button onClick={onVerify} disabled={verifyPending}>
+            {verifyPending ? <Spinner /> : "Verify"}
+          </Button>
+          <Button color="blue" onClick={onStart} disabled={unmet.length > 0}>
+            Start run
+          </Button>
+        </div>
+      </header>
+
+      {suite.description && <p className="suite-detail__description">{suite.description}</p>}
+
+      <dl className="suite-detail__meta">
+        <dt>Produces</dt>
+        <dd>
+          {suite.produces.map((artifact) => (
+            <Badge key={artifact}>{artifact}</Badge>
+          ))}
+        </dd>
+        <dt>Requires</dt>
+        <dd>
+          {suite.requires.length === 0 ? (
+            <span className="muted">nothing</span>
+          ) : (
+            suite.requires.map((name) => (
+              <Badge key={name} color={unmet.includes(name) ? "red" : "green"}>
+                {name}
+              </Badge>
+            ))
+          )}
+        </dd>
+      </dl>
+
+      {unmet.length > 0 && (
+        <p className="suite-detail__blocked" role="status">
+          Cannot start: {unmet.join(", ")} {unmet.length === 1 ? "is" : "are"} unavailable. Check
+          the Instruments page.
+        </p>
+      )}
+
+      {verifyError && (
+        <p className="suite-detail__blocked" role="alert">
+          {verifyError.message}
+        </p>
+      )}
+
+      {verify && (
+        <div className="suite-detail__verify">
+          <h3 className="suite-detail__section-title">
+            Conformance {verify.passed ? "passed" : "failed"}
+          </h3>
+          <ul className="suite-detail__checks">
+            {verify.checks.map((check) => (
+              <li key={check.name} className="suite-detail__check">
+                <FontAwesomeIcon
+                  icon={check.passed ? faCircleCheck : faCircleXmark}
+                  className={check.passed ? "suite-detail__ok" : "suite-detail__bad"}
+                  aria-hidden="true"
+                />
+                <span className="mono">{check.name}</span>
+                <span className="muted">{check.detail}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="suite-detail__profiles">
+        <h3 className="suite-detail__section-title">Profiles</h3>
+        {profiles.length === 0 ? (
+          <p className="muted">This suite ships no profiles.</p>
+        ) : (
+          <ul className="suite-detail__profile-list">
+            {profiles.map((entry) => (
+              <li key={entry.name} className="suite-detail__profile">
+                <button
+                  type="button"
+                  className={clsx(
+                    "suite-detail__profile-pick",
+                    selectedProfile === entry.name && "suite-detail__profile-pick--active"
+                  )}
+                  aria-pressed={selectedProfile === entry.name}
+                  onClick={() => onSelectProfile(entry.name)}
+                >
+                  <span className="mono">{entry.name}</span>
+                  {entry.description && (
+                    <span className="suite-detail__profile-description">{entry.description}</span>
+                  )}
+                </button>
+                {entry.user_authored && <Badge color="amber">edited</Badge>}
+                <Button size="small" onClick={() => onEditProfile(entry.name)}>
+                  Edit
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
+  );
+};
+
+export default SuiteDetail;

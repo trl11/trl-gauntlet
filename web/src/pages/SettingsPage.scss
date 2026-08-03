@@ -1,0 +1,40 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    align-items: start;
+    gap: 20px;
+  }
+
+  &__count {
+    font-family: $font-mono;
+    font-size: 12px;
+    color: $trl-gray;
+  }
+
+  &__errors {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    list-style: none;
+
+    li {
+      font-family: $font-mono;
+      font-size: 12px;
+      color: $indicator-red;
+      border-left: 2px solid $indicator-red;
+      padding-left: 10px;
+    }
+  }
+
+  &__error {
+    font-size: 13px;
+    color: $indicator-red;
+  }
+}

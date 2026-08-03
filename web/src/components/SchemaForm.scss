@@ -1,0 +1,54 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.schema-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  &__fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+
+  &__group {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid $trl-dark-gray;
+    background-color: rgba($trl-dark, 0.5);
+  }
+
+  &__legend {
+    padding: 0 6px;
+    font-family: $font-mono;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: $trl-gray;
+  }
+
+  &__hint {
+    font-size: 12px;
+    line-height: 1.5;
+    color: $trl-gray;
+  }
+
+  &__unsupported {
+    grid-column: 1 / -1;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: $trl-cantaloupe;
+    border-left: 2px solid $trl-cantaloupe;
+    background-color: rgba($trl-dark, 0.6);
+  }
+}
+
+@media (max-width: 900px) {
+  .schema-form__fields {
+    grid-template-columns: 1fr;
+  }
+}

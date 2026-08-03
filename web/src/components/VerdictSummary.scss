@@ -1,0 +1,105 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.verdict-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  &__empty {
+    padding: 16px;
+    color: $trl-gray;
+  }
+
+  &__banner {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 14px 18px;
+    border: 1px solid $trl-dark-gray;
+
+    &--passed {
+      background-color: rgba($trl-green, 0.18);
+      border-color: rgba($indicator-green, 0.5);
+
+      .verdict-summary__result {
+        color: $indicator-green;
+      }
+    }
+
+    &--failed {
+      background-color: rgba($trl-red, 0.18);
+      border-color: rgba($indicator-red, 0.5);
+
+      .verdict-summary__result {
+        color: $indicator-red;
+      }
+    }
+  }
+
+  &__result {
+    font-family: $font-mono;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+
+  &__reason {
+    color: $trl-light-gray;
+  }
+
+  &__fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+
+  &__results {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+  }
+
+  &__figure {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    background-color: $trl-dark;
+    border: 1px solid $trl-dark-gray;
+
+    &--highlight {
+      border-color: $indicator-blue;
+    }
+  }
+
+  &__label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: $trl-gray;
+  }
+
+  &__value {
+    font-family: $font-mono;
+    font-size: 18px;
+    color: $trl-light-gray;
+  }
+
+  &__unit {
+    font-size: 12px;
+    color: $trl-gray;
+  }
+
+  &__text {
+    padding: 12px;
+    background-color: $trl-dark;
+    border: 1px solid $trl-dark-gray;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 360px;
+    overflow: auto;
+  }
+}

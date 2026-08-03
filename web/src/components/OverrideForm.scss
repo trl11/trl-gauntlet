@@ -1,0 +1,14 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.override-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .override-form {
+    grid-template-columns: 1fr;
+  }
+}

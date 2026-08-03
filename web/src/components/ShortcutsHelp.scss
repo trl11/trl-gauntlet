@@ -1,0 +1,30 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.shortcuts-help {
+  width: min(460px, 92vw);
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 20px;
+  }
+
+  &__row {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 16px;
+    align-items: baseline;
+  }
+
+  &__keys {
+    font-family: $font-mono;
+    font-size: 12px;
+    color: $trl-cantaloupe;
+  }
+
+  &__description {
+    font-size: 14px;
+    color: $trl-light-gray;
+  }
+}

@@ -1,0 +1,175 @@
+@use "@trl11/styles/theme.scss" as *;
+
+$collapse-at: 900px;
+
+.layout {
+  min-height: 100%;
+
+  &__skip {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 200;
+    padding: 10px 16px;
+    background-color: $trl-blue;
+    color: $trl-light-gray;
+    text-decoration: none;
+
+    &:focus {
+      left: 0;
+    }
+  }
+
+  &__bar {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: $navbar-height;
+    padding: 0 20px;
+    background-color: $trl-dark;
+    filter: drop-shadow(0 5px 2px rgb(0 0 0 / 0.2));
+    z-index: 100;
+  }
+
+  &__brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    user-select: none;
+  }
+
+  &__wordmark {
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: $trl-light-gray;
+  }
+
+  &__tabs-toggle {
+    display: none;
+    margin-left: auto;
+  }
+
+  &__tabs {
+    display: flex;
+    gap: 4px;
+    list-style: none;
+  }
+
+  &__tab {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 18px;
+    font-size: 16px;
+    font-weight: 500;
+    color: $trl-light-gray;
+    text-decoration: none;
+    background-color: transparent;
+    transition: background-color 0.2s ease;
+
+    svg {
+      color: $trl-gray;
+    }
+
+    &:hover,
+    &.is-active {
+      background-color: $trl-blue;
+
+      svg {
+        color: $trl-light-gray;
+      }
+    }
+  }
+
+  &__bar-end {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-left: auto;
+  }
+
+  &__active-run {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    text-decoration: none;
+    background-color: rgba($indicator-blue, 0.08);
+    border-left: 2px solid $indicator-blue;
+    transition: background-color 0.2s ease;
+
+    &:hover {
+      background-color: rgba($indicator-blue, 0.16);
+    }
+  }
+
+  &__active-run-suite {
+    font-size: 14px;
+    font-weight: 500;
+    color: $trl-light-gray;
+  }
+
+  &__version {
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+    opacity: 0.8;
+    user-select: none;
+  }
+
+  &__backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background-color: rgba(#000, 0.6);
+  }
+
+  &__main {
+    padding: calc(#{$navbar-height} + 24px) 36px 64px;
+    outline: none;
+  }
+}
+
+@media (max-width: $collapse-at) {
+  .layout {
+    &__tabs-toggle {
+      display: inline-flex;
+    }
+
+    &__tabs {
+      display: none;
+      position: fixed;
+      left: 0;
+      right: 0;
+      top: $navbar-height;
+      z-index: 100;
+      flex-direction: column;
+      gap: 0;
+      padding: 8px;
+      background-color: $trl-dark;
+
+      &.is-open {
+        display: flex;
+      }
+    }
+
+    &__bar-end {
+      margin-left: 0;
+    }
+
+    &__backdrop {
+      display: block;
+    }
+
+    &__main {
+      padding: calc(#{$navbar-height} + 16px) 20px 48px;
+    }
+  }
+}

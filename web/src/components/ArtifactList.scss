@@ -1,0 +1,101 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.artifact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__error {
+    padding: 16px;
+    color: $indicator-red;
+  }
+
+  &__scroll {
+    overflow-x: auto;
+    border: 1px solid $trl-dark-gray;
+  }
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+
+    th,
+    td {
+      text-align: left;
+      padding: 8px 12px;
+      white-space: nowrap;
+    }
+
+    thead th {
+      background-color: $trl-dark;
+      color: $trl-gray;
+      font-weight: 500;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid $trl-dark-gray;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba($trl-dark-gray, 0.6);
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+  }
+
+  &__path {
+    font-family: $font-mono;
+    font-size: 12px;
+  }
+
+  &__mono {
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__download {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    color: $trl-gray;
+    text-decoration: none;
+
+    &:hover {
+      color: $trl-light-gray;
+    }
+  }
+
+  &__preview {
+    border: 1px solid $trl-dark-gray;
+    background-color: $trl-dark;
+    padding: 12px;
+
+    pre {
+      max-height: 420px;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+  }
+
+  &__preview-title {
+    font-family: $font-mono;
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+}

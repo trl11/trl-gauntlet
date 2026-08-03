@@ -1,0 +1,233 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.instrument-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  &__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  &__name {
+    font-family: $font-mono;
+    font-size: 15px;
+    font-weight: 500;
+    color: $trl-light-gray;
+  }
+
+  &__sub {
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+  }
+
+  &__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+    padding: 4px 10px;
+    border: 1px solid $trl-dark-gray;
+    font-family: $font-mono;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: $trl-gray;
+
+    &--on {
+      border-color: rgba($indicator-green, 0.5);
+      color: $indicator-green;
+    }
+  }
+
+  &__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: currentcolor;
+  }
+
+  &__description {
+    font-size: 13px;
+    color: $trl-gray;
+  }
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  &__group-name {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: $trl-gray;
+  }
+
+  &__tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+  }
+
+  &__tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px 14px;
+    border: 1px solid $trl-dark-gray;
+    background-color: rgba($trl-dark, 0.6);
+    min-width: 0;
+  }
+
+  &__tile-label {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: $trl-gray;
+  }
+
+  &__tile-value {
+    font-family: $font-mono;
+    font-size: 28px;
+    line-height: 1;
+    color: $trl-light-gray;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__tile-unit {
+    position: absolute;
+    right: 14px;
+    bottom: 10px;
+    font-family: $font-mono;
+    font-size: 10px;
+    color: $trl-gray;
+  }
+
+  &__strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 2px 24px;
+
+    > div {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      border-top: 1px solid rgba($trl-dark-gray, 0.7);
+      padding: 6px 0;
+      min-width: 0;
+    }
+
+    dt {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: $trl-gray;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    dd {
+      font-family: $font-mono;
+      font-size: 12px;
+      color: $trl-light-gray;
+      white-space: nowrap;
+    }
+  }
+
+  &__strip-unit {
+    color: $trl-gray;
+  }
+
+  &__command {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  &__entry {
+    display: flex;
+    align-items: stretch;
+    flex: 1;
+    min-width: 120px;
+
+    input {
+      width: 100%;
+    }
+
+    > div {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  &__prefix {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 34px;
+    border: 1px solid $trl-dark-gray;
+    border-right: none;
+    background-color: rgba($trl-dark, 0.6);
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+  }
+
+  &__choice {
+    flex: none;
+    width: 96px;
+  }
+
+  &__go {
+    flex: none;
+    min-width: 110px;
+    border: 1px solid $trl-dark-gray;
+    font-family: $font-mono;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+
+    &--danger {
+      border-color: rgba($indicator-red, 0.6);
+      background-color: rgba($indicator-red, 0.12);
+      color: $indicator-red;
+    }
+  }
+
+  &__footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+    border-top: 1px solid rgba($trl-dark-gray, 0.7);
+    padding-top: 12px;
+  }
+
+  &__command--primary {
+    .instrument-panel__go {
+      flex: 1;
+    }
+  }
+
+  &__quiet {
+    font-size: 13px;
+    color: $trl-gray;
+  }
+
+  &__unavailable,
+  &__error {
+    font-family: $font-mono;
+    font-size: 12px;
+    color: $indicator-red;
+  }
+}

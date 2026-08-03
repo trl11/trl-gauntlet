@@ -1,0 +1,63 @@
+@use "@trl11/styles/theme.scss" as *;
+@use "@styles/chart";
+
+.unit-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+
+  &__serial {
+    font-family: $font-mono;
+  }
+
+  &__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: $trl-gray;
+    text-decoration: none;
+
+    &:hover {
+      color: $trl-light-gray;
+    }
+  }
+
+  &__facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+  }
+
+  &__section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &__title {
+    font-size: 18px;
+    font-weight: 500;
+    color: $trl-light-gray;
+  }
+
+  &__chart {
+    color: $indicator-blue;
+    border: 1px solid $trl-dark-gray;
+    background-color: rgba($trl-dark, 0.5);
+    padding: 12px 8px 4px;
+  }
+
+  &__quiet {
+    font-size: 13px;
+    color: $trl-gray;
+  }
+
+  @include chart.chrome;
+}
+
+@media (max-width: 900px) {
+  .unit-detail__facts {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,73 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.tests-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+
+  &__spinner {
+    align-self: center;
+    font-size: 28px;
+    color: $trl-gray;
+  }
+
+  &__panes {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  &__rail {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    background-color: rgba($trl-dark, 0.6);
+    border: 1px solid $trl-dark-gray;
+  }
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__group-name {
+    margin-bottom: 4px;
+    font-family: $font-mono;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: $trl-gray;
+  }
+
+  &__rail-item {
+    padding: 8px 10px;
+    font-family: $font-primary;
+    font-size: 14px;
+    text-align: left;
+    color: $trl-light-gray;
+    background-color: transparent;
+    border-left: 2px solid transparent;
+    cursor: pointer;
+
+    &:hover {
+      background-color: rgba($trl-dark-gray, 0.5);
+    }
+
+    &--active {
+      color: $indicator-blue;
+      border-left-color: $indicator-blue;
+      background-color: rgba($trl-dark-gray, 0.4);
+    }
+  }
+}
+
+@media (max-width: 900px) {
+  .tests-page {
+    &__panes {
+      grid-template-columns: 1fr;
+    }
+  }
+}

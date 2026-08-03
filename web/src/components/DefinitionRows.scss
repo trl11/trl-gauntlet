@@ -1,0 +1,30 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.definition-rows {
+  display: flex;
+  flex-direction: column;
+
+  > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 5px 0;
+    min-width: 0;
+  }
+
+  dt {
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+    white-space: nowrap;
+  }
+
+  dd {
+    font-family: $font-mono;
+    font-size: 12px;
+    color: $trl-light-gray;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+}

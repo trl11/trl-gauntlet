@@ -1,0 +1,95 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.run-start-modal {
+  width: min(760px, 92vw);
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 20px;
+    overflow-y: auto;
+  }
+
+  &__description {
+    font-size: 14px;
+    line-height: 1.6;
+    color: $trl-gray;
+  }
+
+  &__fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+
+  &__note {
+    font-size: 13px;
+    color: $trl-gray;
+  }
+
+  &__section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &__heading {
+    font-family: $font-mono;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: $trl-gray;
+  }
+
+  &__summary {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 8px 16px;
+    padding: 14px 16px;
+    font-size: 13px;
+    background-color: rgba($trl-dark, 0.6);
+    border: 1px solid $trl-dark-gray;
+
+    dt {
+      color: $trl-gray;
+    }
+
+    dd {
+      color: $trl-light-gray;
+      word-break: break-word;
+    }
+  }
+
+  &__error {
+    padding: 10px 12px;
+    font-size: 13px;
+    color: $indicator-red;
+    border-left: 2px solid $indicator-red;
+    background-color: rgba($trl-dark, 0.6);
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 900px) {
+  .run-start-modal {
+    &__fields {
+      grid-template-columns: 1fr;
+    }
+
+    &__summary {
+      grid-template-columns: 1fr;
+      gap: 4px;
+
+      dd {
+        margin-bottom: 8px;
+      }
+    }
+  }
+}

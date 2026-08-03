@@ -1,0 +1,39 @@
+@use "@trl11/styles/theme.scss" as *;
+
+// Recharts renders its own SVG and takes colours as props, so the axes, grid,
+// tooltip and legend are styled here by its class names instead. A series line
+// uses `stroke="currentColor"` and takes its colour from the `color` set on
+// the element wrapping the chart.
+@mixin chrome {
+  .recharts-cartesian-grid line {
+    stroke: $trl-dark-gray;
+  }
+
+  .recharts-cartesian-axis-line,
+  .recharts-cartesian-axis-tick-line {
+    stroke: $trl-dark-gray;
+  }
+
+  .recharts-cartesian-axis-tick-value {
+    fill: $trl-gray;
+    font-family: $font-mono;
+    font-size: 10px;
+  }
+
+  .recharts-tooltip-cursor {
+    stroke: $trl-gray;
+  }
+
+  .recharts-default-tooltip {
+    background-color: $trl-background !important;
+    border: 1px solid $trl-dark-gray !important;
+    font-family: $font-mono;
+    font-size: 11px;
+  }
+
+  .recharts-legend-item-text {
+    color: $trl-gray !important;
+    font-family: $font-mono;
+    font-size: 11px;
+  }
+}

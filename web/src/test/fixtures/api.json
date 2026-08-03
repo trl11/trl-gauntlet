@@ -1,0 +1,2380 @@
+{
+  "capabilities": {
+    "capabilities": [
+      {
+        "available": "true",
+        "description": "Thermal chamber with a ramping air temperature.",
+        "driver": "mock",
+        "instance_id": "chamber0",
+        "kind": "chamber",
+        "model": "mock-chamber",
+        "name": "chamber"
+      },
+      {
+        "available": "true",
+        "description": "Eight-channel analog acquisition with two digital inputs.",
+        "driver": "mock",
+        "instance_id": "daq0",
+        "kind": "daq",
+        "model": "mock-daq",
+        "name": "daq"
+      },
+      {
+        "available": "true",
+        "description": "Two-channel bench supply with readback and current limiting.",
+        "driver": "mock",
+        "instance_id": "psu0",
+        "kind": "psu",
+        "model": "mock-psu",
+        "name": "psu"
+      }
+    ]
+  },
+  "health": {
+    "status": "ok"
+  },
+  "instruments": {
+    "instruments": [
+      {
+        "available": true,
+        "commands": [
+          {
+            "fields": [
+              {
+                "choices": [],
+                "label": "Setpoint",
+                "max": 180.0,
+                "min": -40.0,
+                "name": "celsius",
+                "type": "number",
+                "unit": "C"
+              }
+            ],
+            "label": "Set Setpoint",
+            "name": "set_setpoint"
+          },
+          {
+            "fields": [],
+            "label": "Start",
+            "name": "start"
+          },
+          {
+            "fields": [],
+            "label": "Stop",
+            "name": "stop"
+          }
+        ],
+        "description": "Thermal chamber with a ramping air temperature.",
+        "instance_id": "chamber0",
+        "kind": "chamber",
+        "name": "chamber",
+        "state": {
+          "actual_c": 22.03,
+          "ambient_c": 22.0,
+          "door_open": false,
+          "running": false,
+          "setpoint_c": 25.0
+        },
+        "unavailable_reason": ""
+      },
+      {
+        "available": true,
+        "commands": [
+          {
+            "fields": [
+              {
+                "choices": ["1", "2", "3", "4", "5", "6", "7", "8"],
+                "label": "Channel",
+                "max": null,
+                "min": null,
+                "name": "channel",
+                "type": "string",
+                "unit": ""
+              },
+              {
+                "choices": [],
+                "label": "Range",
+                "max": 50.0,
+                "min": 0.1,
+                "name": "range_v",
+                "type": "number",
+                "unit": "V"
+              },
+              {
+                "choices": ["V", "mV", "A", "C"],
+                "label": "Unit",
+                "max": null,
+                "min": null,
+                "name": "unit",
+                "type": "string",
+                "unit": ""
+              }
+            ],
+            "label": "Set Range",
+            "name": "set_range"
+          },
+          {
+            "fields": [
+              {
+                "choices": ["1", "2", "3", "4", "5", "6", "7", "8"],
+                "label": "Channel",
+                "max": null,
+                "min": null,
+                "name": "channel",
+                "type": "string",
+                "unit": ""
+              }
+            ],
+            "label": "Tare",
+            "name": "tare"
+          },
+          {
+            "fields": [],
+            "label": "Sample",
+            "name": "sample"
+          }
+        ],
+        "description": "Eight-channel analog acquisition with two digital inputs.",
+        "instance_id": "daq0",
+        "kind": "daq",
+        "name": "daq",
+        "state": {
+          "channels": {
+            "1": {
+              "offset": 0.0,
+              "range_v": 10.0,
+              "unit": "V",
+              "value": 0.5766
+            },
+            "2": {
+              "offset": 0.0,
+              "range_v": 10.0,
+              "unit": "V",
+              "value": 1.294
+            },
+            "3": {
+              "offset": 0.0,
+              "range_v": 10.0,
+              "unit": "V",
+              "value": 1.6104
+            },
+            "4": {
+              "offset": 0.0,
+              "range_v": 10.0,
+              "unit": "V",
+              "value": 1.8161
+            },
+            "5": {
+              "offset": 0.0,
+              "range_v": 10.0,
+              "unit": "V",
+              "value": 2.0954
+            },
+            "6": {
+              "offset": 0.0,
+              "range_v": 10.0,
+              "unit": "V",
+              "value": 2.5002
+            },
+            "7": {
+              "offset": 0.0,
+              "range_v": 10.0,
+              "unit": "V",
+              "value": 3.0067
+            },
+            "8": {
+              "offset": 0.0,
+              "range_v": 10.0,
+              "unit": "V",
+              "value": 3.583
+            }
+          },
+          "digital": {
+            "1": false,
+            "2": true
+          }
+        },
+        "unavailable_reason": ""
+      },
+      {
+        "available": true,
+        "commands": [
+          {
+            "fields": [
+              {
+                "choices": ["1", "2"],
+                "label": "Channel",
+                "max": null,
+                "min": null,
+                "name": "channel",
+                "type": "string",
+                "unit": ""
+              },
+              {
+                "choices": [],
+                "label": "Voltage",
+                "max": 30.0,
+                "min": 0.0,
+                "name": "voltage",
+                "type": "number",
+                "unit": "V"
+              }
+            ],
+            "label": "Set Voltage",
+            "name": "set_voltage"
+          },
+          {
+            "fields": [
+              {
+                "choices": ["1", "2"],
+                "label": "Channel",
+                "max": null,
+                "min": null,
+                "name": "channel",
+                "type": "string",
+                "unit": ""
+              },
+              {
+                "choices": [],
+                "label": "Current",
+                "max": 5.0,
+                "min": 0.0,
+                "name": "current",
+                "type": "number",
+                "unit": "A"
+              }
+            ],
+            "label": "Set Current Limit",
+            "name": "set_current_limit"
+          },
+          {
+            "fields": [
+              {
+                "choices": ["1", "2"],
+                "label": "Channel",
+                "max": null,
+                "min": null,
+                "name": "channel",
+                "type": "string",
+                "unit": ""
+              },
+              {
+                "choices": [],
+                "label": "Enabled",
+                "max": null,
+                "min": null,
+                "name": "enabled",
+                "type": "boolean",
+                "unit": ""
+              }
+            ],
+            "label": "Set Output",
+            "name": "set_output"
+          }
+        ],
+        "description": "Two-channel bench supply with readback and current limiting.",
+        "instance_id": "psu0",
+        "kind": "psu",
+        "name": "psu",
+        "state": {
+          "channels": {
+            "1": {
+              "current": 0.0,
+              "current_limit": 2.0,
+              "output_enabled": false,
+              "voltage": 0.0,
+              "voltage_setpoint": 12.0
+            },
+            "2": {
+              "current": 0.0,
+              "current_limit": 2.0,
+              "output_enabled": false,
+              "voltage": 0.0,
+              "voltage_setpoint": 5.0
+            }
+          }
+        },
+        "unavailable_reason": ""
+      }
+    ]
+  },
+  "profile_quick": {
+    "body": "description: Three-second smoke run. Used by `gauntlet verify --run`; needs no hardware.\nduration_s: 3.0\nsample_period_s: 0.25\nmax_cpu_percent: 100.0\nmin_available_memory_percent: 1.0\nmin_free_disk_percent: 1.0\nmax_load_per_core: 32.0\nmax_temperature_c: 105.0\nmax_new_interface_errors: 1000\nstop_on_failure: false\n",
+    "name": "quick.yaml",
+    "path": "/workspaces/gauntlet/suites/system_stats/profiles/quick.yaml"
+  },
+  "profile_schema": {
+    "additionalProperties": false,
+    "description": "Cadence and the thresholds every sample is checked against.",
+    "properties": {
+      "description": {
+        "default": "",
+        "description": "Shown in the profile picker.",
+        "title": "Description",
+        "type": "string"
+      },
+      "duration_s": {
+        "default": 60.0,
+        "description": "How long to keep sampling the host.",
+        "exclusiveMinimum": 0,
+        "title": "Duration S",
+        "type": "number"
+      },
+      "max_cpu_percent": {
+        "default": 95.0,
+        "description": "Fail a sample whose overall CPU utilisation exceeds this.",
+        "maximum": 100,
+        "minimum": 0,
+        "title": "Max Cpu Percent",
+        "type": "number"
+      },
+      "max_load_per_core": {
+        "default": 4.0,
+        "description": "Fail a sample whose one-minute load average per core is above this.",
+        "exclusiveMinimum": 0,
+        "title": "Max Load Per Core",
+        "type": "number"
+      },
+      "max_new_interface_errors": {
+        "default": 0,
+        "description": "Errors plus drops one interface may accumulate between samples.",
+        "minimum": 0,
+        "title": "Max New Interface Errors",
+        "type": "integer"
+      },
+      "max_temperature_c": {
+        "default": 90.0,
+        "description": "Fail a sample whose hottest thermal zone is above this.",
+        "title": "Max Temperature C",
+        "type": "number"
+      },
+      "min_available_memory_percent": {
+        "default": 10.0,
+        "description": "Fail a sample whose available memory is below this share of total.",
+        "maximum": 100,
+        "minimum": 0,
+        "title": "Min Available Memory Percent",
+        "type": "number"
+      },
+      "min_free_disk_percent": {
+        "default": 10.0,
+        "description": "Fail a sample where any mounted filesystem has less free space than this.",
+        "maximum": 100,
+        "minimum": 0,
+        "title": "Min Free Disk Percent",
+        "type": "number"
+      },
+      "sample_period_s": {
+        "default": 1.0,
+        "description": "Seconds between samples.",
+        "exclusiveMinimum": 0,
+        "title": "Sample Period S",
+        "type": "number"
+      },
+      "stop_on_failure": {
+        "default": false,
+        "description": "Abandon the run on the first failing sample.",
+        "title": "Stop On Failure",
+        "type": "boolean"
+      }
+    },
+    "title": "SystemStatsProfile",
+    "type": "object"
+  },
+  "run": {
+    "duration_s": 3.823,
+    "ended_at": "2026-08-03T06:23:19Z",
+    "fail_reason": null,
+    "profile": "quick.yaml",
+    "run_dir": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs/system_stats/RUN-0001",
+    "run_id": "RUN-0001",
+    "started_at": "2026-08-03T06:23:16Z",
+    "status": "passed",
+    "suite": "system_stats",
+    "target": null,
+    "unit_serial": "SN-BENCH-042",
+    "verdict": "PASS"
+  },
+  "run_artifacts": {
+    "artifacts": [
+      {
+        "path": "events.sqlite",
+        "size": 40960,
+        "text": false
+      },
+      {
+        "path": "junit.xml",
+        "size": 993,
+        "text": true
+      },
+      {
+        "path": "manifest.json",
+        "size": 2386,
+        "text": true
+      },
+      {
+        "path": "metrics.jsonl",
+        "size": 21867,
+        "text": true
+      },
+      {
+        "path": "profile.yaml",
+        "size": 314,
+        "text": true
+      },
+      {
+        "path": "summary.md",
+        "size": 990,
+        "text": true
+      },
+      {
+        "path": "test.log",
+        "size": 1338,
+        "text": true
+      },
+      {
+        "path": "verdict.json",
+        "size": 2507,
+        "text": true
+      }
+    ],
+    "run_dir": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs/system_stats/RUN-0001",
+    "run_id": "RUN-0001"
+  },
+  "run_manifest": {
+    "command_line": [
+      "/workspaces/gauntlet/suites/system_stats/suite/cli.py",
+      "--profile",
+      "/workspaces/gauntlet/suites/system_stats/profiles/quick.yaml",
+      "--run-dir",
+      "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs/system_stats/RUN-0001",
+      "--unit-serial",
+      "SN-BENCH-042",
+      "--duration-s",
+      "3.0",
+      "--sample-period-s",
+      "0.25"
+    ],
+    "cwd": "/workspaces/gauntlet/suites/system_stats",
+    "env": {
+      "GAUNTLET_API": "http://127.0.0.1:7180/api",
+      "GAUNTLET_DATA_DIR": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data",
+      "GAUNTLET_DEVCONTAINER": "true",
+      "GAUNTLET_PROFILE": "/workspaces/gauntlet/suites/system_stats/profiles/quick.yaml",
+      "GAUNTLET_RUN_DIR": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs/system_stats/RUN-0001",
+      "GAUNTLET_RUN_ID": "RUN-0001",
+      "GAUNTLET_SUITE": "system_stats",
+      "GAUNTLET_SUITE_DIR": "/workspaces/gauntlet/suites/system_stats",
+      "GAUNTLET_UNIT_SERIAL": "SN-BENCH-042"
+    },
+    "hardware": {
+      "host": {
+        "arch": "x86_64",
+        "cpu_count": "24",
+        "cpu_model": "AMD Ryzen 9 5900X 12-Core Processor",
+        "hostname": "bde7fd7761aa",
+        "kernel": "6.8.0-117-generic",
+        "memory_total_bytes": "67324526592",
+        "os": "Linux"
+      }
+    },
+    "hostname": "bde7fd7761aa",
+    "platform": "Linux-6.8.0-117-generic-x86_64-with-glibc2.36",
+    "profile_path": "/workspaces/gauntlet/suites/system_stats/profiles/quick.yaml",
+    "profile_summary": {
+      "description": "Three-second smoke run. Used by `gauntlet verify --run`; needs no hardware.",
+      "duration_s": "3.0",
+      "max_cpu_percent": "100.0",
+      "max_load_per_core": "32.0",
+      "max_new_interface_errors": "1000",
+      "max_temperature_c": "105.0",
+      "min_available_memory_percent": "1.0",
+      "min_free_disk_percent": "1.0",
+      "sample_period_s": "0.25",
+      "stop_on_failure": "False"
+    },
+    "python_version": "3.12.11",
+    "repo_branch": "master",
+    "repo_dirty": true,
+    "repo_sha": "795b69f93a0d3fa0a6b5ef765795d8a7b7de6d68",
+    "run_id": "RUN-0001",
+    "started_at_utc": "2026-08-03T06:23:16Z",
+    "suite": "system_stats",
+    "target": null,
+    "unit_serial": "SN-BENCH-042",
+    "versions": {
+      "python": "3.12.11"
+    }
+  },
+  "run_metrics": {
+    "count": 4,
+    "records": [
+      {
+        "elapsed_run_s": 1.3828277587890625e-5,
+        "iteration": 1,
+        "kind": "iteration",
+        "metrics": {
+          "context_switches_per_s": 35474.62,
+          "cpu": {
+            "per_core": {
+              "cpu0": 0.0,
+              "cpu1": 0.0,
+              "cpu10": 10.0,
+              "cpu11": 0.0,
+              "cpu12": 0.0,
+              "cpu13": 0.0,
+              "cpu14": 100.0,
+              "cpu15": 10.0,
+              "cpu16": 0.0,
+              "cpu17": 0.0,
+              "cpu18": 0.0,
+              "cpu19": 0.0,
+              "cpu2": 0.0,
+              "cpu20": 10.0,
+              "cpu21": 0.0,
+              "cpu22": 18.18,
+              "cpu23": 0.0,
+              "cpu3": 10.0,
+              "cpu4": 0.0,
+              "cpu5": 0.0,
+              "cpu6": 10.0,
+              "cpu7": 0.0,
+              "cpu8": 0.0,
+              "cpu9": 100.0
+            },
+            "percent": 11.57
+          },
+          "cpu_count": 24,
+          "disk": {
+            "root": {
+              "free_bytes": 1593127624704,
+              "free_percent": 80.98,
+              "total_bytes": 1967317549056,
+              "used_bytes": 274180104192
+            },
+            "workspaces_gauntlet": {
+              "free_bytes": 2190145581056,
+              "free_percent": 55.63,
+              "total_bytes": 3936818634752,
+              "used_bytes": 1546617032704
+            }
+          },
+          "load": {
+            "fifteen": 3.25,
+            "five": 3.0,
+            "one": 2.54,
+            "per_core": 0.106,
+            "runnable": 3
+          },
+          "memory": {
+            "available_bytes": 40726257664,
+            "available_percent": 60.49,
+            "total_bytes": 67324526592,
+            "used_bytes": 26598268928,
+            "used_percent": 39.51
+          },
+          "net": {
+            "eth0": {
+              "dropped": 0,
+              "errors": 0,
+              "new_dropped": 0,
+              "new_errors": 0,
+              "rx_bytes_per_s": 0.0,
+              "tx_bytes_per_s": 0.0
+            },
+            "lo": {
+              "dropped": 0,
+              "errors": 0,
+              "new_dropped": 0,
+              "new_errors": 0,
+              "rx_bytes_per_s": 0.0,
+              "tx_bytes_per_s": 0.0
+            }
+          },
+          "processes": {
+            "blocked": 0,
+            "count": 9,
+            "running": 3
+          },
+          "swap": {
+            "total_bytes": 2147479552,
+            "used_bytes": 1329684480,
+            "used_percent": 61.92
+          },
+          "uptime_s": 5407232.4,
+          "window_s": 0.1001
+        },
+        "phases": [
+          {
+            "detail": {
+              "cores": "24",
+              "disks": "2",
+              "interfaces": "2",
+              "zones": "0"
+            },
+            "elapsed_s": 0.100221773609519,
+            "error": null,
+            "name": "sample",
+            "success": true
+          },
+          {
+            "detail": {
+              "checked": "6",
+              "failed": "0"
+            },
+            "elapsed_s": 4.457402974367142e-5,
+            "error": null,
+            "name": "check",
+            "success": true
+          }
+        ],
+        "reason": "",
+        "success": true,
+        "timestamp": 1785738196.6503434
+      },
+      {
+        "elapsed_run_s": 0.2501249313354492,
+        "iteration": 2,
+        "kind": "iteration",
+        "metrics": {
+          "context_switches_per_s": 34942.19,
+          "cpu": {
+            "per_core": {
+              "cpu0": 0.0,
+              "cpu1": 0.0,
+              "cpu10": 6.67,
+              "cpu11": 0.0,
+              "cpu12": 0.0,
+              "cpu13": 0.0,
+              "cpu14": 100.0,
+              "cpu15": 6.67,
+              "cpu16": 0.0,
+              "cpu17": 0.0,
+              "cpu18": 0.0,
+              "cpu19": 6.67,
+              "cpu2": 0.0,
+              "cpu20": 6.67,
+              "cpu21": 0.0,
+              "cpu22": 6.67,
+              "cpu23": 0.0,
+              "cpu3": 6.67,
+              "cpu4": 0.0,
+              "cpu5": 0.0,
+              "cpu6": 6.67,
+              "cpu7": 6.67,
+              "cpu8": 6.25,
+              "cpu9": 94.12
+            },
+            "percent": 11.36
+          },
+          "cpu_count": 24,
+          "disk": {
+            "root": {
+              "free_bytes": 1593127620608,
+              "free_percent": 80.98,
+              "total_bytes": 1967317549056,
+              "used_bytes": 274180108288
+            },
+            "workspaces_gauntlet": {
+              "free_bytes": 2190145581056,
+              "free_percent": 55.63,
+              "total_bytes": 3936818634752,
+              "used_bytes": 1546617032704
+            }
+          },
+          "load": {
+            "fifteen": 3.25,
+            "five": 3.0,
+            "one": 2.54,
+            "per_core": 0.106,
+            "runnable": 3
+          },
+          "memory": {
+            "available_bytes": 40726261760,
+            "available_percent": 60.49,
+            "total_bytes": 67324526592,
+            "used_bytes": 26598264832,
+            "used_percent": 39.51
+          },
+          "net": {
+            "eth0": {
+              "dropped": 0,
+              "errors": 0,
+              "new_dropped": 0,
+              "new_errors": 0,
+              "rx_bytes_per_s": 0.0,
+              "tx_bytes_per_s": 0.0
+            },
+            "lo": {
+              "dropped": 0,
+              "errors": 0,
+              "new_dropped": 0,
+              "new_errors": 0,
+              "rx_bytes_per_s": 0.0,
+              "tx_bytes_per_s": 0.0
+            }
+          },
+          "processes": {
+            "blocked": 0,
+            "count": 9,
+            "running": 3
+          },
+          "swap": {
+            "total_bytes": 2147479552,
+            "used_bytes": 1329684480,
+            "used_percent": 61.92
+          },
+          "uptime_s": 5407232.5,
+          "window_s": 0.151
+        },
+        "phases": [
+          {
+            "detail": {
+              "cores": "24",
+              "disks": "2",
+              "interfaces": "2",
+              "zones": "0"
+            },
+            "elapsed_s": 0.0011722156777977943,
+            "error": null,
+            "name": "sample",
+            "success": true
+          },
+          {
+            "detail": {
+              "checked": "6",
+              "failed": "0"
+            },
+            "elapsed_s": 3.936421126127243e-5,
+            "error": null,
+            "name": "check",
+            "success": true
+          }
+        ],
+        "reason": "",
+        "success": true,
+        "timestamp": 1785738196.8014102
+      },
+      {
+        "elapsed_run_s": 0.500239372253418,
+        "iteration": 3,
+        "kind": "iteration",
+        "metrics": {
+          "context_switches_per_s": 76373.27,
+          "cpu": {
+            "per_core": {
+              "cpu0": 12.0,
+              "cpu1": 4.17,
+              "cpu10": 12.0,
+              "cpu11": 50.0,
+              "cpu12": 8.0,
+              "cpu13": 20.0,
+              "cpu14": 100.0,
+              "cpu15": 11.54,
+              "cpu16": 8.33,
+              "cpu17": 4.17,
+              "cpu18": 8.0,
+              "cpu19": 8.0,
+              "cpu2": 0.0,
+              "cpu20": 8.33,
+              "cpu21": 0.0,
+              "cpu22": 20.0,
+              "cpu23": 4.0,
+              "cpu3": 11.54,
+              "cpu4": 3.85,
+              "cpu5": 8.0,
+              "cpu6": 4.17,
+              "cpu7": 7.69,
+              "cpu8": 4.0,
+              "cpu9": 54.17
+            },
+            "percent": 14.67
+          },
+          "cpu_count": 24,
+          "disk": {
+            "root": {
+              "free_bytes": 1593127620608,
+              "free_percent": 80.98,
+              "total_bytes": 1967317549056,
+              "used_bytes": 274180108288
+            },
+            "workspaces_gauntlet": {
+              "free_bytes": 2190145581056,
+              "free_percent": 55.63,
+              "total_bytes": 3936818634752,
+              "used_bytes": 1546617032704
+            }
+          },
+          "load": {
+            "fifteen": 3.25,
+            "five": 3.0,
+            "one": 2.54,
+            "per_core": 0.106,
+            "runnable": 5
+          },
+          "memory": {
+            "available_bytes": 40746344448,
+            "available_percent": 60.52,
+            "total_bytes": 67324526592,
+            "used_bytes": 26578182144,
+            "used_percent": 39.48
+          },
+          "net": {
+            "eth0": {
+              "dropped": 0,
+              "errors": 0,
+              "new_dropped": 0,
+              "new_errors": 0,
+              "rx_bytes_per_s": 0.0,
+              "tx_bytes_per_s": 0.0
+            },
+            "lo": {
+              "dropped": 0,
+              "errors": 0,
+              "new_dropped": 0,
+              "new_errors": 0,
+              "rx_bytes_per_s": 5969.61,
+              "tx_bytes_per_s": 5969.61
+            }
+          },
+          "processes": {
+            "blocked": 0,
+            "count": 9,
+            "running": 8
+          },
+          "swap": {
+            "total_bytes": 2147479552,
+            "used_bytes": 1329684480,
+            "used_percent": 61.92
+          },
+          "uptime_s": 5407232.8,
+          "window_s": 0.2501
+        },
+        "phases": [
+          {
+            "detail": {
+              "cores": "24",
+              "disks": "2",
+              "interfaces": "2",
+              "zones": "0"
+            },
+            "elapsed_s": 0.0012149559333920479,
+            "error": null,
+            "name": "sample",
+            "success": true
+          },
+          {
+            "detail": {
+              "checked": "6",
+              "failed": "0"
+            },
+            "elapsed_s": 3.345310688018799e-5,
+            "error": null,
+            "name": "check",
+            "success": true
+          }
+        ],
+        "reason": "",
+        "success": true,
+        "timestamp": 1785738197.0515466
+      },
+      {
+        "elapsed_run_s": 0.7503514289855957,
+        "iteration": 4,
+        "kind": "iteration",
+        "metrics": {
+          "context_switches_per_s": 63743.89,
+          "cpu": {
+            "per_core": {
+              "cpu0": 4.0,
+              "cpu1": 4.0,
+              "cpu10": 8.33,
+              "cpu11": 96.15,
+              "cpu12": 4.0,
+              "cpu13": 8.0,
+              "cpu14": 100.0,
+              "cpu15": 8.0,
+              "cpu16": 4.0,
+              "cpu17": 0.0,
+              "cpu18": 0.0,
+              "cpu19": 8.0,
+              "cpu2": 3.85,
+              "cpu20": 12.0,
+              "cpu21": 8.0,
+              "cpu22": 0.0,
+              "cpu23": 4.0,
+              "cpu3": 12.5,
+              "cpu4": 0.0,
+              "cpu5": 0.0,
+              "cpu6": 4.17,
+              "cpu7": 0.0,
+              "cpu8": 0.0,
+              "cpu9": 0.0
+            },
+            "percent": 13.04
+          },
+          "cpu_count": 24,
+          "disk": {
+            "root": {
+              "free_bytes": 1593127608320,
+              "free_percent": 80.98,
+              "total_bytes": 1967317549056,
+              "used_bytes": 274180120576
+            },
+            "workspaces_gauntlet": {
+              "free_bytes": 2190145581056,
+              "free_percent": 55.63,
+              "total_bytes": 3936818634752,
+              "used_bytes": 1546617032704
+            }
+          },
+          "load": {
+            "fifteen": 3.25,
+            "five": 3.0,
+            "one": 2.54,
+            "per_core": 0.106,
+            "runnable": 4
+          },
+          "memory": {
+            "available_bytes": 40750403584,
+            "available_percent": 60.53,
+            "total_bytes": 67324526592,
+            "used_bytes": 26574123008,
+            "used_percent": 39.47
+          },
+          "net": {
+            "eth0": {
+              "dropped": 0,
+              "errors": 0,
+              "new_dropped": 0,
+              "new_errors": 0,
+              "rx_bytes_per_s": 263.89,
+              "tx_bytes_per_s": 263.89
+            },
+            "lo": {
+              "dropped": 0,
+              "errors": 0,
+              "new_dropped": 0,
+              "new_errors": 0,
+              "rx_bytes_per_s": 0.0,
+              "tx_bytes_per_s": 0.0
+            }
+          },
+          "processes": {
+            "blocked": 0,
+            "count": 9,
+            "running": 5
+          },
+          "swap": {
+            "total_bytes": 2147479552,
+            "used_bytes": 1329684480,
+            "used_percent": 61.92
+          },
+          "uptime_s": 5407233.0,
+          "window_s": 0.2501
+        },
+        "phases": [
+          {
+            "detail": {
+              "cores": "24",
+              "disks": "2",
+              "interfaces": "2",
+              "zones": "0"
+            },
+            "elapsed_s": 0.0011822441592812538,
+            "error": null,
+            "name": "sample",
+            "success": true
+          },
+          {
+            "detail": {
+              "checked": "6",
+              "failed": "0"
+            },
+            "elapsed_s": 3.2922253012657166e-5,
+            "error": null,
+            "name": "check",
+            "success": true
+          }
+        ],
+        "reason": "",
+        "success": true,
+        "timestamp": 1785738197.301624
+      }
+    ],
+    "run_id": "RUN-0001"
+  },
+  "run_notes": {
+    "notes": [
+      {
+        "author": "gabe",
+        "body": "Second bench run, captured for the route fixtures.",
+        "created_at": "2026-08-03T06:23:20Z",
+        "id": 3
+      }
+    ]
+  },
+  "run_verdict": {
+    "abort_reason": "",
+    "aborted": false,
+    "duration_s": 3.001,
+    "ended_at_utc": "2026-08-03T06:23:19Z",
+    "failures": 0,
+    "passed": true,
+    "reason": "",
+    "results": [
+      {
+        "format": "int",
+        "key": "samples",
+        "label": "Samples",
+        "value": 12
+      },
+      {
+        "format": "int",
+        "key": "failed_samples",
+        "label": "Failed samples",
+        "value": 0
+      },
+      {
+        "format": "int",
+        "key": "anomalies",
+        "label": "Anomalies",
+        "value": 0
+      },
+      {
+        "format": "percent",
+        "key": "cpu_peak",
+        "label": "Peak CPU",
+        "precision": 2,
+        "value": 14.67
+      },
+      {
+        "format": "percent",
+        "key": "cpu_mean",
+        "label": "Mean CPU",
+        "precision": 2,
+        "value": 10.42
+      },
+      {
+        "format": "percent",
+        "key": "memory_available_min",
+        "label": "Lowest available memory",
+        "precision": 2,
+        "value": 60.49
+      },
+      {
+        "format": "percent",
+        "key": "disk_free_min",
+        "label": "Lowest free disk",
+        "precision": 2,
+        "value": 55.63
+      },
+      {
+        "format": "decimal",
+        "key": "load_peak",
+        "label": "Peak load per core",
+        "precision": 2,
+        "value": 0.11
+      },
+      {
+        "format": "decimal",
+        "key": "context_switches_mean",
+        "label": "Mean context switches",
+        "precision": 2,
+        "unit": "/s",
+        "value": 49077.99
+      },
+      {
+        "format": "duration",
+        "key": "duration",
+        "label": "Duration",
+        "value": 3.0
+      }
+    ],
+    "started_at_utc": "2026-08-03T06:23:16Z",
+    "stopped_early": false,
+    "successes": 12,
+    "tests": [
+      {
+        "classname": "system_stats",
+        "message": "12 samples within limits",
+        "name": "cpu",
+        "outcome": "pass"
+      },
+      {
+        "classname": "system_stats",
+        "message": "12 samples within limits",
+        "name": "disk",
+        "outcome": "pass"
+      },
+      {
+        "classname": "system_stats",
+        "message": "12 samples within limits",
+        "name": "load",
+        "outcome": "pass"
+      },
+      {
+        "classname": "system_stats",
+        "message": "12 samples within limits",
+        "name": "memory",
+        "outcome": "pass"
+      },
+      {
+        "classname": "system_stats",
+        "message": "12 samples within limits",
+        "name": "network",
+        "outcome": "pass"
+      },
+      {
+        "classname": "system_stats",
+        "message": "host exposes no thermal zones",
+        "name": "thermal",
+        "outcome": "skip"
+      }
+    ],
+    "total_iterations": 12
+  },
+  "runs": {
+    "runs": [
+      {
+        "duration_s": 3.823,
+        "ended_at": "2026-08-03T06:23:19Z",
+        "fail_reason": null,
+        "profile": "quick.yaml",
+        "run_dir": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs/system_stats/RUN-0001",
+        "run_id": "RUN-0001",
+        "started_at": "2026-08-03T06:23:16Z",
+        "status": "passed",
+        "suite": "system_stats",
+        "target": null,
+        "unit_serial": "SN-BENCH-042",
+        "verdict": "PASS"
+      },
+      {
+        "duration_s": 5.312,
+        "ended_at": "2026-08-03T06:20:35Z",
+        "fail_reason": null,
+        "profile": "quick.yaml",
+        "run_dir": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs/system_stats/20260803T062030Z-4355",
+        "run_id": "20260803T062030Z-4355",
+        "started_at": "2026-08-03T06:20:30Z",
+        "status": "passed",
+        "suite": "system_stats",
+        "target": null,
+        "unit_serial": "SN-RENAMED-002",
+        "verdict": "PASS"
+      }
+    ],
+    "total": 2
+  },
+  "schemas": {
+    "schemas": ["manifest", "metrics-record", "suite", "verdict"]
+  },
+  "settings": {
+    "data_dir": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data",
+    "default_target": "",
+    "host": "127.0.0.1",
+    "log_level": "info",
+    "open_browser": false,
+    "port": 7180,
+    "profiles_dir": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/profiles",
+    "profiles_user_dir": null,
+    "reports_base": null,
+    "runs_dir": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs",
+    "runs_index_path": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs.sqlite",
+    "suite_roots": ["/workspaces/gauntlet/suites"]
+  },
+  "suite_system_stats": {
+    "apiVersion": 1,
+    "category": "examples",
+    "conformance_profile": "quick.yaml",
+    "description": "Samples the Linux host it runs on \u2014 CPU, load, memory, swap, disks, thermal zones, network counters, context switches, processes and uptime \u2014 and checks every sample against thresholds from the profile. Needs no hardware, so a fresh checkout can demonstrate a full run.\n",
+    "directory": "/workspaces/gauntlet/suites/system_stats",
+    "exec": {
+      "args": {
+        "profile": "--profile",
+        "run_dir": "--run-dir",
+        "unit_serial": "--unit-serial"
+      },
+      "command": ["python", "-m", "suite.cli"],
+      "env": {},
+      "graceful_stop_signal": "SIGUSR1",
+      "profile_schema_command": ["python", "-m", "suite.cli", "--print-profile-schema"],
+      "workdir": "."
+    },
+    "key": "system_stats",
+    "overrides": [
+      {
+        "choices": [],
+        "default": null,
+        "flag": "--duration-s",
+        "help": "How long to keep sampling the host.",
+        "label": "Duration",
+        "maximum": null,
+        "minimum": 0.1,
+        "name": "duration_s",
+        "type": "number",
+        "unit": "s"
+      },
+      {
+        "choices": [],
+        "default": null,
+        "flag": "--sample-period-s",
+        "help": "Seconds between samples. CPU utilisation is measured across this window.",
+        "label": "Sample period",
+        "maximum": null,
+        "minimum": 0.05,
+        "name": "sample_period_s",
+        "type": "number",
+        "unit": "s"
+      },
+      {
+        "choices": [],
+        "default": null,
+        "flag": "--max-cpu-percent",
+        "help": "Fail a sample whose overall CPU utilisation exceeds this.",
+        "label": "CPU ceiling",
+        "maximum": 100.0,
+        "minimum": 0.0,
+        "name": "max_cpu_percent",
+        "type": "number",
+        "unit": "%"
+      },
+      {
+        "choices": [],
+        "default": null,
+        "flag": "--min-available-memory-percent",
+        "help": "Fail a sample whose MemAvailable share of MemTotal is below this.",
+        "label": "Available memory floor",
+        "maximum": 100.0,
+        "minimum": 0.0,
+        "name": "min_available_memory_percent",
+        "type": "number",
+        "unit": "%"
+      },
+      {
+        "choices": [],
+        "default": null,
+        "flag": "--min-free-disk-percent",
+        "help": "Fail a sample where any mounted filesystem has less free space than this.",
+        "label": "Free disk floor",
+        "maximum": 100.0,
+        "minimum": 0.0,
+        "name": "min_free_disk_percent",
+        "type": "number",
+        "unit": "%"
+      },
+      {
+        "choices": [],
+        "default": null,
+        "flag": "--max-load-per-core",
+        "help": "Fail a sample whose one-minute load average divided by core count is above this.",
+        "label": "Load ceiling",
+        "maximum": null,
+        "minimum": 0.01,
+        "name": "max_load_per_core",
+        "type": "number",
+        "unit": "per core"
+      },
+      {
+        "choices": [],
+        "default": null,
+        "flag": "--max-temperature-c",
+        "help": "Fail a sample whose hottest thermal zone is above this. Skipped when the host exposes none.",
+        "label": "Temperature ceiling",
+        "maximum": null,
+        "minimum": null,
+        "name": "max_temperature_c",
+        "type": "number",
+        "unit": "C"
+      },
+      {
+        "choices": [],
+        "default": null,
+        "flag": "--max-new-interface-errors",
+        "help": "Fail a sample where an interface reports more new errors plus drops than this.",
+        "label": "Interface error budget",
+        "maximum": null,
+        "minimum": 0.0,
+        "name": "max_new_interface_errors",
+        "type": "integer",
+        "unit": "per sample"
+      },
+      {
+        "choices": [],
+        "default": null,
+        "flag": "--stop-on-failure",
+        "help": "Abandon the run as soon as one sample fails a check.",
+        "label": "Stop on first failure",
+        "maximum": null,
+        "minimum": null,
+        "name": "stop_on_failure",
+        "type": "boolean",
+        "unit": ""
+      }
+    ],
+    "produces": ["events", "junit", "manifest", "metrics", "summary", "verdict"],
+    "profiles": "./profiles",
+    "profiles_available": [
+      {
+        "description": "Bench profile",
+        "name": "bench.yaml",
+        "path": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/profiles/system_stats/bench.yaml",
+        "user_authored": true
+      },
+      {
+        "description": "Three-second smoke run. Used by `gauntlet verify --run`; needs no hardware.",
+        "name": "quick.yaml",
+        "path": "/workspaces/gauntlet/suites/system_stats/profiles/quick.yaml",
+        "user_authored": false
+      },
+      {
+        "description": "Five-minute health watch at 1 Hz, with limits a busy workstation still meets.",
+        "name": "standard.yaml",
+        "path": "/workspaces/gauntlet/suites/system_stats/profiles/standard.yaml",
+        "user_authored": false
+      },
+      {
+        "description": "Tight limits for a host that is expected to be idle and cool. Exercises the failure path on anything under real load.",
+        "name": "strict.yaml",
+        "path": "/workspaces/gauntlet/suites/system_stats/profiles/strict.yaml",
+        "user_authored": false
+      }
+    ],
+    "requires": [],
+    "supports": {
+      "target": false,
+      "unit_serial": true
+    },
+    "title": "System \u2014 Linux Stats"
+  },
+  "suites": {
+    "errors": [],
+    "suites": [
+      {
+        "apiVersion": 1,
+        "category": "hardware",
+        "conformance_profile": "mock.yaml",
+        "description": "Exercise a CAN bus between the unit under test and the lab host. A sender installed on the unit emits an incrementing counter; the lab host receives from socketcan and records gaps and reordering.\n",
+        "directory": "/workspaces/gauntlet/suites/can_bus",
+        "exec": {
+          "args": {
+            "profile": "--profile",
+            "run_dir": "--run-dir",
+            "target": "--target",
+            "unit_serial": "--unit-serial"
+          },
+          "command": ["python", "-m", "suite.cli"],
+          "env": {},
+          "graceful_stop_signal": "SIGUSR1",
+          "profile_schema_command": ["python", "-m", "suite.cli", "--print-profile-schema"],
+          "workdir": "."
+        },
+        "key": "can_bus",
+        "overrides": [
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--duration-s",
+            "help": "",
+            "label": "Duration",
+            "maximum": null,
+            "minimum": null,
+            "name": "duration_s",
+            "type": "number",
+            "unit": "s"
+          },
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--rate-hz",
+            "help": "",
+            "label": "Frame rate",
+            "maximum": null,
+            "minimum": null,
+            "name": "rate_hz",
+            "type": "number",
+            "unit": "Hz"
+          },
+          {
+            "choices": ["real", "mock"],
+            "default": null,
+            "flag": "--driver",
+            "help": "",
+            "label": "Driver",
+            "maximum": null,
+            "minimum": null,
+            "name": "driver",
+            "type": "string",
+            "unit": ""
+          }
+        ],
+        "produces": ["events", "junit", "manifest", "metrics", "summary", "verdict"],
+        "profiles": "./profiles",
+        "profiles_available": [
+          {
+            "description": "Four-hour bus session with a small loss budget.",
+            "name": "endurance.yaml",
+            "path": "/workspaces/gauntlet/suites/can_bus/profiles/endurance.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "No bus required. What `gauntlet verify --run` executes.",
+            "name": "mock.yaml",
+            "path": "/workspaces/gauntlet/suites/can_bus/profiles/mock.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "One minute at 100 Hz on can0 at 500 kbit/s.",
+            "name": "smoke.yaml",
+            "path": "/workspaces/gauntlet/suites/can_bus/profiles/smoke.yaml",
+            "user_authored": false
+          }
+        ],
+        "requires": [],
+        "supports": {
+          "target": true,
+          "unit_serial": true
+        },
+        "title": "CAN Bus Link"
+      },
+      {
+        "apiVersion": 1,
+        "category": "hardware",
+        "conformance_profile": "mock.yaml",
+        "description": "Install a throughput probe on the unit under test and host a TCP server lab-side. Each tick times an upload and a download; the verdict gates on session-average throughput in each direction.\n",
+        "directory": "/workspaces/gauntlet/suites/ethernet",
+        "exec": {
+          "args": {
+            "profile": "--profile",
+            "run_dir": "--run-dir",
+            "target": "--target",
+            "unit_serial": "--unit-serial"
+          },
+          "command": ["python", "-m", "suite.cli"],
+          "env": {},
+          "graceful_stop_signal": "SIGUSR1",
+          "profile_schema_command": ["python", "-m", "suite.cli", "--print-profile-schema"],
+          "workdir": "."
+        },
+        "key": "ethernet",
+        "overrides": [
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--duration-s",
+            "help": "",
+            "label": "Duration",
+            "maximum": null,
+            "minimum": null,
+            "name": "duration_s",
+            "type": "number",
+            "unit": "s"
+          },
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--sample-period-s",
+            "help": "",
+            "label": "Test interval",
+            "maximum": null,
+            "minimum": null,
+            "name": "sample_period_s",
+            "type": "number",
+            "unit": "s"
+          },
+          {
+            "choices": ["real", "mock"],
+            "default": null,
+            "flag": "--driver",
+            "help": "",
+            "label": "Driver",
+            "maximum": null,
+            "minimum": null,
+            "name": "driver",
+            "type": "string",
+            "unit": ""
+          }
+        ],
+        "produces": ["events", "junit", "manifest", "metrics", "summary", "verdict"],
+        "profiles": "./profiles",
+        "profiles_available": [
+          {
+            "description": "Eight-hour session with per-tick floors and a session-average gate.",
+            "name": "endurance.yaml",
+            "path": "/workspaces/gauntlet/suites/ethernet/profiles/endurance.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "No unit required. What `gauntlet verify --run` executes.",
+            "name": "mock.yaml",
+            "path": "/workspaces/gauntlet/suites/ethernet/profiles/mock.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "Two-minute check over a gigabit link.",
+            "name": "smoke.yaml",
+            "path": "/workspaces/gauntlet/suites/ethernet/profiles/smoke.yaml",
+            "user_authored": false
+          }
+        ],
+        "requires": [],
+        "supports": {
+          "target": true,
+          "unit_serial": true
+        },
+        "title": "Ethernet Throughput"
+      },
+      {
+        "apiVersion": 1,
+        "category": "examples",
+        "conformance_profile": "quick.yaml",
+        "description": "A worked example of the common shape: sample something on a fixed cadence, fail iterations that breach a threshold, and roll the run up into a verdict. Copy this directory as the starting point for a Python suite.\n",
+        "directory": "/workspaces/gauntlet/suites/example_sampled",
+        "exec": {
+          "args": {
+            "profile": "--profile",
+            "run_dir": "--run-dir",
+            "target": "--target",
+            "unit_serial": "--unit-serial"
+          },
+          "command": ["python", "-m", "suite.cli"],
+          "env": {},
+          "graceful_stop_signal": "SIGUSR1",
+          "profile_schema_command": ["python", "-m", "suite.cli", "--print-profile-schema"],
+          "workdir": "."
+        },
+        "key": "example_sampled",
+        "overrides": [
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--duration-s",
+            "help": "How long to keep sampling.",
+            "label": "Duration",
+            "maximum": null,
+            "minimum": null,
+            "name": "duration_s",
+            "type": "number",
+            "unit": "s"
+          },
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--sample-period-s",
+            "help": "",
+            "label": "Sample period",
+            "maximum": null,
+            "minimum": null,
+            "name": "sample_period_s",
+            "type": "number",
+            "unit": "s"
+          },
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--stop-on-failure",
+            "help": "",
+            "label": "Stop on first failure",
+            "maximum": null,
+            "minimum": null,
+            "name": "stop_on_failure",
+            "type": "boolean",
+            "unit": ""
+          }
+        ],
+        "produces": ["events", "junit", "manifest", "metrics", "summary", "verdict"],
+        "profiles": "./profiles",
+        "profiles_available": [
+          {
+            "description": "Two-second smoke run. Used by `gauntlet verify --run`; needs no hardware.",
+            "name": "quick.yaml",
+            "path": "/workspaces/gauntlet/suites/example_sampled/profiles/quick.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "Five-minute sampled run at 1 Hz.",
+            "name": "standard.yaml",
+            "path": "/workspaces/gauntlet/suites/example_sampled/profiles/standard.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "Deliberately low limit, so the run fails. Useful for exercising the failure path.",
+            "name": "strict.yaml",
+            "path": "/workspaces/gauntlet/suites/example_sampled/profiles/strict.yaml",
+            "user_authored": false
+          }
+        ],
+        "requires": [],
+        "supports": {
+          "target": true,
+          "unit_serial": true
+        },
+        "title": "Example \u2014 Sampled Loop"
+      },
+      {
+        "apiVersion": 1,
+        "category": "examples",
+        "conformance_profile": "quick.yaml",
+        "description": "The same contract satisfied by a bash script with no Gauntlet library at all. Proof that conforming means writing the right files, not importing anything. Start here for a suite in a language other than Python.\n",
+        "directory": "/workspaces/gauntlet/suites/example_shell",
+        "exec": {
+          "args": {
+            "profile": "--profile",
+            "run_dir": "--run-dir",
+            "target": "--target"
+          },
+          "command": ["./run.sh"],
+          "env": {},
+          "graceful_stop_signal": "NONE",
+          "profile_schema_command": [],
+          "workdir": "."
+        },
+        "key": "example_shell",
+        "overrides": [
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--iterations",
+            "help": "",
+            "label": "Iterations",
+            "maximum": null,
+            "minimum": null,
+            "name": "iterations",
+            "type": "integer",
+            "unit": ""
+          }
+        ],
+        "produces": ["metrics", "verdict"],
+        "profiles": "./profiles",
+        "profiles_available": [
+          {
+            "description": "Fails on iteration 3, to exercise the failure path end to end.",
+            "name": "failing.yaml",
+            "path": "/workspaces/gauntlet/suites/example_shell/profiles/failing.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "Three fast iterations. Used by `gauntlet verify --run`.",
+            "name": "quick.yaml",
+            "path": "/workspaces/gauntlet/suites/example_shell/profiles/quick.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "Twenty iterations at 1 Hz.",
+            "name": "standard.yaml",
+            "path": "/workspaces/gauntlet/suites/example_shell/profiles/standard.yaml",
+            "user_authored": false
+          }
+        ],
+        "requires": [],
+        "supports": {
+          "target": true,
+          "unit_serial": false
+        },
+        "title": "Example \u2014 Shell Script"
+      },
+      {
+        "apiVersion": 1,
+        "category": "hardware",
+        "conformance_profile": "mock.yaml",
+        "description": "Drive a GPIO trigger line on the unit under test over SSH, one high/low pulse per iteration, and record where it stops responding. Also samples load, memory and disk on the unit between pulses.\n",
+        "directory": "/workspaces/gauntlet/suites/hardware_trigger",
+        "exec": {
+          "args": {
+            "profile": "--profile",
+            "run_dir": "--run-dir",
+            "target": "--target",
+            "unit_serial": "--unit-serial"
+          },
+          "command": ["python", "-m", "suite.cli"],
+          "env": {},
+          "graceful_stop_signal": "SIGUSR1",
+          "profile_schema_command": ["python", "-m", "suite.cli", "--print-profile-schema"],
+          "workdir": "."
+        },
+        "key": "hardware_trigger",
+        "overrides": [
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--runs",
+            "help": "",
+            "label": "Pulses",
+            "maximum": null,
+            "minimum": null,
+            "name": "runs",
+            "type": "integer",
+            "unit": ""
+          },
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--cycle-delay-s",
+            "help": "",
+            "label": "Delay between pulses",
+            "maximum": null,
+            "minimum": null,
+            "name": "cycle_delay_s",
+            "type": "number",
+            "unit": "s"
+          },
+          {
+            "choices": ["real", "mock"],
+            "default": null,
+            "flag": "--driver",
+            "help": "",
+            "label": "Driver",
+            "maximum": null,
+            "minimum": null,
+            "name": "driver",
+            "type": "string",
+            "unit": ""
+          }
+        ],
+        "produces": ["events", "junit", "manifest", "metrics", "summary", "verdict"],
+        "profiles": "./profiles",
+        "profiles_available": [
+          {
+            "description": "Long session \u2014 3600 pulses with a one-second gap, ~2 hours.",
+            "name": "endurance.yaml",
+            "path": "/workspaces/gauntlet/suites/hardware_trigger/profiles/endurance.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "No unit required. What `gauntlet verify --run` executes.",
+            "name": "mock.yaml",
+            "path": "/workspaces/gauntlet/suites/hardware_trigger/profiles/mock.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "Five pulses against a real unit. Quick check that the line responds.",
+            "name": "smoke.yaml",
+            "path": "/workspaces/gauntlet/suites/hardware_trigger/profiles/smoke.yaml",
+            "user_authored": false
+          }
+        ],
+        "requires": [],
+        "supports": {
+          "target": true,
+          "unit_serial": true
+        },
+        "title": "Hardware Trigger"
+      },
+      {
+        "apiVersion": 1,
+        "category": "hardware",
+        "conformance_profile": "mock.yaml",
+        "description": "Cycle one or more piezo axes between a home and an extended position over MQTT, recording position, temperature and controller fault flags at the loaded endpoint.\n",
+        "directory": "/workspaces/gauntlet/suites/piezo",
+        "exec": {
+          "args": {
+            "profile": "--profile",
+            "run_dir": "--run-dir",
+            "target": "--target",
+            "unit_serial": "--unit-serial"
+          },
+          "command": ["python", "-m", "suite.cli"],
+          "env": {},
+          "graceful_stop_signal": "SIGUSR1",
+          "profile_schema_command": ["python", "-m", "suite.cli", "--print-profile-schema"],
+          "workdir": "."
+        },
+        "key": "piezo",
+        "overrides": [
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--cycles",
+            "help": "",
+            "label": "Cycles",
+            "maximum": null,
+            "minimum": null,
+            "name": "cycles",
+            "type": "integer",
+            "unit": ""
+          },
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--cycle-delay-s",
+            "help": "",
+            "label": "Delay between cycles",
+            "maximum": null,
+            "minimum": null,
+            "name": "cycle_delay_s",
+            "type": "number",
+            "unit": "s"
+          },
+          {
+            "choices": ["real", "mock"],
+            "default": null,
+            "flag": "--driver",
+            "help": "",
+            "label": "Driver",
+            "maximum": null,
+            "minimum": null,
+            "name": "driver",
+            "type": "string",
+            "unit": ""
+          }
+        ],
+        "produces": ["events", "junit", "manifest", "metrics", "summary", "verdict"],
+        "profiles": "./profiles",
+        "profiles_available": [
+          {
+            "description": "Two thousand cycles with a temperature ceiling.",
+            "name": "endurance.yaml",
+            "path": "/workspaces/gauntlet/suites/piezo/profiles/endurance.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "No controller required. What `gauntlet verify --run` executes.",
+            "name": "mock.yaml",
+            "path": "/workspaces/gauntlet/suites/piezo/profiles/mock.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "Ten cycles on one axis. Quick check that motion and telemetry work.",
+            "name": "smoke.yaml",
+            "path": "/workspaces/gauntlet/suites/piezo/profiles/smoke.yaml",
+            "user_authored": false
+          }
+        ],
+        "requires": [],
+        "supports": {
+          "target": true,
+          "unit_serial": true
+        },
+        "title": "Piezo Motion"
+      },
+      {
+        "apiVersion": 1,
+        "category": "hardware",
+        "conformance_profile": "mock.yaml",
+        "description": "Exercise an RS422 serial link to the unit under test. The lab side sends ENQ probes and reads the counter replies, recording gaps and reordering against the expected sequence.\n",
+        "directory": "/workspaces/gauntlet/suites/rs422",
+        "exec": {
+          "args": {
+            "profile": "--profile",
+            "run_dir": "--run-dir",
+            "target": "--target",
+            "unit_serial": "--unit-serial"
+          },
+          "command": ["python", "-m", "suite.cli"],
+          "env": {},
+          "graceful_stop_signal": "SIGUSR1",
+          "profile_schema_command": ["python", "-m", "suite.cli", "--print-profile-schema"],
+          "workdir": "."
+        },
+        "key": "rs422",
+        "overrides": [
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--duration-s",
+            "help": "",
+            "label": "Duration",
+            "maximum": null,
+            "minimum": null,
+            "name": "duration_s",
+            "type": "number",
+            "unit": "s"
+          },
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--rate-hz",
+            "help": "",
+            "label": "Probe rate",
+            "maximum": null,
+            "minimum": null,
+            "name": "rate_hz",
+            "type": "number",
+            "unit": "Hz"
+          },
+          {
+            "choices": ["real", "mock"],
+            "default": null,
+            "flag": "--driver",
+            "help": "",
+            "label": "Driver",
+            "maximum": null,
+            "minimum": null,
+            "name": "driver",
+            "type": "string",
+            "unit": ""
+          }
+        ],
+        "produces": ["events", "junit", "manifest", "metrics", "summary", "verdict"],
+        "profiles": "./profiles",
+        "profiles_available": [
+          {
+            "description": "Four-hour link session. Allows a small loss budget.",
+            "name": "endurance.yaml",
+            "path": "/workspaces/gauntlet/suites/rs422/profiles/endurance.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "No serial hardware required. What `gauntlet verify --run` executes.",
+            "name": "mock.yaml",
+            "path": "/workspaces/gauntlet/suites/rs422/profiles/mock.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "One minute at 100 Hz over an auto-detected FTDI adapter.",
+            "name": "smoke.yaml",
+            "path": "/workspaces/gauntlet/suites/rs422/profiles/smoke.yaml",
+            "user_authored": false
+          }
+        ],
+        "requires": [],
+        "supports": {
+          "target": true,
+          "unit_serial": true
+        },
+        "title": "RS422 Link"
+      },
+      {
+        "apiVersion": 1,
+        "category": "hardware",
+        "conformance_profile": "mock.yaml",
+        "description": "Probe one or more SSDs on the unit under test. Each tick measures write and read bandwidth with dd, verifies a written block with a SHA-256 compare, and reads SMART error counters.\n",
+        "directory": "/workspaces/gauntlet/suites/ssd",
+        "exec": {
+          "args": {
+            "profile": "--profile",
+            "run_dir": "--run-dir",
+            "target": "--target",
+            "unit_serial": "--unit-serial"
+          },
+          "command": ["python", "-m", "suite.cli"],
+          "env": {},
+          "graceful_stop_signal": "SIGUSR1",
+          "profile_schema_command": ["python", "-m", "suite.cli", "--print-profile-schema"],
+          "workdir": "."
+        },
+        "key": "ssd",
+        "overrides": [
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--duration-s",
+            "help": "",
+            "label": "Duration",
+            "maximum": null,
+            "minimum": null,
+            "name": "duration_s",
+            "type": "number",
+            "unit": "s"
+          },
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--sample-period-s",
+            "help": "",
+            "label": "Tick period",
+            "maximum": null,
+            "minimum": null,
+            "name": "sample_period_s",
+            "type": "number",
+            "unit": "s"
+          },
+          {
+            "choices": ["real", "mock"],
+            "default": null,
+            "flag": "--driver",
+            "help": "",
+            "label": "Driver",
+            "maximum": null,
+            "minimum": null,
+            "name": "driver",
+            "type": "string",
+            "unit": ""
+          }
+        ],
+        "produces": ["events", "junit", "manifest", "metrics", "summary", "verdict"],
+        "profiles": "./profiles",
+        "profiles_available": [
+          {
+            "description": "For a unit with an unmounted disk. Formats and mounts it first, then installs the probe. Formatting destroys the contents of `provision.device`.",
+            "name": "bare-disk.yaml",
+            "path": "/workspaces/gauntlet/suites/ssd/profiles/bare-disk.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "Eight-hour session at 30-second ticks with bandwidth floors.",
+            "name": "endurance.yaml",
+            "path": "/workspaces/gauntlet/suites/ssd/profiles/endurance.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "No unit required. What `gauntlet verify --run` executes.",
+            "name": "mock.yaml",
+            "path": "/workspaces/gauntlet/suites/ssd/profiles/mock.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "Three synthetic units. Exercises the concurrent fan-out with no hardware.",
+            "name": "multi-unit-mock.yaml",
+            "path": "/workspaces/gauntlet/suites/ssd/profiles/multi-unit-mock.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "Four units probed concurrently, eight hours. Every unit must pass.",
+            "name": "multi-unit.yaml",
+            "path": "/workspaces/gauntlet/suites/ssd/profiles/multi-unit.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "Two-minute check against a mounted NVMe disk.",
+            "name": "smoke.yaml",
+            "path": "/workspaces/gauntlet/suites/ssd/profiles/smoke.yaml",
+            "user_authored": false
+          }
+        ],
+        "requires": [],
+        "supports": {
+          "target": true,
+          "unit_serial": true
+        },
+        "title": "SSD Endurance"
+      },
+      {
+        "apiVersion": 1,
+        "category": "examples",
+        "conformance_profile": "quick.yaml",
+        "description": "Samples the Linux host it runs on \u2014 CPU, load, memory, swap, disks, thermal zones, network counters, context switches, processes and uptime \u2014 and checks every sample against thresholds from the profile. Needs no hardware, so a fresh checkout can demonstrate a full run.\n",
+        "directory": "/workspaces/gauntlet/suites/system_stats",
+        "exec": {
+          "args": {
+            "profile": "--profile",
+            "run_dir": "--run-dir",
+            "unit_serial": "--unit-serial"
+          },
+          "command": ["python", "-m", "suite.cli"],
+          "env": {},
+          "graceful_stop_signal": "SIGUSR1",
+          "profile_schema_command": ["python", "-m", "suite.cli", "--print-profile-schema"],
+          "workdir": "."
+        },
+        "key": "system_stats",
+        "overrides": [
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--duration-s",
+            "help": "How long to keep sampling the host.",
+            "label": "Duration",
+            "maximum": null,
+            "minimum": 0.1,
+            "name": "duration_s",
+            "type": "number",
+            "unit": "s"
+          },
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--sample-period-s",
+            "help": "Seconds between samples. CPU utilisation is measured across this window.",
+            "label": "Sample period",
+            "maximum": null,
+            "minimum": 0.05,
+            "name": "sample_period_s",
+            "type": "number",
+            "unit": "s"
+          },
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--max-cpu-percent",
+            "help": "Fail a sample whose overall CPU utilisation exceeds this.",
+            "label": "CPU ceiling",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "name": "max_cpu_percent",
+            "type": "number",
+            "unit": "%"
+          },
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--min-available-memory-percent",
+            "help": "Fail a sample whose MemAvailable share of MemTotal is below this.",
+            "label": "Available memory floor",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "name": "min_available_memory_percent",
+            "type": "number",
+            "unit": "%"
+          },
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--min-free-disk-percent",
+            "help": "Fail a sample where any mounted filesystem has less free space than this.",
+            "label": "Free disk floor",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "name": "min_free_disk_percent",
+            "type": "number",
+            "unit": "%"
+          },
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--max-load-per-core",
+            "help": "Fail a sample whose one-minute load average divided by core count is above this.",
+            "label": "Load ceiling",
+            "maximum": null,
+            "minimum": 0.01,
+            "name": "max_load_per_core",
+            "type": "number",
+            "unit": "per core"
+          },
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--max-temperature-c",
+            "help": "Fail a sample whose hottest thermal zone is above this. Skipped when the host exposes none.",
+            "label": "Temperature ceiling",
+            "maximum": null,
+            "minimum": null,
+            "name": "max_temperature_c",
+            "type": "number",
+            "unit": "C"
+          },
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--max-new-interface-errors",
+            "help": "Fail a sample where an interface reports more new errors plus drops than this.",
+            "label": "Interface error budget",
+            "maximum": null,
+            "minimum": 0.0,
+            "name": "max_new_interface_errors",
+            "type": "integer",
+            "unit": "per sample"
+          },
+          {
+            "choices": [],
+            "default": null,
+            "flag": "--stop-on-failure",
+            "help": "Abandon the run as soon as one sample fails a check.",
+            "label": "Stop on first failure",
+            "maximum": null,
+            "minimum": null,
+            "name": "stop_on_failure",
+            "type": "boolean",
+            "unit": ""
+          }
+        ],
+        "produces": ["events", "junit", "manifest", "metrics", "summary", "verdict"],
+        "profiles": "./profiles",
+        "profiles_available": [
+          {
+            "description": "Bench profile",
+            "name": "bench.yaml",
+            "path": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/profiles/system_stats/bench.yaml",
+            "user_authored": true
+          },
+          {
+            "description": "Three-second smoke run. Used by `gauntlet verify --run`; needs no hardware.",
+            "name": "quick.yaml",
+            "path": "/workspaces/gauntlet/suites/system_stats/profiles/quick.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "Five-minute health watch at 1 Hz, with limits a busy workstation still meets.",
+            "name": "standard.yaml",
+            "path": "/workspaces/gauntlet/suites/system_stats/profiles/standard.yaml",
+            "user_authored": false
+          },
+          {
+            "description": "Tight limits for a host that is expected to be idle and cool. Exercises the failure path on anything under real load.",
+            "name": "strict.yaml",
+            "path": "/workspaces/gauntlet/suites/system_stats/profiles/strict.yaml",
+            "user_authored": false
+          }
+        ],
+        "requires": [],
+        "supports": {
+          "target": false,
+          "unit_serial": true
+        },
+        "title": "System \u2014 Linux Stats"
+      }
+    ]
+  },
+  "system_data": {
+    "cpu_per_core": [
+      0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+      0.0, 100.0, 0.0, 0.0, 0.0
+    ],
+    "cpu_percent": 40.0,
+    "disks": [
+      {
+        "free": 1593127550976,
+        "mount": "/",
+        "percent": 13.9,
+        "total": 1967317549056,
+        "used": 274180177920
+      },
+      {
+        "free": 2190145560576,
+        "mount": "/home/dev/.claude",
+        "percent": 39.3,
+        "total": 3936818634752,
+        "used": 1546617053184
+      },
+      {
+        "free": 2190145560576,
+        "mount": "/home/dev/.codex",
+        "percent": 39.3,
+        "total": 3936818634752,
+        "used": 1546617053184
+      },
+      {
+        "free": 2190145560576,
+        "mount": "/home/dev/.config/git",
+        "percent": 39.3,
+        "total": 3936818634752,
+        "used": 1546617053184
+      },
+      {
+        "free": 2190145560576,
+        "mount": "/home/dev/.ssh",
+        "percent": 39.3,
+        "total": 3936818634752,
+        "used": 1546617053184
+      },
+      {
+        "free": 2190145560576,
+        "mount": "/workspaces/gauntlet",
+        "percent": 39.3,
+        "total": 3936818634752,
+        "used": 1546617053184
+      }
+    ],
+    "load_avg": [4.96, 3.96, 3.55],
+    "memory": {
+      "available": 41792557056,
+      "percent": 37.9,
+      "total": 67324526592,
+      "used": 25531969536
+    },
+    "process_count": 8,
+    "swap": {
+      "percent": 62.4,
+      "total": 2147479552,
+      "used": 1340477440
+    },
+    "temperatures": [],
+    "uptime_s": 5408397.7
+  },
+  "system_info": {
+    "arch": "x86_64",
+    "boot_time": "2026-06-01T16:22:44Z",
+    "cpu_count": 24,
+    "cpu_model": "AMD Ryzen 9 5900X 12-Core Processor",
+    "gauntlet": "0.1.0",
+    "hostname": "bde7fd7761aa",
+    "kernel": "6.8.0-117-generic",
+    "memory_total_bytes": 67324526592,
+    "os": "Linux-6.8.0-117-generic-x86_64-with-glibc2.36",
+    "python": "3.12.11"
+  },
+  "unit": {
+    "failed": 0,
+    "first_seen": "2026-08-03T06:23:16Z",
+    "last_run": {
+      "ended_at": "2026-08-03T06:23:19Z",
+      "run_id": "RUN-0001",
+      "status": "passed",
+      "suite": "system_stats"
+    },
+    "last_seen": "2026-08-03T06:23:16Z",
+    "note_count": 1,
+    "notes": [
+      {
+        "author": null,
+        "body": "Bench spare.",
+        "created_at": "2026-08-03T06:23:20Z",
+        "id": 4
+      }
+    ],
+    "passed": 1,
+    "run_count": 1,
+    "serial": "SN-BENCH-042"
+  },
+  "unit_history": {
+    "runs": [
+      {
+        "duration_s": 3.823,
+        "ended_at": "2026-08-03T06:23:19Z",
+        "fail_reason": null,
+        "profile": "quick.yaml",
+        "run_dir": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs/system_stats/RUN-0001",
+        "run_id": "RUN-0001",
+        "started_at": "2026-08-03T06:23:16Z",
+        "status": "passed",
+        "suite": "system_stats",
+        "target": null,
+        "unit_serial": "SN-BENCH-042",
+        "verdict": "PASS"
+      }
+    ],
+    "total": 1
+  },
+  "unit_notes": {
+    "notes": [
+      {
+        "author": null,
+        "body": "Bench spare.",
+        "created_at": "2026-08-03T06:23:20Z",
+        "id": 4
+      }
+    ]
+  },
+  "units": {
+    "units": [
+      {
+        "failed": 0,
+        "first_seen": "2026-08-03T06:23:16Z",
+        "last_run": {
+          "ended_at": "2026-08-03T06:23:19Z",
+          "run_id": "RUN-0001",
+          "status": "passed",
+          "suite": "system_stats"
+        },
+        "last_seen": "2026-08-03T06:23:16Z",
+        "note_count": 1,
+        "passed": 1,
+        "run_count": 1,
+        "serial": "SN-BENCH-042"
+      },
+      {
+        "failed": 0,
+        "first_seen": "2026-08-03T06:20:30Z",
+        "last_run": {
+          "ended_at": "2026-08-03T06:20:35Z",
+          "run_id": "20260803T062030Z-4355",
+          "status": "passed",
+          "suite": "system_stats"
+        },
+        "last_seen": "2026-08-03T06:20:30Z",
+        "note_count": 1,
+        "passed": 1,
+        "run_count": 1,
+        "serial": "SN-RENAMED-002"
+      }
+    ]
+  },
+  "version": {
+    "contract_version": 1,
+    "gauntlet": "0.1.0",
+    "gauntlet_suite": "0.1.0",
+    "platform": "Linux-6.8.0-117-generic-x86_64-with-glibc2.36",
+    "python": "3.12.11"
+  }
+}

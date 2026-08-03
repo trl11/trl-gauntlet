@@ -1,0 +1,163 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.run-table {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  &__filters {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+
+    > div:first-child {
+      flex: 1 1 260px;
+      min-width: 0;
+    }
+  }
+
+  &__count {
+    font-family: $font-mono;
+    font-size: 12px;
+    color: $trl-gray;
+    padding-bottom: 10px;
+    margin-left: auto;
+  }
+
+  &__scroll {
+    overflow-x: auto;
+    border: 1px solid $trl-dark-gray;
+  }
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+
+    th,
+    td {
+      text-align: left;
+      padding: 10px 14px;
+      white-space: nowrap;
+
+      &.is-right {
+        text-align: right;
+      }
+    }
+
+    thead th {
+      background-color: $trl-dark;
+      color: $trl-gray;
+      font-weight: 500;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid $trl-dark-gray;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba($trl-dark-gray, 0.6);
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+
+      &:hover,
+      &:focus-visible {
+        background-color: rgba($trl-dark-gray, 0.5);
+        outline: none;
+      }
+
+      &:focus-visible {
+        box-shadow: inset 2px 0 0 $indicator-blue;
+      }
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+  }
+
+  &__sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
+    cursor: pointer;
+
+    svg {
+      font-size: 10px;
+      opacity: 0.6;
+    }
+
+    &:hover svg {
+      opacity: 1;
+    }
+  }
+
+  &__pick {
+    width: 36px;
+    cursor: default;
+
+    // The kit draws the box absolutely from the top of the checkbox's label.
+    // These checkboxes carry no label text, so the label would collapse to no
+    // height and the box would hang below the row; give it the box's height.
+    .checkbox label {
+      height: 30px;
+    }
+  }
+
+  &__expand {
+    background: none;
+    color: $trl-gray;
+    cursor: pointer;
+    padding: 2px 4px;
+
+    &:hover,
+    &:focus-visible {
+      color: $trl-light-gray;
+    }
+  }
+
+  &__details {
+    background-color: rgba($trl-dark, 0.7);
+    cursor: default;
+
+    td {
+      white-space: normal;
+    }
+
+    &:hover {
+      background-color: rgba($trl-dark, 0.7);
+    }
+  }
+
+  &__table a {
+    color: $trl-light-gray;
+    text-decoration: none;
+
+    &:hover,
+    &:focus-visible {
+      text-decoration: underline;
+    }
+  }
+
+  &__mono {
+    font-family: $font-mono;
+    font-size: 12px;
+  }
+
+  &__reason {
+    display: inline-block;
+    max-width: 40ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: $trl-gray;
+  }
+}

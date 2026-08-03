@@ -1,0 +1,17 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.api-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  color: $trl-light-gray;
+  background-color: rgba($indicator-red, 0.12);
+  border-left: 3px solid $indicator-red;
+
+  svg {
+    color: $indicator-red;
+  }
+}

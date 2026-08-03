@@ -1,0 +1,22 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.rename-dialog {
+  &__dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px;
+    min-width: min(420px, 80vw);
+  }
+
+  &__dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  &__error {
+    font-size: 13px;
+    color: $indicator-red;
+  }
+}

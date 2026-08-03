@@ -1,0 +1,144 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.dashboard-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+
+  &__columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    align-items: start;
+    gap: 20px;
+  }
+
+  &__main,
+  &__side {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+  }
+
+  &__banner {
+    display: flex;
+    gap: 12px;
+    padding: 12px 16px;
+    border: 1px solid $trl-amber;
+    background-color: rgba($trl-amber, 0.12);
+    font-size: 13px;
+
+    ul {
+      margin-top: 6px;
+      padding-left: 18px;
+      color: $trl-gray;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  &__error {
+    font-size: 13px;
+    color: $indicator-red;
+  }
+
+  &__quiet {
+    font-size: 13px;
+    color: $trl-gray;
+  }
+
+  &__actives {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &__instruments {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__instrument {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid $trl-dark-gray;
+    background-color: rgba($trl-dark, 0.6);
+    text-decoration: none;
+    min-width: 0;
+
+    &:hover,
+    &:focus-visible {
+      border-color: $indicator-blue;
+      outline: none;
+    }
+  }
+
+  &__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: $trl-dark-gray;
+    flex: none;
+
+    &--on {
+      background-color: $indicator-green;
+    }
+  }
+
+  &__instrument-name {
+    font-family: $font-mono;
+    font-size: 12px;
+    color: $trl-light-gray;
+  }
+
+  &__instrument-state {
+    font-size: 10px;
+    color: $trl-gray;
+    margin-left: auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__units {
+    display: flex;
+    flex-direction: column;
+    list-style: none;
+
+    li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 6px 0;
+      border-top: 1px solid rgba($trl-dark-gray, 0.7);
+
+      &:first-child {
+        border-top: none;
+      }
+    }
+
+    a {
+      font-family: $font-mono;
+      font-size: 12px;
+      color: $trl-light-gray;
+      text-decoration: none;
+      overflow: hidden;
+      text-overflow: ellipsis;
+
+      &:hover,
+      &:focus-visible {
+        text-decoration: underline;
+        outline: none;
+      }
+    }
+  }
+
+  @media (max-width: 1100px) {
+    &__columns {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}

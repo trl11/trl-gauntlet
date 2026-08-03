@@ -1,0 +1,74 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.active-run {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid $trl-dark-gray;
+  border-left: 3px solid $indicator-blue;
+  background-color: rgba($trl-dark, 0.6);
+
+  &__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+
+  &__suite {
+    font-size: 15px;
+    color: $trl-light-gray;
+    text-decoration: none;
+
+    &:hover,
+    &:focus-visible {
+      text-decoration: underline;
+    }
+  }
+
+  &__unit {
+    font-family: $font-mono;
+    font-size: 12px;
+    color: $trl-gray;
+  }
+
+  &__facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 16px;
+    font-size: 12px;
+
+    dt {
+      color: $trl-gray;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    dd {
+      font-family: $font-mono;
+      color: $trl-light-gray;
+      margin-right: 8px;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  &__error {
+    font-size: 13px;
+    color: $indicator-red;
+    flex-basis: 100%;
+  }
+
+  @media (max-width: 900px) {
+    &__actions {
+      margin-left: 0;
+    }
+  }
+}

@@ -1,0 +1,36 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.run-details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 16px;
+  font-size: 13px;
+  white-space: normal;
+
+  dt {
+    color: $trl-gray;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+  }
+
+  dd {
+    color: $trl-light-gray;
+    overflow-wrap: anywhere;
+  }
+
+  a {
+    color: $trl-light-gray;
+    text-decoration: none;
+
+    &:hover,
+    &:focus-visible {
+      text-decoration: underline;
+    }
+  }
+
+  &__path {
+    font-family: $font-mono;
+    font-size: 12px;
+  }
+}

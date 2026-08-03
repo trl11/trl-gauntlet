@@ -1,0 +1,83 @@
+@use "@trl11/styles/theme.scss" as *;
+@use "@styles/chart";
+
+.metrics-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__series {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    background-color: $trl-dark;
+    border: 1px solid $trl-dark-gray;
+    font-family: $font-mono;
+    font-size: 11px;
+  }
+
+  &__empty {
+    padding: 16px;
+    color: $trl-gray;
+  }
+
+  &__panel {
+    border: 1px solid $trl-dark-gray;
+    background-color: $trl-dark;
+    padding: 10px 8px 4px;
+    color: $indicator-blue;
+
+    &--c0 {
+      color: $indicator-blue;
+    }
+
+    &--c1 {
+      color: $indicator-green;
+    }
+
+    &--c2 {
+      color: $indicator-yellow;
+    }
+
+    &--c3 {
+      color: $indicator-purple;
+    }
+
+    &--c4 {
+      color: $trl-cantaloupe;
+    }
+  }
+
+  &__title {
+    font-family: $font-mono;
+    font-size: 12px;
+    font-weight: 500;
+    color: $trl-light-gray;
+    padding-left: 8px;
+  }
+
+  @include chart.chrome;
+
+  .recharts-brush .recharts-brush-slide {
+    fill: $trl-gray;
+    fill-opacity: 0.2;
+  }
+
+  .recharts-brush .recharts-brush-traveller rect {
+    fill: $trl-dark-gray;
+    stroke: $trl-gray;
+  }
+
+  .recharts-brush > rect {
+    fill: $trl-background;
+    stroke: $trl-dark-gray;
+  }
+
+  .recharts-brush-texts text {
+    fill: $trl-gray;
+    font-family: $font-mono;
+    font-size: 10px;
+  }
+}

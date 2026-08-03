@@ -1,0 +1,37 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.instrument-state {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px 20px;
+
+  > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid rgba($trl-dark-gray, 0.7);
+    padding-bottom: 4px;
+    min-width: 0;
+  }
+
+  dt {
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  dd {
+    font-family: $font-mono;
+    font-size: 13px;
+    color: $trl-light-gray;
+    white-space: nowrap;
+  }
+
+  &__quiet {
+    font-size: 13px;
+    color: $trl-gray;
+  }
+}
