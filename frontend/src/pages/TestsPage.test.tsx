@@ -144,19 +144,50 @@ describe("TestsPage", () => {
     expect(screen.getByRole("status")).toHaveTextContent("chamber is unavailable");
   });
 
-  it("renders the conformance report the verify endpoint returns", async () => {
-    const user = userEvent.setup();
-    renderPage("/tests?suite=thermal_cycle");
-    await user.click(await screen.findByRole("button", { name: "Verify" }));
-    expect(await screen.findByText("Conformance passed")).toBeInTheDocument();
-    expect(verifySuite).toHaveBeenCalledWith("thermal_cycle");
-  });
-
-  it("rescans the suite roots", async () => {
+  it("rescans the suite roots and verifies every suite it found", async () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(await screen.findByRole("button", { name: "Rescan" }));
     await waitFor(() => expect(rescanSuites).toHaveBeenCalled());
+    await waitFor(() => expect(verifySuite).toHaveBeenCalledTimes(2));
+    expect(verifySuite).toHaveBeenCalledWith("smoke");
+    expect(verifySuite).toHaveBeenCalledWith("thermal_cycle");
+  });
+
+  it("lists only the checks a suite failed", async () => {
+    verifySuite.mockResolvedValue({
+      checks: [
+        { detail: "manifest parses", fatal: true, name: "manifest", passed: true },
+        { detail: "no verdict.json declared", fatal: false, name: "produces", passed: false },
+      ],
+      directory: "/suites/thermal_cycle",
+      executed: false,
+      passed: false,
+      run_dir: "",
+      suite: "thermal_cycle",
+    });
+    const user = userEvent.setup();
+    renderPage("/tests?suite=thermal_cycle");
+    await user.click(await screen.findByRole("button", { name: "Rescan" }));
+    expect(await screen.findByText("Conformance failed: 1 of 2 checks")).toBeInTheDocument();
+    expect(screen.getByText("produces")).toBeInTheDocument();
+    expect(screen.queryByText("manifest")).not.toBeInTheDocument();
+  });
+
+  it("says nothing about conformance for a suite that passed every check", async () => {
+    const user = userEvent.setup();
+    renderPage("/tests?suite=thermal_cycle");
+    await user.click(await screen.findByRole("button", { name: "Rescan" }));
+    await waitFor(() => expect(verifySuite).toHaveBeenCalled());
+    expect(screen.queryByText(/Conformance/)).not.toBeInTheDocument();
+  });
+
+  it("reports a rescan that failed", async () => {
+    rescanSuites.mockRejectedValue(new Error("suite roots unreadable"));
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Rescan" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("suite roots unreadable");
   });
 
   it("carries the picked profile into the run dialog", async () => {

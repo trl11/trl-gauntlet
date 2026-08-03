@@ -7,7 +7,7 @@ import { useId, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 
 import { listInstruments, listSuites, rescanSuites, verifySuite } from "@api/client";
-import type { Instrument, Suite } from "@api/types";
+import type { Instrument, Suite, SuiteList, VerifyReport } from "@api/types";
 import EmptyState from "@components/EmptyState";
 import PageHeader from "@components/PageHeader";
 import ProfileEditor from "@components/ProfileEditor";
@@ -27,6 +27,25 @@ function unmetRequirements(suite: Suite, instruments: Instrument[]): string[] {
 function matchesSearch(suite: Suite, search: string): boolean {
   const text = `${suite.key} ${suite.title} ${suite.category} ${suite.description}`.toLowerCase();
   return text.includes(search.trim().toLowerCase());
+}
+
+/** Every suite's conformance report, keyed by suite key. */
+type VerifyReports = Record<string, VerifyReport>;
+
+/**
+ * Rediscover the suite roots, then verify every suite that was found.
+ *
+ * The catalog is returned alongside the reports so the caller can seat both at
+ * once, rather than showing reports against the suites of the previous scan.
+ */
+async function rescanAndVerify(): Promise<{ catalog: SuiteList; reports: VerifyReports }> {
+  await rescanSuites();
+  const catalog = await listSuites();
+  const reports = await Promise.all(catalog.suites.map((suite) => verifySuite(suite.key)));
+  return {
+    catalog,
+    reports: Object.fromEntries(reports.map((report) => [report.suite, report])),
+  };
 }
 
 /** Suites grouped by category, both the groups and their members sorted by name. */
@@ -52,6 +71,7 @@ export const TestsPage: React.FC = () => {
   const [picked, setPicked] = useState<{ name: string; suite: string } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [reports, setReports] = useState<VerifyReports>({});
 
   const suites = useQuery({ queryKey: ["suites"], queryFn: listSuites });
   const instruments = useQuery({
@@ -60,10 +80,12 @@ export const TestsPage: React.FC = () => {
     refetchInterval: 15_000,
   });
   const rescan = useMutation({
-    mutationFn: rescanSuites,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["suites"] }),
+    mutationFn: rescanAndVerify,
+    onSuccess: (result) => {
+      queryClient.setQueryData(["suites"], result.catalog);
+      setReports(result.reports);
+    },
   });
-  const verify = useMutation({ mutationFn: (key: string) => verifySuite(key) });
 
   const all = suites.data?.suites ?? [];
   const filtered = useMemo(
@@ -73,16 +95,12 @@ export const TestsPage: React.FC = () => {
   const requested = searchParams.get("suite") ?? "";
   const selected = filtered.find((suite) => suite.key === requested) ?? filtered[0] ?? null;
 
-  // The picked profile and the verify report belong to one suite; selecting
-  // another suite leaves them behind rather than showing them out of context.
+  // The picked profile belongs to one suite; selecting another leaves it
+  // behind rather than showing it out of context.
   const selectedProfile = picked !== null && picked.suite === selected?.key ? picked.name : null;
-  const report =
-    verify.data !== undefined && verify.data.suite === selected?.key ? verify.data : null;
+  const report = selected === null ? null : (reports[selected.key] ?? null);
 
-  const select = (key: string) => {
-    verify.reset();
-    setSearchParams({ suite: key }, { replace: true });
-  };
+  const select = (key: string) => setSearchParams({ suite: key }, { replace: true });
   const unmet = selected ? unmetRequirements(selected, instruments.data?.instruments ?? []) : [];
 
   return (
@@ -105,6 +123,11 @@ export const TestsPage: React.FC = () => {
       {suites.isError && (
         <p className="tests-page__blocked" role="alert">
           {suites.error.message}
+        </p>
+      )}
+      {rescan.isError && (
+        <p className="tests-page__blocked" role="alert">
+          {rescan.error.message}
         </p>
       )}
 
@@ -156,13 +179,10 @@ export const TestsPage: React.FC = () => {
               onEditProfile={setEditing}
               onSelectProfile={(name) => setPicked({ name, suite: selected.key })}
               onStart={() => setStarting(true)}
-              onVerify={() => verify.mutate(selected.key)}
               selectedProfile={selectedProfile}
               suite={selected}
               unmet={unmet}
               verify={report}
-              verifyError={verify.error}
-              verifyPending={verify.isPending}
             />
           )}
         </div>

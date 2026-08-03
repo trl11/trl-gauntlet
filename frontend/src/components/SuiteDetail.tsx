@@ -1,6 +1,6 @@
-import { faCircleCheck, faCircleXmark } from "@fortawesome/free-solid-svg-icons";
+import { faCircleXmark } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { Badge, Button, Spinner } from "@trl11/components/ui";
+import { Badge, Button } from "@trl11/components/ui";
 import clsx from "clsx";
 
 import type { Suite, VerifyReport } from "@api/types";
@@ -12,13 +12,11 @@ export interface SuiteDetailProps {
   onEditProfile: (name: string) => void;
   onSelectProfile: (name: string) => void;
   onStart: () => void;
-  onVerify: () => void;
   selectedProfile: string | null;
   suite: Suite;
   unmet: string[];
+  /** This suite's report from the last rescan, or null if it has not been verified. */
   verify: VerifyReport | null;
-  verifyError: Error | null;
-  verifyPending: boolean;
 }
 
 /** Everything known about one suite, and the actions it offers. */
@@ -26,15 +24,13 @@ const SuiteDetail: React.FC<SuiteDetailProps> = ({
   onEditProfile,
   onSelectProfile,
   onStart,
-  onVerify,
   selectedProfile,
   suite,
   unmet,
   verify,
-  verifyError,
-  verifyPending,
 }) => {
   const profiles = suite.profiles_available ?? [];
+  const failures = verify?.checks.filter((check) => !check.passed) ?? [];
 
   return (
     <section className="suite-detail__detail" aria-label={suite.title}>
@@ -44,9 +40,6 @@ const SuiteDetail: React.FC<SuiteDetailProps> = ({
           <p className="suite-detail__detail-key mono">{suite.key}</p>
         </div>
         <div className="suite-detail__detail-actions">
-          <Button onClick={onVerify} disabled={verifyPending}>
-            {verifyPending ? <Spinner /> : "Verify"}
-          </Button>
           <Button color="blue" onClick={onStart} disabled={unmet.length > 0}>
             Start run
           </Button>
@@ -83,23 +76,17 @@ const SuiteDetail: React.FC<SuiteDetailProps> = ({
         </p>
       )}
 
-      {verifyError && (
-        <p className="suite-detail__blocked" role="alert">
-          {verifyError.message}
-        </p>
-      )}
-
-      {verify && (
+      {failures.length > 0 && (
         <div className="suite-detail__verify">
           <h3 className="suite-detail__section-title">
-            Conformance {verify.passed ? "passed" : "failed"}
+            {`Conformance failed: ${failures.length} of ${verify?.checks.length} checks`}
           </h3>
           <ul className="suite-detail__checks">
-            {verify.checks.map((check) => (
+            {failures.map((check) => (
               <li key={check.name} className="suite-detail__check">
                 <FontAwesomeIcon
-                  icon={check.passed ? faCircleCheck : faCircleXmark}
-                  className={check.passed ? "suite-detail__ok" : "suite-detail__bad"}
+                  icon={faCircleXmark}
+                  className="suite-detail__bad"
                   aria-hidden="true"
                 />
                 <span className="mono">{check.name}</span>

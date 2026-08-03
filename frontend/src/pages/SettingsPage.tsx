@@ -1,17 +1,7 @@
-import { faRotate } from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Spinner } from "@trl11/components/ui";
+import { useQuery } from "@tanstack/react-query";
+import { Badge, Spinner } from "@trl11/components/ui";
 
-import {
-  apiUrl,
-  getHealth,
-  getSettings,
-  getSystemInfo,
-  getVersion,
-  listSuites,
-  rescanSuites,
-} from "@api/client";
+import { apiUrl, getHealth, getSettings, getSystemInfo, getVersion } from "@api/client";
 import DefinitionRows from "@components/DefinitionRows";
 import PageHeader from "@components/PageHeader";
 import Panel from "@components/Panel";
@@ -40,10 +30,8 @@ function healthBadge(
   return { color: "red", label: "API UNREACHABLE" };
 }
 
-/** Settings, host telemetry, versions, and suite discovery. */
+/** Settings, host telemetry, and versions. */
 export const SettingsPage: React.FC = () => {
-  const client = useQueryClient();
-
   const health = useQuery({
     queryKey: ["health"],
     queryFn: getHealth,
@@ -52,18 +40,11 @@ export const SettingsPage: React.FC = () => {
   });
   const info = useQuery({ queryKey: ["system-info"], queryFn: getSystemInfo });
   const settings = useQuery({ queryKey: ["settings"], queryFn: getSettings });
-  const suites = useQuery({ queryKey: ["suites"], queryFn: listSuites });
   const version = useQuery({ queryKey: ["version"], queryFn: getVersion });
-
-  const rescan = useMutation({
-    mutationFn: rescanSuites,
-    onSuccess: () => client.invalidateQueries({ queryKey: ["suites"] }),
-  });
 
   const badge = healthBadge(health.isPending, health.isSuccess);
   const config = settings.data;
   const host = info.data;
-  const errors = suites.data?.errors ?? [];
 
   return (
     <div className="settings-page">
@@ -160,33 +141,6 @@ export const SettingsPage: React.FC = () => {
           )}
         </Panel>
       </div>
-
-      <Panel
-        title="Suite discovery"
-        action={
-          <Button
-            className="panel__action"
-            color="transparent"
-            size="small"
-            disabled={rescan.isPending}
-            onClick={() => rescan.mutate()}
-          >
-            <FontAwesomeIcon icon={faRotate} spin={rescan.isPending} />
-            rescan
-          </Button>
-        }
-      >
-        <span className="settings-page__count">
-          {`${suites.data?.suites.length ?? 0} suites, ${errors.length} manifest errors`}
-        </span>
-        {errors.length > 0 && (
-          <ul className="settings-page__errors">
-            {errors.map((entry) => (
-              <li key={entry}>{entry}</li>
-            ))}
-          </ul>
-        )}
-      </Panel>
     </div>
   );
 };

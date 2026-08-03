@@ -1,6 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import SettingsPage from "./SettingsPage";
@@ -10,8 +9,6 @@ const getHealth = vi.fn();
 const getSettings = vi.fn();
 const getSystemInfo = vi.fn();
 const getVersion = vi.fn();
-const listSuites = vi.fn();
-const rescanSuites = vi.fn();
 
 vi.mock("@api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@api/client")>();
@@ -21,8 +18,6 @@ vi.mock("@api/client", async (importOriginal) => {
     getSettings: () => getSettings(),
     getSystemInfo: () => getSystemInfo(),
     getVersion: () => getVersion(),
-    listSuites: () => listSuites(),
-    rescanSuites: () => rescanSuites(),
   };
 });
 
@@ -69,8 +64,6 @@ beforeEach(() => {
     platform: "Linux",
     python: "3.12.3",
   });
-  listSuites.mockResolvedValue({ errors: [], suites: [{ key: "a" }, { key: "b" }] });
-  rescanSuites.mockResolvedValue({ count: 2, errors: [] });
 });
 
 afterEach(() => {
@@ -122,13 +115,6 @@ describe("SettingsPage", () => {
     expect(screen.getByText("32.0 GB")).toBeInTheDocument();
   });
 
-  it("counts discovered suites and lists manifest errors", async () => {
-    listSuites.mockResolvedValue({ errors: ["suites/bad: missing key"], suites: [] });
-    renderSettings();
-    expect(await screen.findByText("0 suites, 1 manifest errors")).toBeInTheDocument();
-    expect(screen.getByText("suites/bad: missing key")).toBeInTheDocument();
-  });
-
   it("spins each section while its query is in flight", () => {
     getSettings.mockReturnValue(pending());
     getSystemInfo.mockReturnValue(pending());
@@ -146,12 +132,5 @@ describe("SettingsPage", () => {
     getSystemInfo.mockRejectedValue(new Error("no /proc here"));
     renderSettings();
     expect(await screen.findByText("no /proc here")).toBeInTheDocument();
-  });
-
-  it("rescans on demand", async () => {
-    renderSettings();
-    await screen.findByText("2 suites, 0 manifest errors");
-    await userEvent.click(screen.getByRole("button", { name: /rescan/i }));
-    expect(rescanSuites).toHaveBeenCalled();
   });
 });
