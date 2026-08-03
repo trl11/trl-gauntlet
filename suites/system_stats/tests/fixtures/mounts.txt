@@ -1,0 +1,9 @@
+overlay / overlay rw,relatime,lowerdir=/x,upperdir=/y,workdir=/z 0 0
+proc /proc proc rw,nosuid,nodev,noexec,relatime 0 0
+tmpfs /dev tmpfs rw,nosuid,size=65536k,mode=755,inode64 0 0
+sysfs /sys sysfs ro,nosuid,nodev,noexec,relatime 0 0
+cgroup /sys/fs/cgroup cgroup2 ro,nosuid,nodev,noexec,relatime 0 0
+/dev/mapper/home_crypt /workspaces/gauntlet ext4 rw,relatime 0 0
+/dev/nvme1n1p2 /etc/hosts ext4 rw,relatime 0 0
+/dev/mapper/home_crypt /home/dev/.ssh ext4 rw,relatime 0 0
+/dev/sdb1 /media/My\040Disk vfat rw,relatime 0 0

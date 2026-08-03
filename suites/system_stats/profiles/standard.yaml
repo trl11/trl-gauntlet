@@ -1,0 +1,10 @@
+description: Five-minute health watch at 1 Hz, with limits a busy workstation still meets.
+duration_s: 300.0
+sample_period_s: 1.0
+max_cpu_percent: 99.0
+min_available_memory_percent: 5.0
+min_free_disk_percent: 5.0
+max_load_per_core: 8.0
+max_temperature_c: 95.0
+max_new_interface_errors: 100
+stop_on_failure: false

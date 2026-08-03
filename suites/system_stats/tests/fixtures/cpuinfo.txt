@@ -1,0 +1,8 @@
+processor	: 0
+vendor_id	: AuthenticAMD
+cpu family	: 25
+model		: 33
+model name	: AMD Ryzen 9 5900X 12-Core Processor
+stepping	: 2
+cpu MHz		: 4434.654
+cache size	: 512 KB

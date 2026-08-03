@@ -1,0 +1,93 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
+apiVersion: 1
+key: system_stats
+title: System — Linux Stats
+category: examples
+description: >
+  Samples the Linux host it runs on — CPU, load, memory, swap, disks, thermal
+  zones, network counters, context switches, processes and uptime — and checks
+  every sample against thresholds from the profile. Needs no hardware, so a
+  fresh checkout can demonstrate a full run.
+
+exec:
+  command: ["python", "-m", "suite.cli"]
+  args:
+    profile: --profile
+    run_dir: --run-dir
+    unit_serial: --unit-serial
+  profile_schema_command: ["python", "-m", "suite.cli", "--print-profile-schema"]
+
+profiles: ./profiles
+conformance_profile: quick.yaml
+
+produces: [events, junit, manifest, metrics, summary, verdict]
+requires: []
+
+supports:
+  target: false
+  unit_serial: true
+
+overrides:
+  - name: duration_s
+    flag: --duration-s
+    type: number
+    label: Duration
+    unit: s
+    minimum: 0.1
+    help: How long to keep sampling the host.
+  - name: sample_period_s
+    flag: --sample-period-s
+    type: number
+    label: Sample period
+    unit: s
+    minimum: 0.05
+    help: Seconds between samples. CPU utilisation is measured across this window.
+  - name: max_cpu_percent
+    flag: --max-cpu-percent
+    type: number
+    label: CPU ceiling
+    unit: "%"
+    minimum: 0
+    maximum: 100
+    help: Fail a sample whose overall CPU utilisation exceeds this.
+  - name: min_available_memory_percent
+    flag: --min-available-memory-percent
+    type: number
+    label: Available memory floor
+    unit: "%"
+    minimum: 0
+    maximum: 100
+    help: Fail a sample whose MemAvailable share of MemTotal is below this.
+  - name: min_free_disk_percent
+    flag: --min-free-disk-percent
+    type: number
+    label: Free disk floor
+    unit: "%"
+    minimum: 0
+    maximum: 100
+    help: Fail a sample where any mounted filesystem has less free space than this.
+  - name: max_load_per_core
+    flag: --max-load-per-core
+    type: number
+    label: Load ceiling
+    unit: per core
+    minimum: 0.01
+    help: Fail a sample whose one-minute load average divided by core count is above this.
+  - name: max_temperature_c
+    flag: --max-temperature-c
+    type: number
+    label: Temperature ceiling
+    unit: C
+    help: Fail a sample whose hottest thermal zone is above this. Skipped when the host exposes none.
+  - name: max_new_interface_errors
+    flag: --max-new-interface-errors
+    type: integer
+    label: Interface error budget
+    unit: per sample
+    minimum: 0
+    help: Fail a sample where an interface reports more new errors plus drops than this.
+  - name: stop_on_failure
+    flag: --stop-on-failure
+    type: boolean
+    label: Stop on first failure
+    help: Abandon the run as soon as one sample fails a check.
