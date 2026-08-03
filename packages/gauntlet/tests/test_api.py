@@ -4,25 +4,6 @@ from __future__ import annotations
 
 import time
 
-import pytest
-from fastapi.testclient import TestClient
-
-from gauntlet.app import create_app
-from gauntlet.config import Settings
-
-
-@pytest.fixture
-def client(make_suite, suite_root, tmp_path):
-    make_suite("alpha")
-    settings = Settings(
-        host="127.0.0.1",
-        port=7100,
-        suite_roots=[suite_root],
-        data_dir=tmp_path / "data",
-    )
-    with TestClient(create_app(settings)) as test_client:
-        yield test_client
-
 
 def _wait_for_finish(client, run_id, timeout_s=20.0):
     deadline = time.time() + timeout_s
@@ -137,3 +118,64 @@ class TestRuns:
         run_id = client.post("/api/runs", json={"suite": "alpha"}).json()["run_id"]
         _wait_for_finish(client, run_id)
         assert run_id in {r["run_id"] for r in client.get("/api/runs").json()["runs"]}
+
+
+class TestRunHistoryFilters:
+    def test_total_counts_every_match_not_just_the_page(self, client, add_run):
+        for index in range(5):
+            add_run(f"r{index}")
+        body = client.get("/api/runs", params={"limit": 2}).json()
+        assert len(body["runs"]) == 2
+        assert body["total"] == 5
+
+    def test_status_may_be_repeated(self, client, add_run):
+        add_run("passed-one", status="passed")
+        add_run("failed-one", status="failed")
+        add_run("errored-one", status="error")
+        body = client.get("/api/runs", params=[("status", "failed"), ("status", "error")]).json()
+        assert {r["run_id"] for r in body["runs"]} == {"failed-one", "errored-one"}
+        assert body["total"] == 2
+
+    def test_date_bounds_are_inclusive_of_the_whole_day(self, client, add_run):
+        add_run("early", started_at="2026-03-01T23:59:59Z")
+        add_run("wanted", started_at="2026-03-02T12:00:00Z")
+        add_run("late", started_at="2026-03-03T00:00:01Z")
+        body = client.get("/api/runs", params={"after": "2026-03-02", "before": "2026-03-02"}).json()
+        assert [r["run_id"] for r in body["runs"]] == ["wanted"]
+
+    def test_sort_column_and_direction_are_honoured(self, client, add_run):
+        add_run("b-run", suite="beta")
+        add_run("a-run", suite="alpha")
+        body = client.get("/api/runs", params={"sort": "suite", "direction": "asc"}).json()
+        assert [r["suite"] for r in body["runs"]] == ["alpha", "beta"]
+
+    def test_unknown_sort_column_falls_back_to_started_at(self, client, add_run):
+        add_run("first")
+        add_run("second")
+        body = client.get("/api/runs", params={"sort": "run_dir; DROP TABLE runs"}).json()
+        assert [r["run_id"] for r in body["runs"]] == ["second", "first"]
+
+    def test_unit_history_reports_a_total(self, client, add_run):
+        add_run("one", unit_serial="SN-1")
+        add_run("two", unit_serial="SN-1")
+        body = client.get("/api/units/SN-1/history", params={"limit": 1}).json()
+        assert len(body["runs"]) == 1
+        assert body["total"] == 2
+
+
+class TestSettingsPayload:
+    def test_reports_the_resolved_runs_index_path(self, client):
+        body = client.get("/api/settings").json()
+        assert body["runs_index_path"].endswith("runs.sqlite")
+
+
+class TestRenameFollowsTheIndex:
+    def test_a_finished_run_is_answered_from_the_index(self, client):
+        """A rename rewrites the index row, and the run must report the new serial."""
+        run_id = client.post("/api/runs", json={"suite": "alpha", "unit_serial": "SN-OLD"}).json()["run_id"]
+        _wait_for_finish(client, run_id)
+
+        assert client.patch("/api/units/SN-OLD", json={"serial": "SN-NEW"}).status_code == 200
+        assert client.get(f"/api/runs/{run_id}").json()["unit_serial"] == "SN-NEW"
+        listed = client.get("/api/runs", params={"unit_serial": "SN-NEW"}).json()
+        assert [r["unit_serial"] for r in listed["runs"]] == ["SN-NEW"]

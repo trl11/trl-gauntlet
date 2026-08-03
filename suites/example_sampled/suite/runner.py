@@ -13,6 +13,7 @@ import time
 from gauntlet_suite import (
     IterationContext,
     IterationOutcome,
+    PhaseRecord,
     PhaseTimer,
     RunResult,
     SuiteContext,
@@ -41,7 +42,7 @@ def _read_temperature(elapsed_s: float) -> float:
 
 def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     """One sample tick."""
-    phases = []
+    phases: list[PhaseRecord] = []
     with PhaseTimer("measure", phases) as phase:
         phase.set_detail(target=ctx.target or "local")
         temperature = _read_temperature(ictx.elapsed_run_s)
@@ -74,7 +75,7 @@ def _results(
     outcomes: list[IterationOutcome],
     result: RunResult,
     profile: ExampleProfile,
-) -> list[dict]:
+) -> list[dict[str, object]]:
     """Headline figures for the run summary."""
     temperatures = [o.metrics.get("temperature_c", 0.0) for o in outcomes] or [0.0]
     return [

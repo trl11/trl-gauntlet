@@ -11,6 +11,7 @@ OVERRIDES = [
     {"name": "cycles", "flag": "--cycles", "type": "integer"},
     {"name": "verbose", "flag": "--verbose", "type": "boolean"},
     {"name": "mode", "flag": "--mode", "type": "string", "choices": ["fast", "slow"]},
+    {"name": "level", "flag": "--level", "type": "number", "minimum": 0, "maximum": 100},
 ]
 
 
@@ -54,6 +55,17 @@ class TestOverrides:
         argv = _launch(suite, tmp_path, overrides={"cycles": "7"}).argv
         assert argv[-2:] == ["--cycles", "7"]
 
+    def test_integer_override_accepts_a_whole_float(self, make_suite, tmp_path):
+        suite = make_suite("demo", overrides=OVERRIDES)
+        argv = _launch(suite, tmp_path, overrides={"cycles": 7.0}).argv
+        assert argv[-2:] == ["--cycles", "7"]
+
+    def test_fractional_integer_override_is_rejected(self, make_suite, tmp_path):
+        """Truncating 1.5 to 1 would run something the operator did not ask for."""
+        suite = make_suite("demo", overrides=OVERRIDES)
+        with pytest.raises(LaunchError, match="expects an integer"):
+            _launch(suite, tmp_path, overrides={"cycles": 1.5})
+
     def test_true_boolean_is_a_bare_flag(self, make_suite, tmp_path):
         suite = make_suite("demo", overrides=OVERRIDES)
         assert _launch(suite, tmp_path, overrides={"verbose": True}).argv[-1] == "--verbose"
@@ -61,6 +73,20 @@ class TestOverrides:
     def test_false_boolean_is_omitted(self, make_suite, tmp_path):
         suite = make_suite("demo", overrides=OVERRIDES)
         assert "--verbose" not in _launch(suite, tmp_path, overrides={"verbose": False}).argv
+
+    def test_value_below_the_declared_minimum_is_rejected(self, make_suite, tmp_path):
+        suite = make_suite("demo", overrides=OVERRIDES)
+        with pytest.raises(LaunchError, match="at least 0"):
+            _launch(suite, tmp_path, overrides={"level": -1})
+
+    def test_value_above_the_declared_maximum_is_rejected(self, make_suite, tmp_path):
+        suite = make_suite("demo", overrides=OVERRIDES)
+        with pytest.raises(LaunchError, match="at most 100"):
+            _launch(suite, tmp_path, overrides={"level": 101})
+
+    def test_value_on_the_declared_bound_is_accepted(self, make_suite, tmp_path):
+        suite = make_suite("demo", overrides=OVERRIDES)
+        assert _launch(suite, tmp_path, overrides={"level": 100}).argv[-2:] == ["--level", "100.0"]
 
     def test_undeclared_override_is_rejected(self, make_suite, tmp_path):
         suite = make_suite("demo", overrides=OVERRIDES)
