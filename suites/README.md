@@ -38,7 +38,7 @@ Suites needing a transport declare it as an extra of `gauntlet-sdk`:
 To create a suite:
 
 ```bash
-make new-suite NAME=my_suite [TEMPLATE=shell]
+make suite-new NAME=my_suite [TEMPLATE=shell]
 ```
 
 See [`docs/writing-a-suite.md`](../docs/writing-a-suite.md).

@@ -20,8 +20,9 @@ Conventions, the manifest-driven rule, and how to add a page are in
 | `npm run preview`      | serve the built bundle                                   |
 
 From the repository root, `make frontend` runs the build, `make frontend-dev`
-the dev server, and `make frontend-check` the format check, the lint and the
-tests. Each installs `node_modules` first if it is missing.
+the dev server, `make frontend-test` the tests, and `make frontend-check` the
+format check, the lint and the tests. Each installs `node_modules` first if it
+is missing.
 
 ## Where the bundle goes
 

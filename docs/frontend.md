@@ -154,10 +154,10 @@ return nothing but test fixtures.
 ## Checks
 
 ```bash
+make frontend-test   # vitest
 make frontend-check  # prettier --check, eslint, tsc --noEmit, vitest
 make frontend        # production build into gauntlet/web_dist
 ```
 
-`make check` runs `make frontend-check` when npm is present, and skips it
-otherwise. Run `make frontend-check` before committing anything under
-`frontend/`.
+`make check` runs `make frontend-check`. Run it directly before committing
+anything under `frontend/`.

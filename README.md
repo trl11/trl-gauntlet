@@ -19,9 +19,9 @@ make run                         # build the frontend and serve
 
 Open <http://localhost:7100>. `make run` prints the address it is serving on.
 
-Requires Python 3.10 or later, and Node with npm for the frontend. Without npm
-the frontend is skipped and the API is served alone, with a placeholder at `/`
-linking to the OpenAPI docs at `/docs`.
+Requires Python 3.10 or later, `uv`, which creates `.venv` and installs both
+packages, and Node with npm, which builds the frontend. The devcontainer image
+carries all three.
 
 The first thing to try is the `system_stats` suite: it samples the host it runs
 on, needs no hardware, and finishes in three seconds on the `quick` profile.
@@ -65,8 +65,8 @@ Every suite has the same layout: `suite.yaml`, a `suite/` package, `profiles/`.
 ## Creating a suite
 
 ```bash
-make new-suite NAME=thermal_cycle              # Python suite
-make new-suite NAME=link_check TEMPLATE=shell  # bash suite
+make suite-new NAME=thermal_cycle              # Python suite
+make suite-new NAME=link_check TEMPLATE=shell  # bash suite
 ```
 
 Or through the CLI directly: `gauntlet new-suite thermal_cycle`.
@@ -87,10 +87,10 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
 Then check it against the contract:
 
 ```bash
-make verify-run
+make suite-verify-run
 ```
 
-`verify-run` executes each suite's conformance profile, validates every
+`suite-verify-run` executes each suite's conformance profile, validates every
 artifact against its schema, confirms each declared output was written, and
 fails when no verdict was produced.
 
@@ -146,6 +146,7 @@ from that declaration.
 ```bash
 make frontend        # build the bundle into gauntlet/web_dist
 make frontend-dev    # Vite on 7101, proxying /api to the API on 7100
+make frontend-test   # vitest
 make frontend-check  # prettier --check, eslint, tsc, vitest
 ```
 
@@ -185,18 +186,21 @@ confusing `bad interpreter`.
 |---|---|
 | `make setup` | Create `.venv`, install both packages editable |
 | `make dev` / `make dev-stop` / `make dev-status` | Start, stop, or query the devcontainer |
-| `make run` | Build the frontend and serve on `$(PORT)`, default 7100 |
+| `make run` | Build the frontend and serve on `$(APP_PORT)`, default 7100 |
 | `make serve` | The same, with auto-reload |
 | `make stop` | Stop the server either started, and any suite it was running |
 | `make frontend` | Build the frontend bundle |
 | `make frontend-dev` | Frontend dev server on 7101, proxying `/api` to 7100 |
+| `make frontend-test` | The frontend tests |
 | `make frontend-check` | `prettier --check`, eslint, `tsc --noEmit`, vitest |
-| `make new-suite NAME=x` | Scaffold a suite (`TEMPLATE=python\|shell`) |
-| `make templates` | List the available suite templates |
-| `make list` | List discovered suites |
-| `make verify` / `make verify-run` | Contract checks, static or executing |
-| `make check` | format-check, lint, typecheck, test, test-suites, frontend-check |
-| `make test` / `make test-suites` | Python tests, then each suite's own tests |
+| `make suite-new NAME=x` | Scaffold a suite (`TEMPLATE=python\|shell`) |
+| `make suite-templates` | List the available suite templates |
+| `make suite-list` | List discovered suites |
+| `make suite-verify` / `make suite-verify-run` | Contract checks, static or executing |
+| `make verify` | Build, check, and test everything |
+| `make check` | format-check, lint, typecheck, and every test but the end-to-end one |
+| `make test` | Every test: gauntlet, suites, frontend, end to end |
+| `make gauntlet-test` / `make suite-test` | Python tests, then each suite's own tests |
 | `make schemas` / `make api-spec` | Print contract schema names; write `build/openapi.json` |
 | `make clean` / `make distclean` | Remove build output; also remove `.venv` and `output/` |
 

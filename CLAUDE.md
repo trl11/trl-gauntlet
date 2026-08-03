@@ -73,15 +73,20 @@ behind a toggle below 900px. There is no sidebar.
 | Same, with auto-reload | `make serve` |
 | Stop what either started | `make stop` |
 | Frontend dev server on 7101 | `make frontend-dev` |
+| Build, check, and test everything | `make verify` |
 | Everything CI runs | `make check` |
-| Python tests only | `make test` / `make test-suites` |
+| Every test in the project | `make test` |
+| Python tests only | `make gauntlet-test` / `make suite-test` |
+| Frontend tests only | `make frontend-test` |
 | Frontend format-check, lint, typecheck, tests | `make frontend-check` |
-| Contract checks | `make verify-run` |
-| Scaffold a suite | `make new-suite NAME=x [TEMPLATE=shell]` |
+| Contract checks | `make suite-verify-run` |
+| Scaffold a suite | `make suite-new NAME=x [TEMPLATE=shell]` |
 
-Run `make check` before committing. Run `make verify-run` as well when
+Run `make check` before committing. Run `make suite-verify-run` as well when
 changing the launcher, the contract models, or the conformance checker, and
-`make frontend-check` when changing anything under `frontend/`.
+`make frontend-check` when changing anything under `frontend/`. `make verify`
+is all of it: the frontend build, `check`, the end-to-end test, and a real run
+of every conformance profile.
 
 ## Behaviour to preserve
 

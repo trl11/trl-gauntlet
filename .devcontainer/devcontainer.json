@@ -62,7 +62,6 @@
     "GAUNTLET_DEVCONTAINER": "true"
   },
 
-  "onCreateCommand": "pip install --no-cache-dir --upgrade pip uv",
   "postCreateCommand": "make setup",
 
   "customizations": {

@@ -1,14 +1,14 @@
 # Scaffolding a suite
 
 `gauntlet new-suite` generates a suite directory from a template bundled with
-the package. `make new-suite` wraps it.
+the package. `make suite-new` wraps it.
 
 ```bash
 gauntlet new-suite thermal_cycle
 gauntlet new-suite link_check --template shell
 
-make new-suite NAME=thermal_cycle              # same, into ./suites
-make new-suite NAME=link_check TEMPLATE=shell
+make suite-new NAME=thermal_cycle              # same, into ./suites
+make suite-new NAME=link_check TEMPLATE=shell
 ```
 
 ## Templates

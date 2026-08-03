@@ -15,8 +15,9 @@ else
 REBUILD_FLAG :=
 endif
 
-.PHONY: dev
-dev: ## Start the devcontainer and open a shell in it
+.PHONY: dev dev-status dev-stop
+
+dev:
 	@if [ "$(GAUNTLET_DEVCONTAINER)" = "true" ]; then \
 		echo "Already inside the devcontainer. Use 'make run' to start the app."; \
 		exit 0; \
@@ -42,8 +43,7 @@ dev: ## Start the devcontainer and open a shell in it
 	if [ -z "$$CONTAINER_ID" ]; then echo "Devcontainer failed to start"; exit 1; fi; \
 	docker exec -it -u dev -w /workspaces/$(WORKSPACE_NAME) $$CONTAINER_ID bash
 
-.PHONY: dev-stop
-dev-stop: ## Stop and remove the devcontainer
+dev-stop:
 	@CONTAINER_ID=$$(docker ps -a --filter "$(DEVCONTAINER_FILTER)" --format "{{.ID}}" | head -1); \
 	if [ -n "$$CONTAINER_ID" ]; then \
 		docker rm -f $$CONTAINER_ID >/dev/null; \
@@ -52,7 +52,6 @@ dev-stop: ## Stop and remove the devcontainer
 		echo "No devcontainer found"; \
 	fi
 
-.PHONY: dev-status
-dev-status: ## Show whether the devcontainer is running
+dev-status:
 	@docker ps -a --filter "$(DEVCONTAINER_FILTER)" \
 		--format "table {{.ID}}\t{{.Status}}\t{{.Image}}" | head -5

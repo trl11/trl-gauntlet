@@ -3,8 +3,8 @@
 ## Scaffold
 
 ```bash
-make new-suite NAME=thermal_cycle              # Python suite
-make new-suite NAME=link_check TEMPLATE=shell  # bash suite
+make suite-new NAME=thermal_cycle              # Python suite
+make suite-new NAME=link_check TEMPLATE=shell  # bash suite
 
 gauntlet new-suite thermal_cycle               # same, via the CLI
 ```
@@ -146,7 +146,7 @@ and `maximum` are what the run form builds its control from, so fill them in.
 ## Verify
 
 ```bash
-make verify-run
+make suite-verify-run
 ```
 
 Executes each conformance profile and validates the artifacts against the
@@ -156,6 +156,6 @@ contract.
 
 Read `GAUNTLET_RUN_DIR`, append JSON lines to `metrics.jsonl`, write
 `verdict.json`, exit. `suites/example_shell/run.sh` implements the contract in
-bash, and `make new-suite NAME=x TEMPLATE=shell` scaffolds one.
+bash, and `make suite-new NAME=x TEMPLATE=shell` scaffolds one.
 
 Specification: [`contract.md`](contract.md).

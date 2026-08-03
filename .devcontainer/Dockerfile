@@ -29,6 +29,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - && \
     apt-get install -y --no-install-recommends nodejs
 
+# uv builds .venv and installs both packages. `make` calls it unconditionally,
+# so it is part of the image rather than something a create hook adds.
+RUN pip install --no-cache-dir --upgrade pip uv
+
 # The repository is bind-mounted, so anything the container writes into it —
 # .venv, build/, output/, scaffolded suites — lands on the host owned by
 # whichever uid wrote it. Matching the caller keeps a single owner on both
