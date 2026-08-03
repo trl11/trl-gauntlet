@@ -11,12 +11,22 @@ import argparse
 import json
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from gauntlet_suite.environment import run_environment
 from gauntlet_suite.log import err, info
 from gauntlet_suite.profile import ProfileError, load_profile
 from gauntlet_suite.runner import SuiteSpec, run_suite
+
+
+class SuiteMain(Protocol):
+    """The entry point :func:`make_suite_cli` returns.
+
+    ``argv`` defaults to the process arguments, so a console script calls it
+    with nothing and a test passes a list.
+    """
+
+    def __call__(self, argv: Sequence[str] | None = None) -> int: ...
 
 
 def make_suite_cli(
@@ -27,7 +37,7 @@ def make_suite_cli(
     default_profile: Path | None = None,
     extra_args: Callable[[argparse.ArgumentParser], None] | None = None,
     extra_overrides: Callable[[argparse.Namespace], dict[str, Any]] | None = None,
-) -> Callable[[Sequence[str] | None], int]:
+) -> SuiteMain:
     """Return a ``main`` for this suite.
 
     ``extra_args`` adds suite-specific flags to the parser and

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel, ConfigDict
 
-from gauntlet_suite.environment import run_environment
+from gauntlet_suite.environment import new_run_id, run_environment
 from gauntlet_suite.profile import ProfileError, load_profile, summarize_profile
 
 
@@ -95,3 +95,14 @@ class TestProfileLoading:
 
     def test_summary_flattens_scalars(self):
         assert summarize_profile(Profile()) == {"duration_s": "60.0", "label": "default"}
+
+
+class TestNewRunId:
+    def test_two_ids_made_in_the_same_second_differ(self):
+        assert len({new_run_id() for _ in range(200)}) > 190
+
+    def test_the_id_starts_with_the_utc_second(self):
+        run_id = new_run_id()
+        stamp, _, suffix = run_id.partition("-")
+        assert len(stamp) == 16 and stamp.endswith("Z")
+        assert len(suffix) == 4

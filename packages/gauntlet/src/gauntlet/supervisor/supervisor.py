@@ -16,7 +16,7 @@ import asyncio
 import contextlib
 import json
 import logging
-import os
+import secrets
 import signal
 import subprocess
 import threading
@@ -423,8 +423,15 @@ def _schedule(loop: asyncio.AbstractEventLoop, coro: Awaitable[Any]) -> None:
 
 
 def _new_run_id() -> str:
+    """The UTC second the run started, then four random characters.
+
+    The random part is what keeps two runs started in the same second apart.
+    A suite that finishes in well under a second makes that ordinary, and a
+    repeated id would put the second run's artifacts in the first run's
+    directory and overwrite its row in the index.
+    """
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    return f"{stamp}-{os.getpid() % 10000:04d}"
+    return f"{stamp}-{secrets.token_hex(2)}"
 
 
 def _utc_iso() -> str:

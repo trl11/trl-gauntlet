@@ -63,6 +63,8 @@ class OverrideSpec(BaseModel):
     default: Any = None
     choices: list[str] = Field(default_factory=list, description="Renders a select instead of a text input.")
     help: str = ""
+    minimum: float | None = Field(default=None, description="Lowest accepted value, for a number or an integer.")
+    maximum: float | None = Field(default=None, description="Highest accepted value, for a number or an integer.")
 
 
 def _default_produces() -> list[Artifact]:

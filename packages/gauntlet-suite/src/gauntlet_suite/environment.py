@@ -9,7 +9,9 @@ fallback and :func:`run_environment` reports which mode it is in.
 from __future__ import annotations
 
 import os
+import secrets
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 
 RUN_DIR_VAR = "GAUNTLET_RUN_DIR"
@@ -122,8 +124,10 @@ def run_environment(
 
 
 def new_run_id() -> str:
-    """UTC timestamp plus a short pid, e.g. ``20260802T151304Z-4321``."""
-    from datetime import datetime, timezone
+    """UTC timestamp plus four random characters, e.g. ``20260802T151304Z-4a2f``.
 
+    The random part keeps two runs started in the same second apart, which is
+    ordinary for a suite that finishes quickly.
+    """
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    return f"{stamp}-{os.getpid() % 10000:04d}"
+    return f"{stamp}-{secrets.token_hex(2)}"

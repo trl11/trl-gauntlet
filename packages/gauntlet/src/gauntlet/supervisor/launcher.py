@@ -143,10 +143,11 @@ def _render_override(spec: OverrideSpec, value: Any) -> list[str]:
     if spec.type == "boolean":
         return [spec.flag] if _as_bool(value) else []
     if spec.type in {"integer", "number"}:
-        try:
-            number = int(value) if spec.type == "integer" else float(value)
-        except (TypeError, ValueError):
-            raise LaunchError(f"override {spec.name!r} expects a {spec.type}, got {value!r}") from None
+        number = _as_number(spec, value)
+        if spec.minimum is not None and number < spec.minimum:
+            raise LaunchError(f"override {spec.name!r} must be at least {spec.minimum}, got {number}")
+        if spec.maximum is not None and number > spec.maximum:
+            raise LaunchError(f"override {spec.name!r} must be at most {spec.maximum}, got {number}")
         return [spec.flag, str(number)]
     text = str(value)
     if spec.choices and text not in spec.choices:
@@ -158,3 +159,20 @@ def _as_bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
     return str(value).strip().lower() in {"1", "on", "true", "yes"}
+
+
+def _as_number(spec: OverrideSpec, value: Any) -> int | float:
+    """Coerce to the declared numeric type, rejecting anything that is not exactly it.
+
+    An ``integer`` override returns an ``int`` so it renders as ``5`` rather
+    than ``5.0`` on the suite's command line.
+    """
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise LaunchError(f"override {spec.name!r} expects a {spec.type}, got {value!r}") from None
+    if spec.type == "number":
+        return number
+    if not number.is_integer():
+        raise LaunchError(f"override {spec.name!r} expects an integer, got {value!r}")
+    return int(number)
