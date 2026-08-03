@@ -1,13 +1,14 @@
-"""Pieces every mock instrument is built from.
+"""Helpers a provider uses to declare its commands and readouts.
 
-The three simulated instruments describe their commands the same way and read
-their arguments the same way, so those two jobs live here rather than once per
-provider.
+:class:`~gauntlet.capabilities.registry.CommandableCapability` and
+:class:`~gauntlet.capabilities.registry.PresentableCapability` return plain
+dictionaries. These build them, so every provider describes itself in the same
+shape and the operator UI can stay generic. ``number_arg`` is the other half of
+``command_field``: it reads back an argument the field declared.
 """
 
 from __future__ import annotations
 
-import random
 from typing import Any
 
 from gauntlet.capabilities.registry import CommandRejected
@@ -35,6 +36,16 @@ def command_field(
     }
 
 
+def number_arg(instrument: str, args: dict[str, Any], key: str, minimum: float, maximum: float) -> float:
+    """One numeric argument, rejected when it is missing or out of range."""
+    value = args.get(key)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise CommandRejected(f"{instrument}: {key!r} must be a number")
+    if not minimum <= value <= maximum:
+        raise CommandRejected(f"{instrument}: {key!r} must be between {minimum} and {maximum}")
+    return float(value)
+
+
 def readout(
     key: str,
     label: str,
@@ -56,19 +67,3 @@ def readout(
         "role": role,
         "unit": unit,
     }
-
-
-def noise(seed: int, key: str, moment: float, amount: float) -> float:
-    """Repeatable pseudo-noise, steady for a tenth of a second at a time."""
-    tick = int(moment / 0.1)
-    return random.Random(f"{seed}:{key}:{tick}").uniform(-amount, amount)
-
-
-def number_arg(instrument: str, args: dict[str, Any], key: str, minimum: float, maximum: float) -> float:
-    """One numeric argument, rejected when it is missing or out of range."""
-    value = args.get(key)
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise CommandRejected(f"{instrument}: {key!r} must be a number")
-    if not minimum <= value <= maximum:
-        raise CommandRejected(f"{instrument}: {key!r} must be between {minimum} and {maximum}")
-    return float(value)

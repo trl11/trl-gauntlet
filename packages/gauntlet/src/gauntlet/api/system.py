@@ -1,4 +1,4 @@
-"""Health, version, settings, capability status, and host telemetry.
+"""Health, version, settings, and host telemetry.
 
 The telemetry endpoints report what :mod:`gauntlet.api.host_stats` reads from
 the host. ``cpu_percent`` is the one reading a single sample cannot give, so
@@ -11,11 +11,10 @@ import platform
 import sys
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from gauntlet_sdk.contract import CONTRACT_VERSION
 
 from gauntlet.api import host_stats
-from gauntlet.capabilities import CapabilityProvider, ReadableCapability, WritableCapability
 
 router = APIRouter()
 
@@ -79,37 +78,3 @@ async def system_data(request: Request) -> dict[str, Any]:
         "uptime_s": host_stats.uptime(),
         "process_count": host_stats.process_count(),
     }
-
-
-@router.get("/capabilities")
-async def get_capabilities(request: Request) -> dict[str, Any]:
-    """Registered capability providers and whether each is usable now."""
-    return {"capabilities": request.app.state.capabilities.snapshot()}
-
-
-@router.get("/capabilities/{name}")
-async def read_capability(request: Request, name: str) -> dict[str, Any]:
-    """Read one capability's state.
-
-    Suites drive this endpoint in place of opening the device directly.
-    """
-    provider = _provider(request, name)
-    if not isinstance(provider, ReadableCapability):
-        raise HTTPException(status_code=405, detail=f"capability {name!r} is not readable")
-    return dict(provider.read())
-
-
-@router.post("/capabilities/{name}")
-async def write_capability(request: Request, name: str, values: dict[str, Any]) -> dict[str, Any]:
-    """Apply settings to one capability."""
-    provider = _provider(request, name)
-    if not isinstance(provider, WritableCapability):
-        raise HTTPException(status_code=405, detail=f"capability {name!r} is not writable")
-    return dict(provider.write(values))
-
-
-def _provider(request: Request, name: str) -> CapabilityProvider:
-    provider: CapabilityProvider | None = request.app.state.capabilities.provider(name)
-    if provider is None:
-        raise HTTPException(status_code=404, detail=f"unknown capability {name!r}")
-    return provider

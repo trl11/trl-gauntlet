@@ -45,9 +45,9 @@ beforeEach(() => {
     open_browser: false,
     port: 7100,
     profiles_dir: "/home/dev/.local/share/gauntlet/profiles",
-    profiles_user_dir: null,
-    reports_base: null,
+    profiles_dir_override: null,
     runs_dir: "/home/dev/.local/share/gauntlet/runs",
+    runs_dir_override: null,
     suite_roots: ["/workspaces/gauntlet/suites"],
   });
   getSystemInfo.mockResolvedValue({

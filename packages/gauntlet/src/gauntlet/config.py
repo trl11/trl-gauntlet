@@ -44,8 +44,8 @@ class Settings:
     port: int = 7100
     suite_roots: list[Path] = field(default_factory=default_suite_roots)
     data_dir: Path = field(default_factory=default_data_dir)
-    reports_base: Path | None = None
-    profiles_user_dir: Path | None = None
+    runs_dir_override: Path | None = None
+    profiles_dir_override: Path | None = None
     default_target: str = ""
     open_browser: bool = False
     log_level: str = "info"
@@ -54,17 +54,19 @@ class Settings:
         self.suite_roots = [Path(p).expanduser() for p in self.suite_roots]
         self.data_dir = Path(self.data_dir).expanduser()
 
-    # Artifacts and user profiles default to locations under the data dir and
-    # are independently overridable.
+    # Run artifacts and operator-authored profiles default to locations under
+    # the data dir and are independently overridable.
     @property
     def runs_dir(self) -> Path:
         """Where run artifact directories are written."""
-        return Path(self.reports_base).expanduser() if self.reports_base else self.data_dir / "runs"
+        return Path(self.runs_dir_override).expanduser() if self.runs_dir_override else self.data_dir / "runs"
 
     @property
     def profiles_dir(self) -> Path:
         """Where operator-authored profiles are saved."""
-        return Path(self.profiles_user_dir).expanduser() if self.profiles_user_dir else self.data_dir / "profiles"
+        return (
+            Path(self.profiles_dir_override).expanduser() if self.profiles_dir_override else self.data_dir / "profiles"
+        )
 
     @property
     def config_path(self) -> Path:

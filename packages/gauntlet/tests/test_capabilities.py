@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from gauntlet.capabilities import CapabilityError, CapabilityRegistry, Grant, MockPsu
+from gauntlet.capabilities import CapabilityError, CapabilityRegistry, Grant
+from gauntlet.instruments import MockPsu
 
 _BASE = "http://127.0.0.1:7100/api"
 

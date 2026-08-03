@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from gauntlet.storage.notes import SUBJECT_RUN, SUBJECT_UNIT, NoteRow, NotesIndex
-from gauntlet.storage.runs_index import RunFilters, RunRow, RunsIndex
+from gauntlet.storage.runs import RunFilters, RunRow, RunsIndex
 from gauntlet.storage.units import UnitConflict, UnitRow, UnitsIndex
 
 __all__ = [

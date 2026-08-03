@@ -97,7 +97,7 @@ class RunSupervisor:
     def __init__(
         self,
         *,
-        reports_base: Path,
+        runs_dir: Path,
         user_profiles_dir: Path,
         catalog_provider: Callable[[], SuiteCatalog],
         capabilities: CapabilityRegistry | None = None,
@@ -106,7 +106,7 @@ class RunSupervisor:
         on_run_completed: Callable[[RunHandle], Awaitable[None]] | None = None,
         history_size: int = 32,
     ) -> None:
-        self._reports_base = reports_base
+        self._runs_dir = runs_dir
         self._user_profiles_dir = user_profiles_dir
         self._catalog_provider = catalog_provider
         self._capabilities = capabilities or CapabilityRegistry(api_base=api_base)
@@ -153,7 +153,7 @@ class RunSupervisor:
                 raise RunRejected(str(exc)) from exc
 
             run_id = _new_run_id()
-            run_dir = self._reports_base / suite.key / run_id
+            run_dir = self._runs_dir / suite.key / run_id
             run_dir.mkdir(parents=True, exist_ok=True)
             try:
                 launch = build_launch(
@@ -368,7 +368,7 @@ class RunSupervisor:
 
     def _resolve_profile(self, suite: Any, request: RunRequest) -> Path | None:
         if request.profile_body is not None:
-            return _write_scratch_profile(self._reports_base, suite.key, request.profile_body)
+            return _write_scratch_profile(self._runs_dir, suite.key, request.profile_body)
         if not request.profile:
             return None
         path = resolve_profile(suite, request.profile, self._user_profiles_dir)
@@ -404,9 +404,9 @@ def _snapshot_profile(source: Path, run_dir: Path) -> None:
         destination.write_bytes(source.read_bytes())
 
 
-def _write_scratch_profile(reports_base: Path, suite_key: str, body: str) -> Path:
+def _write_scratch_profile(runs_dir: Path, suite_key: str, body: str) -> Path:
     """Write an inline profile body to a scratch file for one run."""
-    scratch = reports_base / "_scratch" / suite_key
+    scratch = runs_dir / "_scratch" / suite_key
     scratch.mkdir(parents=True, exist_ok=True)
     path = scratch / f"{_new_run_id()}.yaml"
     path.write_text(body)

@@ -33,6 +33,11 @@ frontend/
     └── utils/            pure helpers: format, overrides, run_history, …
 ```
 
+A file that exports a component is `PascalCase.tsx`. Everything else is
+`snake_case`, wherever it sits — which is why `components/run_columns.tsx`,
+column specs and cell renderers belonging to `RunTable`, is spelled the way
+`utils/run_history.ts` is. Hooks keep React's own `useThing.ts`.
+
 ## Aliases
 
 Declared in both `vite.config.ts` and `tsconfig.json`, and they must agree.
@@ -129,10 +134,21 @@ key, nor on an instrument name.
 | A provider's `commands()` | One form per command, its inputs built from that command's `fields[]`. |
 
 `InstrumentPanel` is the only instrument component, and it is rendered for every
-instrument. A new capability provider gets a working panel by declaring one.
+instrument. A new instrument gets a working panel by being registered.
 
 A `grep` for a suite key or an instrument name under `frontend/src/` should
 return nothing but test fixtures.
+
+## Two vocabularies
+
+The UI speaks to the operator, so it does not always use the contract's word.
+A **test** on screen is a suite in the manifest, and an **instrument** is a
+capability provider. Both are deliberate. The contract's words stay in
+`api/types.ts` and in every payload, so `suite`, `requires` and `capability`
+are what the code handles even where the label says otherwise.
+
+Read a page in `pages/` and a component in `components/` by its route, not by
+its heading: `TestsPage` serves `/tests` and renders `GET /api/suites`.
 
 ## Adding a page
 

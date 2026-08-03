@@ -11,7 +11,8 @@ flowchart LR
         DISC[discovery] --> CAT[(catalog)]
         API[REST + SSE] --> SUP[supervisor]
         CAT --> SUP
-        CAP[capabilities] --> SUP
+        INST[instruments] --> CAP[capabilities]
+        CAP --> SUP
         SUP --> IDX[(runs index)]
         API --> DIST[web_dist]
     end
@@ -28,15 +29,36 @@ flowchart LR
 |---|---|
 | `gauntlet.suites` | Walks the suite roots, loads and validates each `suite.yaml`, lists profiles. |
 | `gauntlet.supervisor` | Builds the command line, spawns the process, streams output, finalizes the run. |
-| `gauntlet.capabilities` | Registers instrument providers and grants them to runs. Ships `MockChamber`, `MockDaq` and `MockPsu`. |
+| `gauntlet.capabilities` | The provider protocols, and the registry that grants a provider to a run. Holds no device code. |
+| `gauntlet.instruments` | The providers themselves. Ships `MockChamber`, `MockDaq` and `MockPsu`; a real driver belongs beside them. |
 | `gauntlet.conformance` | Checks a suite against the contract. |
 | `gauntlet.storage` | SQLite behind `RunsIndex` (run history), `NotesIndex` (operator notes on runs and units), and `UnitsIndex` (units, aggregated from the runs table). One database file. |
-| `gauntlet.api` | REST routers, one module per resource: `system`, `suites`, `runs`, `artifacts`, `units`, `instruments`. `notes` is shared plumbing rather than a router; `host_stats` reads the host. |
+| `gauntlet.api` | REST routers, one module per resource: `system`, `suites`, `runs`, `artifacts`, `units`, `instruments`, `capabilities`. `notes` is shared plumbing rather than a router; `host_stats` reads the host. |
 | `gauntlet.app` | Wires all of it onto `app.state`, mounts the routers under `/api`, and serves `web_dist` at `/`. |
 
 `gauntlet.api.host_stats` reads `/proc`, `/sys`, `os` and `shutil` only. It adds
 no dependency, and every reader answers `None` or an empty list where the kernel
 does not offer the file.
+
+## Capability and instrument
+
+One object, two words, because two audiences see it.
+
+Gauntlet holds the serial port. A suite never opens the device: it names what
+it needs in `requires:`, and is granted a URL it drives instead. That grant is
+the **capability** — `gauntlet.capabilities` and `/api/capabilities/{name}`,
+the vocabulary of the contract and the half the suite process sees.
+
+The same object shown to the operator is an **instrument** —
+`gauntlet.instruments`, `/api/instruments`, and the panels in the UI. Nothing
+there grants anything; it reads and drives what Gauntlet already owns.
+
+Both endpoints reach the same registry, which is what lets a panel show live
+state while a suite is mid-run: neither side holds the port, so both can ask.
+
+A provider is written once and appears on both sides. `gauntlet.capabilities`
+defines the protocols it satisfies and holds no device code;
+`gauntlet.instruments` holds the devices and no protocol.
 
 A unit is not a record an operator creates: it exists because runs name it, and
 its counters are an aggregate over the `runs` table. The `units` table holds only

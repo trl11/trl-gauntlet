@@ -631,9 +631,9 @@ export interface Settings {
   open_browser: boolean;
   port: number;
   profiles_dir: string;
-  profiles_user_dir: string | null;
-  reports_base: string | null;
+  profiles_dir_override: string | null;
   runs_dir: string;
+  runs_dir_override: string | null;
   runs_index_path: string;
   suite_roots: string[];
   [key: string]: unknown;

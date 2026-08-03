@@ -31,11 +31,13 @@ The suites still to come carry the same prefix in the source repository.
 ## Real instrument drivers
 
 `psu`, `daq` and `chamber` are registered as `MockPsu`, `MockDaq` and
-`MockChamber`, one class per module in `gauntlet/capabilities/`, sharing the
-command and argument helpers in `mock_instrument.py`.
+`MockChamber`, one class per module in `gauntlet/instruments/`, sharing the
+command and argument helpers in `gauntlet/capabilities/declare.py` and the
+noise generator in `instruments/simulation.py`.
 
 Real drivers exist in `trl-xclops/lab/src/xcng_lab/instruments/`: `hm310t.py`,
-`di2008.py`, `can.py`, `rs422.py`. To replace a mock, a driver must satisfy the
+`di2008.py`, `can.py`, `rs422.py`. Each belongs beside the mocks in
+`gauntlet/instruments/`. To replace a mock, a driver must satisfy the
 `CapabilityProvider` protocol in `gauntlet/capabilities/registry.py` —
 `available()`, `describe()`, `instance_id()`, plus `read()` and `write()` for
 the HTTP proxy. The operator panel additionally reads the optional `state()`,

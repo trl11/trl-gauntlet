@@ -58,8 +58,8 @@ class TestDerivedPaths:
     def test_each_derived_path_is_independently_overridable(self, tmp_path):
         settings = Settings(
             data_dir=tmp_path,
-            reports_base=tmp_path / "elsewhere",
-            profiles_user_dir=tmp_path / "profiles-elsewhere",
+            runs_dir_override=tmp_path / "elsewhere",
+            profiles_dir_override=tmp_path / "profiles-elsewhere",
         )
 
         assert settings.runs_dir == tmp_path / "elsewhere"

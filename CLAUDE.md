@@ -41,6 +41,11 @@ changing anything in `frontend/`.
   bundle can ship inside Electron. Nothing may assume the API's origin.
 - Do not add a Python dependency for host telemetry. `gauntlet.api.host_stats`
   uses `/proc`, `/sys`, `os` and `shutil` only.
+- `gauntlet.capabilities` holds protocols and the registry, never a device.
+  `gauntlet.instruments` holds devices and never a protocol. A provider goes in
+  the second and satisfies the first. The same split runs through the API:
+  `api/capabilities.py` is what a suite drives, `api/instruments.py` is what the
+  operator sees.
 
 ## Layout
 
@@ -53,6 +58,11 @@ extras/trl-ui-kit/         shared component library (submodule)
 packages/gauntlet/src/gauntlet/scaffold/   suite scaffolder and its templates
 docs/                      contract specification and guides
 ```
+
+Inside `packages/gauntlet/src/gauntlet`: `api/` (one router module per
+resource), `capabilities/`, `instruments/`, `conformance/`, `scaffold/`,
+`storage/` (one module per table), `suites/` (discovery and the manifest
+loader), `supervisor/`.
 
 Inside `frontend/src`: `api/` (client and types), `components/`, `hooks/`,
 `pages/` (one per route), `styles/`, `test/` (setup and captured fixtures),

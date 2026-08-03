@@ -214,12 +214,12 @@ class RunsIndex:
             self._conn.commit()
             return cursor.rowcount
 
-    def import_tree(self, reports_base: Path) -> int:
+    def import_tree(self, runs_dir: Path) -> int:
         """Index any run directory on disk that is not already known."""
-        if not reports_base.is_dir():
+        if not runs_dir.is_dir():
             return 0
         imported = 0
-        for verdict_path in sorted(reports_base.glob("*/*/verdict.json")):
+        for verdict_path in sorted(runs_dir.glob("*/*/verdict.json")):
             run_dir = verdict_path.parent
             run_id = run_dir.name
             if self.get(run_id) is not None:

@@ -41,6 +41,7 @@ command-line flags.
 | `gauntlet.suites` | Finding `suite.yaml` files and listing profiles |
 | `gauntlet.supervisor` | Building command lines, spawning, streaming, finalizing |
 | `gauntlet.capabilities` | Lending instruments to running suites |
+| `gauntlet.instruments` | The instruments themselves, simulated ones included |
 | `gauntlet.conformance` | Checking a suite against the contract |
 | `gauntlet.scaffold` | Generating a suite from a bundled template |
 | `gauntlet.storage` | SQLite index of run history |

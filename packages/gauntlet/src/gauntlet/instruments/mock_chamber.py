@@ -10,8 +10,9 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from gauntlet.capabilities.mock_instrument import command_field, noise, number_arg, readout
+from gauntlet.capabilities.declare import command_field, number_arg, readout
 from gauntlet.capabilities.registry import CommandRejected
+from gauntlet.instruments.simulation import noise
 
 _AMBIENT_C = 22.0
 

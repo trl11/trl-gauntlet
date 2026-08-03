@@ -1,10 +1,11 @@
-"""Capability providers and the registry that grants them to runs."""
+"""What Gauntlet grants a run, and how a provider declares itself.
+
+The concrete providers live in :mod:`gauntlet.instruments`.
+"""
 
 from __future__ import annotations
 
-from gauntlet.capabilities.mock_chamber import MockChamber
-from gauntlet.capabilities.mock_daq import MockDaq
-from gauntlet.capabilities.mock_psu import MockPsu
+from gauntlet.capabilities.declare import command_field, number_arg, readout
 from gauntlet.capabilities.registry import (
     CapabilityError,
     CapabilityProvider,
@@ -25,11 +26,11 @@ __all__ = [
     "CommandRejected",
     "CommandableCapability",
     "Grant",
-    "MockChamber",
-    "MockDaq",
-    "MockPsu",
     "PresentableCapability",
     "ReadableCapability",
     "StatefulCapability",
     "WritableCapability",
+    "command_field",
+    "number_arg",
+    "readout",
 ]

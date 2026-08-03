@@ -1178,9 +1178,9 @@
     "open_browser": false,
     "port": 7180,
     "profiles_dir": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/profiles",
-    "profiles_user_dir": null,
-    "reports_base": null,
+    "profiles_dir_override": null,
     "runs_dir": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs",
+    "runs_dir_override": null,
     "runs_index_path": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs.sqlite",
     "suite_roots": ["/workspaces/gauntlet/suites"]
   },

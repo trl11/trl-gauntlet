@@ -11,8 +11,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from gauntlet.capabilities.mock_instrument import command_field, noise, number_arg, readout
+from gauntlet.capabilities.declare import command_field, number_arg, readout
 from gauntlet.capabilities.registry import CommandRejected
+from gauntlet.instruments.simulation import noise
 
 # Amps the fixed resistive load draws per volt on the rail.
 _LOAD_SIEMENS = 0.11

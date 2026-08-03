@@ -18,9 +18,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from gauntlet.api import artifacts, instruments, runs, suites, system, units
-from gauntlet.capabilities import CapabilityRegistry, MockChamber, MockDaq, MockPsu
+from gauntlet.api import artifacts, capabilities, instruments, runs, suites, system, units
+from gauntlet.capabilities import CapabilityRegistry
 from gauntlet.config import Settings, load_settings
+from gauntlet.instruments import MockChamber, MockDaq, MockPsu
 from gauntlet.storage import NotesIndex, RunRow, RunsIndex, UnitsIndex
 from gauntlet.suites import SuiteCatalog, discover_suites
 from gauntlet.supervisor import RunHandle, RunSupervisor
@@ -65,11 +66,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.suite_catalog = discover_suites(settings.suite_roots)
         return app.state.suite_catalog
 
-    capabilities = CapabilityRegistry(api_base=settings.api_base)
-    # Mock providers are registered by default and replaced by name when real
+    registry = CapabilityRegistry(api_base=settings.api_base)
+    # Mock instruments are registered by default and replaced by name when real
     # hardware is configured.
     for instrument in (MockChamber(), MockDaq(), MockPsu()):
-        capabilities.register(instrument)
+        registry.register(instrument)
 
     # Notes and units share the runs database: a unit is an aggregate over the
     # runs table, and a note points at a row in one of the two.
@@ -105,7 +106,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.suite_catalog = catalog
     app.state.catalog = current_catalog
     app.state.rescan = rescan
-    app.state.capabilities = capabilities
+    app.state.capabilities = registry
     app.state.notes_index = notes_index
     app.state.runs_index = runs_index
     app.state.units_index = units_index
@@ -113,10 +114,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # against. Empty until the first request for system data takes one.
     app.state.cpu_sample = {}
     app.state.supervisor = RunSupervisor(
-        reports_base=settings.runs_dir,
+        runs_dir=settings.runs_dir,
         user_profiles_dir=settings.profiles_dir,
         catalog_provider=current_catalog,
-        capabilities=capabilities,
+        capabilities=registry,
         api_base=settings.api_base,
         on_run_completed=on_run_completed,
     )
@@ -127,6 +128,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(artifacts.router, prefix="/api", tags=["artifacts"])
     app.include_router(units.router, prefix="/api", tags=["units"])
     app.include_router(instruments.router, prefix="/api", tags=["instruments"])
+    app.include_router(capabilities.router, prefix="/api", tags=["capabilities"])
 
     _mount_frontend(app)
     return app

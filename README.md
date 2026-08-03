@@ -42,7 +42,7 @@ one key jumps between pages.
 | History | Every recorded run, filtered by suite, unit, status and date range, sorted and paged on the server. Rows expand to their details and can be exported as CSV. |
 | Run | One run. Verdict and phases, live log, metric charts, per-iteration table, artifact list, and notes. Live runs stream over SSE and can be stopped or aborted. |
 | Units | Everything that has been on the bench, with run counts and outcomes. Open one for its history and notes; rename it, and its runs follow; forget it, and the runs stay. |
-| Instruments | One panel per registered capability provider, generated from what that provider declares: its state as rows, each of its commands as a form. Scan re-probes availability. |
+| Instruments | One panel per registered instrument, generated from what that provider declares: its state as rows, each of its commands as a form. Scan re-probes availability. |
 | Settings | Service configuration, paths, suite-discovery errors, versions, and static host facts. |
 
 ## Built-in suites

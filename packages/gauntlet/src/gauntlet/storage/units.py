@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from gauntlet.storage.notes import SUBJECT_UNIT, NotesIndex
-from gauntlet.storage.runs_index import RUNS_SCHEMA
+from gauntlet.storage.runs import RUNS_SCHEMA
 
 UNITS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS units (

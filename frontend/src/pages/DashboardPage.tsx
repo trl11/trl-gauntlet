@@ -235,10 +235,7 @@ export const DashboardPage: React.FC = () => {
             {instruments.isPending ? (
               <Spinner />
             ) : (instruments.data?.instruments ?? []).length === 0 ? (
-              <EmptyState
-                title="No instruments"
-                message="Gauntlet found no capability providers."
-              />
+              <EmptyState title="No instruments" message="Gauntlet is holding no instruments." />
             ) : (
               <div className="dashboard-page__instruments">
                 {(instruments.data?.instruments ?? []).map((instrument) => (
