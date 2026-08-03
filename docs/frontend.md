@@ -1,6 +1,6 @@
 # Frontend
 
-`web/` is the operator UI. React 19, TypeScript, Vite, react-router v7 with
+`frontend/` is the operator UI. React 19, TypeScript, Vite, react-router v7 with
 `HashRouter`, TanStack Query for server state, recharts for plots, and the
 trl-ui-kit component library consumed as source. Styling is SCSS against the
 kit's design tokens. Dark theme only.
@@ -12,7 +12,7 @@ two halves fit together.
 ## Layout
 
 ```
-web/
+frontend/
 ├── package.json          the app declares every dependency, including the kit's
 ├── vite.config.ts        aliases, dev proxy, build output, vitest config
 ├── tsconfig.json         the same aliases for the type checker
@@ -39,22 +39,22 @@ Declared in both `vite.config.ts` and `tsconfig.json`, and they must agree.
 
 | Alias | Resolves to |
 |---|---|
-| `@api` | `web/src/api` |
-| `@assets` | `web/src/assets` |
-| `@components` | `web/src/components` |
-| `@hooks` | `web/src/hooks` |
-| `@pages` | `web/src/pages` |
-| `@styles` | `web/src/styles` |
+| `@api` | `frontend/src/api` |
+| `@assets` | `frontend/src/assets` |
+| `@components` | `frontend/src/components` |
+| `@hooks` | `frontend/src/hooks` |
+| `@pages` | `frontend/src/pages` |
+| `@styles` | `frontend/src/styles` |
 | `@trl11` | `extras/trl-ui-kit` |
 
 ## The ui-kit submodule
 
 `extras/trl-ui-kit` is a git submodule. It is consumed as **source**: its own
-`package.json` is never installed, so `web/package.json` declares every
+`package.json` is never installed, so `frontend/package.json` declares every
 dependency the kit's files import — react, react-dom, clsx and the
 `@fortawesome/*` packages. `vite.config.ts` lists those in `resolve.dedupe` and
-`tsconfig.json` maps their bare specifiers into `web/node_modules`, so the kit's
-imports resolve to this app's single copy.
+`tsconfig.json` maps their bare specifiers into `frontend/node_modules`, so the
+kit's imports resolve to this app's single copy.
 
 ```bash
 git submodule update --init            # first checkout
@@ -63,8 +63,8 @@ git submodule update --init --force    # back to the commit the parent records
 ```
 
 `--remote` leaves `extras/trl-ui-kit` modified in the parent repository: the new
-commit has to be committed there for anyone else to get it. Run `make web-check`
-before doing so.
+commit has to be committed there for anyone else to get it. Run
+`make frontend-check` before doing so.
 
 Import only from `@trl11/components/ui` and `@trl11/hooks`.
 `@trl11/components/vip` and `@trl11/components/media` pull three.js, satellite.js
@@ -87,32 +87,32 @@ Colours, fonts and spacing come from that file — `$trl-background`, `$trl-dark
 `$font-primary`, `$font-mono`, `$navbar-height` and the `$indicator-*` set. Do
 not write hex values.
 
-Fonts are copied from `extras/trl-ui-kit/fonts` into `web/public/font` and
+Fonts are copied from `extras/trl-ui-kit/fonts` into `frontend/public/font` and
 declared with `@font-face` in `src/styles/main.scss`.
 
 ## Running against a live API
 
 ```bash
-make run          # terminal 1: builds the bundle and serves the API on :7100
-make web-dev      # terminal 2: Vite on :7101, proxying /api to :7100
+make run           # terminal 1: builds the bundle and serves the API on :7100
+make frontend-dev  # terminal 2: Vite on :7101, proxying /api to :7100
 ```
 
-`make web-dev` runs `npm run dev`. The proxy is in `vite.config.ts` and forwards
-`/api`, including the SSE stream, to `http://127.0.0.1:7100`. That target is
-fixed in the config; for an API on another host or port, set `VITE_API_BASE`
-instead of using the proxy.
+`make frontend-dev` runs `npm run dev`. The proxy is in `vite.config.ts` and
+forwards `/api`, including the SSE stream, to `http://127.0.0.1:7100`. That
+target is fixed in the config; for an API on another host or port, set
+`VITE_API_BASE` instead of using the proxy.
 
 `VITE_API_BASE` is read in `src/api/client.ts` and prefixes every request, the
 event-stream URL and every artifact link. Empty, the default, means same origin.
 
 ```bash
-cd web && VITE_API_BASE=http://bench-01:7100 npm run dev
+cd frontend && VITE_API_BASE=http://bench-01:7100 npm run dev
 ```
 
 Hash routing and that configurable base are both there so the same bundle can be
 loaded from `file://` inside an Electron shell that talks to a Gauntlet process
-elsewhere. Nothing in `web/` may assume it is served from the API's origin, and
-no route may depend on the server resolving a path.
+elsewhere. Nothing in `frontend/` may assume it is served from the API's
+origin, and no route may depend on the server resolving a path.
 
 ## The UI is generic over the manifest
 
@@ -121,7 +121,7 @@ key, nor on an instrument name.
 
 | Declared in | Rendered as |
 |---|---|
-| `overrides[]` | The run form. Each entry's `type`, `label`, `unit`, `choices`, `minimum` and `maximum` build and bound one control. `web/src/utils/overrides.ts` reads only those fields. |
+| `overrides[]` | The run form. Each entry's `type`, `label`, `unit`, `choices`, `minimum` and `maximum` build and bound one control. `frontend/src/utils/overrides.ts` reads only those fields. |
 | `produces[]` | Which result views a suite offers. |
 | `requires[]` | The capabilities checked against `GET /api/instruments` before the run button is enabled. |
 | `profile-schema` | The profile editor form, built by `SchemaForm` from the JSON Schema at `GET /api/suites/{key}/profile-schema`. |
@@ -131,8 +131,8 @@ key, nor on an instrument name.
 `InstrumentPanel` is the only instrument component, and it is rendered for every
 instrument. A new capability provider gets a working panel by declaring one.
 
-A `grep` for a suite key or an instrument name under `web/src/` should return
-nothing but test fixtures.
+A `grep` for a suite key or an instrument name under `frontend/src/` should
+return nothing but test fixtures.
 
 ## Adding a page
 
@@ -154,9 +154,10 @@ nothing but test fixtures.
 ## Checks
 
 ```bash
-make web-check     # prettier --check, eslint, tsc --noEmit, vitest
-make web           # production build into gauntlet/web_dist
+make frontend-check  # prettier --check, eslint, tsc --noEmit, vitest
+make frontend        # production build into gauntlet/web_dist
 ```
 
-`make check` runs `make web-check` when npm is present, and skips it otherwise.
-Run `make web-check` before committing anything under `web/`.
+`make check` runs `make frontend-check` when npm is present, and skips it
+otherwise. Run `make frontend-check` before committing anything under
+`frontend/`.

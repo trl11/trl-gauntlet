@@ -19,8 +19,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from gauntlet_suite.contract import MetricsRecord, RunManifest, Verdict
-from gauntlet_suite.environment import new_run_id
+from gauntlet_sdk.contract import MetricsRecord, RunManifest, Verdict
+from gauntlet_sdk.environment import new_run_id
 from pydantic import ValidationError
 
 from gauntlet.suites.discovery import list_profiles

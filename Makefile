@@ -10,15 +10,15 @@
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
-ROOT      := $(abspath $(CURDIR))
-VENV      := $(ROOT)/.venv
-PY        := $(VENV)/bin/python
-BIN       := $(VENV)/bin
-APP       := $(ROOT)/packages/gauntlet
-SDK       := $(ROOT)/packages/gauntlet-suite
-SUITES    := $(ROOT)/suites
-WEB       := $(ROOT)/web
-WEB_OUT   := $(APP)/src/gauntlet/web_dist
+ROOT         := $(abspath $(CURDIR))
+VENV         := $(ROOT)/.venv
+PY           := $(VENV)/bin/python
+BIN          := $(VENV)/bin
+APP          := $(ROOT)/packages/gauntlet
+SDK          := $(ROOT)/packages/gauntlet-sdk
+SUITES       := $(ROOT)/suites
+FRONTEND     := $(ROOT)/frontend
+FRONTEND_OUT := $(APP)/src/gauntlet/web_dist
 
 # The interpreter the venv is built from. Resolved to an absolute path and
 # pinned, because `uv venv --python python3` consults uv's own discovery order
@@ -42,12 +42,13 @@ else
 endif
 
 # The frontend is optional: a Python-only environment has no npm, and `check`
-# skips the web targets rather than failing there.
+# skips the frontend targets rather than failing there.
 NPM := $(shell command -v npm 2>/dev/null)
 
 PORT ?= 7100
-# The port `make web-dev` serves the frontend on, declared in web/vite.config.ts.
-WEB_PORT ?= 7101
+# The port `make frontend-dev` serves the frontend on, declared in
+# frontend/vite.config.ts.
+FRONTEND_PORT ?= 7101
 # Every interface, so the app is reachable from another machine and from
 # outside a container. Set HOST=127.0.0.1 to keep it on loopback.
 HOST ?= 0.0.0.0
@@ -73,9 +74,9 @@ help:
 	@echo "    make run              build the frontend and serve (port $(PORT))"
 	@echo "    make serve            the same, with auto-reload"
 	@echo "    make stop             stop what run or serve started"
-	@echo "    make web              build the frontend bundle"
-	@echo "    make web-dev          frontend dev server with hot reload"
-	@echo "    make web-check        lint and test the frontend"
+	@echo "    make frontend         build the frontend bundle"
+	@echo "    make frontend-dev     frontend dev server with hot reload"
+	@echo "    make frontend-check   lint and test the frontend"
 	@echo ""
 	@echo "  Suites"
 	@echo "    make new-suite NAME=x scaffold a suite (TEMPLATE=python|shell)"
@@ -85,7 +86,7 @@ help:
 	@echo "    make verify-run       ...and execute each conformance profile"
 	@echo ""
 	@echo "  Quality"
-	@echo "    make check            format-check + lint + typecheck + test + web-check"
+	@echo "    make check            format-check + lint + typecheck + test + frontend-check"
 	@echo "    make format           auto-format"
 	@echo "    make lint             ruff"
 	@echo "    make typecheck        mypy"
@@ -119,7 +120,7 @@ setup: ## Create the venv and install both packages editable
 		rm -rf $(VENV); \
 	fi
 	@$(MAKE) --no-print-directory $(PY)
-	@echo "==> installing gauntlet-suite (editable)"
+	@echo "==> installing gauntlet-sdk (editable)"
 	@$(PIP_INSTALL) -q -e "$(SDK)[dev]"
 	@echo "==> installing gauntlet (editable)"
 	@$(PIP_INSTALL) -q -e "$(APP)[dev]"
@@ -139,23 +140,23 @@ ensure-setup:
 
 # The app serves whatever bundle is on disk and falls back to a link to /docs
 # when there is none, so building here is a convenience, not a requirement.
-.PHONY: web-bundle
+.PHONY: frontend-bundle
 # Always rebuilds, so `make run` alone is enough after any change. Without npm
 # the bundle cannot be built and the app serves the API only.
-web-bundle:
+frontend-bundle:
 	@if [ -n "$(NPM)" ]; then \
-		$(MAKE) --no-print-directory web; \
+		$(MAKE) --no-print-directory frontend; \
 	else \
 		echo "npm is not installed; serving the API without the frontend"; \
 	fi
 
 .PHONY: run
-run: ensure-setup web-bundle ## Set up, build the frontend, and serve
+run: ensure-setup frontend-bundle ## Set up, build the frontend, and serve
 	@echo "Gauntlet   http://$(if $(filter 0.0.0.0,$(HOST)),localhost,$(HOST)):$(PORT)"
 	@$(BIN)/gauntlet serve --host $(HOST) --port $(PORT)
 
 .PHONY: serve
-serve: ensure-setup web-bundle ## Serve with auto-reload, for working on the app
+serve: ensure-setup frontend-bundle ## Serve with auto-reload, for working on the app
 	@$(BIN)/gauntlet serve --host $(HOST) --port $(PORT) --reload
 
 # Kills the process group, so a reloader and any suite the run spawned go with
@@ -165,7 +166,7 @@ serve: ensure-setup web-bundle ## Serve with auto-reload, for working on the app
 stop: ## Stop what `make run` or `make serve` started, and clear its scratch files
 	@own=$$(ps -o pgid= -p $$$$ | tr -d ' '); \
 	stopped=0; \
-	for port in $(PORT) $(WEB_PORT); do \
+	for port in $(PORT) $(FRONTEND_PORT); do \
 		for pid in $$(lsof -t -iTCP:$$port -sTCP:LISTEN 2>/dev/null); do \
 			pgid=$$(ps -o pgid= -p $$pid 2>/dev/null | tr -d ' '); \
 			[ -n "$$pgid" ] || continue; \
@@ -183,7 +184,7 @@ stop: ## Stop what `make run` or `make serve` started, and clear its scratch fil
 			stopped=1; \
 		done; \
 	done; \
-	[ "$$stopped" = "1" ] || echo "nothing was listening on $(PORT) or $(WEB_PORT)"
+	[ "$$stopped" = "1" ] || echo "nothing was listening on $(PORT) or $(FRONTEND_PORT)"
 	@if [ -x $(PY) ]; then \
 		runs=$$($(PY) -c "from gauntlet.config import load_settings; print(load_settings().runs_dir)" 2>/dev/null); \
 		if [ -n "$$runs" ] && [ -d "$$runs/_scratch" ]; then \
@@ -192,23 +193,23 @@ stop: ## Stop what `make run` or `make serve` started, and clear its scratch fil
 		fi; \
 	fi
 
-.PHONY: web-install
-web-install:
+.PHONY: frontend-install
+frontend-install:
 	@test -n "$(NPM)" || { echo "npm is not installed"; exit 2; }
-	@test -d $(WEB)/node_modules || \
-		(cd $(WEB) && npm install --no-audit --no-fund --loglevel=warn)
+	@test -d $(FRONTEND)/node_modules || \
+		(cd $(FRONTEND) && npm install --no-audit --no-fund --loglevel=warn)
 
-.PHONY: web
-web: web-install ## Build the frontend bundle into the app package
-	@cd $(WEB) && npm run build
+.PHONY: frontend
+frontend: frontend-install ## Build the frontend bundle into the app package
+	@cd $(FRONTEND) && npm run build
 
-.PHONY: web-dev
-web-dev: web-install ## Frontend dev server on 7101, proxying /api to $(PORT)
-	@cd $(WEB) && npm run dev
+.PHONY: frontend-dev
+frontend-dev: frontend-install ## Frontend dev server on 7101, proxying /api to $(PORT)
+	@cd $(FRONTEND) && npm run dev
 
-.PHONY: web-check
-web-check: web-install ## Format-check, lint and test the frontend
-	@cd $(WEB) && npm run format-check && npm run lint && npm run test
+.PHONY: frontend-check
+frontend-check: frontend-install ## Format-check, lint and test the frontend
+	@cd $(FRONTEND) && npm run format-check && npm run lint && npm run test
 
 # ---------------------------------------------------------------------------
 # Suites
@@ -242,7 +243,7 @@ verify-run: ensure-setup ## Contract checks including a real run of each conform
 .PHONY: check
 check: format-check lint typecheck test test-suites ## Everything CI runs
 	@if [ -n "$(NPM)" ]; then \
-		$(MAKE) --no-print-directory web-check; \
+		$(MAKE) --no-print-directory frontend-check; \
 	else \
 		echo "==> skipping frontend checks: npm is not installed"; \
 	fi
@@ -267,7 +268,7 @@ typecheck: ensure-setup ## Type-check both packages and every suite
 .PHONY: test
 test: ensure-setup ## Run tests with coverage
 	@$(BIN)/pytest $(SDK)/tests $(APP)/tests -m "not e2e" \
-		--cov=gauntlet --cov=gauntlet_suite \
+		--cov=gauntlet --cov=gauntlet_sdk \
 		--cov-report=term-missing:skip-covered \
 		--cov-report=xml:$(ROOT)/build/coverage.xml \
 		--junitxml=$(ROOT)/build/junit.xml
@@ -310,7 +311,7 @@ api-spec: ensure-setup ## Write the OpenAPI spec
 
 .PHONY: clean
 clean: ## Remove build artifacts and caches
-	@rm -rf $(ROOT)/build $(WEB_OUT)
+	@rm -rf $(ROOT)/build $(FRONTEND_OUT)
 	@find $(ROOT) -name __pycache__ -type d -prune -exec rm -rf {} + 2>/dev/null || true
 	@find $(ROOT) -name '*.egg-info' -type d -prune -exec rm -rf {} + 2>/dev/null || true
 	@rm -rf $(ROOT)/.pytest_cache $(ROOT)/.ruff_cache $(ROOT)/.mypy_cache $(ROOT)/.coverage

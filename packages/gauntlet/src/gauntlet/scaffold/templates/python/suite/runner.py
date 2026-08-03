@@ -6,7 +6,7 @@ criteria. Everything else is handled for you.
 
 from __future__ import annotations
 
-from gauntlet_suite import (
+from gauntlet_sdk import (
     IterationContext,
     IterationOutcome,
     PhaseTimer,

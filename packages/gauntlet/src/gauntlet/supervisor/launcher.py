@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from gauntlet_suite.contract import OverrideSpec
+from gauntlet_sdk.contract import OverrideSpec
 
 from gauntlet.suites.manifest import LoadedSuite
 

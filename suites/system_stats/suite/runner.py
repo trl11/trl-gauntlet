@@ -18,7 +18,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from gauntlet_suite import (
+from gauntlet_sdk import (
     AnomalyLog,
     IterationContext,
     IterationOutcome,
@@ -31,7 +31,7 @@ from gauntlet_suite import (
     make_result,
     make_test,
 )
-from gauntlet_suite.reporting.verdict import ResultFormat, TestOutcome
+from gauntlet_sdk.reporting.verdict import ResultFormat, TestOutcome
 
 from suite.checks import CheckResult, run_checks
 from suite.host import read_cpu_model

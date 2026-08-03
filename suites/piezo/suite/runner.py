@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from gauntlet_suite import (
+from gauntlet_sdk import (
     AnomalyLog,
     IterationContext,
     IterationOutcome,
@@ -28,7 +28,7 @@ from gauntlet_suite import (
     make_result,
     make_test,
 )
-from gauntlet_suite.remote import RemoteError, is_alive
+from gauntlet_sdk.remote import RemoteError, is_alive
 
 from suite.controller import ControllerError, PiezoController, Sample
 from suite.profile import Axis, PiezoProfile

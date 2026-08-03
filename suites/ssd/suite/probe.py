@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from gauntlet_suite.remote import RemoteError, run, shell_quote
+from gauntlet_sdk.remote import RemoteError, run, shell_quote
 
 from suite.profile import Device, ProbeBlock, ProvisionBlock
 

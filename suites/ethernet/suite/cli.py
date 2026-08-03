@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 
-from gauntlet_suite import make_suite_cli
+from gauntlet_sdk import make_suite_cli
 
 from suite.runner import SPEC
 

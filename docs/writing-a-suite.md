@@ -100,11 +100,11 @@ requires: [psu]
 
 ## Remote units
 
-`gauntlet_suite.remote` provides SSH access. Install
-`gauntlet-suite[remote]` for paramiko.
+`gauntlet_sdk.remote` provides SSH access. Install
+`gauntlet-sdk[remote]` for paramiko.
 
 ```python
-from gauntlet_suite.remote import RemoteTarget, connect, run
+from gauntlet_sdk.remote import RemoteTarget, connect, run
 
 target = RemoteTarget.from_env(host=ctx.target)
 client = connect(target)

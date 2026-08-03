@@ -109,10 +109,10 @@ Specification: [`docs/contract.md`](docs/contract.md).
 
 | Path | Contents |
 |---|---|
-| `packages/gauntlet-suite/` | Library for suite authors. Requires pydantic and pyyaml. |
+| `packages/gauntlet-sdk/` | Library for suite authors. Requires pydantic and pyyaml. |
 | `packages/gauntlet/` | Application: discovery, supervisor, REST API, and the built frontend. |
 | `suites/` | Built-in and reference suites. |
-| `web/` | React operator UI, built into `gauntlet/web_dist`. |
+| `frontend/` | React operator UI, built into `gauntlet/web_dist`. |
 | `extras/trl-ui-kit/` | Component library, a git submodule the UI consumes as source. |
 | `docs/` | Contract specification and guides. |
 
@@ -144,13 +144,14 @@ from that declaration.
 ## Frontend
 
 ```bash
-make web            # build the bundle into packages/gauntlet/src/gauntlet/web_dist
-make web-dev        # Vite on 7101, proxying /api to the API on 7100
-make web-check      # prettier --check, eslint, tsc, vitest
+make frontend        # build the bundle into gauntlet/web_dist
+make frontend-dev    # Vite on 7101, proxying /api to the API on 7100
+make frontend-check  # prettier --check, eslint, tsc, vitest
 ```
 
 `make run` and `make serve` build the bundle first. See
-[`docs/frontend.md`](docs/frontend.md) and [`web/README.md`](web/README.md).
+[`docs/frontend.md`](docs/frontend.md) and
+[`frontend/README.md`](frontend/README.md).
 
 ## Devcontainer
 
@@ -187,14 +188,14 @@ confusing `bad interpreter`.
 | `make run` | Build the frontend and serve on `$(PORT)`, default 7100 |
 | `make serve` | The same, with auto-reload |
 | `make stop` | Stop the server either started, and any suite it was running |
-| `make web` | Build the frontend bundle |
-| `make web-dev` | Frontend dev server on 7101, proxying `/api` to 7100 |
-| `make web-check` | `prettier --check`, eslint, `tsc --noEmit`, vitest |
+| `make frontend` | Build the frontend bundle |
+| `make frontend-dev` | Frontend dev server on 7101, proxying `/api` to 7100 |
+| `make frontend-check` | `prettier --check`, eslint, `tsc --noEmit`, vitest |
 | `make new-suite NAME=x` | Scaffold a suite (`TEMPLATE=python\|shell`) |
 | `make templates` | List the available suite templates |
 | `make list` | List discovered suites |
 | `make verify` / `make verify-run` | Contract checks, static or executing |
-| `make check` | format-check, lint, typecheck, test, test-suites, web-check |
+| `make check` | format-check, lint, typecheck, test, test-suites, frontend-check |
 | `make test` / `make test-suites` | Python tests, then each suite's own tests |
 | `make schemas` / `make api-spec` | Print contract schema names; write `build/openapi.json` |
 | `make clean` / `make distclean` | Remove build output; also remove `.venv` and `output/` |

@@ -9,8 +9,8 @@
 # copy: pinning versions here would duplicate the contract in pyproject.toml
 # and drift from it.
 #
-# gauntlet depends on gauntlet-suite, so gauntlet-suite is listed first and is
+# gauntlet depends on gauntlet-sdk, so gauntlet-sdk is listed first and is
 # already satisfied from the working tree by the time gauntlet is resolved.
 
--e ./packages/gauntlet-suite[dev]
+-e ./packages/gauntlet-sdk[dev]
 -e ./packages/gauntlet[dev]

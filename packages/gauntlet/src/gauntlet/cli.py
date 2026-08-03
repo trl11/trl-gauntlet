@@ -9,7 +9,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
-from gauntlet_suite.contract import CONTRACT_MODELS, json_schema
+from gauntlet_sdk.contract import CONTRACT_MODELS, json_schema
 
 from gauntlet.config import Settings, load_settings
 from gauntlet.conformance import Report, verify_suite

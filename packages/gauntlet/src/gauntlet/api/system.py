@@ -12,7 +12,7 @@ import sys
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from gauntlet_suite.contract import CONTRACT_VERSION
+from gauntlet_sdk.contract import CONTRACT_VERSION
 
 from gauntlet.api import host_stats
 from gauntlet.capabilities import CapabilityProvider, ReadableCapability, WritableCapability
@@ -29,13 +29,13 @@ async def health() -> dict[str, str]:
 @router.get("/version")
 async def version() -> dict[str, Any]:
     """Versions of the app, the SDK, and the contract they speak."""
-    from gauntlet_suite import __version__ as sdk_version
+    from gauntlet_sdk import __version__ as sdk_version
 
     from gauntlet import __version__ as app_version
 
     return {
         "gauntlet": app_version,
-        "gauntlet_suite": sdk_version,
+        "gauntlet_sdk": sdk_version,
         "contract_version": CONTRACT_VERSION,
         "python": sys.version.split()[0],
         "platform": platform.platform(),

@@ -80,7 +80,7 @@
         "python.testing.pytestEnabled": true,
         "python.testing.pytestArgs": [
           "packages/gauntlet/tests",
-          "packages/gauntlet-suite/tests"
+          "packages/gauntlet-sdk/tests"
         ],
         "[python]": {
           "editor.defaultFormatter": "charliermarsh.ruff"

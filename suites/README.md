@@ -32,7 +32,7 @@ Every suite has the same shape:
 
 ## Transports
 
-Suites needing a transport declare it as an extra of `gauntlet-suite`:
+Suites needing a transport declare it as an extra of `gauntlet-sdk`:
 `remote` (SSH), `serial`, `can`, `mqtt`. `make setup` installs all of them.
 
 To create a suite:

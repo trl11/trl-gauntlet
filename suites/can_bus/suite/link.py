@@ -14,7 +14,7 @@ import struct
 import threading
 from typing import Any
 
-from gauntlet_suite.remote import RemoteError, run, shell_quote
+from gauntlet_sdk.remote import RemoteError, run, shell_quote
 
 # Sent on the unit; stdlib only so it runs anywhere python3 exists.
 SENDER_SCRIPT = '''\

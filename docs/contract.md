@@ -3,7 +3,7 @@
 A suite is a program Gauntlet launches that writes a known set of files. It
 does not need to be written in Python or import any Gauntlet library.
 
-The models in `gauntlet_suite.contract` are the normative definition.
+The models in `gauntlet_sdk.contract` are the normative definition.
 `gauntlet verify` enforces them.
 
 ## Obligations
@@ -50,7 +50,7 @@ on `PYTHONPATH`, and Gauntlet's own `bin` directory is prepended to `PATH`.
 
 `exec.profile_schema_command` prints the suite's profile as JSON Schema to
 stdout. Gauntlet calls it to render a profile editor form.
-`gauntlet_suite.make_suite_cli` provides it as `--print-profile-schema`.
+`gauntlet_sdk.make_suite_cli` provides it as `--print-profile-schema`.
 
 `overrides` declares the values an operator may set per run. They become form
 controls in the UI and accepted keys on the REST API. Undeclared keys are

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from gauntlet_suite.contract import CONTRACT_MODELS, json_schema
+from gauntlet_sdk.contract import CONTRACT_MODELS, json_schema
 from pydantic import BaseModel, ConfigDict
 
 from gauntlet.conformance import verify_suite

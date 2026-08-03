@@ -1,6 +1,6 @@
 """Loading ``suite.yaml`` from disk.
 
-The model itself lives in :mod:`gauntlet_suite.contract` so the SDK and the app
+The model itself lives in :mod:`gauntlet_sdk.contract` so the SDK and the app
 share one definition. This module handles the filesystem side: finding the
 file, reading it, and pairing the result with where it came from.
 """
@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from gauntlet_suite.contract import CONTRACT_VERSION, Artifact, SuiteManifest
+from gauntlet_sdk.contract import CONTRACT_VERSION, Artifact, SuiteManifest
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 

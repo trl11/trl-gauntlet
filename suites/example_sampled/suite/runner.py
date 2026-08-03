@@ -2,7 +2,7 @@
 
 A profile model, an ``iterate`` callable, and a :class:`SuiteSpec`. The run
 directory, sinks, signal handling, verdict and summary come from
-:func:`gauntlet_suite.run_suite`.
+:func:`gauntlet_sdk.run_suite`.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 import time
 
-from gauntlet_suite import (
+from gauntlet_sdk import (
     IterationContext,
     IterationOutcome,
     PhaseRecord,

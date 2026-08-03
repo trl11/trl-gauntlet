@@ -21,7 +21,7 @@ flowchart LR
     PROC -->|artifacts| RUN[/run directory/]
     RUN -->|tail| SUP
     SUP -->|events| API
-    WEB[/web/] -->|vite build| DIST
+    FRONTEND[/frontend/] -->|vite build| DIST
 ```
 
 | Module | Responsibility |
@@ -64,15 +64,15 @@ unsatisfiable capability rejects the request before anything is spawned.
 
 ## Packages
 
-`gauntlet-suite` is the library suite authors install. It requires pydantic and
+`gauntlet-sdk` is the library suite authors install. It requires pydantic and
 pyyaml.
 
 `gauntlet` is the application. It requires FastAPI and uvicorn, and depends on
-`gauntlet-suite`.
+`gauntlet-sdk`.
 
 ## Contract models
 
-`gauntlet_suite.contract` defines pydantic models for the four files that cross
+`gauntlet_sdk.contract` defines pydantic models for the four files that cross
 the process boundary: `SuiteManifest`, `Verdict`, `MetricsRecord`, and
 `RunManifest`. Both packages import them.
 
@@ -121,11 +121,12 @@ previous reading is kept on `app.state`.
 
 ## Frontend
 
-`web/` is a React 19 + TypeScript single-page app built with Vite. State from
-the server is held by TanStack Query, plots are recharts, and the components and
-design tokens come from the trl-ui-kit submodule at `extras/trl-ui-kit`,
-aliased as `@trl11` and consumed as source rather than as an installed package.
-Styling is SCSS against that kit's `theme.scss`; there is one theme, dark.
+`frontend/` is a React 19 + TypeScript single-page app built with Vite. State
+from the server is held by TanStack Query, plots are recharts, and the
+components and design tokens come from the trl-ui-kit submodule at
+`extras/trl-ui-kit`, aliased as `@trl11` and consumed as source rather than as
+an installed package. Styling is SCSS against that kit's `theme.scss`; there is
+one theme, dark.
 
 `vite build` writes the bundle into
 `packages/gauntlet/src/gauntlet/web_dist/`, which is package data rather than a
@@ -137,8 +138,9 @@ usable without npm.
 
 Routing is `HashRouter`, and every request is prefixed with `VITE_API_BASE`
 (empty, meaning same origin, by default). Both exist so the identical bundle can
-later be loaded from `file://` inside an Electron shell and pointed at a Gauntlet
-process on another origin. Nothing in `web/` may assume it is served by the API.
+later be loaded from `file://` inside an Electron shell and pointed at a
+Gauntlet process on another origin. Nothing in `frontend/` may assume it is
+served by the API.
 
 Details, including how to add a page and how the submodule is updated, are in
 [`frontend.md`](frontend.md).

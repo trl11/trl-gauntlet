@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from gauntlet_suite import (
+from gauntlet_sdk import (
     AnomalyLog,
     IterationContext,
     IterationOutcome,
@@ -29,7 +29,7 @@ from gauntlet_suite import (
     info,
     make_result,
 )
-from gauntlet_suite.remote import RemoteError, capture_host_facts, connect, is_alive, run, shell_quote
+from gauntlet_sdk.remote import RemoteError, capture_host_facts, connect, is_alive, run, shell_quote
 
 from suite.profile import EthernetProfile
 from suite.server import ThroughputServer

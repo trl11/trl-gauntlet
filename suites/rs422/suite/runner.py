@@ -15,7 +15,7 @@ import queue
 from dataclasses import dataclass
 from typing import Any
 
-from gauntlet_suite import (
+from gauntlet_sdk import (
     AnomalyLog,
     CounterTracker,
     IterationContext,
@@ -28,7 +28,7 @@ from gauntlet_suite import (
     make_result,
     warn,
 )
-from gauntlet_suite.remote import RemoteError, is_alive
+from gauntlet_sdk.remote import RemoteError, is_alive
 
 from suite.link import CounterLink, LinkError
 from suite.profile import Rs422Profile

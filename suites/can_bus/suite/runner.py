@@ -15,7 +15,7 @@ import queue
 from dataclasses import dataclass, field
 from typing import Any
 
-from gauntlet_suite import (
+from gauntlet_sdk import (
     AnomalyLog,
     CounterTracker,
     IterationContext,
@@ -27,7 +27,7 @@ from gauntlet_suite import (
     info,
     make_result,
 )
-from gauntlet_suite.remote import connect, is_alive
+from gauntlet_sdk.remote import connect, is_alive
 
 from suite import link as link_engine
 from suite.profile import CanProfile

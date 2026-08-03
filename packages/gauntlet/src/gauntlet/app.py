@@ -144,7 +144,7 @@ def _mount_frontend(app: FastAPI) -> None:
                 "<!doctype html><meta charset='utf-8'><title>Gauntlet</title>"
                 "<body style='font-family:system-ui;padding:2rem;line-height:1.6'>"
                 "<h1>Gauntlet</h1>"
-                "<p>No frontend bundle is built. Run <code>make web</code>, or use the API directly.</p>"
+                "<p>No frontend bundle is built. Run <code>make frontend</code>, or use the API directly.</p>"
                 "<p><a href='/docs'>API documentation</a></p></body>"
             )
 

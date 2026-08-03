@@ -30,10 +30,10 @@ checks and the application serves the API with a placeholder at `/`.
 
 | Path | Contents |
 |---|---|
-| `packages/gauntlet-suite/` | Library suite authors install. pydantic + pyyaml; SSH via the `remote` extra. |
+| `packages/gauntlet-sdk/` | Library suite authors install. pydantic + pyyaml; SSH via the `remote` extra. |
 | `packages/gauntlet/` | Application: discovery, supervisor, REST+SSE API, conformance, CLI, and the built frontend under `src/gauntlet/web_dist/`. |
 | `suites/` | Nine suites: `ssd`, `ethernet`, `hardware_trigger`, `can_bus`, `rs422`, `piezo`, `system_stats`, plus two references. |
-| `web/` | React operator UI. Vite builds it into `gauntlet/web_dist`. |
+| `frontend/` | React operator UI. Vite builds it into `gauntlet/web_dist`. |
 | `extras/trl-ui-kit/` | Component library, a submodule consumed as source through the `@trl11` alias. |
 | `packages/gauntlet/.../scaffold/` | Suite scaffolder and the `python` / `shell` templates. |
 | `docs/` | `contract.md`, `architecture.md`, `frontend.md`, `writing-a-suite.md`, `scaffolding.md`. |
@@ -42,8 +42,8 @@ checks and the application serves the API with a placeholder at `/`.
 ## Verified
 
 - `make check`: ruff format-check, ruff, mypy strict over both packages and
-  every suite, pytest, each suite's own tests, then `make web-check`.
-- `make web-check`: eslint, `tsc --noEmit`, vitest.
+  every suite, pytest, each suite's own tests, then `make frontend-check`.
+- `make frontend-check`: eslint, `tsc --noEmit`, vitest.
 - `make verify-run`: all nine suites, every check passing.
 - `make list`, `make templates`, `make schemas`, `make api-spec` — the last
   writes an OpenAPI document with 38 paths.
@@ -101,7 +101,7 @@ The remaining five carry the same prefix in the source repository.
 
 - `_write_scratch_profile` leaves files under `<runs>/_scratch/`. Nothing prunes
   them.
-- Coverage is approximately 80%. `gauntlet_suite/cli.py` and the SSE streaming
+- Coverage is approximately 80%. `gauntlet_sdk/cli.py` and the SSE streaming
   path in `gauntlet/api/runs.py` are the least covered.
 - Every ported suite has been exercised only through its mock driver. The SSH,
   serial, CAN and MQTT paths are untested against hardware. `system_stats` is
@@ -110,25 +110,26 @@ The remaining five carry the same prefix in the source repository.
 - Instrument state comes only from the three mocks, so the Instruments screen
   has never been driven against a provider that can fail or go offline
   mid-command.
-- `prettier . -c` reports five unformatted files under `web/src`. `npm run lint`
-  does not run prettier, so `make web-check` passes regardless.
+- `prettier . -c` reports five unformatted files under `frontend/src`.
+  `npm run lint` does not run prettier, so `make frontend-check` passes
+  regardless.
 - `ProfileEditor.test.tsx` prints a React "component suspended inside an act
-  scope" warning. The test passes; nothing in `web/src` or the ui-kit uses
+  scope" warning. The test passes; nothing in `frontend/src` or the ui-kit uses
   `lazy`, `Suspense` or `use()`.
 
 ## Origins
 
 | Gauntlet | Source in `trl-xclops` |
 |---|---|
-| `gauntlet_suite/iteration.py` | `testing/lib/src/xcng_testing/runner/runner.py` |
-| `gauntlet_suite/runner.py` | `testing/lib/src/xcng_testing/suite/runner.py` |
-| `gauntlet_suite/reporting/*` | `testing/lib/src/xcng_testing/reporting/*` |
-| `gauntlet_suite/remote.py` | `testing/lib/src/xcng_testing/jetson/{ssh,uut}.py` |
-| `gauntlet_suite/anomalies.py` | `testing/lib/src/xcng_testing/radiation/anomalies.py` |
+| `gauntlet_sdk/iteration.py` | `testing/lib/src/xcng_testing/runner/runner.py` |
+| `gauntlet_sdk/runner.py` | `testing/lib/src/xcng_testing/suite/runner.py` |
+| `gauntlet_sdk/reporting/*` | `testing/lib/src/xcng_testing/reporting/*` |
+| `gauntlet_sdk/remote.py` | `testing/lib/src/xcng_testing/jetson/{ssh,uut}.py` |
+| `gauntlet_sdk/anomalies.py` | `testing/lib/src/xcng_testing/radiation/anomalies.py` |
 | `gauntlet/supervisor/*` | `lab/src/xcng_lab/supervisor/*` |
 | `gauntlet/storage/runs_index.py` | `lab/src/xcng_lab/storage/runs_index.py` |
 | `gauntlet/app.py`, `config.py` | `lab/src/xcng_lab/app.py`, `config.py` |
 | `suites/ssd/` | `testing/rad_ssd/` and `xcng_testing/radiation/ssd.py` |
 | `suites/hardware_trigger/` | `testing/rad_hardware_trigger/` |
 | `suite.yaml` schema | `lab/src/xcng_lab/supervisor/discovery.py::_SUITE_SPEC` |
-| `web/` (UX, not code) | `lab/web/src/` |
+| `frontend/` (UX, not code) | `lab/web/src/` |

@@ -22,7 +22,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any
 
-from gauntlet_suite import (
+from gauntlet_sdk import (
     AnomalyLog,
     IterationContext,
     IterationOutcome,
@@ -35,7 +35,7 @@ from gauntlet_suite import (
     make_result,
     warn,
 )
-from gauntlet_suite.remote import RemoteError, capture_host_facts, connect, is_alive
+from gauntlet_sdk.remote import RemoteError, capture_host_facts, connect, is_alive
 
 from suite import probe as probe_engine
 from suite.profile import SsdProfile, Unit

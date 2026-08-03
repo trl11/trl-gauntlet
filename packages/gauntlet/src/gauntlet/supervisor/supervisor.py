@@ -27,7 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from gauntlet_suite.contract import Verdict
+from gauntlet_sdk.contract import Verdict
 
 from gauntlet.capabilities.registry import CapabilityError, CapabilityRegistry
 from gauntlet.suites.discovery import SuiteCatalog, resolve_profile
