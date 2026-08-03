@@ -2,29 +2,9 @@
 # Gauntlet — test-suite runner. `make help` lists every target.
 #
 
-SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
-ROOT         := $(abspath $(CURDIR))
-VENV         := $(ROOT)/.venv
-BIN          := $(VENV)/bin
-PY           := $(BIN)/python
-APP          := $(ROOT)/packages/gauntlet
-DOCKER       := $(ROOT)/docker
-SDK          := $(ROOT)/packages/gauntlet-sdk
-SUITES       := $(ROOT)/suites
-FRONTEND     := $(ROOT)/frontend
-FRONTEND_OUT := $(APP)/src/gauntlet/web_dist
-
-# The port `gauntlet serve` listens on.
-APP_PORT ?= 7100
-# The port `make frontend-dev` serves the frontend on, declared in
-# frontend/vite.config.ts.
-FRONTEND_PORT ?= 7101
-# Every interface, so the app is reachable from another machine and from
-# outside a container. Set HOST=127.0.0.1 to keep it on loopback.
-HOST ?= 0.0.0.0
-
+include $(CURDIR)/common.mk
 include $(ROOT)/.devcontainer/devcontainer.mk
 
 
@@ -51,10 +31,17 @@ help:
 	@echo "    make frontend-test     the frontend tests"
 	@echo "    make frontend-check    format-check, lint and test the frontend"
 	@echo ""
-	@echo "  Server"
+	@echo "  Ship: the server image"
 	@echo "    make docker-build      build the server image"
 	@echo "    make docker-run        run it (port $(DOCKER_PORT))"
+	@echo "    make docker-save       write the image to dist/ as a tarball"
 	@echo "    make docker-stop       stop and remove it"
+	@echo ""
+	@echo "  Ship: the desktop app"
+	@echo "    make app-dev           run the shell against the checkout"
+	@echo "    make app-runtime       fetch CPython and install Gauntlet into it"
+	@echo "    make app-build         build the AppImage and the deb into dist/"
+	@echo "    make app-check         format-check, lint and typecheck the shell"
 	@echo ""
 	@echo "  Suites"
 	@echo "    make suite-new NAME=x  scaffold a suite (TEMPLATE=python|shell)"
@@ -176,43 +163,20 @@ frontend-check: frontend-install
 	@cd $(FRONTEND) && npm run format-check && npm run lint && npm run test
 
 # ---------------------------------------------------------------------------
-# Server
+# Ship
 # ---------------------------------------------------------------------------
+#
+# Both targets are built by the Makefile in their own directory. These names
+# exist so that one `make help` lists everything; each delegates and adds
+# nothing.
 
-.PHONY: docker-build docker-run docker-stop
+.PHONY: app-build app-check app-dev app-runtime docker-build docker-run docker-save docker-stop
 
-DOCKER_IMAGE ?= gauntlet:latest
-DOCKER_NAME  ?= gauntlet
+app-build app-check app-dev app-runtime:
+	@$(MAKE) --no-print-directory -C $(DESKTOP) $(patsubst app-%,%,$@)
 
-# The socket the devcontainer reaches belongs to the host, which already
-# publishes 7100 and 7101 for the devcontainer itself, so binding APP_PORT in
-# there fails before the container starts. Everywhere else APP_PORT is free and
-# is what `make run` would have used.
-ifeq ($(GAUNTLET_DEVCONTAINER),true)
-DOCKER_PORT ?= 7102
-else
-DOCKER_PORT ?= $(APP_PORT)
-endif
-
-docker-build:
-	@docker build -f $(DOCKER)/Dockerfile -t $(DOCKER_IMAGE) $(ROOT)
-
-docker-run: docker-build
-	@echo "Gauntlet   http://localhost:$(DOCKER_PORT)"
-	@docker run --rm --name $(DOCKER_NAME) \
-		-p $(DOCKER_PORT):7100 \
-		-v gauntlet-data:/data \
-		$(DOCKER_IMAGE)
-
-# `docker rm -f` succeeds against a container that is not there, so what was
-# removed is decided before removing it rather than from the exit status.
-docker-stop:
-	@if [ -n "$$(docker ps -aq --filter name=^/$(DOCKER_NAME)$$)" ]; then \
-		docker rm -f $(DOCKER_NAME) >/dev/null; \
-		echo "stopped $(DOCKER_NAME)"; \
-	else \
-		echo "$(DOCKER_NAME) is not running"; \
-	fi
+docker-build docker-run docker-save docker-stop:
+	@$(MAKE) --no-print-directory -C $(DOCKER) $(patsubst docker-%,%,$@)
 
 # ---------------------------------------------------------------------------
 # Suites

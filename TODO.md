@@ -43,20 +43,40 @@ recorded as `error`. `docker-run` publishes on `DOCKER_PORT`, which is 7102 in
 the devcontainer, because the socket in there reaches the host that already
 publishes 7100 and 7101 for the devcontainer itself.
 
+The desktop app is in `app/`. `main.ts` asks the kernel for a port, spawns the
+bundled `gauntlet serve --host 127.0.0.1`, polls `/api/health`, and shows the
+window. `preload.ts` exposes `apiBase` over `contextBridge`.
+`electron-builder.json` produces an AppImage and a deb under
+`com.trl11.gauntlet`, with the CPython runtime and the suites as
+`extraResources`.
+
+**The window loads the backend's own URL, not `loadFile`.** The wheel already
+carries `web_dist` and serves it at `/`, which is how `make run` and the image
+work, so the shell reuses that instead of packaging a second copy of the bundle
+into the asar. It also settles the question this file used to flag as untested:
+the renderer is same origin with the API, so `useEventStream` involves no CORS
+at all. Confirmed in the real browser rather than jsdom — a live run delivered
+129 `iteration`, 129 `metrics`, 129 `phase` and 131 `log` events. The cost is
+that the window cannot paint the UI until the backend answers, so it shows a
+dark placeholder first, and the backend's stderr if the wait ends badly.
+
+Verified packaged, not just in `make app-dev`: the installed app runs its own
+CPython, discovers the nine suites beside it, keeps state in `userData`, and
+passes both a shell suite and a Python one — which is the real test of the
+`sys.executable` constraint above. Quitting kills the backend's process group,
+so a suite mid-run goes with it.
+
 ### Next
 
-`app/`: `main.ts` picks a free port, spawns the bundled
-`gauntlet serve --host 127.0.0.1`, polls `/api/health` until it answers, and
-loads the bundle with `loadFile`. On quit it signals the process group, so a
-suite mid-run goes with the app, the rule `make stop` already follows.
-`preload.ts` exposes `apiBase` over `contextBridge`. `electron-builder.json`
-follows trl-forge's: AppImage and deb, `com.trl11.gauntlet`, with the Python
-runtime and the suites as `extraResources`.
+No icon work beyond `app/icons/icon.png`, rasterised from `favicon.svg` at
+512×512. electron-builder wants a set of sizes for the best result.
 
-Untested and worth doing early: `useEventStream` opens an `EventSource` that
-will be cross-origin from `file://`. CORS already allows any origin for a
-loopback bind (`app.py:56`), but jsdom cannot show whether the stream survives
-it. Only a real browser can.
+`make app-runtime` fetches 402MB of CPython and installs into all of it. The
+`install_only` tarball carries the test suite, static libraries and headers,
+none of which a packaged app runs. Pruning them is most of the AppImage's
+243MB.
+
+Nothing builds either artifact on CI, and both are x86_64 only.
 
 ## Suites not ported
 

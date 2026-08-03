@@ -1,0 +1,47 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.trl11.gauntlet",
+  "productName": "Gauntlet",
+  "asar": true,
+  "directories": {
+    "output": "../build/app/${version}"
+  },
+  "icon": "icons/icon.png",
+  "files": ["dist"],
+  "extraResources": [
+    {
+      "from": "runtime",
+      "to": "runtime"
+    },
+    {
+      "from": "../suites",
+      "to": "suites"
+    }
+  ],
+  "linux": {
+    "target": ["AppImage", "deb"],
+    "artifactName": "gauntlet-${version}.${ext}",
+    "category": "Development",
+    "synopsis": "Runs test suites against hardware on a bench.",
+    "syncDesktopName": true
+  },
+  "deb": {
+    "depends": [
+      "libgtk-3-0",
+      "libnotify4",
+      "libnss3",
+      "libxss1",
+      "libxtst6",
+      "xdg-utils",
+      "libatspi2.0-0",
+      "libuuid1",
+      "libsecret-1-0",
+      "can-utils",
+      "iproute2",
+      "lsof",
+      "mosquitto-clients",
+      "openssh-client"
+    ]
+  },
+  "npmRebuild": false
+}

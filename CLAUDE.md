@@ -54,6 +54,9 @@ packages/gauntlet-sdk/     library suite authors install
 packages/gauntlet/         application: discovery, supervisor, API, UI
 suites/                    built-in and reference suites
 frontend/                  React frontend, built into gauntlet/web_dist
+app/                       Electron shell: the desktop target
+docker/                    the server image: the other target
+dist/                      finished artifacts from either (gitignored)
 extras/trl-ui-kit/         shared component library (submodule)
 packages/gauntlet/src/gauntlet/scaffold/   suite scaffolder and its templates
 docs/                      contract specification and guides
@@ -91,12 +94,23 @@ behind a toggle below 900px. There is no sidebar.
 | Frontend format-check, lint, typecheck, tests | `make frontend-check` |
 | Contract checks | `make suite-verify-run` |
 | Scaffold a suite | `make suite-new NAME=x [TEMPLATE=shell]` |
+| Run the desktop shell | `make app-dev` |
+| Build both installers into `dist/` | `make app-build` |
+| Shell format-check, lint, typecheck | `make app-check` |
+| Run the server image | `make docker-run` / `make docker-stop` |
+| Write the image to `dist/` | `make docker-save` |
 
 Run `make check` before committing. Run `make suite-verify-run` as well when
-changing the launcher, the contract models, or the conformance checker, and
-`make frontend-check` when changing anything under `frontend/`. `make verify`
-is all of it: the frontend build, `check`, the end-to-end test, and a real run
-of every conformance profile.
+changing the launcher, the contract models, or the conformance checker,
+`make frontend-check` when changing anything under `frontend/`, and
+`make app-check` when changing anything under `app/`. `make verify` is all of
+it: the frontend build, `check`, the end-to-end test, and a real run of every
+conformance profile.
+
+`app/` and `docker/` each own a Makefile that does their work; the top-level
+`app-*` and `docker-*` targets only delegate to it, so `make -C app build` and
+`make app-build` are the same thing. Paths, ports and `dist/` are declared once
+in `common.mk`, which all three include.
 
 ## Behaviour to preserve
 

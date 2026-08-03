@@ -124,10 +124,12 @@ The runtime source exists because the Electron app spawns its own backend on a
 port chosen when it starts, so no build-time value could name it. In a browser
 `window.gauntlet` is undefined and the build-time value decides.
 
-Hash routing and that configurable base are both there so the same bundle can be
-loaded from `file://` inside an Electron shell that talks to a Gauntlet process
-elsewhere. Nothing in `frontend/` may assume it is served from the API's
-origin, and no route may depend on the server resolving a path.
+The desktop shell loads the backend's own URL, so there the base is the origin
+the page came from and the choice costs nothing. It matters wherever the bundle
+is served by something other than the API: a dev server proxying elsewhere, or
+a shell pointed at a Gauntlet process on another machine. Hash routing is there
+for the same reason. Nothing in `frontend/` may assume it is served from the
+API's origin, and no route may depend on the server resolving a path.
 
 ## The UI is generic over the manifest
 

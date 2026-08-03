@@ -27,3 +27,8 @@ node_modules/
 frontend/node_modules/
 frontend/dist/
 packages/gauntlet/src/gauntlet/web_dist/
+
+# Desktop shell: compiled main process, and the CPython `make app-runtime` fetches
+app/dist/
+app/node_modules/
+app/runtime/
