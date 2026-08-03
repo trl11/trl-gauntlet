@@ -26,9 +26,13 @@ carries all three.
 The first thing to try is the `system_stats` suite: it samples the host it runs
 on, needs no hardware, and finishes in three seconds on the `quick` profile.
 
-System packages the suites' transports need are listed in
-[`dependencies.txt`](dependencies.txt). [`requirements.txt`](requirements.txt)
-installs both packages editable for anyone preferring `pip` to `make setup`.
+System packages are listed twice, because the two things this repository builds
+need different sets. [`dependencies.txt`](dependencies.txt) is a development
+machine: the suites' transports, plus Electron's runtime, an X server and FUSE
+for the desktop app. [`docker/dependencies.txt`](docker/dependencies.txt) is
+the server image, and is the transports alone.
+[`requirements.txt`](requirements.txt) installs both packages editable for
+anyone preferring `pip` to `make setup`.
 
 ## The screens
 

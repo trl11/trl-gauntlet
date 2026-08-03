@@ -30,9 +30,11 @@ FROM ${PYTHON_IMAGE} AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# System packages the suites' transports need. The list lives at the repository
-# root because it describes the project rather than any one image.
-COPY dependencies.txt /tmp/dependencies.txt
+# System packages the suites' transports need. This image has its own list,
+# beside it: the one at the repository root describes a development machine and
+# carries Electron's runtime, an X server and FUSE, none of which a container
+# that serves an API has any use for.
+COPY docker/dependencies.txt /tmp/dependencies.txt
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         $(sed -e 's/#.*//' /tmp/dependencies.txt | xargs) && \

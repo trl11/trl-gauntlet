@@ -1,0 +1,20 @@
+# System packages the server image needs, one per line. Blank lines and
+# anything after a # are ignored.
+#
+# This is the shorter of the two lists. The image runs one process and serves
+# it, so it needs what the suites' transports reach hardware with and nothing
+# else. A development machine needs more, and reads ../dependencies.txt.
+#
+# None of these are Gauntlet's own. They belong to the transports the built-in
+# suites drive, so an image that only runs the mock profiles will not miss them.
+
+# ssd, ethernet, hardware_trigger reach a unit over SSH.
+openssh-client
+
+# can_bus. python-can drives SocketCAN through the kernel directly; these
+# bring an interface up and watch frames by hand.
+can-utils
+iproute2
+
+# piezo. paho-mqtt speaks MQTT directly; these probe a broker by hand.
+mosquitto-clients

@@ -10,7 +10,9 @@
   },
 
   // Bind mounts fail on a host where the source is absent, so create them.
-  "initializeCommand": "mkdir -p ${localEnv:HOME}/.claude ${localEnv:HOME}/.codex ${localEnv:HOME}/.config/git && touch ${localEnv:HOME}/.gitconfig",
+  // /tmp/.X11-unix is already there on a host running X11; the mkdir is for one
+  // that is not, where the mount then carries nothing and DISPLAY is empty.
+  "initializeCommand": "mkdir -p ${localEnv:HOME}/.claude ${localEnv:HOME}/.codex ${localEnv:HOME}/.config/git /tmp/.X11-unix && touch ${localEnv:HOME}/.gitconfig",
 
   // Mounted onto dev's home, the account everything in the container runs as.
   //
@@ -26,7 +28,11 @@
     "source=${localEnv:HOME}/.gitconfig,target=/home/dev/.gitconfig,type=bind",
     "source=${localEnv:HOME}/.ssh,target=/home/dev/.ssh,type=bind",
     "source=${localEnv:HOME}/.claude,target=/home/dev/.claude,type=bind",
-    "source=${localEnv:HOME}/.codex,target=/home/dev/.codex,type=bind"
+    "source=${localEnv:HOME}/.codex,target=/home/dev/.codex,type=bind",
+
+    // The host's X11 socket, so `make app-dev` opens a window on the host's
+    // display rather than needing Xvfb. DISPLAY below names which one.
+    "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind"
   ],
 
   // git-lfs because a mounted .gitconfig may declare the lfs filter with
@@ -67,7 +73,11 @@
   // The host's path to this checkout. The daemon reached through the mounted
   // socket resolves a bind mount against the host, so a compose file run from
   // in here cannot name the source by its path inside the container.
+  // DISPLAY is the host's, reached through the X11 socket mounted above. It is
+  // empty on a host without X11, where the app needs `xvfb-run make app-dev`
+  // instead and nothing is displayed.
   "containerEnv": {
+    "DISPLAY": "${localEnv:DISPLAY}",
     "GAUNTLET_DEVCONTAINER": "true",
     "GAUNTLET_HOST_WORKSPACE": "${localWorkspaceFolder}"
   },

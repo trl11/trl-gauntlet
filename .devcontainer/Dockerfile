@@ -4,9 +4,11 @@ FROM ${PYTHON_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# System packages the suites' transports need. The list lives at the repository
-# root because it describes the project, not the container: a bare host running
-# the same suites needs the same packages.
+# System packages a development machine needs: the suites' transports, plus
+# Electron's runtime, an X server and FUSE for the desktop app. The list lives
+# at the repository root because it describes such a machine rather than this
+# container — a bare host developing on the project needs the same packages.
+# The server image needs a shorter one and keeps it in docker/.
 #
 # The base image carries a yarn repository whose signing key it no longer
 # ships, which fails `apt-get update` outright. Node comes from NodeSource

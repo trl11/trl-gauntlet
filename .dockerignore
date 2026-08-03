@@ -1,11 +1,17 @@
 # The build needs the two packages, the frontend, the ui-kit, the suites and
-# dependencies.txt. Everything else only slows the context transfer down, and
-# some of it would poison the image: a .venv built for another path, or a
-# node_modules built for another platform.
+# docker/dependencies.txt. Everything else only slows the context transfer
+# down, and some of it would poison the image: a .venv built for another path,
+# or a node_modules built for another platform.
 #
 # This stays at the repository root while the Dockerfile lives in docker/,
 # because Docker reads the ignore list from the root of the build context and
 # the context is the repository.
+
+# The desktop app is the other way of shipping this, and none of it belongs in
+# the image. Left in, its CPython runtime and the installers in dist/ put the
+# best part of a gigabyte through the context on every build.
+app/
+dist/
 
 .devcontainer/
 .git/

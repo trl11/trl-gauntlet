@@ -75,8 +75,14 @@ populated and both packages installed. Port 7100 is forwarded for the app and
 7101 is reserved for the frontend dev server.
 
 System packages come from `../dependencies.txt`, which lives at the repository
-root because it describes what the suites' transports need, not what the
-container needs — a bare host running the same suites needs the same set.
+root because it describes a development machine rather than this container — a
+bare host developing on the project needs the same set. The server image needs
+a shorter one and keeps it in `../docker/dependencies.txt`.
+
+The host's X11 socket is mounted at `/tmp/.X11-unix` and `DISPLAY` is passed
+through, so `make app-dev` opens a window on the host's display. On a host
+without X11 both are empty; `xvfb-run make app-dev` runs the app headless
+there, which is also how it is exercised in CI.
 
 `suites/*/suite.yaml` is bound to the schema the running app serves at
 `/api/schemas/suite`, so the YAML extension validates a manifest as it is
