@@ -34,6 +34,28 @@ The uid and gid default to 1000. On a host that is not 1000:1000, either pass
 `USER_UID` and `USER_GID` as build args or let the devcontainer CLI's
 `updateRemoteUserUID` make the same adjustment when the container is created.
 
+## Git
+
+`~/.gitconfig` and `~/.config/git` are mounted onto `dev`'s home, so identity,
+aliases and global excludes are the host's and commits made inside the
+container are attributed the same way. Both are writable, so
+`git config --global` in here reaches the file the host reads.
+
+`git-lfs` is installed because a host config declaring the lfs filter with
+`required = true` fails every checkout when the binary is absent.
+
+A single-file bind mount follows the inode, so if something on the host
+replaces `~/.gitconfig` wholesale rather than editing it in place, the
+container keeps seeing the old contents until it is restarted.
+
+Credentials are deliberately not mounted. Pushing over SSH needs a key:
+
+```jsonc
+"mounts": [
+  "source=${localEnv:HOME}/.ssh,target=/home/dev/.ssh,type=bind,readonly"
+]
+```
+
 ## Agents
 
 `claude` and `codex` are installed globally under `/opt/npm-global`, which

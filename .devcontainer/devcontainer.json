@@ -10,17 +10,30 @@
   },
 
   // Bind mounts fail on a host where the source is absent, so create them.
-  "initializeCommand": "mkdir -p ${localEnv:HOME}/.claude ${localEnv:HOME}/.codex",
+  "initializeCommand": "mkdir -p ${localEnv:HOME}/.claude ${localEnv:HOME}/.codex ${localEnv:HOME}/.config/git && touch ${localEnv:HOME}/.gitconfig",
 
-  // claude and codex are installed in the image; these carry over the host's
-  // credentials so neither has to be signed in again.
+  // Mounted onto dev's home, the account everything in the container runs as.
+  //
+  // .gitconfig and .config/git carry the host's identity, aliases and global
+  // excludes, so commits made in here are attributed the same way. Both are
+  // writable: `git config --global` inside the container is meant to reach the
+  // same file the host reads.
+  //
+  // claude and codex are installed in the image; their directories carry the
+  // host's credentials so neither has to be signed in again.
   "mounts": [
+    "source=${localEnv:HOME}/.config/git,target=/home/dev/.config/git,type=bind",
+    "source=${localEnv:HOME}/.gitconfig,target=/home/dev/.gitconfig,type=bind",
+    "source=${localEnv:HOME}/.ssh,target=/home/dev/.ssh,type=bind",
     "source=${localEnv:HOME}/.claude,target=/home/dev/.claude,type=bind",
     "source=${localEnv:HOME}/.codex,target=/home/dev/.codex,type=bind"
   ],
 
+  // git-lfs because a mounted .gitconfig may declare the lfs filter with
+  // required = true, which fails every checkout when the binary is absent.
   "features": {
-    "ghcr.io/devcontainers/features/git:1": {}
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/git-lfs:1": {}
   },
 
   // Everything in the container runs as dev, whose uid and gid track the
