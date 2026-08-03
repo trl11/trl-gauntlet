@@ -100,6 +100,8 @@ behind a toggle below 900px. There is no sidebar.
 | Run the server image | `make docker-run` / `make docker-stop` |
 | Write the image to `dist/` | `make docker-save` |
 | Build the SDK wheel into `dist/` | `make sdk-build` |
+| Build the gauntlet wheel into `dist/` | `make gauntlet-build` |
+| Every artifact at once | `make build` |
 
 Run `make check` before committing. Run `make suite-verify-run` as well when
 changing the launcher, the contract models, or the conformance checker,
@@ -109,14 +111,22 @@ it: the frontend build, `check`, the end-to-end test, and a real run of every
 conformance profile.
 
 Every directory that builds something shippable owns the Makefile that builds
-it — `app/`, `docker/`, `packages/gauntlet-sdk/` — and the top-level `app-*`,
-`docker-*` and `sdk-*` targets only delegate, so `make -C app build` and
-`make app-build` are the same thing. Paths, ports and `dist/` are declared once
-in `common.mk`, which they all include.
+it — `app/`, `docker/`, `packages/gauntlet/`, `packages/gauntlet-sdk/` — and
+the top-level `app-*`, `docker-*`, `gauntlet-*` and `sdk-*` targets only
+delegate, so `make -C app build` and `make app-build` are the same thing.
+`make build` runs all of them. Paths, ports and `dist/` are declared once in
+`common.mk`, which they all include.
 
 `dist/` holds what someone who does not have this repository needs: the two
-installers, the image as a loadable tarball, and the SDK wheel a suite author
-installs. It is gitignored, and nothing else is written there.
+installers, the image as a loadable tarball, and the two wheels. It is
+gitignored, nothing else is written there, and nothing empties it, so an
+artifact from an earlier version stays until it is removed.
+
+The gauntlet wheel carries `web_dist` as package data, so anything building it
+builds the frontend first. A wheel built without it serves the placeholder in
+place of the UI, and nothing downstream reports that as an error. The two
+wheels install together or not at all: `gauntlet` depends on `gauntlet-sdk`,
+and neither is on a package registry.
 
 ## Behaviour to preserve
 

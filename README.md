@@ -43,6 +43,16 @@ make sdk-build
 pip install dist/gauntlet_sdk-*.whl        # add [remote] for the SSH transport
 ```
 
+`make build` writes every artifact to `dist/`: both wheels, the AppImage and
+deb, and the server image as a loadable tarball. The two wheels install
+together or not at all — `gauntlet` depends on `gauntlet-sdk`, and neither is
+on a package registry:
+
+```bash
+pip install dist/gauntlet_sdk-*.whl dist/gauntlet-*.whl
+gauntlet serve
+```
+
 ## The screens
 
 Navigation is a top tab bar. `?` lists the keyboard shortcuts; `g` followed by

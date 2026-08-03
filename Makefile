@@ -31,6 +31,9 @@ help:
 	@echo "    make frontend-test     the frontend tests"
 	@echo "    make frontend-check    format-check, lint and test the frontend"
 	@echo ""
+	@echo "  Ship: everything"
+	@echo "    make build             every artifact below, into dist/"
+	@echo ""
 	@echo "  Ship: the server image"
 	@echo "    make docker-build      build the server image"
 	@echo "    make docker-run        run it (port $(DOCKER_PORT))"
@@ -43,8 +46,9 @@ help:
 	@echo "    make app-build         build the AppImage and the deb into dist/"
 	@echo "    make app-check         format-check, lint and typecheck the shell"
 	@echo ""
-	@echo "  Ship: the SDK"
+	@echo "  Ship: the wheels"
 	@echo "    make sdk-build         build the gauntlet-sdk wheel into dist/"
+	@echo "    make gauntlet-build    build the gauntlet wheel into dist/"
 	@echo ""
 	@echo "  Suites"
 	@echo "    make suite-new NAME=x  scaffold a suite (TEMPLATE=python|shell)"
@@ -173,7 +177,7 @@ frontend-check: frontend-install
 # exist so that one `make help` lists everything; each delegates and adds
 # nothing.
 
-.PHONY: app-build app-check app-dev app-runtime docker-build docker-run docker-save docker-stop sdk-build
+.PHONY: app-build app-check app-dev app-runtime build docker-build docker-run docker-save docker-stop gauntlet-build sdk-build
 
 app-build app-check app-dev app-runtime:
 	@$(MAKE) --no-print-directory -C $(DESKTOP) $(patsubst app-%,%,$@)
@@ -181,8 +185,19 @@ app-build app-check app-dev app-runtime:
 docker-build docker-run docker-save docker-stop:
 	@$(MAKE) --no-print-directory -C $(DOCKER) $(patsubst docker-%,%,$@)
 
+gauntlet-build:
+	@$(MAKE) --no-print-directory -C $(APP) $(patsubst gauntlet-%,%,$@)
+
 sdk-build:
 	@$(MAKE) --no-print-directory -C $(SDK) $(patsubst sdk-%,%,$@)
+
+# Everything shippable, in the order of how long each takes. Slow: it fetches
+# a CPython and an Electron and builds the image. Nothing here empties dist/
+# first, so an artifact from an earlier version stays until it is removed.
+build: sdk-build gauntlet-build docker-save app-build
+	@echo ""
+	@echo "dist/"
+	@ls -1sh $(DIST) | tail -n +2 | sed 's/^/  /'
 
 # ---------------------------------------------------------------------------
 # Suites
