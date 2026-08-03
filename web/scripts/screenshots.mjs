@@ -49,8 +49,21 @@ async function capture(name, route) {
   console.log(`${name}.png`);
 }
 
+/** Each tab of the run view, which routing alone does not reach. */
+async function captureRunTabs(runId) {
+  await capture("run", `/runs/${encodeURIComponent(runId)}`);
+  for (const tab of ["Overview", "Log", "Metrics", "Iterations", "Artifacts", "Notes"]) {
+    const control = page.getByRole("tab", { name: tab });
+    if ((await control.count()) === 0) continue;
+    await control.first().click();
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: `${out}/run-${tab.toLowerCase()}.png`, fullPage: true });
+    console.log(`run-${tab.toLowerCase()}.png`);
+  }
+}
+
 for (const [name, route] of ROUTES) await capture(name, route);
-if (process.env.RUN_ID) await capture("run", `/runs/${encodeURIComponent(process.env.RUN_ID)}`);
+if (process.env.RUN_ID) await captureRunTabs(process.env.RUN_ID);
 
 await browser.close();
 
