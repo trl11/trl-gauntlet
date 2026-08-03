@@ -1,0 +1,13 @@
+description: Four-hour link session. Allows a small loss budget.
+driver: real
+duration_s: 14400.0
+sample_period_s: 5.0
+rate_hz: 100.0
+link:
+  device: auto
+  baud: 115200
+pass_criteria:
+  max_missing: 50
+  max_anomalies: 100
+  min_received: 1000
+  require_alive_at_end: true

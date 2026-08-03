@@ -1,0 +1,4 @@
+description: Five-minute sampled run at 1 Hz.
+duration_s: 300.0
+sample_period_s: 1.0
+max_temperature_c: 70.0

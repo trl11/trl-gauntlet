@@ -1,0 +1,4 @@
+description: Deliberately low limit, so the run fails. Useful for exercising the failure path.
+duration_s: 10.0
+sample_period_s: 0.5
+max_temperature_c: 50.0

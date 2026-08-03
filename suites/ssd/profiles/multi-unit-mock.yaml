@@ -1,0 +1,8 @@
+description: Three synthetic units. Exercises the concurrent fan-out with no hardware.
+driver: mock
+duration_s: 2.0
+sample_period_s: 0.25
+units:
+  - {name: uut0, host: ""}
+  - {name: uut1, host: ""}
+  - {name: uut2, host: ""}

@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gauntlet-suite"
+version = "0.1.0"
+description = "Library for writing test suites that conform to the Gauntlet contract"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "LicenseRef-Proprietary"
+authors = [{ name = "TRL11", email = "devsupport@trl11.com" }]
+dependencies = [
+    "pydantic>=2",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# SSH support. Suites that never leave the host machine should not pay for it.
+remote = [
+    "paramiko>=3.0",
+]
+# Transports used by individual suites, not by the library itself.
+can = [
+    "python-can>=4.0",
+]
+mqtt = [
+    "paho-mqtt>=1.6",
+]
+serial = [
+    "pyserial>=3.5",
+]
+dev = [
+    "mypy",
+    "pytest>=7",
+    "pytest-cov",
+    "paho-mqtt>=1.6",
+    "paramiko>=3.0",
+    "pyserial>=3.5",
+    "python-can>=4.0",
+    "ruff",
+    "types-paramiko",
+    "types-PyYAML",
+]
+
+[tool.setuptools]
+packages = { find = { where = ["src"] } }
+
+[tool.setuptools.package-data]
+gauntlet_suite = ["py.typed"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "RUF", "SIM", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"

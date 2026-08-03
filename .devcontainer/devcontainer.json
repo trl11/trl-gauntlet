@@ -1,0 +1,83 @@
+{
+  "name": "Gauntlet",
+  // Context is the repository root so the image can read dependencies.txt.
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": {
+      "PYTHON_IMAGE": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm"
+    }
+  },
+
+  // Bind mounts fail on a host where the source is absent, so create them.
+  "initializeCommand": "mkdir -p ${localEnv:HOME}/.claude ${localEnv:HOME}/.codex",
+
+  // claude and codex are installed in the image; these carry over the host's
+  // credentials so neither has to be signed in again.
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/home/dev/.claude,type=bind",
+    "source=${localEnv:HOME}/.codex,target=/home/dev/.codex,type=bind"
+  ],
+
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+
+  // Everything in the container runs as dev, whose uid and gid track the
+  // caller's, so files on the bind mount keep one owner on both sides.
+  "remoteUser": "dev",
+  "containerUser": "dev",
+  "updateRemoteUserUID": true,
+
+  "workspaceFolder": "/workspaces/gauntlet",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/gauntlet,type=bind,consistency=cached",
+
+  // 7100 is the app; 7101 is reserved for the frontend dev server.
+  "forwardPorts": [7100, 7101],
+  "portsAttributes": {
+    "7100": { "label": "Gauntlet", "onAutoForward": "notify" },
+    "7101": { "label": "Frontend dev server", "onAutoForward": "silent" }
+  },
+
+  "containerEnv": {
+    "GAUNTLET_DEVCONTAINER": "true"
+  },
+
+  "onCreateCommand": "pip install --no-cache-dir --upgrade pip uv",
+  "postCreateCommand": "make setup",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "charliermarsh.ruff",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "redhat.vscode-yaml",
+        "tamasfe.even-better-toml"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": [
+          "packages/gauntlet/tests",
+          "packages/gauntlet-suite/tests"
+        ],
+        "[python]": {
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        },
+        // Every suite.yaml validates against the schema the running app serves.
+        "yaml.schemas": {
+          "http://127.0.0.1:7100/api/schemas/suite": "suites/*/suite.yaml"
+        },
+        "files.watcherExclude": {
+          "**/.venv/**": true,
+          "**/build/**": true,
+          "**/output/**": true,
+          "**/node_modules/**": true
+        },
+        "remote.autoForwardPorts": false
+      }
+    }
+  }
+}

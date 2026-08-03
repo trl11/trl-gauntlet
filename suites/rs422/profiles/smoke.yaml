@@ -1,0 +1,8 @@
+description: One minute at 100 Hz over an auto-detected FTDI adapter.
+driver: real
+duration_s: 60.0
+sample_period_s: 1.0
+rate_hz: 100.0
+link:
+  device: auto
+  baud: 115200

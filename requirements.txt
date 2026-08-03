@@ -1,0 +1,16 @@
+# Python dependencies for a development checkout.
+#
+# The authoritative lists live in the two pyproject.toml files. This installs
+# both packages editable with their dev extras, so
+#
+#     pip install -r requirements.txt
+#
+# leaves the same environment as `make setup`. Keep it a pointer rather than a
+# copy: pinning versions here would duplicate the contract in pyproject.toml
+# and drift from it.
+#
+# gauntlet depends on gauntlet-suite, so gauntlet-suite is listed first and is
+# already satisfied from the working tree by the time gauntlet is resolved.
+
+-e ./packages/gauntlet-suite[dev]
+-e ./packages/gauntlet[dev]

@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
+apiVersion: 1
+key: hardware_trigger
+title: Hardware Trigger
+category: hardware
+description: >
+  Drive a GPIO trigger line on the unit under test over SSH, one high/low pulse
+  per iteration, and record where it stops responding. Also samples load,
+  memory and disk on the unit between pulses.
+
+exec:
+  command: ["python", "-m", "suite.cli"]
+  args:
+    profile: --profile
+    run_dir: --run-dir
+    target: --target
+    unit_serial: --unit-serial
+  profile_schema_command: ["python", "-m", "suite.cli", "--print-profile-schema"]
+
+profiles: ./profiles
+conformance_profile: mock.yaml
+
+produces: [events, junit, manifest, metrics, summary, verdict]
+requires: []
+
+supports:
+  target: true
+  unit_serial: true
+
+overrides:
+  - name: runs
+    flag: --runs
+    type: integer
+    label: Pulses
+  - name: cycle_delay_s
+    flag: --cycle-delay-s
+    type: number
+    label: Delay between pulses
+    unit: s
+  - name: driver
+    flag: --driver
+    type: string
+    label: Driver
+    choices: [real, mock]

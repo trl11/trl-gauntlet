@@ -1,0 +1,4 @@
+description: Fails on iteration 3, to exercise the failure path end to end.
+iterations: 5
+period_s: 0.2
+fail_at: 3

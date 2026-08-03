@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
+apiVersion: 1
+key: example_sampled
+title: Example — Sampled Loop
+category: examples
+description: >
+  A worked example of the common shape: sample something on a fixed cadence,
+  fail iterations that breach a threshold, and roll the run up into a verdict.
+  Copy this directory as the starting point for a Python suite.
+
+exec:
+  command: ["python", "-m", "suite.cli"]
+  args:
+    profile: --profile
+    run_dir: --run-dir
+    target: --target
+    unit_serial: --unit-serial
+  profile_schema_command: ["python", "-m", "suite.cli", "--print-profile-schema"]
+
+profiles: ./profiles
+conformance_profile: quick.yaml
+
+produces: [events, junit, manifest, metrics, summary, verdict]
+requires: []
+
+supports:
+  target: true
+  unit_serial: true
+
+overrides:
+  - name: duration_s
+    flag: --duration-s
+    type: number
+    label: Duration
+    unit: s
+    help: How long to keep sampling.
+  - name: sample_period_s
+    flag: --sample-period-s
+    type: number
+    label: Sample period
+    unit: s
+  - name: stop_on_failure
+    flag: --stop-on-failure
+    type: boolean
+    label: Stop on first failure

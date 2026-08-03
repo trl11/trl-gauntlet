@@ -1,0 +1,26 @@
+# Gauntlet development environment. Source it, do not execute it:
+#
+#     source setup_dev
+#
+# Creates .venv on first use and activates it. The devcontainer entrypoint
+# sources this on every shell; the `sud` and `resud` aliases call it directly.
+
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    echo "setup_dev must be sourced: source setup_dev" >&2
+    exit 1
+fi
+
+_gauntlet_root="${WORKSPACE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+_gauntlet_venv="${_gauntlet_root}/.venv"
+
+# Builds .venv when it is missing, and rebuilds it when it belongs to the other
+# side of the devcontainer bind mount. Silent when it is already good.
+make --no-print-directory -C "${_gauntlet_root}" ensure-setup ||
+    echo "make setup failed; fix it and run 'sud' again" >&2
+
+if [ -f "${_gauntlet_venv}/bin/activate" ]; then
+    # shellcheck disable=SC1091
+    source "${_gauntlet_venv}/bin/activate"
+fi
+
+unset _gauntlet_root _gauntlet_venv

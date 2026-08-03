@@ -1,0 +1,9 @@
+description: Two-minute check over a gigabit link.
+driver: real
+duration_s: 120.0
+sample_period_s: 10.0
+probe:
+  transfer_mb: 64
+pass_criteria:
+  min_avg_tx_mbps: 500.0
+  min_avg_rx_mbps: 500.0

@@ -1,0 +1,18 @@
+# System packages this project needs, one per line. Blank lines and anything
+# after a # are ignored. The devcontainer installs these at image build time;
+# a bare host wanting to run the suites needs the same set.
+#
+# Gauntlet itself needs none of these. They belong to the transports the
+# built-in suites drive, so a checkout that only runs the mock profiles will
+# not miss them.
+
+# ssd, ethernet, hardware_trigger reach a unit over SSH.
+openssh-client
+
+# can_bus. python-can drives SocketCAN through the kernel directly; these
+# bring an interface up and watch frames by hand.
+can-utils
+iproute2
+
+# piezo. paho-mqtt speaks MQTT directly; these probe a broker by hand.
+mosquitto-clients

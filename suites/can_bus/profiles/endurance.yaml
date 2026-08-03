@@ -1,0 +1,17 @@
+description: Four-hour bus session with a small loss budget.
+driver: real
+duration_s: 14400.0
+sample_period_s: 5.0
+rate_hz: 100.0
+services_to_stop:
+  - rso-threat-assessment
+link:
+  unit_iface: can0
+  lab_iface: can0
+  bitrate: 500000
+  arbitration_id: 0x100
+pass_criteria:
+  max_missing: 50
+  max_anomalies: 100
+  min_received: 1000
+  require_alive_at_end: true

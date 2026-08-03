@@ -1,0 +1,4 @@
+description: No unit required. What `gauntlet verify --run` executes.
+driver: mock
+runs: 3
+cycle_delay_s: 0.0

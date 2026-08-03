@@ -1,0 +1,12 @@
+description: Ten cycles on one axis. Quick check that motion and telemetry work.
+driver: real
+cycles: 10
+motion:
+  axes:
+    - name: axis0
+      serial: "0"
+      axis: 0
+      home_usteps: 0
+      extended_usteps: 2700008
+      speed_hz: 200
+  extended_dwell_s: 1.0

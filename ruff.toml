@@ -1,0 +1,12 @@
+# Settings for files outside the two packages, which carry their own config.
+# Also isolates this project from any repository it is nested inside.
+
+line-length = 120
+target-version = "py310"
+
+# Template files contain __SUITE_KEY__ placeholders and are rendered, not run.
+extend-exclude = ["packages/gauntlet/src/gauntlet/scaffold/templates"]
+
+[lint]
+select = ["B", "E", "F", "I", "RUF", "SIM", "UP"]
+ignore = ["E501"]

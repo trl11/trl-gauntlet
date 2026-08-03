@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
+apiVersion: 1
+key: __SUITE_KEY__
+title: __SUITE_TITLE__
+category: general
+description: TODO — one or two sentences on what this suite proves.
+
+exec:
+  command: ["./run.sh"]
+  args:
+    profile: --profile
+    run_dir: --run-dir
+    target: --target
+  # A shell script has no loop to interrupt, so a stop request is a hard kill.
+  graceful_stop_signal: NONE
+
+profiles: ./profiles
+conformance_profile: quick.yaml
+
+produces: [metrics, verdict]
+requires: []
+
+supports:
+  target: true
+  unit_serial: false
+
+overrides:
+  - name: iterations
+    flag: --iterations
+    type: integer
+    label: Iterations

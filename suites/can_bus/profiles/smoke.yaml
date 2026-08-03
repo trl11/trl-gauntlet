@@ -1,0 +1,10 @@
+description: One minute at 100 Hz on can0 at 500 kbit/s.
+driver: real
+duration_s: 60.0
+sample_period_s: 1.0
+rate_hz: 100.0
+link:
+  unit_iface: can0
+  lab_iface: can0
+  bitrate: 500000
+  arbitration_id: 0x100

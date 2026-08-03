@@ -1,0 +1,11 @@
+description: Two-minute check against a mounted NVMe disk.
+driver: real
+duration_s: 120.0
+sample_period_s: 10.0
+probe:
+  devices:
+    - name: nvme0
+      device: /dev/nvme0n1
+      test_path: /var/tmp/gauntlet_ssd_io.bin
+  test_size_mb: 64
+  verify_size_kb: 64

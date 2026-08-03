@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
+apiVersion: 1
+key: can_bus
+title: CAN Bus Link
+category: hardware
+description: >
+  Exercise a CAN bus between the unit under test and the lab host. A sender
+  installed on the unit emits an incrementing counter; the lab host receives
+  from socketcan and records gaps and reordering.
+
+exec:
+  command: ["python", "-m", "suite.cli"]
+  args:
+    profile: --profile
+    run_dir: --run-dir
+    target: --target
+    unit_serial: --unit-serial
+  profile_schema_command: ["python", "-m", "suite.cli", "--print-profile-schema"]
+
+profiles: ./profiles
+conformance_profile: mock.yaml
+
+produces: [events, junit, manifest, metrics, summary, verdict]
+requires: []
+
+supports:
+  target: true
+  unit_serial: true
+
+overrides:
+  - name: duration_s
+    flag: --duration-s
+    type: number
+    label: Duration
+    unit: s
+  - name: rate_hz
+    flag: --rate-hz
+    type: number
+    label: Frame rate
+    unit: Hz
+  - name: driver
+    flag: --driver
+    type: string
+    label: Driver
+    choices: [real, mock]

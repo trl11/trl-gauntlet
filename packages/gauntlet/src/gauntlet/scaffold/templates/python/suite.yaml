@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
+apiVersion: 1
+key: __SUITE_KEY__
+title: __SUITE_TITLE__
+category: general
+description: TODO — one or two sentences on what this suite proves.
+
+exec:
+  command: ["python", "-m", "suite.cli"]
+  args:
+    profile: --profile
+    run_dir: --run-dir
+    target: --target
+    unit_serial: --unit-serial
+  profile_schema_command: ["python", "-m", "suite.cli", "--print-profile-schema"]
+
+profiles: ./profiles
+conformance_profile: quick.yaml
+
+produces: [events, junit, manifest, metrics, summary, verdict]
+requires: []
+
+supports:
+  target: true
+  unit_serial: true
+
+overrides:
+  - name: duration_s
+    flag: --duration-s
+    type: number
+    label: Duration
+    unit: s
+  - name: sample_period_s
+    flag: --sample-period-s
+    type: number
+    label: Sample period
+    unit: s

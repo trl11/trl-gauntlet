@@ -1,0 +1,34 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
+apiVersion: 1
+key: example_shell
+title: Example — Shell Script
+category: examples
+description: >
+  The same contract satisfied by a bash script with no Gauntlet library at all.
+  Proof that conforming means writing the right files, not importing anything.
+  Start here for a suite in a language other than Python.
+
+exec:
+  command: ["./run.sh"]
+  args:
+    profile: --profile
+    run_dir: --run-dir
+    target: --target
+  # Shell scripts have no loop to interrupt cleanly, so a stop is a hard kill.
+  graceful_stop_signal: NONE
+
+profiles: ./profiles
+conformance_profile: quick.yaml
+
+produces: [metrics, verdict]
+requires: []
+
+supports:
+  target: true
+  unit_serial: false
+
+overrides:
+  - name: iterations
+    flag: --iterations
+    type: integer
+    label: Iterations

@@ -1,0 +1,7 @@
+description: No unit required. What `gauntlet verify --run` executes.
+driver: mock
+duration_s: 2.0
+sample_period_s: 0.25
+pass_criteria:
+  min_avg_tx_mbps: 100.0
+  min_avg_rx_mbps: 100.0

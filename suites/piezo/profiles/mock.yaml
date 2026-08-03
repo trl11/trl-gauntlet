@@ -1,0 +1,5 @@
+description: No controller required. What `gauntlet verify --run` executes.
+driver: mock
+cycles: 3
+motion:
+  extended_dwell_s: 0.0

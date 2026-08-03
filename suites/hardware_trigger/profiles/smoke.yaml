@@ -1,0 +1,9 @@
+description: Five pulses against a real unit. Quick check that the line responds.
+driver: real
+runs: 5
+cycle_delay_s: 0.0
+trigger:
+  chip: gpiochip0
+  line: 43
+  high_seconds: 1.0
+  low_seconds: 1.0

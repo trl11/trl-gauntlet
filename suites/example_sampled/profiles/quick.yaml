@@ -1,0 +1,4 @@
+description: Two-second smoke run. Used by `gauntlet verify --run`; needs no hardware.
+duration_s: 2.0
+sample_period_s: 0.25
+max_temperature_c: 70.0

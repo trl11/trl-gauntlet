@@ -1,0 +1,17 @@
+description: Long session — 3600 pulses with a one-second gap, ~2 hours.
+driver: real
+runs: 3600
+cycle_delay_s: 1.0
+trigger:
+  chip: gpiochip0
+  line: 43
+  high_seconds: 1.0
+  low_seconds: 1.0
+  command_timeout_s: 30.0
+monitor:
+  enabled: true
+  sample_period_s: 10.0
+pass_criteria:
+  max_failures: 5
+  max_anomalies: 50
+  require_alive_at_end: true

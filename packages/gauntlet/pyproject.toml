@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gauntlet"
+version = "0.1.0"
+description = "Test-suite runner with a web UI"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "LicenseRef-Proprietary"
+authors = [{ name = "TRL11", email = "devsupport@trl11.com" }]
+dependencies = [
+    "fastapi>=0.110",
+    "gauntlet-suite",
+    "pydantic>=2",
+    "pyyaml>=6.0",
+    "uvicorn[standard]>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "httpx",
+    "mypy",
+    "pytest>=7",
+    "pytest-asyncio",
+    "pytest-cov",
+    "ruff",
+    "types-PyYAML",
+]
+
+[project.scripts]
+gauntlet = "gauntlet.cli:main"
+
+[tool.setuptools]
+packages = { find = { where = ["src"] } }
+
+[tool.setuptools.package-data]
+gauntlet = ["py.typed", "scaffold/templates/**/*", "web_dist/**/*"]
+
+[tool.setuptools.exclude-package-data]
+gauntlet = ["**/__pycache__/*", "**/*.pyc"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+# Template files hold __SUITE_* placeholders and are rendered, not run.
+extend-exclude = ["src/gauntlet/scaffold/templates"]
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "RUF", "SIM", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_return_any = false
+warn_unused_ignores = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-ra --strict-markers"
