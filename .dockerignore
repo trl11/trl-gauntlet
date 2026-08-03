@@ -1,0 +1,27 @@
+# The build needs the two packages, the frontend, the ui-kit, the suites and
+# dependencies.txt. Everything else only slows the context transfer down, and
+# some of it would poison the image: a .venv built for another path, or a
+# node_modules built for another platform.
+#
+# This stays at the repository root while the Dockerfile lives in docker/,
+# because Docker reads the ignore list from the root of the build context and
+# the context is the repository.
+
+.devcontainer/
+.git/
+.github/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
+**/__pycache__/
+**/*.egg-info/
+**/*.py[cod]
+**/node_modules/
+build/
+docs/
+files/
+frontend/dist/
+output/
+packages/gauntlet/src/gauntlet/web_dist/
+tmp/

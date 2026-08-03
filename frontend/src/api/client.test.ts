@@ -75,6 +75,16 @@ describe("url building", () => {
     expect(apiUrl("/api/runs")).toBe("/api/runs");
   });
 
+  // The base is read once, when the module is first evaluated, so reaching it
+  // from the host means re-importing rather than reassigning.
+  it("takes the base the Electron host supplies, trailing slash and all", async () => {
+    vi.stubGlobal("window", { gauntlet: { apiBase: "http://127.0.0.1:41287/" } });
+    vi.resetModules();
+    const client = await import("./client");
+    expect(client.API_BASE).toBe("http://127.0.0.1:41287");
+    expect(client.apiUrl("/api/runs")).toBe("http://127.0.0.1:41287/api/runs");
+  });
+
   it("encodes the run id and the since cursor in the event stream url", () => {
     expect(runEventsUrl("2026 01", 12)).toBe("/api/runs/2026%2001/events?since=12");
   });

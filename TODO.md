@@ -2,12 +2,61 @@
 
 Work that is known to be missing, and the caveats that go with what is here.
 
-## Electron packaging
+## Two ways to ship: the app and the server
 
-Not started. The frontend was written for it — hash routing, and every request
-prefixed with `VITE_API_BASE` so the bundle can be loaded from `file://` and
-pointed at a Gauntlet process on another origin — but nothing packages the two
-together, and there is no launcher that starts the backend beside the shell.
+Both targets are the same backend and the same bundle. What differs is who
+starts the server and where the hardware is. A container reaches CAN, serial or
+USB only through `--device`, `--network host` or privileged mode, which is why
+the desktop app exists at all.
+
+Decided: a relocatable CPython from python-build-standalone rather than a
+frozen binary, a port chosen at startup rather than a fixed one, Linux only,
+and the built-in suites shipped read-only inside the bundle. The Electron
+directory is `app/`, matching trl-forge.
+
+**The constraint that decides the bundle.** `launcher.py:53` puts
+`Path(sys.executable).parent` on a suite's `PATH`, so `python` in a manifest
+resolves to the interpreter Gauntlet runs under. Suites are separate processes
+that import `gauntlet_sdk`. Freeze the server with PyInstaller and
+`sys.executable` becomes the frozen binary, no interpreter sits beside it, and
+every suite breaks. Shipping a real Python keeps `suite_environment()`
+untouched.
+
+### Done
+
+The API base is resolved at runtime. `client.ts` takes the first of
+`window.gauntlet.apiBase`, `VITE_API_BASE`, then same origin; `vite-env.d.ts`
+declares the shape the preload script will satisfy. A build-time value could
+never name a port chosen at startup.
+
+The server image is in `docker/`, built from the repository root because it
+needs both packages, the frontend and the ui-kit. `.dockerignore` stays at the
+root: Docker reads it from the root of the context, not from beside the
+Dockerfile. The devcontainer gained docker-outside-of-docker, and exports
+`GAUNTLET_HOST_WORKSPACE` because the daemon reached through the mounted socket
+resolves a bind mount against the host rather than against the container.
+
+The image is built and exercised, through both `make docker-run` and compose:
+all nine built-in suites pass, history and artifacts survive a restart in the
+`gauntlet-data` volume, a graceful stop still writes a verdict and an abort is
+recorded as `error`. `docker-run` publishes on `DOCKER_PORT`, which is 7102 in
+the devcontainer, because the socket in there reaches the host that already
+publishes 7100 and 7101 for the devcontainer itself.
+
+### Next
+
+`app/`: `main.ts` picks a free port, spawns the bundled
+`gauntlet serve --host 127.0.0.1`, polls `/api/health` until it answers, and
+loads the bundle with `loadFile`. On quit it signals the process group, so a
+suite mid-run goes with the app, the rule `make stop` already follows.
+`preload.ts` exposes `apiBase` over `contextBridge`. `electron-builder.json`
+follows trl-forge's: AppImage and deb, `com.trl11.gauntlet`, with the Python
+runtime and the suites as `extraResources`.
+
+Untested and worth doing early: `useEventStream` opens an `EventSource` that
+will be cross-origin from `file://`. CORS already allows any origin for a
+loopback bind (`app.py:56`), but jsdom cannot show whether the stream survives
+it. Only a real browser can.
 
 ## Suites not ported
 

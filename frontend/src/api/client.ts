@@ -1,9 +1,11 @@
 /**
  * The only module that calls `fetch`.
  *
- * Every endpoint gets one typed function. The base URL comes from
- * `VITE_API_BASE` so a packaged desktop build can point at a backend on
- * another origin; an empty value means same origin.
+ * Every endpoint gets one typed function. The base URL is whatever the host
+ * supplies: `window.gauntlet.apiBase` when the bundle runs inside Electron,
+ * which learns the port only once the backend it spawned is listening, and
+ * `VITE_API_BASE` otherwise. An empty value means same origin, which is how
+ * the bundle served by the backend itself reaches it.
  */
 
 import type {
@@ -38,7 +40,11 @@ import type {
 } from "./types";
 
 /** Base URL every request is prefixed with. Empty means the current origin. */
-export const API_BASE: string = (import.meta.env?.VITE_API_BASE ?? "").replace(/\/+$/, "");
+export const API_BASE: string = (
+  globalThis.window?.gauntlet?.apiBase ??
+  import.meta.env?.VITE_API_BASE ??
+  ""
+).replace(/\/+$/, "");
 
 /** Absolute URL for an API path such as `/api/runs`. */
 export function apiUrl(path: string): string {

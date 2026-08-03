@@ -10,6 +10,7 @@ VENV         := $(ROOT)/.venv
 BIN          := $(VENV)/bin
 PY           := $(BIN)/python
 APP          := $(ROOT)/packages/gauntlet
+DOCKER       := $(ROOT)/docker
 SDK          := $(ROOT)/packages/gauntlet-sdk
 SUITES       := $(ROOT)/suites
 FRONTEND     := $(ROOT)/frontend
@@ -49,6 +50,11 @@ help:
 	@echo "    make frontend-dev      frontend dev server with hot reload"
 	@echo "    make frontend-test     the frontend tests"
 	@echo "    make frontend-check    format-check, lint and test the frontend"
+	@echo ""
+	@echo "  Server"
+	@echo "    make docker-build      build the server image"
+	@echo "    make docker-run        run it (port $(DOCKER_PORT))"
+	@echo "    make docker-stop       stop and remove it"
 	@echo ""
 	@echo "  Suites"
 	@echo "    make suite-new NAME=x  scaffold a suite (TEMPLATE=python|shell)"
@@ -168,6 +174,45 @@ frontend-test: frontend-install
 
 frontend-check: frontend-install
 	@cd $(FRONTEND) && npm run format-check && npm run lint && npm run test
+
+# ---------------------------------------------------------------------------
+# Server
+# ---------------------------------------------------------------------------
+
+.PHONY: docker-build docker-run docker-stop
+
+DOCKER_IMAGE ?= gauntlet:latest
+DOCKER_NAME  ?= gauntlet
+
+# The socket the devcontainer reaches belongs to the host, which already
+# publishes 7100 and 7101 for the devcontainer itself, so binding APP_PORT in
+# there fails before the container starts. Everywhere else APP_PORT is free and
+# is what `make run` would have used.
+ifeq ($(GAUNTLET_DEVCONTAINER),true)
+DOCKER_PORT ?= 7102
+else
+DOCKER_PORT ?= $(APP_PORT)
+endif
+
+docker-build:
+	@docker build -f $(DOCKER)/Dockerfile -t $(DOCKER_IMAGE) $(ROOT)
+
+docker-run: docker-build
+	@echo "Gauntlet   http://localhost:$(DOCKER_PORT)"
+	@docker run --rm --name $(DOCKER_NAME) \
+		-p $(DOCKER_PORT):7100 \
+		-v gauntlet-data:/data \
+		$(DOCKER_IMAGE)
+
+# `docker rm -f` succeeds against a container that is not there, so what was
+# removed is decided before removing it rather than from the exit status.
+docker-stop:
+	@if [ -n "$$(docker ps -aq --filter name=^/$(DOCKER_NAME)$$)" ]; then \
+		docker rm -f $(DOCKER_NAME) >/dev/null; \
+		echo "stopped $(DOCKER_NAME)"; \
+	else \
+		echo "$(DOCKER_NAME) is not running"; \
+	fi
 
 # ---------------------------------------------------------------------------
 # Suites

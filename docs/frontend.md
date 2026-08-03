@@ -107,12 +107,22 @@ forwards `/api`, including the SSE stream, to `http://127.0.0.1:7100`. That
 target is fixed in the config; for an API on another host or port, set
 `VITE_API_BASE` instead of using the proxy.
 
-`VITE_API_BASE` is read in `src/api/client.ts` and prefixes every request, the
-event-stream URL and every artifact link. Empty, the default, means same origin.
+`API_BASE` is resolved once in `src/api/client.ts` and prefixes every request,
+the event-stream URL and every artifact link. It takes the first of:
+
+| Source | Set by | Known at |
+|---|---|---|
+| `window.gauntlet.apiBase` | the Electron preload script | runtime |
+| `VITE_API_BASE` | the build | build time |
+| `""`, meaning same origin | the default | — |
 
 ```bash
 cd frontend && VITE_API_BASE=http://bench-01:7100 npm run dev
 ```
+
+The runtime source exists because the Electron app spawns its own backend on a
+port chosen when it starts, so no build-time value could name it. In a browser
+`window.gauntlet` is undefined and the build-time value decides.
 
 Hash routing and that configurable base are both there so the same bundle can be
 loaded from `file://` inside an Electron shell that talks to a Gauntlet process

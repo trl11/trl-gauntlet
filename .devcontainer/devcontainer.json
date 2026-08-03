@@ -31,7 +31,13 @@
 
   // git-lfs because a mounted .gitconfig may declare the lfs filter with
   // required = true, which fails every checkout when the binary is absent.
+  //
+  // docker-outside-of-docker installs the client and mounts the host's daemon
+  // socket, so `make docker-build` works in here and the image it produces is
+  // the host's. The daemon stays the host's: a bind mount in `docker run` is
+  // resolved against the host's filesystem, not this container's.
   "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
     "ghcr.io/devcontainers/features/git:1": {},
     "ghcr.io/devcontainers/features/git-lfs:1": {}
   },
@@ -58,8 +64,12 @@
     "7101": { "label": "Frontend dev server", "onAutoForward": "silent" }
   },
 
+  // The host's path to this checkout. The daemon reached through the mounted
+  // socket resolves a bind mount against the host, so a compose file run from
+  // in here cannot name the source by its path inside the container.
   "containerEnv": {
-    "GAUNTLET_DEVCONTAINER": "true"
+    "GAUNTLET_DEVCONTAINER": "true",
+    "GAUNTLET_HOST_WORKSPACE": "${localWorkspaceFolder}"
   },
 
   "postCreateCommand": "make setup",
