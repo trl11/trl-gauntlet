@@ -10,7 +10,8 @@ gauntlet new-suite thermal_cycle               # same, via the CLI
 ```
 
 The generated suite passes `gauntlet verify --run` as created. `gauntlet
-templates` lists the available templates.
+templates` lists the available templates, and
+[`scaffolding.md`](scaffolding.md) covers the generator itself.
 
 ```
 suites/thermal_cycle/
@@ -97,6 +98,10 @@ absent:
 ```yaml
 requires: [psu]
 ```
+
+This is also what tells the operator's panel the instrument is yours for the
+length of the run: it names the run and locks the instrument's main key while
+it is in flight. See [`instruments.md`](instruments.md).
 
 ## Remote units
 

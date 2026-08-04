@@ -160,9 +160,12 @@ Gauntlet verifies each capability is available before spawning and rejects the
 run otherwise. A granted capability is passed as `GAUNTLET_CAP_PSU_URL`, an
 HTTP endpoint the suite drives.
 
-Mock providers for `psu`, `daq`, and `chamber` are registered by default. Each
-declares its own state and commands, and the Instruments screen builds its panel
-from that declaration.
+An instrument is registered only while its hardware answers, so the Instruments
+screen shows the bench as it is. Nothing simulated is registered unless
+`simulated_instruments` names it. Each provider declares its own state and
+commands, and the screen builds its panel from that declaration.
+
+See [`docs/instruments.md`](docs/instruments.md).
 
 ## Frontend
 
