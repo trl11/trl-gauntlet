@@ -2,8 +2,8 @@ import clsx from "clsx";
 
 import "./StatTile.scss";
 
-/** How urgent the figure is. Drives the colour of the value and the meter. */
-export type StatTone = "critical" | "normal" | "warning";
+/** How urgent the figure is, or "highlight" for a featured figure with no urgency. Drives the colour of the value and the meter. */
+export type StatTone = "critical" | "highlight" | "normal" | "warning";
 
 /** Props for {@link StatTile}. */
 export interface StatTileProps {

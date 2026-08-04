@@ -35,10 +35,11 @@ describe("IterationTable", () => {
     expect(screen.getByText("3s")).toBeInTheDocument();
   });
 
-  it("shows the sample values recorded against an iteration", () => {
+  it("shows the sample values recorded against an iteration, aligned under their own column", () => {
     render(<IterationTable iterations={ITERATIONS} samples={SAMPLES} />);
-    expect(screen.getByText("volts 3.3")).toBeInTheDocument();
-    expect(screen.getByText("volts 2.9")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "volts" })).toBeInTheDocument();
+    expect(screen.getByText("3.3")).toBeInTheDocument();
+    expect(screen.getByText("2.9")).toBeInTheDocument();
   });
 
   it("filters down to the failures", async () => {

@@ -3,9 +3,14 @@ import clsx from "clsx";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { formatDuration, formatNumber } from "../utils/format";
+import { naturalCompare } from "../utils/metrics";
 import type { MetricSample } from "./MetricsChart";
+import SeriesPicker from "./SeriesPicker";
 
 import "./IterationTable.scss";
+
+/** Value columns shown before the operator picks their own. */
+const DEFAULT_COLUMNS = 3;
 
 /** One completed iteration. */
 export interface IterationRow {
@@ -49,9 +54,19 @@ export const IterationTable: React.FC<IterationTableProps> = ({
 }) => {
   const fieldId = useId();
   const [failuresOnly, setFailuresOnly] = useState(false);
+  const [chosenColumns, setChosenColumns] = useState<string[] | null>(null);
   const rows = useRef(new Map<number, HTMLTableRowElement>());
 
   const values = useMemo(() => valuesByIteration(samples), [samples]);
+  const columnNames = useMemo(() => {
+    const seen = new Set<string>();
+    for (const sample of values.values()) {
+      for (const name of Object.keys(sample)) seen.add(name);
+    }
+    return [...seen].sort(naturalCompare);
+  }, [values]);
+  const columns = chosenColumns ?? columnNames.slice(0, DEFAULT_COLUMNS);
+
   const timed = useMemo(
     () =>
       iterations.map((row, index) => {
@@ -86,6 +101,10 @@ export const IterationTable: React.FC<IterationTableProps> = ({
         </span>
       </div>
 
+      {columnNames.length > 0 && (
+        <SeriesPicker names={columnNames} selected={columns} onChange={setChosenColumns} />
+      )}
+
       <div className="iteration-table__scroll">
         <table className="iteration-table__table">
           <thead>
@@ -94,7 +113,11 @@ export const IterationTable: React.FC<IterationTableProps> = ({
               <th scope="col">Result</th>
               <th scope="col">Duration</th>
               <th scope="col">Reason</th>
-              <th scope="col">Values</th>
+              {columns.map((name) => (
+                <th className="iteration-table__mono" key={name} scope="col">
+                  {name}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -118,17 +141,11 @@ export const IterationTable: React.FC<IterationTableProps> = ({
                   </td>
                   <td className="iteration-table__mono">{formatDuration(duration)}</td>
                   <td className="iteration-table__reason">{row.reason || "-"}</td>
-                  <td>
-                    <div className="iteration-table__values">
-                      {Object.entries(sample ?? {})
-                        .sort(([left], [right]) => left.localeCompare(right))
-                        .map(([name, value]) => (
-                          <span className="iteration-table__chip" key={name}>
-                            {name} {formatNumber(value)}
-                          </span>
-                        ))}
-                    </div>
-                  </td>
+                  {columns.map((name) => (
+                    <td className="iteration-table__mono" key={name}>
+                      {sample && name in sample ? formatNumber(sample[name]) : "-"}
+                    </td>
+                  ))}
                 </tr>
               );
             })}

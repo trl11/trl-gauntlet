@@ -6,16 +6,11 @@
   flex-direction: column;
   gap: 12px;
 
-  &__series {
+  &__pick {
     display: flex;
-    align-items: center;
-    gap: 14px;
-    flex-wrap: wrap;
-    padding: 10px 12px;
-    background-color: $trl-dark;
-    border: 1px solid $trl-dark-gray;
-    font-family: $font-mono;
-    font-size: 11px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
   }
 
   &__empty {

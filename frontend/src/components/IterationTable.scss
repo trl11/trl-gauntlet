@@ -84,22 +84,6 @@
     max-width: 40ch;
   }
 
-  &__values {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-
-  &__chip {
-    font-family: $font-mono;
-    font-size: 10px;
-    padding: 2px 6px;
-    background-color: $trl-dark;
-    border: 1px solid $trl-dark-gray;
-    border-radius: 2px;
-    white-space: nowrap;
-  }
-
   @media (max-width: 900px) {
     &__count {
       margin-left: 0;

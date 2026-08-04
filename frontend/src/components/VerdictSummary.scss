@@ -22,46 +22,16 @@
     gap: 10px;
   }
 
-  &__figure {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 10px 12px;
-    background-color: $trl-dark;
-    border: 1px solid $trl-dark-gray;
-
-    &--highlight {
-      border-color: $indicator-blue;
-    }
-  }
-
-  &__label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: $trl-gray;
-  }
-
-  &__value {
-    font-family: $font-mono;
-    font-size: 18px;
-    color: $trl-light-gray;
-  }
-
   &__unit {
     font-size: 12px;
     color: $trl-gray;
   }
 
   &__text {
-    padding: 12px;
+    padding: 12px 16px;
     background-color: $trl-dark;
     border: 1px solid $trl-dark-gray;
-    font-size: 12px;
-    line-height: 1.6;
-    white-space: pre-wrap;
-    word-break: break-word;
-    max-height: 360px;
+    max-height: 520px;
     overflow: auto;
   }
 }

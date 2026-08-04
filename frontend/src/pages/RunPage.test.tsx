@@ -144,7 +144,8 @@ describe("RunPage", () => {
     await screen.findByText("FAILED");
     await userEvent.click(screen.getByRole("tab", { name: "iterations" }));
     expect(screen.getByText("rail low")).toBeInTheDocument();
-    expect(screen.getByText("rail.volts 2.9")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "rail.volts" })).toBeInTheDocument();
+    expect(screen.getByText("2.9")).toBeInTheDocument();
   });
 
   it("discovers the metric series from the stored records", async () => {

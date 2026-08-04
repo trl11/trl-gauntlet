@@ -1,8 +1,9 @@
 import { DataField } from "@trl11/components/ui";
-import clsx from "clsx";
 
 import type { ResultRow, Verdict } from "@api/types";
 import { formatBytes, formatDuration, formatNumber, formatPercent } from "../utils/format";
+import Markdown from "./Markdown";
+import StatTile from "./StatTile";
 
 import "./VerdictSummary.scss";
 
@@ -75,24 +76,26 @@ export const VerdictSummary: React.FC<VerdictSummaryProps> = ({
       {results.length > 0 && (
         <div className="verdict-summary__results">
           {results.map((row) => (
-            <div
-              className={clsx(
-                "verdict-summary__figure",
-                row.highlight && "verdict-summary__figure--highlight"
-              )}
+            <StatTile
               key={row.key}
-            >
-              <span className="verdict-summary__label">{row.label || row.key}</span>
-              <span className="verdict-summary__value">
-                {formatResult(row)}
-                {row.unit && <span className="verdict-summary__unit"> {row.unit}</span>}
-              </span>
-            </div>
+              label={row.label || row.key}
+              tone={row.highlight ? "highlight" : "normal"}
+              value={
+                <>
+                  {formatResult(row)}
+                  {row.unit && <span className="verdict-summary__unit"> {row.unit}</span>}
+                </>
+              }
+            />
           ))}
         </div>
       )}
 
-      {summaryText && <pre className="verdict-summary__text">{summaryText}</pre>}
+      {summaryText && (
+        <div className="verdict-summary__text">
+          <Markdown text={summaryText} />
+        </div>
+      )}
     </section>
   );
 };

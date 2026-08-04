@@ -52,8 +52,9 @@ describe("VerdictSummary", () => {
     expect(screen.getByText("2.0 KB")).toBeInTheDocument();
   });
 
-  it("renders the suite's own summary text", () => {
+  it("renders the suite's own summary text as markdown, not raw source", () => {
     render(<VerdictSummary verdict={VERDICT} summaryText="# Cycle report" />);
-    expect(screen.getByText("# Cycle report")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Cycle report" })).toBeInTheDocument();
+    expect(screen.queryByText("# Cycle report")).not.toBeInTheDocument();
   });
 });

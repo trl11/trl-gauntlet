@@ -1,6 +1,6 @@
-import { Button, Checkbox } from "@trl11/components/ui";
+import { Button } from "@trl11/components/ui";
 import clsx from "clsx";
-import { useId, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Brush,
   CartesianGrid,
@@ -12,7 +12,9 @@ import {
   YAxis,
 } from "recharts";
 
+import SeriesPicker from "@components/SeriesPicker";
 import { formatNumber } from "../utils/format";
+import { naturalCompare } from "../utils/metrics";
 
 import "./MetricsChart.scss";
 
@@ -56,7 +58,6 @@ function elapsed(sample: MetricSample, firstTs: number): number {
  * is what gives them one crosshair and one tooltip position.
  */
 export const MetricsChart: React.FC<MetricsChartProps> = ({ samples }) => {
-  const fieldId = useId();
   const [chosen, setChosen] = useState<string[] | null>(null);
   const [range, setRange] = useState<[number, number] | null>(null);
 
@@ -65,7 +66,7 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({ samples }) => {
     for (const sample of samples) {
       for (const name of Object.keys(sample.values)) seen.add(name);
     }
-    return [...seen].sort();
+    return [...seen].sort(naturalCompare);
   }, [samples]);
 
   const rows = useMemo<Row[]>(() => {
@@ -76,13 +77,6 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({ samples }) => {
 
   const selected = chosen ?? names.slice(0, DEFAULT_SERIES);
 
-  const toggle = (name: string) => {
-    const next = selected.includes(name)
-      ? selected.filter((entry) => entry !== name)
-      : [...selected, name];
-    setChosen(next);
-  };
-
   if (names.length === 0) {
     return (
       <p className="metrics-chart__empty">No numeric metrics have been reported for this run.</p>
@@ -91,16 +85,8 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({ samples }) => {
 
   return (
     <section className="metrics-chart" aria-label="Metrics">
-      <div className="metrics-chart__series">
-        {names.map((name) => (
-          <Checkbox
-            key={name}
-            id={`${fieldId}-${name}`}
-            label={name}
-            checked={selected.includes(name)}
-            onChange={() => toggle(name)}
-          />
-        ))}
+      <div className="metrics-chart__pick">
+        <SeriesPicker names={names} selected={selected} onChange={setChosen} />
         {range && (
           <Button size="small" onClick={() => setRange(null)}>
             Reset zoom
