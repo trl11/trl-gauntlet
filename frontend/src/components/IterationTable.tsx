@@ -81,8 +81,10 @@ export const IterationTable: React.FC<IterationTableProps> = ({
     return [...seen].sort(naturalCompare);
   }, [values]);
   const reported = defaultMetrics.filter((name) => columnNames.includes(name));
-  const columns = chosenColumns ?? (reported.length > 0 ? reported : columnNames.slice(0, DEFAULT_COLUMNS));
-  const removeColumn = (name: string) => setChosenColumns(columns.filter((entry) => entry !== name));
+  const columns =
+    chosenColumns ?? (reported.length > 0 ? reported : columnNames.slice(0, DEFAULT_COLUMNS));
+  const removeColumn = (name: string) =>
+    setChosenColumns(columns.filter((entry) => entry !== name));
 
   const timed = useMemo(
     () =>
@@ -130,7 +132,11 @@ export const IterationTable: React.FC<IterationTableProps> = ({
               <th scope="col">Duration</th>
               <th scope="col">Reason</th>
               {columns.map((name) => (
-                <th className="iteration-table__mono iteration-table__column-head" key={name} scope="col">
+                <th
+                  className="iteration-table__mono iteration-table__column-head"
+                  key={name}
+                  scope="col"
+                >
                   <span className="iteration-table__column-head-inner">
                     {name}
                     <Tooltip content="Remove column">
