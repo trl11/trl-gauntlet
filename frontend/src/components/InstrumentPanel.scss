@@ -69,98 +69,133 @@
     color: $trl-gray;
   }
 
-  &__tiles {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 12px;
-  }
-
-  &__tile {
-    position: relative;
+  // The display window: near-black glass with a sheen across its top edge,
+  // the way a bench instrument's front panel reads.
+  &__display {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 12px 14px 14px;
+    gap: 14px;
+    padding: 18px 20px;
     border: 1px solid $trl-dark-gray;
-    background-color: rgba($trl-dark, 0.6);
+    border-radius: 8px;
+    background:
+      linear-gradient(180deg, rgba($trl-light-gray, 0.05), transparent 22%),
+      radial-gradient(120% 90% at 50% -20%, rgba($trl-light-gray, 0.05), transparent 60%),
+      $trl-background;
+    box-shadow: inset 0 2px 12px rgba($trl-background, 0.9);
+  }
+
+  &__readings {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px 24px;
+
+    &--small {
+      border-top: 1px solid rgba($trl-dark-gray, 0.7);
+      padding-top: 12px;
+
+      .seven-segment {
+        height: 26px;
+      }
+
+      .instrument-panel__unit {
+        width: 16px;
+        height: 16px;
+        font-size: 8px;
+      }
+    }
+  }
+
+  &__reading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 10px;
     min-width: 0;
   }
 
-  &__tile-label {
+  &__unit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 20px;
+    height: 20px;
+    border: 1px solid $trl-gray;
+    border-radius: 50%;
+    font-family: $font-mono;
+    font-size: 9px;
+    color: $trl-light-gray;
+  }
+
+  &__reading-label {
+    flex-basis: 100%;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: $trl-gray;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__deck {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &__modules {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+  }
+
+  &__command {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px;
+    border: 1px solid $trl-dark-gray;
+    border-radius: 8px;
+    background-color: rgba($trl-dark, 0.6);
+  }
+
+  &__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 16px;
+  }
+
+  &__control {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  &__control-label {
     font-size: 10px;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: $trl-gray;
   }
 
-  &__tile-value {
-    font-family: $font-mono;
-    font-size: 28px;
-    line-height: 1;
-    color: $trl-light-gray;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  &__tile-unit {
-    position: absolute;
-    right: 14px;
-    bottom: 10px;
-    font-family: $font-mono;
-    font-size: 10px;
-    color: $trl-gray;
-  }
-
-  &__strip {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 2px 24px;
-
-    > div {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 12px;
-      border-top: 1px solid rgba($trl-dark-gray, 0.7);
-      padding: 6px 0;
-      min-width: 0;
-    }
-
-    dt {
-      font-size: 10px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: $trl-gray;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    dd {
-      font-family: $font-mono;
-      font-size: 12px;
-      color: $trl-light-gray;
-      white-space: nowrap;
-    }
-  }
-
-  &__strip-unit {
-    color: $trl-gray;
-  }
-
-  &__command {
+  &__dial {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
   }
 
   &__entry {
     display: flex;
     align-items: stretch;
-    flex: 1;
-    min-width: 120px;
+    min-width: 96px;
 
     input {
       width: 100%;
+      font-family: $font-mono;
     }
 
     > div {
@@ -169,53 +204,160 @@
     }
   }
 
-  &__prefix {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-    width: 34px;
-    border: 1px solid $trl-dark-gray;
-    border-right: none;
-    background-color: rgba($trl-dark, 0.6);
-    font-family: $font-mono;
-    font-size: 11px;
-    color: $trl-gray;
-  }
-
   &__choice {
-    flex: none;
-    width: 96px;
+    width: 110px;
   }
 
-  &__go {
+  // Keycaps: the moulded, slightly proud keys of the front panel.
+  &__go,
+  &__toggle {
     flex: none;
-    min-width: 110px;
-    border: 1px solid $trl-dark-gray;
+    min-width: 92px;
+    padding: 10px 16px;
+    border: 1px solid rgba($trl-light-gray, 0.16);
+    border-radius: 6px;
+    background: linear-gradient(180deg, rgba($trl-light-gray, 0.16), rgba($trl-light-gray, 0.04));
+    box-shadow:
+      inset 0 1px 0 rgba($trl-light-gray, 0.22),
+      0 2px 0 rgba($trl-background, 0.9);
     font-family: $font-mono;
     font-size: 11px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+    color: $trl-light-gray;
 
-    &--danger {
-      border-color: rgba($indicator-red, 0.6);
-      background-color: rgba($indicator-red, 0.12);
-      color: $indicator-red;
+    &:active:not(:disabled) {
+      transform: translateY(2px);
+      box-shadow: inset 0 1px 0 rgba($trl-light-gray, 0.22);
     }
   }
 
-  &__footer {
+  &__toggle {
+    min-width: 76px;
+
+    &--on {
+      border-color: rgba($indicator-green, 0.6);
+      background: linear-gradient(
+        180deg,
+        rgba($indicator-green, 0.32),
+        rgba($indicator-green, 0.12)
+      );
+      color: $indicator-green;
+      text-shadow: 0 0 8px rgba($indicator-green, 0.7);
+    }
+  }
+
+  &__go--danger {
+    border-color: rgba($indicator-red, 0.6);
+    background: linear-gradient(180deg, rgba($indicator-red, 0.34), rgba($indicator-red, 0.14));
+    color: $indicator-red;
+  }
+
+  // The main action's two keys: a lock that has to be released first, then the
+  // key that latches the instrument on or off.
+  &__latch {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  &__lock {
+    flex: none;
+    gap: 8px;
+    min-width: 148px;
+    padding: 16px;
+    border: 1px solid rgba($trl-light-gray, 0.16);
+    border-radius: 6px;
+    background: linear-gradient(180deg, rgba($trl-light-gray, 0.16), rgba($trl-light-gray, 0.04));
+    box-shadow:
+      inset 0 1px 0 rgba($trl-light-gray, 0.22),
+      0 2px 0 rgba($trl-background, 0.9);
+    font-family: $font-mono;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: $trl-gray;
+
+    &--open {
+      border-color: rgba($trl-cantaloupe, 0.6);
+      background: linear-gradient(180deg, rgba($trl-cantaloupe, 0.28), rgba($trl-cantaloupe, 0.1));
+      color: $trl-cantaloupe;
+    }
+  }
+
+  &__power {
+    flex: 1;
+    justify-content: space-between;
+    padding: 16px;
+    border: 1px solid rgba($indicator-red, 0.6);
+    border-radius: 6px;
+    background: linear-gradient(180deg, rgba($indicator-red, 0.34), rgba($indicator-red, 0.14));
+    box-shadow:
+      inset 0 1px 0 rgba($trl-light-gray, 0.18),
+      0 2px 0 rgba($trl-background, 0.9);
+    font-family: $font-mono;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: $indicator-red;
+
+    &:active:not(:disabled) {
+      transform: translateY(2px);
+      box-shadow: inset 0 1px 0 rgba($trl-light-gray, 0.18);
+    }
+
+    &--on {
+      border-color: rgba($indicator-green, 0.6);
+      background: linear-gradient(
+        180deg,
+        rgba($indicator-green, 0.32),
+        rgba($indicator-green, 0.12)
+      );
+      color: $indicator-green;
+    }
+  }
+
+  &__lamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+  }
+
+  &__lamp-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: currentcolor;
+    box-shadow: 0 0 8px currentcolor;
+  }
+
+  &__held {
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-cantaloupe;
+  }
+
+  &__keypad {
     display: flex;
     flex-wrap: wrap;
-    justify-content: flex-end;
     gap: 10px;
-    border-top: 1px solid rgba($trl-dark-gray, 0.7);
-    padding-top: 12px;
+
+    .instrument-panel__command {
+      padding: 0;
+      border: none;
+      background: none;
+    }
   }
 
   &__command--primary {
+    padding: 0;
+    border: none;
+    background: none;
+
     .instrument-panel__go {
-      flex: 1;
+      padding: 16px;
+      font-size: 13px;
     }
   }
 

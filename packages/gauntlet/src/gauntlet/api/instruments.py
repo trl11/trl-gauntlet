@@ -58,7 +58,7 @@ async def scan_instruments(request: Request) -> dict[str, Any]:
 @router.get("/instruments/{name}")
 async def get_instrument(request: Request, name: str) -> dict[str, Any]:
     """One instrument."""
-    return _describe(_provider(request, name))
+    return _describe(_provider(request, name), _holder(request))
 
 
 @router.post("/instruments/{name}/command")
@@ -82,10 +82,13 @@ def _commands(provider: CapabilityProvider) -> list[dict[str, Any]]:
     return [{"danger": False, **command} for command in provider.commands()]
 
 
-def _describe(provider: CapabilityProvider) -> dict[str, Any]:
+def _describe(provider: CapabilityProvider, holder: tuple[str, frozenset[str]] | None = None) -> dict[str, Any]:
     detail = provider.describe()
     available = provider.available()
     return {
+        # The run driving this instrument, so the operator can see that taking
+        # it over by hand would cut across a test. Empty when nothing holds it.
+        "in_use_by": holder[0] if holder is not None and provider.name in holder[1] else "",
         "name": provider.name,
         "kind": detail.get("kind") or provider.name,
         "available": available,
@@ -115,6 +118,24 @@ def _presentation(provider: CapabilityProvider) -> dict[str, Any]:
     }
 
 
+def _holder(request: Request) -> tuple[str, frozenset[str]] | None:
+    """The in-flight run and the capabilities its suite declared it drives.
+
+    A suite names what it needs in its manifest, so that is what says which
+    instruments a run is holding. Nothing here knows one instrument from
+    another. ``None`` when no run is in flight, or when the running suite is no
+    longer in the catalog.
+    """
+    supervisor = getattr(request.app.state, "supervisor", None)
+    active = supervisor.active() if supervisor is not None else None
+    if active is None:
+        return None
+    suite = request.app.state.catalog().get(active.suite)
+    if suite is None:
+        return None
+    return active.run_id, frozenset(suite.manifest.requires)
+
+
 def _provider(request: Request, name: str) -> CapabilityProvider:
     provider = request.app.state.capabilities.provider(name)
     if provider is None:
@@ -124,7 +145,8 @@ def _provider(request: Request, name: str) -> CapabilityProvider:
 
 def _snapshot(request: Request) -> list[dict[str, Any]]:
     registry = request.app.state.capabilities
-    return [_describe(registry.provider(name)) for name in registry.names()]
+    holder = _holder(request)
+    return [_describe(registry.provider(name), holder) for name in registry.names()]
 
 
 def _state(provider: CapabilityProvider) -> dict[str, Any]:

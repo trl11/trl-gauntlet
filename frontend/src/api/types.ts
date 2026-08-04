@@ -530,6 +530,8 @@ export interface Instrument {
   /** How the instrument is attached, shown in the panel subtitle. */
   connection?: string;
   description: string;
+  /** Id of the run driving this instrument. Empty when nothing holds it. */
+  in_use_by?: string;
   instance_id: string;
   kind: string;
   name: string;

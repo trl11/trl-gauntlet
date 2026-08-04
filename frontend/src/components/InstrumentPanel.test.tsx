@@ -81,6 +81,22 @@ describe("InstrumentPanel", () => {
     expect(onCommand).toHaveBeenCalledWith("set_level", { channel: "a", latch: true, level: 7 });
   });
 
+  it("gives a field that declares a range a dial beside its entry", () => {
+    render(<InstrumentPanel instrument={instrument()} onCommand={vi.fn()} />);
+    expect(screen.getByRole("slider", { name: "Level (V) dial" })).toBeInTheDocument();
+  });
+
+  it("posts the setting the dial was turned to", async () => {
+    const onCommand = vi.fn();
+    render(<InstrumentPanel instrument={instrument()} onCommand={onCommand} />);
+
+    await userEvent.click(screen.getByRole("slider", { name: "Level (V) dial" }));
+    await userEvent.keyboard("{End}");
+    await userEvent.click(screen.getByRole("button", { name: "Set Level" }));
+
+    expect(onCommand).toHaveBeenCalledWith("set_level", { channel: "a", latch: false, level: 10 });
+  });
+
   it("says so when the instrument takes no commands", () => {
     render(<InstrumentPanel instrument={instrument({ commands: [] })} onCommand={vi.fn()} />);
     expect(screen.getByText("Takes no commands.")).toBeInTheDocument();
@@ -258,6 +274,125 @@ describe("InstrumentPanel lays out declared readouts", () => {
     );
 
     expect(screen.getByText(/controls are read-only/)).toBeInTheDocument();
+  });
+});
+
+describe("InstrumentPanel latches a primary command that settles one boolean", () => {
+  const output = {
+    danger: true,
+    fields: [
+      {
+        name: "enabled",
+        label: "Enabled",
+        type: "boolean" as const,
+        unit: "",
+        min: null,
+        max: null,
+        choices: [],
+      },
+    ],
+    label: "Set Output",
+    name: "set_output",
+  };
+
+  function supply(overrides: Partial<Instrument> = {}): Instrument {
+    return instrument({ commands: [output], primary_command: "set_output", ...overrides });
+  }
+
+  const key = () => screen.getByRole("button", { name: /Set Output/ });
+  const lock = () => screen.getByRole("switch", { name: "Lock" });
+
+  it("draws one key rather than a toggle and a send key", () => {
+    render(<InstrumentPanel instrument={supply()} onCommand={vi.fn()} />);
+
+    expect(key()).toBeInTheDocument();
+    expect(screen.queryByLabelText("Enabled")).not.toBeInTheDocument();
+  });
+
+  it("cannot be pressed until the lock is released", async () => {
+    const onCommand = vi.fn();
+    render(<InstrumentPanel instrument={supply()} onCommand={onCommand} />);
+
+    expect(key()).toBeDisabled();
+
+    await userEvent.click(lock());
+    await userEvent.click(key());
+
+    expect(onCommand).toHaveBeenCalledWith("set_output", { enabled: true });
+  });
+
+  it("stays as the operator left it, pressed or not", async () => {
+    render(<InstrumentPanel instrument={supply()} onCommand={vi.fn()} />);
+
+    await userEvent.click(lock());
+    await userEvent.click(key());
+
+    expect(key()).toBeEnabled();
+    expect(lock()).toHaveAttribute("aria-checked", "false");
+
+    await userEvent.click(lock());
+
+    expect(key()).toBeDisabled();
+  });
+
+  it("sends the opposite of what it last sent", async () => {
+    const onCommand = vi.fn();
+    render(<InstrumentPanel instrument={supply()} onCommand={onCommand} />);
+
+    await userEvent.click(lock());
+    await userEvent.click(key());
+    await userEvent.click(key());
+
+    expect(onCommand).toHaveBeenNthCalledWith(1, "set_output", { enabled: true });
+    expect(onCommand).toHaveBeenNthCalledWith(2, "set_output", { enabled: false });
+    expect(key()).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("still sends whatever else the command asks for", async () => {
+    const onCommand = vi.fn();
+    const channel = {
+      name: "channel",
+      label: "Channel",
+      type: "string" as const,
+      unit: "",
+      min: null,
+      max: null,
+      choices: ["1", "2"],
+    };
+    render(
+      <InstrumentPanel
+        instrument={supply({ commands: [{ ...output, fields: [channel, ...output.fields] }] })}
+        onCommand={onCommand}
+      />
+    );
+
+    await userEvent.selectOptions(screen.getByLabelText("Channel"), "2");
+    await userEvent.click(lock());
+    await userEvent.click(key());
+
+    expect(onCommand).toHaveBeenCalledWith("set_output", { channel: "2", enabled: true });
+  });
+
+  it("keeps the lock shut while a run is driving the instrument", async () => {
+    const onCommand = vi.fn();
+    render(<InstrumentPanel instrument={supply({ in_use_by: "run-7" })} onCommand={onCommand} />);
+
+    expect(lock()).toBeDisabled();
+    expect(key()).toBeDisabled();
+    expect(screen.getByText(/run run-7 is driving this instrument/)).toBeInTheDocument();
+  });
+
+  it("leaves the key locked behind a run that took the instrument", async () => {
+    const { rerender } = render(<InstrumentPanel instrument={supply()} onCommand={vi.fn()} />);
+
+    await userEvent.click(lock());
+    expect(key()).toBeEnabled();
+
+    rerender(<InstrumentPanel instrument={supply({ in_use_by: "run-7" })} onCommand={vi.fn()} />);
+    expect(key()).toBeDisabled();
+
+    rerender(<InstrumentPanel instrument={supply()} onCommand={vi.fn()} />);
+    expect(key()).toBeDisabled();
   });
 });
 

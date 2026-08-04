@@ -36,6 +36,8 @@
     gap: 4px 16px;
     list-style: none;
 
+    // Each entry keeps its series' colour, since the key is what says which
+    // line is which.
     li {
       display: flex;
       align-items: center;
@@ -44,7 +46,6 @@
       font-size: 10px;
       letter-spacing: 0.04em;
       text-transform: uppercase;
-      color: $trl-gray;
     }
   }
 
