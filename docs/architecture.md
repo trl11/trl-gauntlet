@@ -131,11 +131,14 @@ SSE event types are `status`, `log`, `metrics`, `phase`, `iteration`,
 the filters rather than the page, so the history view can page server-side.
 
 An instrument panel is generated from what the provider declares: its `state()`
-is rendered as rows and each entry in `commands()` becomes a form built from
+is rendered as rows and each entry in `commands()` becomes a control built from
 that command's `fields[]`. No instrument name appears in the frontend or in
 `gauntlet.api.instruments`, and one component, `InstrumentPanel`, renders every
 instrument. A provider that omits an optional facet degrades to empty state, no
-commands, or a 405.
+commands, or a 405. `GET /api/instruments` also reports `in_use_by`, the
+in-flight run whose suite declares that capability in `requires:`, which is
+read from the manifest rather than from anything about the instrument. See
+[`instruments.md`](instruments.md).
 
 `GET /api/system/data` returns `cpu_percent` only once it has two `/proc/stat`
 readings to measure between, so the first call after startup reports `null`. The

@@ -241,7 +241,7 @@ class Hm310tPsu:
         return self.state()
 
     def readouts(self) -> list[dict[str, Any]]:
-        """Readback as tiles, with the setpoints beneath them."""
+        """Readback lit large, with the setpoints beneath it."""
         return [
             readout("voltage", "Voltage", precision=2, unit="V"),
             readout("current", "Current", precision=3, unit="A"),

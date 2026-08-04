@@ -136,7 +136,7 @@ class MockPsu:
         return self.state()
 
     def readouts(self) -> list[dict[str, Any]]:
-        """Readback as tiles per channel, with the setpoints beneath them."""
+        """Readback lit per channel, with the setpoints beneath it."""
         rows = []
         for name in self._channels:
             group = f"Channel {name}"

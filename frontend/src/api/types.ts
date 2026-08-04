@@ -496,7 +496,7 @@ export interface InstrumentCommand {
   name: string;
 }
 
-/** Whether a readout is drawn as a large tile or as a row in the compact strip. */
+/** Whether the display burns a readout large or puts it in the row beneath. */
 export type ReadoutRole = "headline" | "summary";
 
 /**

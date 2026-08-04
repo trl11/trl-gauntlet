@@ -356,7 +356,7 @@ class Di2008Daq:
         return self.state()
 
     def readouts(self) -> list[dict[str, Any]]:
-        """A tile per analog input, with the modes listed beneath them."""
+        """A reading per analog input, with the modes listed beneath them."""
         with self._lock:
             modes = dict(self._modes)
         rows = [

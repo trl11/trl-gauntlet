@@ -8,8 +8,9 @@ Gauntlet runs test suites. Suites declare themselves in a `suite.yaml`, write
 artifacts to a directory Gauntlet provides, and are otherwise independent of it.
 
 Read [`docs/contract.md`](docs/contract.md) before changing anything that
-crosses that boundary, and [`docs/frontend.md`](docs/frontend.md) before
-changing anything in `frontend/`.
+crosses that boundary, [`docs/frontend.md`](docs/frontend.md) before changing
+anything in `frontend/`, and [`docs/instruments.md`](docs/instruments.md)
+before changing anything in `capabilities/` or `instruments/`.
 
 ## Constraints
 
@@ -158,6 +159,10 @@ and neither is on a package registry.
   names them. Nothing simulated reaches an operator who did not ask for it.
 - An instrument's `available()` is called on every UI poll, so it answers from
   cached connection state rather than touching the device.
+- `GET /api/instruments` reports `in_use_by`, the in-flight run whose suite
+  declares that capability in `requires`. It is read from the manifest, never
+  from an instrument name, and while it is set the panel keeps that
+  instrument's latching key locked and will not let the operator release it.
 - `vite build` writes into `packages/gauntlet/src/gauntlet/web_dist/`. The app
   serves it at `/`, falls back to a placeholder when it is absent, and still
   answers unknown `/api/...` paths with a JSON 404 rather than the SPA shell.

@@ -138,7 +138,7 @@ class MockDaq:
         return self.state()
 
     def readouts(self) -> list[dict[str, Any]]:
-        """A tile per analog input, with its range and the digital lines below."""
+        """A reading per analog input, with its range and the digital lines below."""
         rows = []
         with self._lock:
             units = {name: channel.unit for name, channel in self._analog.items()}
