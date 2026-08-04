@@ -37,9 +37,18 @@ describe("SeriesPicker", () => {
     render(<SeriesPicker names={LARGE} selected={[]} onChange={onChange} />);
     await userEvent.click(screen.getByText("cpu"));
     const labels = screen.getAllByText(/per_core\.cpu\d+/).map((el) => el.textContent);
-    expect(labels).toEqual(["per_core.cpu0", "per_core.cpu1", "per_core.cpu2", "per_core.cpu3",
-      "per_core.cpu4", "per_core.cpu5", "per_core.cpu6", "per_core.cpu7", "per_core.cpu8",
-      "per_core.cpu9"]);
+    expect(labels).toEqual([
+      "per_core.cpu0",
+      "per_core.cpu1",
+      "per_core.cpu2",
+      "per_core.cpu3",
+      "per_core.cpu4",
+      "per_core.cpu5",
+      "per_core.cpu6",
+      "per_core.cpu7",
+      "per_core.cpu8",
+      "per_core.cpu9",
+    ]);
   });
 
   it("filtering flattens matches across groups", async () => {
