@@ -1,4 +1,4 @@
-import { Accordion, Button, Checkbox, Input } from "@trl11/components/ui";
+import { Accordion, Button, Checkbox, Input, Popover } from "@trl11/components/ui";
 import { useId, useMemo, useState } from "react";
 
 import { groupSeriesNames, naturalCompare } from "../utils/metrics";
@@ -28,6 +28,12 @@ function shortLabel(name: string): string {
  * flattens to a matching list, and otherwise one collapsed group per dotted
  * prefix (`cpu`, `memory`, `disk`, ...) so the picker opens small. Shared by
  * the Metrics chart and the Iterations table so both pick series the same way.
+ *
+ * Sits behind a `Popover`, the kit's own convention for filter UI (see
+ * `FilterMenu`): closed by default, floats over the page instead of pushing
+ * it around, and closes on an outside click or Escape. The panel itself
+ * carries its own max-height and scroll, since `Popover`'s doesn't bound one,
+ * and a flat (ungrouped) list can run long.
  */
 export const SeriesPicker: React.FC<SeriesPickerProps> = ({ names, onChange, selected }) => {
   const fieldId = useId();
@@ -52,104 +58,126 @@ export const SeriesPicker: React.FC<SeriesPickerProps> = ({ names, onChange, sel
     const rest = selected.filter((name) => !groupNames.includes(name));
     onChange(on ? [...rest, ...groupNames.filter((name) => !rest.includes(name))] : rest);
   };
-
-  if (!grouped) {
-    const shown = filtered ?? names;
-    return (
-      <div className="series-picker">
-        {names.length > FLAT_THRESHOLD / 2 && (
-          <Input
-            id={`${fieldId}-search`}
-            type="search"
-            placeholder="Filter series"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        )}
-        {shown.length === 0 ? (
-          <p className="series-picker__empty">No series match "{search}".</p>
-        ) : (
-          <div className="series-picker__flat">
-            {shown.map((name) => (
-              <Checkbox
-                key={name}
-                id={`${fieldId}-${name}`}
-                label={name}
-                checked={isSelected(name)}
-                onChange={() => toggle(name)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  }
+  const clearAll = () => onChange([]);
 
   return (
-    <div className="series-picker">
-      <Input
-        id={`${fieldId}-search`}
-        type="search"
-        placeholder="Filter series"
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-      />
-
-      {filtered !== null ? (
-        filtered.length === 0 ? (
-          <p className="series-picker__empty">No series match "{search}".</p>
-        ) : (
-          <div className="series-picker__flat">
-            {filtered.map((name) => (
-              <Checkbox
-                key={name}
-                id={`${fieldId}-${name}`}
-                label={name}
-                checked={isSelected(name)}
-                onChange={() => toggle(name)}
+    <Popover
+      align="left"
+      className="series-picker"
+      trigger={
+        <Button size="small" indicator={selected.length > 0}>
+          Measurements ({selected.length}/{names.length})
+        </Button>
+      }
+    >
+      {!grouped ? (
+        <>
+          {names.length > FLAT_THRESHOLD / 2 && (
+            <div className="series-picker__header">
+              <Input
+                id={`${fieldId}-search`}
+                type="search"
+                placeholder="Measurements"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
               />
-            ))}
-          </div>
-        )
+              {selected.length > 0 && (
+                <Button size="small" onClick={clearAll}>
+                  Clear all
+                </Button>
+              )}
+            </div>
+          )}
+          {(filtered ?? names).length === 0 ? (
+            <p className="series-picker__empty">No series match "{search}".</p>
+          ) : (
+            <div className="series-picker__flat">
+              {(filtered ?? names).map((name) => (
+                <Checkbox
+                  key={name}
+                  id={`${fieldId}-${name}`}
+                  label={name}
+                  checked={isSelected(name)}
+                  onChange={() => toggle(name)}
+                />
+              ))}
+            </div>
+          )}
+        </>
       ) : (
-        <div className="series-picker__groups">
-          {groups.map(({ group, names: groupNames }) => {
-            const allOn = groupNames.every(isSelected);
-            const someOn = groupNames.some(isSelected);
-            return (
-              <Accordion
-                key={group}
-                title={
-                  <span className="series-picker__group-title">
-                    {group}
-                    <span className="series-picker__group-count">
-                      {groupNames.filter(isSelected).length}/{groupNames.length}
-                    </span>
-                  </span>
-                }
-              >
-                <div className="series-picker__group-actions">
-                  <Button size="small" onClick={() => setGroup(groupNames, !allOn)}>
-                    {allOn ? "Clear group" : someOn ? "Select rest" : "Select group"}
-                  </Button>
-                </div>
-                <div className="series-picker__flat">
-                  {groupNames.map((name) => (
-                    <Checkbox
-                      key={name}
-                      id={`${fieldId}-${name}`}
-                      label={shortLabel(name)}
-                      checked={isSelected(name)}
-                      onChange={() => toggle(name)}
-                    />
-                  ))}
-                </div>
-              </Accordion>
-            );
-          })}
-        </div>
+        <>
+          <div className="series-picker__header">
+            <Input
+              id={`${fieldId}-search`}
+              type="search"
+              placeholder="Measurements"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+            {selected.length > 0 && (
+              <Button size="small" onClick={clearAll}>
+                Clear all
+              </Button>
+            )}
+          </div>
+
+          {filtered !== null ? (
+            filtered.length === 0 ? (
+              <p className="series-picker__empty">No series match "{search}".</p>
+            ) : (
+              <div className="series-picker__flat">
+                {filtered.map((name) => (
+                  <Checkbox
+                    key={name}
+                    id={`${fieldId}-${name}`}
+                    label={name}
+                    checked={isSelected(name)}
+                    onChange={() => toggle(name)}
+                  />
+                ))}
+              </div>
+            )
+          ) : (
+            <div className="series-picker__groups">
+              {groups.map(({ group, names: groupNames }) => {
+                const allOn = groupNames.every(isSelected);
+                const someOn = groupNames.some(isSelected);
+                return (
+                  <Accordion
+                    key={group}
+                    title={
+                      <span className="series-picker__group-title">
+                        {group}
+                        <span className="series-picker__group-count">
+                          {groupNames.filter(isSelected).length}/{groupNames.length}
+                        </span>
+                      </span>
+                    }
+                  >
+                    <div className="series-picker__group-actions">
+                      <Button size="small" onClick={() => setGroup(groupNames, !allOn)}>
+                        {allOn ? "Clear group" : someOn ? "Select rest" : "Select group"}
+                      </Button>
+                    </div>
+                    <div className="series-picker__flat">
+                      {groupNames.map((name) => (
+                        <Checkbox
+                          key={name}
+                          id={`${fieldId}-${name}`}
+                          label={shortLabel(name)}
+                          checked={isSelected(name)}
+                          onChange={() => toggle(name)}
+                        />
+                      ))}
+                    </div>
+                  </Accordion>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
-    </div>
+    </Popover>
   );
 };
 

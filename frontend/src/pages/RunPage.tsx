@@ -15,6 +15,7 @@ import {
   getRunVerdict,
   listArtifacts,
   listRunNotes,
+  listSuites,
   stopRun,
 } from "@api/client";
 import ArtifactList from "@components/ArtifactList";
@@ -26,7 +27,6 @@ import LogStream from "@components/LogStream";
 import MetricsChart from "@components/MetricsChart";
 import NotesPanel from "@components/NotesPanel";
 import PageHeader from "@components/PageHeader";
-import StatusPill from "@components/StatusPill";
 import VerdictBanner from "@components/VerdictBanner";
 import VerdictSummary from "@components/VerdictSummary";
 import useEventStream from "@hooks/useEventStream";
@@ -61,6 +61,14 @@ export const RunPage: React.FC = () => {
   });
   const live = isLive(run.data?.status);
   const settled = run.data !== undefined && !live;
+
+  // Cached alongside every other page that lists suites, so this rarely
+  // triggers its own request. Only its manifest's default_metrics is used
+  // here, to seed the Metrics/Iterations pickers before the operator picks
+  // their own.
+  const suites = useQuery({ queryKey: ["suites"], queryFn: listSuites });
+  const defaultMetrics =
+    suites.data?.suites.find((suite) => suite.key === run.data?.suite)?.default_metrics ?? [];
 
   const stream = useEventStream({
     runId,
@@ -173,7 +181,6 @@ export const RunPage: React.FC = () => {
         title={detail.suite}
         actions={
           <div className="run-page__actions">
-            <StatusPill status={detail.status} verdict={detail.verdict} />
             <Button
               color="amber"
               disabled={!live || control.isPending}
@@ -288,10 +295,19 @@ export const RunPage: React.FC = () => {
           </div>
         )}
 
-        {tab === "log" && <LogStream lines={logs} name={detail.run_id} />}
-        {tab === "metrics" && <MetricsChart samples={samples} />}
+        {tab === "log" && <LogStream lines={logs} />}
+        {tab === "metrics" && (
+          <MetricsChart key={runId} runId={runId} samples={samples} defaultMetrics={defaultMetrics} />
+        )}
         {tab === "iterations" && (
-          <IterationTable iterations={iterations} samples={samples} selected={selected} />
+          <IterationTable
+            key={runId}
+            runId={runId}
+            iterations={iterations}
+            samples={samples}
+            selected={selected}
+            defaultMetrics={defaultMetrics}
+          />
         )}
         {tab === "artifacts" && <ArtifactList runId={runId} live={live} />}
         {tab === "notes" && (

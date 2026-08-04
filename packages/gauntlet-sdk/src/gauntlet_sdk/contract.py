@@ -107,6 +107,14 @@ class SuiteManifest(BaseModel):
     )
     supports: SupportsSpec = Field(default_factory=SupportsSpec)
     overrides: list[OverrideSpec] = Field(default_factory=list)
+    default_metrics: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Metric series names charted and columned by default on a run's Metrics and "
+            "Iterations tabs, before the operator picks their own. Falls back to the first "
+            "few series reported when empty."
+        ),
+    )
 
     def override(self, name: str) -> OverrideSpec | None:
         """Look up a declared override by name."""

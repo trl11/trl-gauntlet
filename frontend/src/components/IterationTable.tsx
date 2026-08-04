@@ -1,7 +1,10 @@
-import { Badge, Checkbox } from "@trl11/components/ui";
+import { faXmark } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { Badge, Button, Checkbox, Tooltip } from "@trl11/components/ui";
 import clsx from "clsx";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
+import usePersistedSeries from "@hooks/usePersistedSeries";
 import { formatDuration, formatNumber } from "../utils/format";
 import { naturalCompare } from "../utils/metrics";
 import type { MetricSample } from "./MetricsChart";
@@ -9,7 +12,7 @@ import SeriesPicker from "./SeriesPicker";
 
 import "./IterationTable.scss";
 
-/** Value columns shown before the operator picks their own. */
+/** Value columns shown before the operator picks their own, when the suite declares none. */
 const DEFAULT_COLUMNS = 3;
 
 /** One completed iteration. */
@@ -23,12 +26,20 @@ export interface IterationRow {
 
 /** Props for {@link IterationTable}. */
 export interface IterationTableProps {
+  /** Run this table belongs to, to scope the persisted column pick. */
+  runId: string;
   /** Iterations in the order they completed. */
   iterations: IterationRow[];
   /** Metric samples, used to show the values recorded against each iteration. */
   samples: MetricSample[];
   /** Iteration to scroll to and mark, set when one is opened from elsewhere. */
   selected?: number | null;
+  /**
+   * Series the suite declares as worth showing by default, in
+   * `suite.yaml`'s `default_metrics`. Only those the run actually reported
+   * are used; falls back to the first few reported series when none apply.
+   */
+  defaultMetrics: string[];
 }
 
 /** The last sample reported for each iteration number. */
@@ -48,13 +59,17 @@ function valuesByIteration(samples: MetricSample[]): Map<number, Record<string, 
  * duration is the gap to the iteration before it.
  */
 export const IterationTable: React.FC<IterationTableProps> = ({
+  runId,
   iterations,
   samples,
   selected = null,
+  defaultMetrics,
 }) => {
   const fieldId = useId();
   const [failuresOnly, setFailuresOnly] = useState(false);
-  const [chosenColumns, setChosenColumns] = useState<string[] | null>(null);
+  const [chosenColumns, setChosenColumns] = usePersistedSeries(
+    `gauntlet:run:${runId}:iteration-columns`
+  );
   const rows = useRef(new Map<number, HTMLTableRowElement>());
 
   const values = useMemo(() => valuesByIteration(samples), [samples]);
@@ -65,7 +80,9 @@ export const IterationTable: React.FC<IterationTableProps> = ({
     }
     return [...seen].sort(naturalCompare);
   }, [values]);
-  const columns = chosenColumns ?? columnNames.slice(0, DEFAULT_COLUMNS);
+  const reported = defaultMetrics.filter((name) => columnNames.includes(name));
+  const columns = chosenColumns ?? (reported.length > 0 ? reported : columnNames.slice(0, DEFAULT_COLUMNS));
+  const removeColumn = (name: string) => setChosenColumns(columns.filter((entry) => entry !== name));
 
   const timed = useMemo(
     () =>
@@ -90,20 +107,19 @@ export const IterationTable: React.FC<IterationTableProps> = ({
   return (
     <section className="iteration-table" aria-label="Iterations">
       <div className="iteration-table__controls">
+        {columnNames.length > 0 && (
+          <SeriesPicker names={columnNames} selected={columns} onChange={setChosenColumns} />
+        )}
+        <span className="iteration-table__count">
+          {iterations.length} iterations, {failures} failed
+        </span>
         <Checkbox
           id={`${fieldId}-failures`}
           label="Failures only"
           checked={failuresOnly}
           onChange={(event) => setFailuresOnly(event.target.checked)}
         />
-        <span className="iteration-table__count">
-          {iterations.length} iterations, {failures} failed
-        </span>
       </div>
-
-      {columnNames.length > 0 && (
-        <SeriesPicker names={columnNames} selected={columns} onChange={setChosenColumns} />
-      )}
 
       <div className="iteration-table__scroll">
         <table className="iteration-table__table">
@@ -114,8 +130,22 @@ export const IterationTable: React.FC<IterationTableProps> = ({
               <th scope="col">Duration</th>
               <th scope="col">Reason</th>
               {columns.map((name) => (
-                <th className="iteration-table__mono" key={name} scope="col">
-                  {name}
+                <th className="iteration-table__mono iteration-table__column-head" key={name} scope="col">
+                  <span className="iteration-table__column-head-inner">
+                    {name}
+                    <Tooltip content="Remove column">
+                      <Button
+                        className="iteration-table__remove-column"
+                        size="small"
+                        square
+                        color="transparent"
+                        aria-label={`Remove ${name} column`}
+                        onClick={() => removeColumn(name)}
+                      >
+                        <FontAwesomeIcon icon={faXmark} />
+                      </Button>
+                    </Tooltip>
+                  </span>
                 </th>
               ))}
             </tr>

@@ -79,6 +79,26 @@
     white-space: nowrap;
   }
 
+  &__column-head:hover &__remove-column {
+    opacity: 1;
+  }
+
+  &__column-head-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &__remove-column {
+    opacity: 0;
+    color: $trl-gray;
+    transition: opacity 0.15s ease;
+
+    &:focus-visible {
+      opacity: 1;
+    }
+  }
+
   &__reason {
     color: $trl-gray;
     max-width: 40ch;

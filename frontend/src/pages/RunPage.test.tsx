@@ -12,6 +12,7 @@ import {
   getRunVerdict,
   listArtifacts,
   listRunNotes,
+  listSuites,
   stopRun,
 } from "@api/client";
 import type { RunRow } from "@api/types";
@@ -30,6 +31,7 @@ vi.mock("@api/client", () => ({
   getRunVerdict: vi.fn(),
   listArtifacts: vi.fn(),
   listRunNotes: vi.fn(),
+  listSuites: vi.fn(),
   runEventsUrl: (runId: string) => `/api/runs/${runId}/events`,
   stopRun: vi.fn(),
 }));
@@ -93,6 +95,7 @@ function renderPage() {
 describe("RunPage", () => {
   beforeEach(() => {
     vi.mocked(getRun).mockResolvedValue(FINISHED);
+    vi.mocked(listSuites).mockResolvedValue({ errors: [], suites: [] });
     vi.mocked(getRunMetrics).mockResolvedValue({
       count: RECORDS.length,
       records: RECORDS as never,
@@ -115,7 +118,7 @@ describe("RunPage", () => {
     vi.mocked(listRunNotes).mockResolvedValue({ notes: [] });
   });
 
-  it("shows the run's identity, status and timings", async () => {
+  it("shows the run's identity and timings", async () => {
     renderPage();
     expect(await screen.findByRole("heading", { name: "thermal_cycle" })).toBeInTheDocument();
     expect(screen.getByText("run-1")).toBeInTheDocument();
@@ -123,7 +126,6 @@ describe("RunPage", () => {
     expect(screen.getByText("SN-42")).toBeInTheDocument();
     expect(screen.getByText("10.0.0.4")).toBeInTheDocument();
     expect(screen.getByText("12s")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("FAIL");
   });
 
   it("hydrates the verdict of a finished run from the stored files", async () => {
@@ -152,7 +154,7 @@ describe("RunPage", () => {
     renderPage();
     await screen.findByText("FAILED");
     await userEvent.click(screen.getByRole("tab", { name: "metrics" }));
-    expect(screen.getByLabelText("rail.volts")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "rail.volts" })).toBeInTheDocument();
   });
 
   it("reads the log of a finished run out of test.log", async () => {

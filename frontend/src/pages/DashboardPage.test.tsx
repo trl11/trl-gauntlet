@@ -100,6 +100,7 @@ function suite(): Suite {
     apiVersion: 1,
     category: "thermal",
     conformance_profile: "standard",
+    default_metrics: [],
     description: "Cycle the chamber.",
     directory: "/suites/thermal_cycle",
     exec: {

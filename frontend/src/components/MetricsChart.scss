@@ -24,6 +24,10 @@
     padding: 10px 8px 4px;
     color: $indicator-blue;
 
+    &:hover .metrics-chart__remove {
+      opacity: 1;
+    }
+
     &--c0 {
       color: $indicator-blue;
     }
@@ -45,12 +49,29 @@
     }
   }
 
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
   &__title {
     font-family: $font-mono;
     font-size: 12px;
     font-weight: 500;
     color: $trl-light-gray;
     padding-left: 8px;
+  }
+
+  &__remove {
+    opacity: 0;
+    color: $trl-gray;
+    transition: opacity 0.15s ease;
+
+    &:focus-visible {
+      opacity: 1;
+    }
   }
 
   @include chart.chrome;
