@@ -33,6 +33,7 @@ export default defineConfig({
     legalComments: "none",
   },
   server: {
+    host: true,
     port: 7101,
     strictPort: true,
     proxy: {

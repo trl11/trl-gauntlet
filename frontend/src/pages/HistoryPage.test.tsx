@@ -227,9 +227,10 @@ describe("HistoryPage", () => {
     expect(lines[2]).toContain("r2,thermal_cycle,mock.yaml,failed");
   });
 
-  it("disables the export until a row is selected", async () => {
+  it("hides batch actions until a row is selected", async () => {
     renderHistory();
-    expect(await screen.findByRole("button", { name: "Export CSV" })).toBeDisabled();
+    await screen.findByText(/of \d+ · page/);
+    expect(screen.queryByRole("button", { name: "Export CSV" })).not.toBeInTheDocument();
   });
 
   it("deletes one run from its row menu, after confirming", async () => {

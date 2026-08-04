@@ -82,9 +82,12 @@ describe("UnitsPage", () => {
   it("filters by serial", async () => {
     renderUnits();
     await screen.findByText("HC-001");
-    await userEvent.type(screen.getByLabelText("Filter units"), "002");
-    expect(screen.queryByText("HC-001")).toBeNull();
-    expect(screen.getByText("HC-002")).toBeInTheDocument();
+    const filterButton = document.querySelector(".fa-filter")!.closest("button")!;
+    await userEvent.click(filterButton);
+    await userEvent.selectOptions(screen.getByRole("combobox"), "HC-002");
+    const table = screen.getByRole("table");
+    expect(within(table).queryByText("HC-001")).toBeNull();
+    expect(within(table).getByText("HC-002")).toBeInTheDocument();
   });
 
   it("sorts by a column when its header is pressed", async () => {

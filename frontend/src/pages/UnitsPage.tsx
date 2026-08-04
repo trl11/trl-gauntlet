@@ -8,7 +8,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Checkbox, Confirm, Input, TableSkeleton } from "@trl11/components/ui";
+import { Button, Checkbox, Confirm, FilterMenu, TableSkeleton } from "@trl11/components/ui";
 import clsx from "clsx";
 import { useId, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -16,6 +16,7 @@ import { useNavigate, useParams } from "react-router";
 import { deleteUnit, listUnits } from "@api/client";
 import type { Unit } from "@api/types";
 import EmptyState from "@components/EmptyState";
+import ListToolbar from "@components/ListToolbar";
 import PageHeader from "@components/PageHeader";
 import Panel from "@components/Panel";
 import RowMenu from "@components/RowMenu";
@@ -31,6 +32,8 @@ async function deleteUnits(serials: string[]): Promise<string[]> {
   const results = await Promise.allSettled(serials.map((serial) => deleteUnit(serial)));
   return serials.filter((_serial, index) => results[index].status === "rejected");
 }
+
+type Filters = React.ComponentProps<typeof FilterMenu>["filterState"];
 
 type SortKey =
   "failed" | "first_seen" | "last_seen" | "pass_rate" | "passed" | "run_count" | "serial";
@@ -81,13 +84,13 @@ const PassRate: React.FC<{ rate: number | null }> = ({ rate }) => {
   );
 };
 
-/** Every unit, sortable and searchable, selectable for batch delete. */
+/** Every unit, sortable and filterable by serial, selectable for batch delete. */
 const UnitsList: React.FC = () => {
   const client = useQueryClient();
   const navigate = useNavigate();
   const fieldId = useId();
 
-  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<Filters>({ serial: "all" });
   const [sortKey, setSortKey] = useState<SortKey>("last_seen");
   const [ascending, setAscending] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
@@ -113,13 +116,12 @@ const UnitsList: React.FC = () => {
   });
 
   const rows = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    const filtered = (units.data?.units ?? []).filter((unit) =>
-      unit.serial.toLowerCase().includes(needle)
+    const filtered = (units.data?.units ?? []).filter(
+      (unit) => filters.serial === "all" || unit.serial === filters.serial
     );
     const sign = ascending ? 1 : -1;
     return [...filtered].sort((a, b) => sign * compare(a, b, sortKey));
-  }, [units.data, search, sortKey, ascending]);
+  }, [units.data, filters.serial, sortKey, ascending]);
 
   const sortBy = (key: SortKey) => {
     if (key === sortKey) setAscending((current) => !current);
@@ -145,30 +147,37 @@ const UnitsList: React.FC = () => {
 
   return (
     <div className="units-page">
-      <PageHeader
-        title="Units"
-        actions={
-          <div className="units-page__header-actions">
-            <Badge aria-live="polite" color={selected.length > 0 ? "blue" : "outline"}>
-              {`${selected.length} selected`}
-            </Badge>
-            <Button
-              color="red"
-              size="small"
-              disabled={selected.length === 0}
-              onClick={() => setDeleting(selected)}
-            >
+      <PageHeader title="Units" />
+
+      <ListToolbar
+        filter={
+          <FilterMenu
+            filterState={filters}
+            setFilterState={setFilters}
+            filters={[
+              {
+                id: "serial",
+                options: [
+                  { value: "all", label: "Any serial" },
+                  ...(units.data?.units ?? []).map((unit) => ({
+                    value: unit.serial,
+                    label: unit.serial,
+                  })),
+                ],
+              },
+            ]}
+          />
+        }
+        selectedCount={selected.length}
+        batchActions={
+          <>
+            <Button size="small" onClick={() => setSelected([])}>
+              Clear
+            </Button>
+            <Button color="red" size="small" onClick={() => setDeleting(selected)}>
               Delete
             </Button>
-            <Input
-              id={`${fieldId}-search`}
-              type="search"
-              placeholder="Filter by serial"
-              aria-label="Filter units"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
+          </>
         }
       />
 

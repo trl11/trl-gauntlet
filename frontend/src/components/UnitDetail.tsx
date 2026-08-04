@@ -1,9 +1,9 @@
 import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, DataField, Spinner } from "@trl11/components/ui";
+import { Button, DataField, FilterMenu, Spinner } from "@trl11/components/ui";
 import clsx from "clsx";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import {
   CartesianGrid,
@@ -25,14 +25,19 @@ import {
 } from "@api/client";
 import type { RunRow } from "@api/types";
 import EmptyState from "@components/EmptyState";
+import ListToolbar from "@components/ListToolbar";
 import NotesPanel from "@components/NotesPanel";
 import PageHeader from "@components/PageHeader";
 import RenameDialog from "@components/RenameDialog";
 import RunTable from "@components/RunTable";
 import { formatPercent, formatTimestamp } from "../utils/format";
 import { health } from "../utils/health";
+import { matchesStatus, RUN_STATUS_OPTIONS } from "../utils/run_status";
 
 import "./UnitDetail.scss";
+
+/** The filter values, in the shape the ui-kit `FilterMenu` holds them. */
+type Filters = React.ComponentProps<typeof FilterMenu>["filterState"];
 
 /** Props for {@link UnitDetail}. */
 export interface UnitDetailProps {
@@ -60,6 +65,7 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
   const navigate = useNavigate();
   const [renaming, setRenaming] = useState(false);
   const [renameError, setRenameError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Filters>({ status: "all" });
 
   const unit = useQuery({ queryKey: ["unit", serial], queryFn: () => getUnit(serial) });
   const history = useQuery({
@@ -98,6 +104,10 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
   });
 
   const runs = history.data?.runs ?? [];
+  const filteredRuns = useMemo(
+    () => runs.filter((run) => matchesStatus(run.status, String(filters.status))),
+    [runs, filters.status]
+  );
   const series = passRateSeries(runs);
   const rate =
     unit.data && unit.data.run_count > 0 ? (unit.data.passed / unit.data.run_count) * 100 : null;
@@ -178,11 +188,24 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
 
       <section className="unit-detail__section" aria-label="Run history">
         <h2 className="unit-detail__title">Run history</h2>
+        <ListToolbar
+          filter={
+            <FilterMenu
+              filterState={filters}
+              setFilterState={setFilters}
+              filters={[{ id: "status", options: RUN_STATUS_OPTIONS }]}
+            />
+          }
+          status={`${filteredRuns.length} of ${runs.length}`}
+          selectedCount={0}
+          batchActions={null}
+        />
         <RunTable
-          runs={runs}
+          runs={filteredRuns}
           loading={history.isPending}
           columns={["status", "suite", "run_id", "profile", "started_at", "duration_s"]}
           emptyMessage="No runs have named this unit."
+          filterable={false}
         />
       </section>
 

@@ -7,21 +7,15 @@
 
   &__controls {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     gap: 12px;
     flex-wrap: wrap;
-
-    > div:nth-child(2) {
-      flex: 1 1 240px;
-      min-width: 0;
-    }
   }
 
-  &__nav {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding-bottom: 4px;
+  &__find {
+    flex: 0 0 220px;
+    width: 220px;
+    max-width: 100%;
   }
 
   &__matches {
@@ -31,18 +25,15 @@
     min-width: 9ch;
   }
 
-  &__actions {
-    display: flex;
-    gap: 6px;
+  &__filter {
     margin-left: auto;
-    padding-bottom: 4px;
   }
 
   &__view {
-    height: clamp(280px, 46vh, 620px);
     overflow: auto;
     background-color: $trl-dark;
     border: 1px solid $trl-dark-gray;
+    padding-top: 8px;
     font-family: $font-mono;
     font-size: 12px;
     line-height: 20px;
@@ -112,7 +103,7 @@
   }
 
   @media (max-width: 900px) {
-    &__actions {
+    &__filter {
       margin-left: 0;
     }
   }

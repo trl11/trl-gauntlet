@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Confirm, FilterMenu, Pagination } from "@trl11/components/ui";
+import { Button, Confirm, FilterMenu, Pagination } from "@trl11/components/ui";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 
 import { deleteRun, listRuns, listSuites, listUnits } from "@api/client";
 import type { RunRow } from "@api/types";
+import ListToolbar from "@components/ListToolbar";
 import PageHeader from "@components/PageHeader";
 import Panel from "@components/Panel";
 import RunDetails from "@components/RunDetails";
@@ -119,9 +120,10 @@ export const HistoryPage: React.FC = () => {
 
   return (
     <div className="history-page">
-      <PageHeader
-        title="History"
-        actions={
+      <PageHeader title="History" />
+
+      <ListToolbar
+        filter={
           <FilterMenu
             filterState={filters}
             setFilterState={setFilters}
@@ -152,37 +154,27 @@ export const HistoryPage: React.FC = () => {
             ]}
           />
         }
+        status={
+          <>
+            {`${rows.length} of ${total} · page ${page} of ${totalPages}`}
+            {runs.isFetching ? " · refreshing" : ""}
+          </>
+        }
+        selectedCount={selected.length}
+        batchActions={
+          <>
+            <Button size="small" onClick={() => downloadCsv(toCsv(selectedRows))}>
+              Export CSV
+            </Button>
+            <Button size="small" onClick={() => setSelected([])}>
+              Clear
+            </Button>
+            <Button color="red" size="small" onClick={() => setConfirming(selectedRows)}>
+              Delete
+            </Button>
+          </>
+        }
       />
-
-      <div className="history-page__bar">
-        <span className="history-page__count">
-          {`${rows.length} of ${total} · page ${page} of ${totalPages}`}
-          {runs.isFetching ? " · refreshing" : ""}
-        </span>
-        <span className="history-page__bulk">
-          <Badge aria-live="polite" color={selected.length > 0 ? "blue" : "outline"}>
-            {`${selected.length} selected`}
-          </Badge>
-          <Button
-            size="small"
-            disabled={selectedRows.length === 0}
-            onClick={() => downloadCsv(toCsv(selectedRows))}
-          >
-            Export CSV
-          </Button>
-          <Button size="small" disabled={selected.length === 0} onClick={() => setSelected([])}>
-            Clear
-          </Button>
-          <Button
-            color="red"
-            size="small"
-            disabled={selectedRows.length === 0}
-            onClick={() => setConfirming(selectedRows)}
-          >
-            Delete
-          </Button>
-        </span>
-      </div>
 
       {deleteError && (
         <p className="history-page__error" role="alert">
