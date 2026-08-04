@@ -96,7 +96,7 @@ describe("every route renders", () => {
     ).toBeInTheDocument();
     // The panels fed by the run history: recent runs, and the units behind them.
     expect(await screen.findByText("Recent runs")).toBeInTheDocument();
-    expect(await screen.findByRole("link", { name: "all units →" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "all units (2) →" })).toBeInTheDocument();
   });
 
   it("history lists the recorded runs and the server's total", async () => {

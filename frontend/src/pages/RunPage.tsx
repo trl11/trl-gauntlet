@@ -159,6 +159,14 @@ export const RunPage: React.FC = () => {
   const detail = run.data;
   const reconnecting = live && !stream.connected && !stream.ended;
 
+  // So an operator can tell a tab holds something new without opening it.
+  const tabCounts: Partial<Record<Tab, number>> = {
+    artifacts: files.length,
+    iterations: iterations.length,
+    log: logs.length,
+    notes: notes.data?.notes.length ?? 0,
+  };
+
   return (
     <div className="run-page">
       <PageHeader
@@ -228,18 +236,26 @@ export const RunPage: React.FC = () => {
       )}
 
       <div className="run-page__tabs" role="tablist" aria-label="Run views">
-        {TABS.map((name) => (
-          <button
-            aria-selected={tab === name}
-            className={clsx("run-page__tab", tab === name && "run-page__tab--active")}
-            key={name}
-            onClick={() => setTab(name)}
-            role="tab"
-            type="button"
-          >
-            {name}
-          </button>
-        ))}
+        {TABS.map((name) => {
+          const count = tabCounts[name];
+          return (
+            <button
+              aria-selected={tab === name}
+              className={clsx("run-page__tab", tab === name && "run-page__tab--active")}
+              key={name}
+              onClick={() => setTab(name)}
+              role="tab"
+              type="button"
+            >
+              {name}
+              {count !== undefined && count > 0 && (
+                <span className="run-page__tab-count" aria-hidden="true">
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       <div className="run-page__panel" role="tabpanel" aria-label={tab}>

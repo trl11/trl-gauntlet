@@ -196,7 +196,7 @@ export const DashboardPage: React.FC = () => {
         title="Units"
         action={
           <Link className="panel__action" to="/units">
-            all units →
+            {units.data ? `all units (${units.data.units.length}) →` : "all units →"}
           </Link>
         }
       >
@@ -280,7 +280,9 @@ export const DashboardPage: React.FC = () => {
                 />
                 <span className="dashboard-page__instrument-name">{instrument.name}</span>
                 <span className="dashboard-page__instrument-state">
-                  {stateSummary(instrument.state) || instrument.kind}
+                  {instrument.available
+                    ? stateSummary(instrument.state) || instrument.kind
+                    : "unavailable"}
                 </span>
               </Link>
             ))}

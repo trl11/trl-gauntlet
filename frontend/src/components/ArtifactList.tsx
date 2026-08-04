@@ -13,6 +13,9 @@ import "./ArtifactList.scss";
 /** How often the file list is refreshed while the run is still writing. */
 const LIVE_POLL_MS = 5000;
 
+/** Above this, a file is downloaded instead of fetched and pretty-printed inline. */
+const MAX_PREVIEW_BYTES = 500_000;
+
 /** Props for {@link ArtifactList}. */
 export interface ArtifactListProps {
   /** Poll for new files while the run is in flight. */
@@ -47,10 +50,11 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({ live = false, runId 
     refetchInterval: live ? LIVE_POLL_MS : false,
   });
 
+  const previewSize = artifacts.data?.artifacts.find((file) => file.path === preview)?.size ?? 0;
   const content = useQuery({
     queryKey: ["artifact-text", runId, preview],
     queryFn: () => getArtifactText(runId, preview as string),
-    enabled: preview !== null,
+    enabled: preview !== null && previewSize <= MAX_PREVIEW_BYTES,
   });
 
   if (artifacts.isPending) return <Spinner />;
@@ -67,6 +71,8 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({ live = false, runId 
   if (files.length === 0) {
     return <EmptyState title="No artifacts" message="This run has not written any files yet." />;
   }
+
+  const tooLarge = previewSize > MAX_PREVIEW_BYTES;
 
   return (
     <section className="artifact-list" aria-label="Artifacts">
@@ -113,9 +119,20 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({ live = false, runId 
       {preview !== null && (
         <div className="artifact-list__preview">
           <h3 className="artifact-list__preview-title">{preview}</h3>
-          {content.isPending && <Spinner />}
-          {content.isError && <p role="alert">{(content.error as Error).message}</p>}
-          {content.data !== undefined && <pre>{prettify(preview, content.data)}</pre>}
+          {tooLarge ? (
+            <p className="artifact-list__too-large">
+              {`${formatBytes(previewSize)} is too large to preview inline.`}{" "}
+              <a href={artifactUrl(runId, preview)} download>
+                Download it instead.
+              </a>
+            </p>
+          ) : (
+            <>
+              {content.isPending && <Spinner />}
+              {content.isError && <p role="alert">{(content.error as Error).message}</p>}
+              {content.data !== undefined && <pre>{prettify(preview, content.data)}</pre>}
+            </>
+          )}
         </div>
       )}
     </section>

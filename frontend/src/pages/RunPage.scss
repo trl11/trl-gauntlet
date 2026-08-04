@@ -94,6 +94,9 @@
   }
 
   &__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     background: none;
     color: $trl-gray;
     font: inherit;
@@ -112,6 +115,15 @@
       color: $trl-light-gray;
       border-bottom-color: $indicator-blue;
     }
+  }
+
+  &__tab-count {
+    font-family: $font-mono;
+    font-size: 10px;
+    color: $trl-gray;
+    background-color: $trl-dark-gray;
+    padding: 1px 6px;
+    border-radius: 8px;
   }
 
   &__overview {

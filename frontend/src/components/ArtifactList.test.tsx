@@ -63,6 +63,18 @@ describe("ArtifactList", () => {
     expect(screen.getAllByRole("button", { name: "Preview" })).toHaveLength(1);
   });
 
+  it("offers a download instead of an inline preview for a large text file", async () => {
+    listed.mockResolvedValue({
+      run_id: "run-1",
+      run_dir: "/runs/run-1",
+      artifacts: [{ path: "metrics.jsonl", size: 600_000, text: true }],
+    });
+    renderList();
+    await userEvent.click(await screen.findByRole("button", { name: "Preview" }));
+    expect(await screen.findByText(/too large to preview/)).toBeInTheDocument();
+    expect(text).not.toHaveBeenCalled();
+  });
+
   it("says so when the run wrote nothing", async () => {
     listed.mockResolvedValue({ run_id: "run-1", run_dir: "/runs/run-1", artifacts: [] });
     renderList();
