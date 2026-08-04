@@ -3,13 +3,37 @@
 .settings-page {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 
   &__grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 480px));
+    grid-template-columns: 1fr;
+    max-width: 720px;
     align-items: start;
-    gap: 20px;
+    gap: 24px;
+
+    .panel {
+      padding: 20px 24px 24px;
+      gap: 18px;
+    }
+
+    .definition-rows > div {
+      padding: 8px 0;
+      border-bottom: 1px solid rgba($trl-dark-gray, 0.6);
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+
+    .definition-rows dt {
+      font-size: 12px;
+    }
+
+    .definition-rows dd {
+      font-size: 13px;
+      line-height: 1.5;
+    }
   }
 
   &__error {

@@ -6,26 +6,17 @@ import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
-import {
-  getSettings,
-  getSystemData,
-  getSystemInfo,
-  getVersion,
-  listInstruments,
-  listRuns,
-  listSuites,
-  listUnits,
-} from "@api/client";
+import { getSystemData, listInstruments, listRuns, listSuites, listUnits } from "@api/client";
 import type { RunRow, Unit } from "@api/types";
 import ActiveRun from "@components/ActiveRun";
-import DefinitionRows, { type DefinitionRow } from "@components/DefinitionRows";
+import DefinitionRows from "@components/DefinitionRows";
 import EmptyState from "@components/EmptyState";
 import HostHealth from "@components/HostHealth";
 import PageHeader from "@components/PageHeader";
 import Panel from "@components/Panel";
 import RunTable from "@components/RunTable";
 import StatusPill from "@components/StatusPill";
-import { formatBytes, formatTimestamp } from "../utils/format";
+import { formatTimestamp } from "../utils/format";
 import { isLive } from "../utils/run_status";
 
 import "./DashboardPage.scss";
@@ -90,9 +81,6 @@ export const DashboardPage: React.FC = () => {
   });
   const suites = useQuery({ queryKey: ["suites"], queryFn: listSuites });
   const units = useQuery({ queryKey: ["units"], queryFn: listUnits, refetchInterval: 10_000 });
-  const info = useQuery({ queryKey: ["system-info"], queryFn: getSystemInfo });
-  const settings = useQuery({ queryKey: ["settings"], queryFn: getSettings });
-  const version = useQuery({ queryKey: ["version"], queryFn: getVersion });
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -111,21 +99,6 @@ export const DashboardPage: React.FC = () => {
   const onBench = lastUnitRun(allRuns);
   const unitRows = recentUnits(units.data?.units ?? []);
   const discoveryErrors = suites.data?.errors ?? [];
-  const disks = system.data?.disks ?? [];
-  const fullest = [...disks].sort((a, b) => b.percent - a.percent)[0];
-
-  const environment: DefinitionRow[] = [
-    { label: "app version", value: version.data?.gauntlet ?? "-" },
-    { label: "contract", value: version.data?.contract_version ?? "-" },
-    { label: "python", value: version.data?.python ?? "-" },
-    { label: "platform", value: version.data?.platform ?? info.data?.os ?? "-" },
-    {
-      label: "memory",
-      value: `${formatBytes(system.data?.memory.used)} / ${formatBytes(info.data?.memory_total_bytes)}`,
-    },
-    { label: "free disk", value: fullest ? formatBytes(fullest.free) : "-" },
-    { label: "runs dir", value: settings.data?.runs_dir ?? "-" },
-  ];
 
   return (
     <div className="dashboard-page">
@@ -303,19 +276,6 @@ export const DashboardPage: React.FC = () => {
           />
         )}
       </Panel>
-
-      <div className="dashboard-page__environment">
-        <Panel
-          title="Environment"
-          action={
-            <Link className="panel__action" to="/settings">
-              settings →
-            </Link>
-          }
-        >
-          <DefinitionRows rows={environment} />
-        </Panel>
-      </div>
     </div>
   );
 };
