@@ -102,7 +102,13 @@ def disks() -> list[dict[str, Any]]:
         mount = fields[1].replace("\\040", " ")
         # A container bind-mounts single files such as /etc/hostname from the
         # host filesystem; they are the same volume under another name.
-        if mount in seen or not Path(mount).is_dir():
+        try:
+            is_dir = Path(mount).is_dir()
+        except OSError:
+            # Docker's overlay2 "merged" dirs are listed in /proc/mounts but
+            # not readable by an unprivileged user; skip rather than crash.
+            continue
+        if mount in seen or not is_dir:
             continue
         seen.add(mount)
         usage = _disk_usage(mount)

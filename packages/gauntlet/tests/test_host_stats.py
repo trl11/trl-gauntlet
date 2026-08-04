@@ -207,6 +207,15 @@ class TestDisks:
         monkeypatch.setattr(host_stats.shutil, "disk_usage", _raise_oserror)
         assert host_stats.disks() == []
 
+    def test_a_mount_that_cannot_be_read_is_dropped(self, monkeypatch, proc: Path, tmp_path: Path) -> None:
+        # Docker's overlay2 "merged" directories are listed in /proc/mounts
+        # but owned by root; stat-ing one as an unprivileged user raises
+        # PermissionError.
+        (proc / "mounts").write_text(f"/dev/sda1 {tmp_path} ext4 rw 0 0\n")
+        monkeypatch.setattr(host_stats.Path, "is_dir", _raise_oserror)
+        # Nothing was mounted, so the root filesystem stands in.
+        assert [disk["mount"] for disk in host_stats.disks()] == ["/"]
+
     def test_the_percentage_is_the_used_share_of_the_volume(self, proc: Path, tmp_path: Path) -> None:
         (proc / "mounts").write_text(f"/dev/sda1 {tmp_path} ext4 rw 0 0\n")
         disk = host_stats.disks()[0]
