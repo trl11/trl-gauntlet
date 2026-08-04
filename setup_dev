@@ -3,7 +3,7 @@
 #     source setup_dev
 #
 # Creates .venv on first use and activates it. The devcontainer entrypoint
-# sources this on every shell; the `sud` and `resud` aliases call it directly.
+# sources this on every shell
 
 if [ -n "${BASH_SOURCE[0]:-}" ] && [ "${BASH_SOURCE[0]}" = "$0" ]; then
     echo "setup_dev must be sourced: source setup_dev" >&2
