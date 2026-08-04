@@ -12,10 +12,6 @@ NAME  ?= gauntlet
 
 .PHONY: build help run save stop
 
-# The version the image is named for, taken from the application it carries so
-# that the tarball and the desktop installers cannot disagree.
-VERSION = $(shell sed -n 's/^version = "\(.*\)"/\1/p' $(APP)/pyproject.toml | head -1)
-
 help:
 	@echo "Gauntlet server image"
 	@echo ""

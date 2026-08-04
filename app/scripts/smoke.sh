@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+#
+# Runs the packaged app with app/runtime moved out of the way.
+#
+# Anything in the bundle still pointing at the tree that built it works on the
+# build host and nowhere else, because the build host is the one machine where
+# that path exists. An absolute shebang in a console script is exactly that,
+# and it shipped once already. Moving the runtime aside is what makes the
+# difference visible here rather than on the machine the app is installed on.
+#
+#   app/scripts/smoke.sh <unpacked-app-directory>
+
+set -euo pipefail
+
+APP_DIR=${1:?usage: smoke.sh <unpacked-app-directory>}
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+RUNTIME=$ROOT/app/runtime
+PARKED=$ROOT/app/runtime.parked-by-smoke
+WORK=$(mktemp -d)
+SUITE=example_sampled
+PROFILE=quick.yaml
+
+# The runtime goes back whatever happens, including an interrupt: leaving it
+# parked would break every later build in a way that looks unrelated.
+cleanup() {
+    pkill -TERM -f "$APP_DIR/gauntlet" 2>/dev/null || true
+    sleep 2
+    pkill -KILL -f "$APP_DIR/gauntlet" 2>/dev/null || true
+    [ -d "$PARKED" ] && mv "$PARKED" "$RUNTIME"
+    rm -rf "$WORK"
+}
+trap cleanup EXIT
+
+fail() {
+    echo "smoke: $1" >&2
+    echo "--- app output ---" >&2
+    tail -30 "$WORK/log" >&2 2>/dev/null || true
+    exit 1
+}
+
+[ -x "$APP_DIR/gauntlet" ] || fail "no packaged app at $APP_DIR"
+command -v xvfb-run >/dev/null || fail "xvfb-run is missing; it is in dependencies.txt"
+
+[ -d "$RUNTIME" ] && mv "$RUNTIME" "$PARKED"
+echo "==> $RUNTIME moved aside; the app has only what it packaged"
+
+ELECTRON_DISABLE_SANDBOX=1 xvfb-run -a "$APP_DIR/gauntlet" \
+    --no-sandbox --user-data-dir="$WORK/userdata" >"$WORK/log" 2>&1 &
+
+# The port is the kernel's choice, so it is read back from what the app says
+# rather than assumed.
+BASE=
+for _ in $(seq 1 60); do
+    BASE=$(grep -o "http://127.0.0.1:[0-9]*" "$WORK/log" | head -1 || true)
+    [ -n "$BASE" ] && break
+    sleep 1
+done
+[ -n "$BASE" ] || fail "the backend never reported a port"
+
+for _ in $(seq 1 30); do
+    curl -fsS -o /dev/null "$BASE/api/health" 2>/dev/null && break
+    sleep 1
+done
+curl -fsS -o /dev/null "$BASE/api/health" || fail "no answer from $BASE/api/health"
+echo "==> serving on $BASE"
+
+grep -q "resources/runtime" "$WORK/log" || true
+SUITES=$(curl -fsS "$BASE/api/suites" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['suites']))")
+[ "$SUITES" -gt 0 ] || fail "the packaged app discovered no suites"
+echo "==> $SUITES suites discovered"
+
+# A Python suite, because it is a separate process that has to import
+# gauntlet_sdk from the packaged runtime rather than from anything installed
+# on this machine.
+RUN=$(curl -fsS -X POST "$BASE/api/runs" -H 'Content-Type: application/json' \
+    -d "{\"suite\":\"$SUITE\",\"profile\":\"$PROFILE\",\"unit_serial\":\"SMOKE\"}" |
+    python3 -c "import json,sys; print(json.load(sys.stdin)['run_id'])")
+echo "==> started $RUN"
+
+STATUS=
+for _ in $(seq 1 90); do
+    STATUS=$(curl -fsS "$BASE/api/runs/$RUN" | python3 -c "import json,sys; print(json.load(sys.stdin)['status'])")
+    case $STATUS in running | starting | stopping) sleep 1 ;; *) break ;; esac
+done
+[ "$STATUS" = "passed" ] || fail "$SUITE finished $STATUS, expected passed"
+echo "==> $SUITE passed"
+
+# Quitting has to take the backend's process group with it, or a suite mid-run
+# outlives the app that started it.
+#
+# Only the main process is signalled, found as the backend's parent. Electron's
+# helpers share its executable path, so signalling by that path would take the
+# GPU process with it and the main process would abort rather than quit, which
+# is the one path where its quit handler does not run.
+BACKEND=$(pgrep -f "resources/runtime/bin/python3 -m gauntlet" | head -1 || true)
+[ -n "$BACKEND" ] || fail "no backend process to check the teardown against"
+MAIN=$(ps -o ppid= -p "$BACKEND" | tr -d ' ')
+kill -TERM "$MAIN"
+sleep 5
+if kill -0 "$BACKEND" 2>/dev/null; then
+    fail "the backend outlived the app"
+fi
+echo "==> the backend went with the app"
+echo "smoke: ok"

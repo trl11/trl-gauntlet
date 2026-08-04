@@ -109,7 +109,13 @@ function startBackend(port: number): void {
     backendErrors.push(text);
     backendErrors = backendErrors.slice(-STDERR_LINES_KEPT);
   });
-  backend.on("error", (error) => backendErrors.push(String(error)));
+  // A spawn that never started reaches this rather than stderr, and it is the
+  // one failure with nothing else to show: written out as well as kept, so a
+  // headless run says why instead of only the window it has no one to show.
+  backend.on("error", (error) => {
+    backendErrors.push(String(error));
+    process.stderr.write(`${error}\n`);
+  });
 }
 
 /** Signal the backend's process group, so a suite mid-run goes with it. */

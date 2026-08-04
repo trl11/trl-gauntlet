@@ -177,9 +177,9 @@ frontend-check: frontend-install
 # exist so that one `make help` lists everything; each delegates and adds
 # nothing.
 
-.PHONY: app-build app-check app-dev app-runtime build docker-build docker-run docker-save docker-stop gauntlet-build sdk-build
+.PHONY: app-build app-check app-dev app-runtime app-smoke build docker-build docker-run docker-save docker-stop gauntlet-build sdk-build
 
-app-build app-check app-dev app-runtime:
+app-build app-check app-dev app-runtime app-smoke:
 	@$(MAKE) --no-print-directory -C $(DESKTOP) $(patsubst app-%,%,$@)
 
 docker-build docker-run docker-save docker-stop:
@@ -191,10 +191,17 @@ gauntlet-build:
 sdk-build:
 	@$(MAKE) --no-print-directory -C $(SDK) $(patsubst sdk-%,%,$@)
 
-# Everything shippable, in the order of how long each takes. Slow: it fetches
-# a CPython and an Electron and builds the image. Nothing here empties dist/
-# first, so an artifact from an earlier version stays until it is removed.
-build: sdk-build gauntlet-build docker-save app-build
+# Everything shippable, cheapest first, so a failure in the slow Electron step
+# still leaves the wheels built. Slow overall: it fetches a CPython and an
+# Electron and builds the image.
+#
+# dist/ is emptied first, so what is in it afterwards is one version and not
+# the remains of an earlier one. Everything there is regenerable by this
+# target. The sub-makes run from the recipe rather than as prerequisites,
+# because a prerequisite would be free to run before the directory is cleared.
+build: version-check
+	@rm -rf $(DIST)
+	@$(MAKE) --no-print-directory sdk-build gauntlet-build docker-save app-build
 	@echo ""
 	@echo "dist/"
 	@ls -1sh $(DIST) | tail -n +2 | sed 's/^/  /'
@@ -235,13 +242,21 @@ suite-test: ensure-setup
 # Quality
 # ---------------------------------------------------------------------------
 
-.PHONY: check format format-check gauntlet-test lint test test-e2e typecheck verify
+.PHONY: check format format-check gauntlet-test lint test test-e2e typecheck verify version-check version-sync
 
 # Everything: the bundle builds, every check passes, every test runs, and each
 # suite's conformance profile executes against the contract.
 verify: frontend check test-e2e suite-verify-run
 
-check: format-check lint typecheck gauntlet-test suite-test frontend-check
+check: version-check format-check lint typecheck gauntlet-test suite-test frontend-check app-check
+
+# VERSION is the number; every manifest carries a copy because neither
+# setuptools nor npm can read one from outside its own directory.
+version-check:
+	@$(PY) $(ROOT)/scripts/version.py check
+
+version-sync:
+	@$(PY) $(ROOT)/scripts/version.py sync
 
 # Every test in the project, and nothing else.
 test: gauntlet-test suite-test frontend-test test-e2e

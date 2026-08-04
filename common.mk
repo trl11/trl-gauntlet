@@ -10,9 +10,13 @@ SHELL := /bin/bash
 # matter which directory make was started in.
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
-# Where a finished artifact lands: the installers and the image tarball, and
-# nothing either build wrote on the way there.
+# Where a finished artifact lands: the installers, the wheels and the image
+# tarball, and nothing any build wrote on the way there.
 DIST         := $(ROOT)/dist
+
+# The one number. Every artifact is named for it and every manifest declares
+# it; `make version-check` is what keeps those copies honest.
+VERSION      := $(shell cat $(ROOT)/VERSION)
 VENV         := $(ROOT)/.venv
 BIN          := $(VENV)/bin
 PY           := $(BIN)/python
