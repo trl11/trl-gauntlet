@@ -139,6 +139,14 @@ class CapabilityRegistry:
         """Add a provider, replacing any earlier one with the same name."""
         self._providers[provider.name] = provider
 
+    def unregister(self, name: str) -> CapabilityProvider | None:
+        """Drop a provider, returning it, or ``None`` if there was none.
+
+        A capability nothing provides is missing rather than unavailable: it
+        stops being offered to a suite and stops appearing to the operator.
+        """
+        return self._providers.pop(name, None)
+
     def names(self) -> list[str]:
         return sorted(self._providers)
 

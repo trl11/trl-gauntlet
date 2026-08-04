@@ -1,6 +1,8 @@
 """Simulated bench power supply.
 
-Registered by default so capability wiring is exercisable without hardware.
+Registered only when ``simulated_instruments`` names it, so capability
+wiring stays exercisable without hardware while an ordinary bench shows
+only the instruments really attached to it.
 """
 
 from __future__ import annotations

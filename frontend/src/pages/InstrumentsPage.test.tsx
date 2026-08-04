@@ -154,7 +154,7 @@ describe("InstrumentsPage", () => {
     listInstruments.mockReturnValue(pending());
     renderPage();
     expect(spinners()).toHaveLength(1);
-    expect(screen.queryByText("No instruments registered")).not.toBeInTheDocument();
+    expect(screen.queryByText("No instruments detected")).not.toBeInTheDocument();
   });
 
   it("reports instruments that could not be read", async () => {
@@ -167,6 +167,6 @@ describe("InstrumentsPage", () => {
   it("says so when nothing is registered", async () => {
     listInstruments.mockResolvedValue({ instruments: [] });
     renderPage();
-    expect(await screen.findByText("No instruments registered")).toBeInTheDocument();
+    expect(await screen.findByText("No instruments detected")).toBeInTheDocument();
   });
 });

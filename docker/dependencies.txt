@@ -18,3 +18,9 @@ iproute2
 
 # piezo. paho-mqtt speaks MQTT directly; these probe a broker by hand.
 mosquitto-clients
+
+# The DAQ is claimed over raw USB, which pyusb reaches by dlopening libusb at
+# import time rather than linking it. lsusb is how an instrument missing from
+# the bus is told apart from one present and unopenable.
+libusb-1.0-0
+usbutils

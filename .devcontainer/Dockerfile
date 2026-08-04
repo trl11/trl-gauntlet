@@ -66,6 +66,13 @@ RUN set -eux; \
         if [ -d "$d" ]; then find "$d" -uid "$old_uid" -exec chown -h ${USER_UID} {} +; fi; \
     done
 
+# The instruments' device nodes are the host's, and a bind-mounted node carries
+# the host's numeric gid rather than a name. Debian and Ubuntu both number
+# dialout 20 and plugdev 46, and this image is bookworm, so joining them by
+# name here joins the groups the host's nodes are owned by. A host numbering
+# them differently needs its own gid passed as `--group-add` instead.
+RUN usermod -aG dialout,plugdev ${USERNAME}
+
 # Coding agents. The npm prefix belongs to dev rather than root so both can
 # apply their own updates without sudo. Versions default to the current
 # release; pin them through build args for a reproducible image.

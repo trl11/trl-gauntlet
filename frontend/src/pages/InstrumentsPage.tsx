@@ -66,8 +66,8 @@ export const InstrumentsPage: React.FC = () => {
 
       {instruments.isSuccess && rows.length === 0 && (
         <EmptyState
-          title="No instruments registered"
-          message="Gauntlet is holding no instruments. Register one to drive it from here."
+          title="No instruments detected"
+          message="Gauntlet found no instruments attached. Connect one and scan to drive it from here."
         />
       )}
 

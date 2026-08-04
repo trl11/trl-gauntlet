@@ -32,7 +32,35 @@
 
     // The host's X11 socket, so `make app-dev` opens a window on the host's
     // display rather than needing Xvfb. DISPLAY below names which one.
-    "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind"
+    "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind",
+
+    // The host's /dev, so a USB instrument on the bench is reachable from in
+    // here. A directory bind rather than `--device` passthrough because the
+    // two differ on a node that does not exist yet: `--device` names one file
+    // and fails when it is absent, where the bind carries the host's devtmpfs
+    // itself and a node created later shows up in it. Plugging an instrument
+    // in, or replugging one that renumbered, needs no container restart.
+    //
+    // Being visible is not being usable: runArgs below permits three device
+    // majors and Docker denies the rest, so the host's disks are listed here
+    // and cannot be opened.
+    "source=/dev,target=/dev,type=bind"
+  ],
+
+  // Device access for the instruments, granted by major number so a node that
+  // appears after the container started is covered by the rule already in
+  // place:
+  //
+  //   166  ttyACM*  USB CDC-ACM serial
+  //   188  ttyUSB*  USB serial bridges, the PSU's CH340 among them
+  //   189  bus/usb  raw USB, which the DATAQ DAQ is driven over
+  //
+  // Without these the nodes mounted above are visible and every open on one
+  // fails with EPERM.
+  "runArgs": [
+    "--device-cgroup-rule=c 166:* rmw",
+    "--device-cgroup-rule=c 188:* rmw",
+    "--device-cgroup-rule=c 189:* rmw"
   ],
 
   // git-lfs because a mounted .gitconfig may declare the lfs filter with

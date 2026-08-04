@@ -43,11 +43,15 @@ async def list_instruments(request: Request) -> dict[str, Any]:
 
 @router.post("/instruments/scan")
 async def scan_instruments(request: Request) -> dict[str, Any]:
-    """Re-probe availability and report the result.
+    """Look for hardware again and report what is registered afterwards.
 
-    Every provider is asked whether it is available as the snapshot is built,
-    so this endpoint exists to let the operator force that probe.
+    Detection runs at startup, so this is what picks up an instrument attached
+    since and what drops one that has gone. A provider driving hardware that
+    still answers is left connected.
     """
+    detect = getattr(request.app.state, "detect_instruments", None)
+    if callable(detect):
+        detect()
     return {"instruments": _snapshot(request)}
 
 

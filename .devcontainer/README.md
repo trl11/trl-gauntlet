@@ -90,16 +90,47 @@ edited while `make run` is up.
 
 ## Hardware access
 
-The container has no device passthrough. Suites that reach real hardware —
-`rs422` (serial), `can_bus` (socketcan), `piezo` (MQTT broker on the unit) —
-run against their `mock` profiles here. The client tools those transports are
-inspected with (`candump`, `cansend`, `mosquitto_pub`, `ip`) are installed.
+The host's `/dev` is bind-mounted, so a USB instrument on the bench is
+reachable from in here. The bind is what makes hotplug work: `--device`
+passthrough names one file and fails when it is absent, where a directory bind
+carries the host's devtmpfs itself, and an instrument plugged in — or replugged
+onto a different number — appears without restarting the container.
 
-For bench work add the devices the suite needs to `devcontainer.json`:
+Being visible is not being usable. `runArgs` permits three device majors and
+Docker denies every other, so the host's disks are listed in `/dev` and cannot
+be opened:
+
+| Major | Nodes | What uses it |
+|---|---|---|
+| 166 | `ttyACM*` | USB CDC-ACM serial |
+| 188 | `ttyUSB*` | USB serial bridges, the PSU's CH340 among them |
+| 189 | `bus/usb` | raw USB, which the DATAQ DAQ is driven over |
+
+`dev` joins `dialout` and `plugdev` in the image. A bind-mounted node carries
+the host's numeric gid rather than a name, and Debian and Ubuntu both number
+those 20 and 46, which this image matches. A host numbering them differently
+needs its own gid added instead:
+
+```jsonc
+"runArgs": ["--group-add=<gid>"]
+```
+
+The DAQ additionally needs the udev rule in `../system/`, without which its
+usbfs node stays `root:root` and `dev` can read its descriptors and nothing
+else. Install it on the host, not in here — see the header of the file.
+
+Diagnose a missing instrument on the bus before suspecting the container.
+`lsusb` and `ls -l /dev/ttyUSB* /dev/bus/usb/*/*` say the same thing on both
+sides of the bind; an instrument absent from the host's `lsusb` is cabling.
+
+Suites reaching a unit over a network transport — `can_bus` (socketcan),
+`piezo` (MQTT broker on the unit) — still run against their `mock` profiles
+here, since neither is a character device that can be passed through. The
+client tools they are inspected with (`candump`, `cansend`, `mosquitto_pub`,
+`ip`) are installed. For bench work on those:
 
 ```jsonc
 "runArgs": [
-  "--device=/dev/ttyUSB0",        // rs422
   "--network=host",               // can_bus, and reaching a unit under test
   "--cap-add=NET_ADMIN"           // configuring a socketcan interface
 ]
