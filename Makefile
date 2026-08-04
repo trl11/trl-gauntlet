@@ -23,9 +23,9 @@ help:
 	@echo "    make dev-status        show whether the devcontainer is running"
 	@echo ""
 	@echo "  Develop"
-	@echo "    make run               build the frontend and serve (port $(APP_PORT))"
-	@echo "    make serve             the same, with auto-reload"
-	@echo "    make stop              stop what run or serve started"
+	@echo "    make run               build the frontend and serve, with auto-reload (port $(APP_PORT))"
+	@echo "    make run-hmr           run backend and frontend together, both hot-reloading (port $(FRONTEND_PORT))"
+	@echo "    make stop              stop what run or run-hmr started"
 	@echo "    make frontend          build the frontend bundle"
 	@echo "    make frontend-dev      frontend dev server with hot reload"
 	@echo "    make frontend-test     the frontend tests"
@@ -110,14 +110,26 @@ ensure-setup:
 # Develop
 # ---------------------------------------------------------------------------
 
-.PHONY: frontend frontend-check frontend-dev frontend-install frontend-test run serve stop
+.PHONY: frontend frontend-check frontend-dev frontend-install frontend-test run run-hmr stop
 
 run: ensure-setup frontend
 	@echo "Gauntlet   http://$(if $(filter 0.0.0.0,$(HOST)),localhost,$(HOST)):$(APP_PORT)"
-	@$(BIN)/gauntlet serve --host $(HOST) --port $(APP_PORT)
-
-serve: ensure-setup frontend
 	@$(BIN)/gauntlet serve --host $(HOST) --port $(APP_PORT) --reload
+
+# Runs the backend (auto-reload) and the Vite dev server side by side.
+# Browse to FRONTEND_PORT, not APP_PORT: the backend serves whatever
+# web_dist last had, and the Vite server proxies past it for /api and
+# otherwise ignores it. The trap kills both by pid explicitly rather than
+# relying on signal propagation to the backgrounded jobs, which uvicorn's
+# reloader (it starts a subprocess of its own) does not reliably receive.
+# `make stop` still works too, since both bind the ports it looks for.
+run-hmr: ensure-setup frontend-install
+	@echo "Gauntlet   http://$(if $(filter 0.0.0.0,$(HOST)),localhost,$(HOST)):$(FRONTEND_PORT)  (backend on $(APP_PORT))"
+	@set -m; \
+	$(BIN)/gauntlet serve --host $(HOST) --port $(APP_PORT) --reload & backend=$$!; \
+	(cd $(FRONTEND) && npm run dev) & frontend=$$!; \
+	trap 'kill -TERM -$$backend -$$frontend 2>/dev/null; wait' EXIT INT TERM; \
+	wait -n $$backend $$frontend
 
 # Kills the process group, so a reloader and any suite the run spawned go with
 # the server rather than being left behind. Run artifacts are kept; only the
