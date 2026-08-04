@@ -10,44 +10,6 @@
     color: $trl-gray;
   }
 
-  &__banner {
-    display: flex;
-    align-items: baseline;
-    gap: 16px;
-    flex-wrap: wrap;
-    padding: 14px 18px;
-    border: 1px solid $trl-dark-gray;
-
-    &--passed {
-      background-color: rgba($trl-green, 0.18);
-      border-color: rgba($indicator-green, 0.5);
-
-      .verdict-summary__result {
-        color: $indicator-green;
-      }
-    }
-
-    &--failed {
-      background-color: rgba($trl-red, 0.18);
-      border-color: rgba($indicator-red, 0.5);
-
-      .verdict-summary__result {
-        color: $indicator-red;
-      }
-    }
-  }
-
-  &__result {
-    font-family: $font-mono;
-    font-size: 20px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-  }
-
-  &__reason {
-    color: $trl-light-gray;
-  }
-
   &__fields {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

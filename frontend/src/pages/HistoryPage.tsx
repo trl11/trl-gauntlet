@@ -107,7 +107,6 @@ export const HistoryPage: React.FC = () => {
     <div className="history-page">
       <PageHeader
         title="History"
-        subtitle="Every run Gauntlet has recorded"
         actions={
           <FilterMenu
             filterState={filters}

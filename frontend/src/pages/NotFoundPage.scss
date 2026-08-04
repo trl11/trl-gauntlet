@@ -6,6 +6,11 @@
   align-items: flex-start;
   gap: 20px;
 
+  &__path {
+    font-size: 14px;
+    color: $trl-gray;
+  }
+
   &__code {
     font-family: $font-mono;
     font-size: 64px;

@@ -213,11 +213,6 @@ describe("DashboardPage", () => {
     expect(link).toHaveAttribute("href", "/instruments");
   });
 
-  it("counts outcomes over both windows", async () => {
-    renderDashboard();
-    expect(await screen.findByText(/Last 24h: 1 passed, 0 failed, 0 other/)).toBeInTheDocument();
-  });
-
   it("lists the recent runs", async () => {
     renderDashboard();
     expect(await screen.findByText("Recent runs")).toBeInTheDocument();

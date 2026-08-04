@@ -8,6 +8,8 @@ import "./VerdictSummary.scss";
 
 /** Props for {@link VerdictSummary}. */
 export interface VerdictSummaryProps {
+  /** Rendered above the stat fields, below the empty-verdict message when there is one. */
+  children?: React.ReactNode;
   /** The suite's own rollup, usually `summary.md`. */
   summaryText?: string | null;
   /** `verdict.json`, or the partial summary the verdict event carries. */
@@ -35,25 +37,25 @@ function formatResult(row: ResultRow): string {
 }
 
 /** The run outcome, its counters, and whatever headline figures the suite set. */
-export const VerdictSummary: React.FC<VerdictSummaryProps> = ({ summaryText, verdict }) => {
+export const VerdictSummary: React.FC<VerdictSummaryProps> = ({
+  children,
+  summaryText,
+  verdict,
+}) => {
   if (verdict === null) {
-    return <p className="verdict-summary__empty">No verdict has been written for this run.</p>;
+    return (
+      <section className="verdict-summary" aria-label="Verdict details">
+        <p className="verdict-summary__empty">No verdict has been written for this run.</p>
+        {children}
+      </section>
+    );
   }
 
-  const passed = verdict.passed === true;
   const results = verdict.results ?? [];
 
   return (
-    <section className="verdict-summary" aria-label="Verdict">
-      <div
-        className={clsx(
-          "verdict-summary__banner",
-          passed ? "verdict-summary__banner--passed" : "verdict-summary__banner--failed"
-        )}
-      >
-        <span className="verdict-summary__result">{passed ? "PASSED" : "FAILED"}</span>
-        {verdict.reason && <span className="verdict-summary__reason">{verdict.reason}</span>}
-      </div>
+    <section className="verdict-summary" aria-label="Verdict details">
+      {children}
 
       <div className="verdict-summary__fields">
         <DataField label="Iterations" value={formatNumber(verdict.total_iterations ?? 0, 0)} />

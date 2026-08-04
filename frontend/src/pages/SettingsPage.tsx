@@ -50,7 +50,6 @@ export const SettingsPage: React.FC = () => {
     <div className="settings-page">
       <PageHeader
         title="Settings"
-        subtitle="How this installation is configured"
         actions={<Badge color={badge.color}>{badge.label}</Badge>}
       />
 

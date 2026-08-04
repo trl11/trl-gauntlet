@@ -39,12 +39,6 @@ describe("VerdictSummary", () => {
     expect(screen.getByText(/no verdict/i)).toBeInTheDocument();
   });
 
-  it("shows the outcome and its reason", () => {
-    render(<VerdictSummary verdict={VERDICT} />);
-    expect(screen.getByText("FAILED")).toBeInTheDocument();
-    expect(screen.getByText("rail voltage out of tolerance on cycle 7")).toBeInTheDocument();
-  });
-
   it("shows the counters and the duration", () => {
     render(<VerdictSummary verdict={VERDICT} />);
     expect(screen.getByText("7")).toBeInTheDocument();
@@ -56,11 +50,6 @@ describe("VerdictSummary", () => {
     render(<VerdictSummary verdict={VERDICT} />);
     expect(screen.getByText("87.5%")).toBeInTheDocument();
     expect(screen.getByText("2.0 KB")).toBeInTheDocument();
-  });
-
-  it("marks a passing run as passed", () => {
-    render(<VerdictSummary verdict={{ passed: true, reason: "" }} />);
-    expect(screen.getByText("PASSED")).toBeInTheDocument();
   });
 
   it("renders the suite's own summary text", () => {

@@ -27,6 +27,7 @@ import MetricsChart from "@components/MetricsChart";
 import NotesPanel from "@components/NotesPanel";
 import PageHeader from "@components/PageHeader";
 import StatusPill from "@components/StatusPill";
+import VerdictBanner from "@components/VerdictBanner";
 import VerdictSummary from "@components/VerdictSummary";
 import useEventStream from "@hooks/useEventStream";
 import { formatDuration, formatTimestamp } from "../utils/format";
@@ -162,7 +163,6 @@ export const RunPage: React.FC = () => {
     <div className="run-page">
       <PageHeader
         title={detail.suite}
-        subtitle={<span className="run-page__id">{detail.run_id}</span>}
         actions={
           <div className="run-page__actions">
             <StatusPill status={detail.status} verdict={detail.verdict} />
@@ -183,6 +183,7 @@ export const RunPage: React.FC = () => {
           </div>
         }
       >
+        <span className="run-page__id">{detail.run_id}</span>
         <DefinitionRows
           rows={[
             { label: "profile", value: detail.profile ?? "-" },
@@ -204,6 +205,8 @@ export const RunPage: React.FC = () => {
         )}
         {detail.fail_reason && <p className="run-page__failure">{detail.fail_reason}</p>}
       </PageHeader>
+
+      <VerdictBanner verdict={outcome} />
 
       {anomalies.length > 0 && (
         <section className="run-page__anomalies" aria-label="Anomalies">
@@ -242,16 +245,17 @@ export const RunPage: React.FC = () => {
       <div className="run-page__panel" role="tabpanel" aria-label={tab}>
         {tab === "overview" && (
           <div className="run-page__overview">
-            <VerdictSummary verdict={outcome} summaryText={summaryFile.data ?? null} />
-            <h2 className="run-page__section">Iterations</h2>
-            <IterationMap
-              iterations={iterations}
-              phases={phases}
-              onSelect={(iteration) => {
-                setSelected(iteration);
-                setTab("iterations");
-              }}
-            />
+            <VerdictSummary verdict={outcome} summaryText={summaryFile.data ?? null}>
+              <h2 className="run-page__section">Iterations</h2>
+              <IterationMap
+                iterations={iterations}
+                phases={phases}
+                onSelect={(iteration) => {
+                  setSelected(iteration);
+                  setTab("iterations");
+                }}
+              />
+            </VerdictSummary>
             {manifest.data && (
               <>
                 <h2 className="run-page__section">Provenance</h2>

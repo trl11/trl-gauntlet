@@ -126,7 +126,6 @@ const UnitsList: React.FC = () => {
     <div className="units-page">
       <PageHeader
         title="Units"
-        subtitle="Everything that has been on the bench"
         actions={
           <Input
             id={`${fieldId}-search`}

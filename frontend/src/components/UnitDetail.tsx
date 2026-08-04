@@ -81,15 +81,12 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
 
   return (
     <div className="unit-detail">
-      <PageHeader
-        title={<span className="unit-detail__serial">{serial}</span>}
-        subtitle={
-          <Link to="/units" className="unit-detail__back">
-            <FontAwesomeIcon icon={faArrowLeft} aria-hidden="true" />
-            All units
-          </Link>
-        }
-      />
+      <PageHeader title={<span className="unit-detail__serial">{serial}</span>}>
+        <Link to="/units" className="unit-detail__back">
+          <FontAwesomeIcon icon={faArrowLeft} aria-hidden="true" />
+          All units
+        </Link>
+      </PageHeader>
 
       {unit.isPending && <Spinner />}
 
