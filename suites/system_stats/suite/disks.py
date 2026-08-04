@@ -34,6 +34,7 @@ PSEUDO_FILESYSTEMS = frozenset(
         "rpc_pipefs",
         "securityfs",
         "selinuxfs",
+        "squashfs",
         "sysfs",
         "tmpfs",
         "tracefs",
