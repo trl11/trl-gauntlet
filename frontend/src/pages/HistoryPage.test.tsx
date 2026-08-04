@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +9,7 @@ import type { RunRow, Verdict } from "@api/types";
 import HistoryPage from "./HistoryPage";
 import { pending } from "../test/queries";
 
+const deleteRun = vi.fn();
 const getRunVerdict = vi.fn();
 const listRuns = vi.fn();
 const listSuites = vi.fn();
@@ -18,6 +19,7 @@ vi.mock("@api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@api/client")>();
   return {
     ...actual,
+    deleteRun: (...args: unknown[]) => deleteRun(...args),
     getRunVerdict: (...args: unknown[]) => getRunVerdict(...args),
     listRuns: (...args: unknown[]) => listRuns(...args),
     listSuites: () => listSuites(),
@@ -82,6 +84,7 @@ function renderHistory(url = "/history") {
 }
 
 beforeEach(() => {
+  deleteRun.mockResolvedValue(undefined);
   getRunVerdict.mockResolvedValue(verdict());
   listRuns.mockResolvedValue({
     runs: [run(), run({ run_id: "r2", started_at: "2026-02-02T10:00:00Z", status: "failed" })],
@@ -227,5 +230,38 @@ describe("HistoryPage", () => {
   it("disables the export until a row is selected", async () => {
     renderHistory();
     expect(await screen.findByRole("button", { name: "Export CSV" })).toBeDisabled();
+  });
+
+  it("deletes one run from its row menu, after confirming", async () => {
+    renderHistory();
+    await userEvent.click(await screen.findByRole("button", { name: "Actions for run r1" }));
+    const menu = document.querySelector(".row-menu") as HTMLElement;
+    await userEvent.click(within(menu).getByRole("button", { name: "Delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => expect(deleteRun).toHaveBeenCalledWith("r1"));
+  });
+
+  it("batch-deletes every selected run, after confirming", async () => {
+    renderHistory();
+    await userEvent.click(
+      await screen.findByRole("checkbox", { name: "Select every run on this page" })
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => expect(deleteRun).toHaveBeenCalledWith("r1"));
+    expect(deleteRun).toHaveBeenCalledWith("r2");
+  });
+
+  it("reports a run that could not be deleted", async () => {
+    deleteRun.mockRejectedValue(new Error("run is still in flight"));
+    renderHistory();
+    await userEvent.click(await screen.findByRole("button", { name: "Actions for run r1" }));
+    const menu = document.querySelector(".row-menu") as HTMLElement;
+    await userEvent.click(within(menu).getByRole("button", { name: "Delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not delete 1 run");
   });
 });

@@ -1,9 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
-import { Badge, Button, FilterMenu, Pagination } from "@trl11/components/ui";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Badge, Button, Confirm, FilterMenu, Pagination } from "@trl11/components/ui";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 
-import { listRuns, listSuites, listUnits } from "@api/client";
+import { deleteRun, listRuns, listSuites, listUnits } from "@api/client";
+import type { RunRow } from "@api/types";
 import PageHeader from "@components/PageHeader";
 import Panel from "@components/Panel";
 import RunDetails from "@components/RunDetails";
@@ -34,10 +35,33 @@ function statusFilter(value: string): string[] {
   return [value];
 }
 
+/** Deletes every run named, reporting which ones the server refused. */
+async function deleteRuns(runIds: string[]): Promise<string[]> {
+  const results = await Promise.allSettled(runIds.map((runId) => deleteRun(runId)));
+  return runIds.filter((_runId, index) => results[index].status === "rejected");
+}
+
 /** Every recorded run, filtered and paged by the server, selectable and exportable. */
 export const HistoryPage: React.FC = () => {
+  const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
   const [selected, setSelected] = useState<string[]>([]);
+  const [confirming, setConfirming] = useState<RunRow[] | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const remove = useMutation({
+    mutationFn: (targets: RunRow[]) => deleteRuns(targets.map((run) => run.run_id)),
+    onSuccess: (failedIds, targets) => {
+      const deletedIds = targets.map((run) => run.run_id).filter((id) => !failedIds.includes(id));
+      setSelected((current) => current.filter((id) => !deletedIds.includes(id)));
+      queryClient.invalidateQueries({ queryKey: ["runs"] });
+      setDeleteError(
+        failedIds.length > 0
+          ? `Could not delete ${failedIds.length === 1 ? "1 run" : `${failedIds.length} runs`}; a run still in flight can't be deleted.`
+          : null
+      );
+    },
+  });
 
   const page = Math.max(1, Number(params.get("page") ?? 1) || 1);
   const size = Math.max(1, Number(params.get("size") ?? 20) || 20);
@@ -149,8 +173,22 @@ export const HistoryPage: React.FC = () => {
           <Button size="small" disabled={selected.length === 0} onClick={() => setSelected([])}>
             Clear
           </Button>
+          <Button
+            color="red"
+            size="small"
+            disabled={selectedRows.length === 0}
+            onClick={() => setConfirming(selectedRows)}
+          >
+            Delete
+          </Button>
         </span>
       </div>
+
+      {deleteError && (
+        <p className="history-page__error" role="alert">
+          {deleteError}
+        </p>
+      )}
 
       {runs.isError ? (
         <p className="history-page__error">{(runs.error as Error).message}</p>
@@ -162,6 +200,7 @@ export const HistoryPage: React.FC = () => {
             emptyMessage="Nothing matches these filters."
             filterable={false}
             loading={runs.isPending}
+            onDeleteRun={(run) => setConfirming([run])}
             onSelectionChange={setSelected}
             onSort={(column, next) => write({ dir: next, sort: column })}
             pageSize={0}
@@ -180,6 +219,20 @@ export const HistoryPage: React.FC = () => {
         itemsPerPage={size}
         setItemsPerPage={(items) => write({ page: "1", size: String(items) })}
       />
+
+      {confirming && (
+        <Confirm
+          onConfirm={() => {
+            remove.mutate(confirming);
+            setConfirming(null);
+          }}
+          onDismiss={() => setConfirming(null)}
+        >
+          {confirming.length === 1
+            ? `Delete run ${confirming[0].run_id}? Its log, metrics and verdict are removed for good.`
+            : `Delete ${confirming.length} runs? Their logs, metrics and verdicts are removed for good.`}
+        </Confirm>
+      )}
     </div>
   );
 };

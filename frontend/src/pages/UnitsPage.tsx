@@ -1,32 +1,36 @@
 import {
   faCircleCheck,
   faCircleExclamation,
-  faPen,
   faSort,
   faSortDown,
   faSortUp,
-  faTrash,
   faTriangleExclamation,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Confirm, Input, TableSkeleton } from "@trl11/components/ui";
+import { Badge, Button, Checkbox, Confirm, Input, TableSkeleton } from "@trl11/components/ui";
 import clsx from "clsx";
 import { useId, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
-import { deleteUnit, listUnits, renameUnit } from "@api/client";
+import { deleteUnit, listUnits } from "@api/client";
 import type { Unit } from "@api/types";
 import EmptyState from "@components/EmptyState";
 import PageHeader from "@components/PageHeader";
 import Panel from "@components/Panel";
-import RenameDialog from "@components/RenameDialog";
+import RowMenu from "@components/RowMenu";
 import StatusPill from "@components/StatusPill";
 import UnitDetail from "@components/UnitDetail";
 import { formatPercent, formatTimestamp } from "../utils/format";
 import { health } from "../utils/health";
 
 import "./UnitsPage.scss";
+
+/** Deletes every unit named, reporting which ones the server refused. */
+async function deleteUnits(serials: string[]): Promise<string[]> {
+  const results = await Promise.allSettled(serials.map((serial) => deleteUnit(serial)));
+  return serials.filter((_serial, index) => results[index].status === "rejected");
+}
 
 type SortKey =
   "failed" | "first_seen" | "last_seen" | "pass_rate" | "passed" | "run_count" | "serial";
@@ -77,7 +81,7 @@ const PassRate: React.FC<{ rate: number | null }> = ({ rate }) => {
   );
 };
 
-/** Every unit, sortable and searchable, with rename and delete. */
+/** Every unit, sortable and searchable, selectable for batch delete. */
 const UnitsList: React.FC = () => {
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -86,30 +90,26 @@ const UnitsList: React.FC = () => {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("last_seen");
   const [ascending, setAscending] = useState(false);
-  const [renaming, setRenaming] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState<string[] | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   const units = useQuery({ queryKey: ["units"], queryFn: listUnits });
 
-  const settled = () => {
-    setRenaming(null);
-    setDeleting(null);
-    setFailure(null);
-    client.invalidateQueries({ queryKey: ["units"] });
-    client.invalidateQueries({ queryKey: ["runs"] });
-  };
-
-  const rename = useMutation({
-    mutationFn: (input: { from: string; to: string }) => renameUnit(input.from, input.to),
-    onSuccess: settled,
-    onError: (error) => setFailure(error.message),
-  });
-
   const remove = useMutation({
-    mutationFn: (target: string) => deleteUnit(target),
-    onSuccess: settled,
-    onError: (error) => setFailure(error.message),
+    mutationFn: (targets: string[]) => deleteUnits(targets),
+    onSuccess: (failedSerials, targets) => {
+      const deletedSerials = targets.filter((serial) => !failedSerials.includes(serial));
+      setSelected((current) => current.filter((serial) => !deletedSerials.includes(serial)));
+      setDeleting(null);
+      client.invalidateQueries({ queryKey: ["units"] });
+      client.invalidateQueries({ queryKey: ["runs"] });
+      setFailure(
+        failedSerials.length > 0
+          ? `Could not delete ${failedSerials.length === 1 ? "1 unit" : `${failedSerials.length} units`}.`
+          : null
+      );
+    },
   });
 
   const rows = useMemo(() => {
@@ -131,23 +131,48 @@ const UnitsList: React.FC = () => {
 
   const open = (target: string) => navigate(`/units/${encodeURIComponent(target)}`);
 
+  const toggleOne = (serial: string) => {
+    setSelected((current) =>
+      current.includes(serial) ? current.filter((entry) => entry !== serial) : [...current, serial]
+    );
+  };
+
+  const allSelected = rows.length > 0 && rows.every((unit) => selected.includes(unit.serial));
+  const toggleAll = () => {
+    if (allSelected) setSelected([]);
+    else setSelected(rows.map((unit) => unit.serial));
+  };
+
   return (
     <div className="units-page">
       <PageHeader
         title="Units"
         actions={
-          <Input
-            id={`${fieldId}-search`}
-            type="search"
-            placeholder="Filter by serial"
-            aria-label="Filter units"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
+          <div className="units-page__header-actions">
+            <Badge aria-live="polite" color={selected.length > 0 ? "blue" : "outline"}>
+              {`${selected.length} selected`}
+            </Badge>
+            <Button
+              color="red"
+              size="small"
+              disabled={selected.length === 0}
+              onClick={() => setDeleting(selected)}
+            >
+              Delete
+            </Button>
+            <Input
+              id={`${fieldId}-search`}
+              type="search"
+              placeholder="Filter by serial"
+              aria-label="Filter units"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
         }
       />
 
-      {failure && renaming === null && (
+      {failure && (
         <p className="units-page__error" role="alert">
           {failure}
         </p>
@@ -171,6 +196,14 @@ const UnitsList: React.FC = () => {
           <table className="units-page__table">
             <thead>
               <tr>
+                <th scope="col" className="units-page__pick">
+                  <Checkbox
+                    id={`${fieldId}-all`}
+                    aria-label="Select every unit"
+                    checked={allSelected}
+                    onChange={toggleAll}
+                  />
+                </th>
                 {COLUMNS.map((column) => (
                   <th
                     key={column.key}
@@ -200,6 +233,14 @@ const UnitsList: React.FC = () => {
             <tbody>
               {rows.map((unit) => (
                 <tr key={unit.serial}>
+                  <td className="units-page__pick">
+                    <Checkbox
+                      id={`${fieldId}-pick-${unit.serial}`}
+                      aria-label={`Select unit ${unit.serial}`}
+                      checked={selected.includes(unit.serial)}
+                      onChange={() => toggleOne(unit.serial)}
+                    />
+                  </td>
                   <td className="units-page__open-cell">
                     <button
                       type="button"
@@ -225,30 +266,19 @@ const UnitsList: React.FC = () => {
                     )}
                   </td>
                   <td className="units-page__actions">
-                    <Button
-                      size="small"
-                      square
-                      color="transparent"
-                      aria-label={`Rename unit ${unit.serial}`}
-                      onClick={() => {
-                        setFailure(null);
-                        setRenaming(unit.serial);
-                      }}
-                    >
-                      <FontAwesomeIcon icon={faPen} />
-                    </Button>
-                    <Button
-                      size="small"
-                      square
-                      color="red"
-                      aria-label={`Delete unit ${unit.serial}`}
-                      onClick={() => {
-                        setFailure(null);
-                        setDeleting(unit.serial);
-                      }}
-                    >
-                      <FontAwesomeIcon icon={faTrash} />
-                    </Button>
+                    <RowMenu
+                      ariaLabel={`Actions for unit ${unit.serial}`}
+                      items={[
+                        {
+                          danger: true,
+                          label: "Delete",
+                          onSelect: () => {
+                            setFailure(null);
+                            setDeleting([unit.serial]);
+                          },
+                        },
+                      ]}
+                    />
                   </td>
                 </tr>
               ))}
@@ -257,19 +287,11 @@ const UnitsList: React.FC = () => {
         </Panel>
       )}
 
-      {renaming !== null && (
-        <RenameDialog
-          busy={rename.isPending}
-          error={failure}
-          serial={renaming}
-          onCancel={() => setRenaming(null)}
-          onRename={(next) => rename.mutate({ from: renaming, to: next })}
-        />
-      )}
-
       {deleting !== null && (
         <Confirm onConfirm={() => remove.mutate(deleting)} onDismiss={() => setDeleting(null)}>
-          {`Forget unit ${deleting}? Its runs stay in history; its notes and counters are removed.`}
+          {deleting.length === 1
+            ? `Forget unit ${deleting[0]}? Its runs stay in history; its notes and counters are removed.`
+            : `Forget ${deleting.length} units? Their runs stay in history; their notes and counters are removed.`}
         </Confirm>
       )}
     </div>

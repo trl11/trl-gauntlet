@@ -38,8 +38,8 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { icon: faChartLine, label: "Dashboard", path: "/" },
-  { icon: faClockRotateLeft, label: "History", owns: "/runs/", path: "/history" },
   { icon: faPlay, label: "Tests", path: "/tests" },
+  { icon: faClockRotateLeft, label: "History", owns: "/runs/", path: "/history" },
   { icon: faMicrochip, label: "Units", path: "/units" },
   { icon: faSliders, label: "Instruments", path: "/instruments" },
   { icon: faGear, label: "Settings", path: "/settings" },

@@ -8,6 +8,7 @@ import { useNavigate } from "react-router";
 
 import type { RunRow } from "@api/types";
 import EmptyState from "@components/EmptyState";
+import RowMenu from "@components/RowMenu";
 import {
   COLUMNS,
   DEFAULT_RUN_COLUMNS,
@@ -35,6 +36,8 @@ export interface RunTableProps {
   filterable?: boolean;
   /** Render a skeleton instead of rows. */
   loading?: boolean;
+  /** Offers "Delete" from a per-row "more actions" menu when set. */
+  onDeleteRun?: (run: RunRow) => void;
   /** Replaces the default navigation to `/runs/:runId`. */
   onSelect?: (run: RunRow) => void;
   /** Receives the whole new selection. With `selectedIds`, renders a checkbox column. */
@@ -63,6 +66,7 @@ export const RunTable: React.FC<RunTableProps> = ({
   emptyMessage = "No runs match these filters.",
   filterable = true,
   loading = false,
+  onDeleteRun,
   onSelect,
   onSelectionChange,
   onSort,
@@ -109,7 +113,7 @@ export const RunTable: React.FC<RunTableProps> = ({
   const rows = paginate ? matching.slice((page - 1) * perPage, page * perPage) : matching;
   const pageIds = rows.map((run) => run.run_id);
   const allSelected = rows.length > 0 && pageIds.every((id) => selectedIds?.includes(id));
-  const extraColumns = (selectable ? 1 : 0) + (renderExpanded ? 1 : 0);
+  const extraColumns = (selectable ? 1 : 0) + (renderExpanded ? 1 : 0) + (onDeleteRun ? 1 : 0);
 
   const sortBy = (column: RunTableColumn) => {
     if (!COLUMNS[column].sortable) return;
@@ -228,6 +232,7 @@ export const RunTable: React.FC<RunTableProps> = ({
                     </th>
                   );
                 })}
+                {onDeleteRun && <th scope="col" aria-label="Actions" />}
               </tr>
             </thead>
             <tbody>
@@ -280,6 +285,20 @@ export const RunTable: React.FC<RunTableProps> = ({
                           {renderCell(run, column)}
                         </td>
                       )
+                    )}
+                    {onDeleteRun && (
+                      <td className="run-table__menu">
+                        <RowMenu
+                          ariaLabel={`Actions for run ${run.run_id}`}
+                          items={[
+                            {
+                              danger: true,
+                              label: "Delete",
+                              onSelect: () => onDeleteRun(run),
+                            },
+                          ]}
+                        />
+                      </td>
                     )}
                   </tr>
                   {renderExpanded && expanded === run.run_id && (

@@ -131,6 +131,11 @@
     }
   }
 
+  &__menu {
+    width: 40px;
+    text-align: right;
+  }
+
   &__expand {
     background: none;
     color: $trl-gray;

@@ -116,54 +116,67 @@ describe("UnitsPage", () => {
     expect(await screen.findByText("No units yet")).toBeInTheDocument();
   });
 
-  it("rejects a serial the API would not accept", async () => {
-    renderUnits();
-    await screen.findByText("HC-001");
-    await userEvent.click(screen.getByRole("button", { name: "Rename unit HC-001" }));
-
-    const field = screen.getByLabelText("New serial");
-    await userEvent.clear(field);
-    await userEvent.type(field, "no spaces here");
-    expect(screen.getByText("That is not a valid serial.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Rename" })).toBeDisabled();
-  });
-
-  it("renames a unit", async () => {
-    renderUnits();
-    await screen.findByText("HC-001");
-    await userEvent.click(screen.getByRole("button", { name: "Rename unit HC-001" }));
-
-    const field = screen.getByLabelText("New serial");
-    await userEvent.clear(field);
-    await userEvent.type(field, "HC-003");
-    await userEvent.click(screen.getByRole("button", { name: "Rename" }));
-    expect(renameUnit).toHaveBeenCalledWith("HC-001", "HC-003");
-  });
-
-  it("surfaces a collision reported by the server", async () => {
-    renameUnit.mockRejectedValue(new Error("unit 'HC-002' already exists"));
-    renderUnits();
-    await screen.findByText("HC-001");
-    await userEvent.click(screen.getByRole("button", { name: "Rename unit HC-001" }));
-
-    const field = screen.getByLabelText("New serial");
-    await userEvent.clear(field);
-    await userEvent.type(field, "HC-002");
-    await userEvent.click(screen.getByRole("button", { name: "Rename" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("already exists");
-  });
-
   it("forgets a unit once the operator confirms", async () => {
     renderUnits();
     await screen.findByText("HC-001");
-    await userEvent.click(screen.getByRole("button", { name: "Delete unit HC-001" }));
+    await userEvent.click(screen.getByRole("button", { name: "Actions for unit HC-001" }));
+    const menu = document.querySelector(".row-menu") as HTMLElement;
+    await userEvent.click(within(menu).getByRole("button", { name: "Delete" }));
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
     expect(deleteUnit).toHaveBeenCalledWith("HC-001");
+  });
+
+  it("batch-deletes every selected unit", async () => {
+    renderUnits();
+    await screen.findByText("HC-001");
+    await userEvent.click(screen.getByLabelText("Select unit HC-001"));
+    await userEvent.click(screen.getByLabelText("Select unit HC-002"));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(deleteUnit).toHaveBeenCalledWith("HC-001");
+    expect(deleteUnit).toHaveBeenCalledWith("HC-002");
   });
 
   it("shows one unit when the route names it", async () => {
     renderUnits("/units/HC-001");
     const heading = await screen.findByRole("heading", { name: "HC-001" });
     expect(within(heading).getByText("HC-001")).toBeInTheDocument();
+  });
+
+  it("rejects a serial the API would not accept", async () => {
+    renderUnits("/units/HC-001");
+    await screen.findByRole("heading", { name: "HC-001" });
+    await userEvent.click(screen.getByRole("button", { name: "Rename" }));
+
+    const field = screen.getByLabelText("New serial");
+    await userEvent.clear(field);
+    await userEvent.type(field, "no spaces here");
+    expect(screen.getByText("That is not a valid serial.")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Rename" }).at(-1)).toBeDisabled();
+  });
+
+  it("renames a unit", async () => {
+    renderUnits("/units/HC-001");
+    await screen.findByRole("heading", { name: "HC-001" });
+    await userEvent.click(screen.getByRole("button", { name: "Rename" }));
+
+    const field = screen.getByLabelText("New serial");
+    await userEvent.clear(field);
+    await userEvent.type(field, "HC-003");
+    await userEvent.click(screen.getAllByRole("button", { name: "Rename" }).at(-1)!);
+    expect(renameUnit).toHaveBeenCalledWith("HC-001", "HC-003");
+  });
+
+  it("surfaces a collision reported by the server", async () => {
+    renameUnit.mockRejectedValue(new Error("unit 'HC-002' already exists"));
+    renderUnits("/units/HC-001");
+    await screen.findByRole("heading", { name: "HC-001" });
+    await userEvent.click(screen.getByRole("button", { name: "Rename" }));
+
+    const field = screen.getByLabelText("New serial");
+    await userEvent.clear(field);
+    await userEvent.type(field, "HC-002");
+    await userEvent.click(screen.getAllByRole("button", { name: "Rename" }).at(-1)!);
+    expect(await screen.findByRole("alert")).toHaveTextContent("already exists");
   });
 });

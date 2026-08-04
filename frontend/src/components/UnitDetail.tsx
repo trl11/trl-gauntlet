@@ -1,9 +1,10 @@
 import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { DataField, Spinner } from "@trl11/components/ui";
+import { Button, DataField, Spinner } from "@trl11/components/ui";
 import clsx from "clsx";
-import { Link } from "react-router";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router";
 import {
   CartesianGrid,
   Line,
@@ -14,11 +15,19 @@ import {
   YAxis,
 } from "recharts";
 
-import { addUnitNote, deleteUnitNote, getUnit, getUnitHistory, listUnitNotes } from "@api/client";
+import {
+  addUnitNote,
+  deleteUnitNote,
+  getUnit,
+  getUnitHistory,
+  listUnitNotes,
+  renameUnit,
+} from "@api/client";
 import type { RunRow } from "@api/types";
 import EmptyState from "@components/EmptyState";
 import NotesPanel from "@components/NotesPanel";
 import PageHeader from "@components/PageHeader";
+import RenameDialog from "@components/RenameDialog";
 import RunTable from "@components/RunTable";
 import { formatPercent, formatTimestamp } from "../utils/format";
 import { health } from "../utils/health";
@@ -48,6 +57,9 @@ function passRateSeries(runs: RunRow[]): Array<{ rate: number; run: string; star
 /** One unit: its counters, its pass rate over time, its runs, and its notes. */
 export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
   const client = useQueryClient();
+  const navigate = useNavigate();
+  const [renaming, setRenaming] = useState(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
 
   const unit = useQuery({ queryKey: ["unit", serial], queryFn: () => getUnit(serial) });
   const history = useQuery({
@@ -76,6 +88,15 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
     onSuccess: refreshNotes,
   });
 
+  const rename = useMutation({
+    mutationFn: (next: string) => renameUnit(serial, next),
+    onSuccess: (renamed) => {
+      client.invalidateQueries({ queryKey: ["units"] });
+      navigate(`/units/${encodeURIComponent(renamed.serial)}`, { replace: true });
+    },
+    onError: (error) => setRenameError(error.message),
+  });
+
   const runs = history.data?.runs ?? [];
   const series = passRateSeries(runs);
   const rate =
@@ -83,12 +104,35 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
 
   return (
     <div className="unit-detail">
-      <PageHeader title={<span className="unit-detail__serial">{serial}</span>}>
+      <PageHeader
+        title={<span className="unit-detail__serial">{serial}</span>}
+        actions={
+          <Button
+            size="small"
+            onClick={() => {
+              setRenameError(null);
+              setRenaming(true);
+            }}
+          >
+            Rename
+          </Button>
+        }
+      >
         <Link to="/units" className="unit-detail__back">
           <FontAwesomeIcon icon={faArrowLeft} aria-hidden="true" />
           All units
         </Link>
       </PageHeader>
+
+      {renaming && (
+        <RenameDialog
+          busy={rename.isPending}
+          error={renameError}
+          serial={serial}
+          onCancel={() => setRenaming(false)}
+          onRename={(next) => rename.mutate(next)}
+        />
+      )}
 
       {unit.isPending && <Spinner />}
 

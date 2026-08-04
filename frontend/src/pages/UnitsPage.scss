@@ -9,6 +9,22 @@
     overflow-x: auto;
   }
 
+  &__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  &__pick {
+    width: 36px;
+    cursor: default;
+
+    .checkbox label {
+      height: 30px;
+    }
+  }
+
   &__table {
     width: 100%;
     border-collapse: collapse;

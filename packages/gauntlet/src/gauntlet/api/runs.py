@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import shutil
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -116,6 +118,24 @@ async def get_run(request: Request, run_id: str) -> dict[str, Any]:
     raise HTTPException(status_code=404, detail=f"unknown run {run_id!r}")
 
 
+@router.delete("/runs/{run_id}")
+async def delete_run(request: Request, run_id: str) -> dict[str, Any]:
+    """Permanently remove a finished run: its row, its notes, and its directory.
+
+    Irreversible, and refused while the run is still in flight.
+    """
+    handle = request.app.state.supervisor.get(run_id)
+    if handle is not None and not handle.finished:
+        raise HTTPException(status_code=409, detail="run is still in flight")
+    index = request.app.state.runs_index
+    row = index.delete(run_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"unknown run {run_id!r}")
+    request.app.state.notes_index.delete_subject(SUBJECT_RUN, run_id)
+    _remove_run_dir(request, row.run_dir)
+    return {"run_id": run_id, "deleted": True}
+
+
 @router.get("/runs/{run_id}/notes")
 async def get_run_notes(request: Request, run_id: str) -> dict[str, Any]:
     """Notes against one run."""
@@ -205,6 +225,15 @@ async def _events(request: Request, handle: RunHandle, since: int) -> AsyncItera
 
 def _frame(payload: dict[str, Any]) -> str:
     return f"event: {payload.get('type', 'message')}\ndata: {json.dumps(payload)}\n\n"
+
+
+def _remove_run_dir(request: Request, run_dir: str) -> None:
+    """Delete a run's directory, refusing to touch anything outside runs_dir."""
+    runs_dir = request.app.state.settings.runs_dir.resolve()
+    path = Path(run_dir).resolve()
+    if path == runs_dir or runs_dir not in path.parents:
+        return
+    shutil.rmtree(path, ignore_errors=True)
 
 
 def _run_or_404(request: Request, run_id: str) -> None:
