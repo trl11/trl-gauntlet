@@ -36,10 +36,15 @@ export default defineConfig({
     port: 7101,
     strictPort: true,
     proxy: {
+      // The `@api` alias resolves to src/api, so its own modules are served at
+      // /api/*.ts -- indistinguishable from a real REST call by prefix alone.
+      // Real calls never carry a source-file extension, so bypass those to
+      // let Vite serve the module instead of proxying it to the backend.
       "/api": {
         target: "http://127.0.0.1:7100",
         changeOrigin: true,
         ws: true,
+        bypass: (req) => (/\.[jt]sx?($|\?)/.test(req.url ?? "") ? req.url : undefined),
       },
     },
   },
