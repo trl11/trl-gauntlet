@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Confirm, Spinner } from "@trl11/components/ui";
 import clsx from "clsx";
 import { useMemo, useState } from "react";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 
 import {
   abortRun,
@@ -180,29 +180,30 @@ export const RunPage: React.FC = () => {
       <PageHeader
         title={detail.suite}
         actions={
-          <div className="run-page__actions">
-            <Button
-              color="amber"
-              disabled={!live || control.isPending}
-              onClick={() => setPending("stop")}
-            >
-              Stop
-            </Button>
-            <Button
-              color="red"
-              disabled={!live || control.isPending}
-              onClick={() => setPending("abort")}
-            >
-              Abort
-            </Button>
-          </div>
+          live && (
+            <div className="run-page__actions">
+              <Button color="amber" disabled={control.isPending} onClick={() => setPending("stop")}>
+                Stop
+              </Button>
+              <Button color="red" disabled={control.isPending} onClick={() => setPending("abort")}>
+                Abort
+              </Button>
+            </div>
+          )
         }
       >
         <span className="run-page__id">{detail.run_id}</span>
         <DefinitionRows
           rows={[
             { label: "profile", value: detail.profile ?? "-" },
-            { label: "unit", value: detail.unit_serial ?? "-" },
+            {
+              label: "unit",
+              value: detail.unit_serial ? (
+                <Link to={`/units/${detail.unit_serial}`}>{detail.unit_serial}</Link>
+              ) : (
+                "-"
+              ),
+            },
             { label: "target", value: detail.target ?? "-" },
             { label: "started", value: formatTimestamp(detail.started_at) },
             {
@@ -269,7 +270,7 @@ export const RunPage: React.FC = () => {
         {tab === "overview" && (
           <div className="run-page__overview">
             <VerdictSummary verdict={outcome} summaryText={summaryFile.data ?? null}>
-              <h2 className="run-page__section">Iterations</h2>
+              <h2 className="run-page__section">Test Session</h2>
               <IterationMap
                 iterations={iterations}
                 phases={phases}

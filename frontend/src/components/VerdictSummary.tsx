@@ -66,7 +66,6 @@ export const VerdictSummary: React.FC<VerdictSummaryProps> = ({
           color="green"
         />
         <DataField label="Failures" value={formatNumber(verdict.failures ?? 0, 0)} color="red" />
-        <DataField label="Duration" value={formatDuration(verdict.duration_s)} />
         {verdict.stopped_early && <DataField label="Stopped early" value="yes" color="yellow" />}
         {verdict.aborted && (
           <DataField label="Aborted" value={verdict.abort_reason || "yes"} color="red" />
@@ -74,27 +73,31 @@ export const VerdictSummary: React.FC<VerdictSummaryProps> = ({
       </div>
 
       {results.length > 0 && (
-        <div className="verdict-summary__results">
-          {results.map((row) => (
-            <StatTile
-              key={row.key}
-              label={row.label || row.key}
-              tone={row.highlight ? "highlight" : "normal"}
-              value={
-                <>
-                  {formatResult(row)}
-                  {row.unit && <span className="verdict-summary__unit"> {row.unit}</span>}
-                </>
-              }
-            />
-          ))}
-        </div>
+        <>
+          <h2 className="run-page__section">Results</h2>
+          <div className="verdict-summary__results">
+            {results.map((row) => (
+              <StatTile
+                key={row.key}
+                label={row.label || row.key}
+                tone={row.highlight ? "highlight" : "normal"}
+                value={
+                  <>
+                    {formatResult(row)}
+                    {row.unit && <span className="verdict-summary__unit"> {row.unit}</span>}
+                  </>
+                }
+              />
+            ))}
+          </div>
+        </>
       )}
 
       {summaryText && (
-        <div className="verdict-summary__text">
+        <details className="verdict-summary__text">
+          <summary>Full summary</summary>
           <Markdown text={summaryText} />
-        </div>
+        </details>
       )}
     </section>
   );

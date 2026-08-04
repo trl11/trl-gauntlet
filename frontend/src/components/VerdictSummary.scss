@@ -31,7 +31,20 @@
     padding: 12px 16px;
     background-color: $trl-dark;
     border: 1px solid $trl-dark-gray;
-    max-height: 520px;
-    overflow: auto;
+
+    summary {
+      cursor: pointer;
+      color: $trl-gray;
+      user-select: none;
+    }
+
+    &[open] summary {
+      margin-bottom: 12px;
+    }
+
+    &[open] {
+      max-height: 520px;
+      overflow: auto;
+    }
   }
 }

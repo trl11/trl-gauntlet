@@ -165,11 +165,11 @@ describe("RunPage", () => {
     expect(screen.getByText("ERROR rail low")).toBeInTheDocument();
   });
 
-  it("disables the run controls once the run has finished", async () => {
+  it("hides the run controls once the run has finished", async () => {
     renderPage();
     await screen.findByRole("heading", { name: "thermal_cycle" });
-    expect(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Abort" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Abort" })).not.toBeInTheDocument();
   });
 
   it("stops a live run once the operator confirms", async () => {

@@ -39,11 +39,10 @@ describe("VerdictSummary", () => {
     expect(screen.getByText(/no verdict/i)).toBeInTheDocument();
   });
 
-  it("shows the counters and the duration", () => {
+  it("shows the counters", () => {
     render(<VerdictSummary verdict={VERDICT} />);
     expect(screen.getByText("7")).toBeInTheDocument();
     expect(screen.getByText("6")).toBeInTheDocument();
-    expect(screen.getByText("1m 5s")).toBeInTheDocument();
   });
 
   it("formats each headline figure the way the suite asked", () => {
