@@ -8,6 +8,7 @@ import { useNavigate } from "react-router";
 
 import type { RunRow } from "@api/types";
 import EmptyState from "@components/EmptyState";
+import RowMenu from "@components/RowMenu";
 import {
   COLUMNS,
   DEFAULT_RUN_COLUMNS,
@@ -16,18 +17,9 @@ import {
   renderCell,
   type RunTableColumn,
 } from "@components/run_columns";
-import { isLive } from "../utils/run_status";
+import { matchesStatus, RUN_STATUS_OPTIONS } from "../utils/run_status";
 
 import "./RunTable.scss";
-
-const STATUS_OPTIONS = [
-  { value: "all", label: "Any status" },
-  { value: "running", label: "In flight" },
-  { value: "passed", label: "Passed" },
-  { value: "failed", label: "Failed" },
-  { value: "aborted", label: "Aborted" },
-  { value: "error", label: "Error" },
-];
 
 /** Which way a sortable column is ordered. */
 export type SortDirection = "asc" | "desc";
@@ -44,6 +36,8 @@ export interface RunTableProps {
   filterable?: boolean;
   /** Render a skeleton instead of rows. */
   loading?: boolean;
+  /** Offers "Delete" from a per-row "more actions" menu when set. */
+  onDeleteRun?: (run: RunRow) => void;
   /** Replaces the default navigation to `/runs/:runId`. */
   onSelect?: (run: RunRow) => void;
   /** Receives the whole new selection. With `selectedIds`, renders a checkbox column. */
@@ -65,12 +59,6 @@ export interface RunTableProps {
   sort?: RunTableColumn;
 }
 
-function matchesStatus(run: RunRow, status: string): boolean {
-  if (status === "all") return true;
-  if (status === "running") return isLive(run.status);
-  return run.status === status;
-}
-
 /** Sortable, filterable, paginated list of runs. */
 export const RunTable: React.FC<RunTableProps> = ({
   columns = DEFAULT_RUN_COLUMNS,
@@ -78,6 +66,7 @@ export const RunTable: React.FC<RunTableProps> = ({
   emptyMessage = "No runs match these filters.",
   filterable = true,
   loading = false,
+  onDeleteRun,
   onSelect,
   onSelectionChange,
   onSort,
@@ -106,7 +95,9 @@ export const RunTable: React.FC<RunTableProps> = ({
 
   const matching = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    const filtered = runs.filter((run) => matches(run, needle) && matchesStatus(run, status));
+    const filtered = runs.filter(
+      (run) => matches(run, needle) && matchesStatus(run.status, status)
+    );
     if (controlled) return filtered;
     const sign = ownDirection === "asc" ? 1 : -1;
     return [...filtered].sort((a, b) => sign * compare(a, b, ownColumn));
@@ -122,7 +113,7 @@ export const RunTable: React.FC<RunTableProps> = ({
   const rows = paginate ? matching.slice((page - 1) * perPage, page * perPage) : matching;
   const pageIds = rows.map((run) => run.run_id);
   const allSelected = rows.length > 0 && pageIds.every((id) => selectedIds?.includes(id));
-  const extraColumns = (selectable ? 1 : 0) + (renderExpanded ? 1 : 0);
+  const extraColumns = (selectable ? 1 : 0) + (renderExpanded ? 1 : 0) + (onDeleteRun ? 1 : 0);
 
   const sortBy = (column: RunTableColumn) => {
     if (!COLUMNS[column].sortable) return;
@@ -155,6 +146,11 @@ export const RunTable: React.FC<RunTableProps> = ({
     else navigate(`/runs/${encodeURIComponent(run.run_id)}`);
   };
 
+  // The row's one real "open" affordance lives in a single cell rather than
+  // on the row itself, so it never nests inside another interactive element.
+  // unit_serial renders its own link, so it can't also hold the row's.
+  const openColumn = columns.find((column) => column !== "unit_serial");
+
   return (
     <div className="run-table">
       {filterable && (
@@ -173,7 +169,7 @@ export const RunTable: React.FC<RunTableProps> = ({
           <Select
             id={`${fieldId}-status`}
             aria-label="Filter by status"
-            options={STATUS_OPTIONS}
+            options={RUN_STATUS_OPTIONS}
             value={status}
             onChange={(event) => {
               setStatus(event.target.value);
@@ -236,27 +232,15 @@ export const RunTable: React.FC<RunTableProps> = ({
                     </th>
                   );
                 })}
+                {onDeleteRun && <th scope="col" aria-label="Actions" />}
               </tr>
             </thead>
             <tbody>
               {rows.map((run) => (
                 <Fragment key={run.run_id}>
-                  <tr
-                    tabIndex={0}
-                    role="link"
-                    aria-label={`Open run ${run.run_id}`}
-                    onClick={() => openRun(run)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        openRun(run);
-                      }
-                    }}
-                  >
+                  <tr>
                     {selectable && (
-                      // The controls in these two cells act on the row rather
-                      // than opening it, so the row's own click must not fire.
-                      <td className="run-table__pick" onClick={(event) => event.stopPropagation()}>
+                      <td className="run-table__pick">
                         <Checkbox
                           id={`${fieldId}-pick-${run.run_id}`}
                           aria-label={`Select run ${run.run_id}`}
@@ -266,7 +250,7 @@ export const RunTable: React.FC<RunTableProps> = ({
                       </td>
                     )}
                     {renderExpanded && (
-                      <td onClick={(event) => event.stopPropagation()}>
+                      <td>
                         <button
                           type="button"
                           className="run-table__expand"
@@ -282,14 +266,40 @@ export const RunTable: React.FC<RunTableProps> = ({
                         </button>
                       </td>
                     )}
-                    {columns.map((column) => (
-                      <td
-                        key={column}
-                        className={clsx(COLUMNS[column].align === "right" && "is-right")}
-                      >
-                        {renderCell(run, column)}
+                    {columns.map((column) =>
+                      column === openColumn ? (
+                        <td key={column} className="run-table__open-cell">
+                          <button
+                            type="button"
+                            className="run-table__open"
+                            onClick={() => openRun(run)}
+                          >
+                            {renderCell(run, column)}
+                          </button>
+                        </td>
+                      ) : (
+                        <td
+                          key={column}
+                          className={clsx(COLUMNS[column].align === "right" && "is-right")}
+                        >
+                          {renderCell(run, column)}
+                        </td>
+                      )
+                    )}
+                    {onDeleteRun && (
+                      <td className="run-table__menu">
+                        <RowMenu
+                          ariaLabel={`Actions for run ${run.run_id}`}
+                          items={[
+                            {
+                              danger: true,
+                              label: "Delete",
+                              onSelect: () => onDeleteRun(run),
+                            },
+                          ]}
+                        />
                       </td>
-                    ))}
+                    )}
                   </tr>
                   {renderExpanded && expanded === run.run_id && (
                     <tr className="run-table__details">

@@ -13,6 +13,7 @@ const deleteUnitNote = vi.fn();
 const getUnit = vi.fn();
 const getUnitHistory = vi.fn();
 const listUnitNotes = vi.fn();
+const renameUnit = vi.fn();
 
 vi.mock("@api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@api/client")>();
@@ -23,6 +24,7 @@ vi.mock("@api/client", async (importOriginal) => {
     getUnit: (...args: unknown[]) => getUnit(...args),
     getUnitHistory: (...args: unknown[]) => getUnitHistory(...args),
     listUnitNotes: (...args: unknown[]) => listUnitNotes(...args),
+    renameUnit: (...args: unknown[]) => renameUnit(...args),
   };
 });
 
@@ -76,6 +78,7 @@ beforeEach(() => {
   });
   addUnitNote.mockResolvedValue({ id: 2, body: "x", author: null, created_at: "" });
   deleteUnitNote.mockResolvedValue(undefined);
+  renameUnit.mockResolvedValue({ ...unit(), serial: "HC-002" });
 });
 
 afterEach(() => {
@@ -122,5 +125,32 @@ describe("UnitDetail", () => {
     getUnit.mockRejectedValue(new Error("unknown unit 'HC-001'"));
     renderDetail();
     expect(await screen.findByText("Unknown unit")).toBeInTheDocument();
+  });
+
+  it("renames the unit from the details view", async () => {
+    renderDetail();
+    await screen.findByRole("heading", { name: "HC-001" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Rename" }));
+    const field = screen.getByLabelText("New serial");
+    await userEvent.clear(field);
+    await userEvent.type(field, "HC-002");
+    await userEvent.click(screen.getAllByRole("button", { name: "Rename" }).at(-1)!);
+
+    expect(renameUnit).toHaveBeenCalledWith("HC-001", "HC-002");
+  });
+
+  it("surfaces a rename collision reported by the server", async () => {
+    renameUnit.mockRejectedValue(new Error("unit 'HC-002' already exists"));
+    renderDetail();
+    await screen.findByRole("heading", { name: "HC-001" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Rename" }));
+    const field = screen.getByLabelText("New serial");
+    await userEvent.clear(field);
+    await userEvent.type(field, "HC-002");
+    await userEvent.click(screen.getAllByRole("button", { name: "Rename" }).at(-1)!);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("already exists");
   });
 });

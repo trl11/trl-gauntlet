@@ -1,0 +1,30 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.row-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  padding: 4px;
+  background-color: $trl-dark;
+  border: 1px solid $trl-dark-gray;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+
+  &__item {
+    padding: 8px 12px;
+    text-align: left;
+    background: none;
+    color: $trl-light-gray;
+    font-size: 13px;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      background-color: rgba($trl-dark-gray, 0.6);
+      outline: none;
+    }
+
+    &--danger {
+      color: $indicator-red;
+    }
+  }
+}

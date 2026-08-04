@@ -19,6 +19,11 @@
     --stat-tone: #{$indicator-red};
   }
 
+  &--highlight {
+    --stat-tone: #{$indicator-blue};
+    border-color: rgba($indicator-blue, 0.5);
+  }
+
   &__label {
     font-size: 11px;
     text-transform: uppercase;

@@ -199,6 +199,16 @@ class RunsIndex:
             row = self._conn.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
         return _to_row(row) if row else None
 
+    def delete(self, run_id: str) -> RunRow | None:
+        """Drop one run's row, returning it so the caller can remove its directory."""
+        row = self.get(run_id)
+        if row is None:
+            return None
+        with self._lock:
+            self._conn.execute("DELETE FROM runs WHERE run_id = ?", (run_id,))
+            self._conn.commit()
+        return row
+
     def reconcile_stale(self) -> int:
         """Mark runs still recorded as in-progress as interrupted.
 

@@ -1,13 +1,16 @@
 import { DataField } from "@trl11/components/ui";
-import clsx from "clsx";
 
 import type { ResultRow, Verdict } from "@api/types";
 import { formatBytes, formatDuration, formatNumber, formatPercent } from "../utils/format";
+import Markdown from "./Markdown";
+import StatTile from "./StatTile";
 
 import "./VerdictSummary.scss";
 
 /** Props for {@link VerdictSummary}. */
 export interface VerdictSummaryProps {
+  /** Rendered above the stat fields, below the empty-verdict message when there is one. */
+  children?: React.ReactNode;
   /** The suite's own rollup, usually `summary.md`. */
   summaryText?: string | null;
   /** `verdict.json`, or the partial summary the verdict event carries. */
@@ -35,25 +38,25 @@ function formatResult(row: ResultRow): string {
 }
 
 /** The run outcome, its counters, and whatever headline figures the suite set. */
-export const VerdictSummary: React.FC<VerdictSummaryProps> = ({ summaryText, verdict }) => {
+export const VerdictSummary: React.FC<VerdictSummaryProps> = ({
+  children,
+  summaryText,
+  verdict,
+}) => {
   if (verdict === null) {
-    return <p className="verdict-summary__empty">No verdict has been written for this run.</p>;
+    return (
+      <section className="verdict-summary" aria-label="Verdict details">
+        <p className="verdict-summary__empty">No verdict has been written for this run.</p>
+        {children}
+      </section>
+    );
   }
 
-  const passed = verdict.passed === true;
   const results = verdict.results ?? [];
 
   return (
-    <section className="verdict-summary" aria-label="Verdict">
-      <div
-        className={clsx(
-          "verdict-summary__banner",
-          passed ? "verdict-summary__banner--passed" : "verdict-summary__banner--failed"
-        )}
-      >
-        <span className="verdict-summary__result">{passed ? "PASSED" : "FAILED"}</span>
-        {verdict.reason && <span className="verdict-summary__reason">{verdict.reason}</span>}
-      </div>
+    <section className="verdict-summary" aria-label="Verdict details">
+      {children}
 
       <div className="verdict-summary__fields">
         <DataField label="Iterations" value={formatNumber(verdict.total_iterations ?? 0, 0)} />
@@ -63,7 +66,6 @@ export const VerdictSummary: React.FC<VerdictSummaryProps> = ({ summaryText, ver
           color="green"
         />
         <DataField label="Failures" value={formatNumber(verdict.failures ?? 0, 0)} color="red" />
-        <DataField label="Duration" value={formatDuration(verdict.duration_s)} />
         {verdict.stopped_early && <DataField label="Stopped early" value="yes" color="yellow" />}
         {verdict.aborted && (
           <DataField label="Aborted" value={verdict.abort_reason || "yes"} color="red" />
@@ -71,26 +73,32 @@ export const VerdictSummary: React.FC<VerdictSummaryProps> = ({ summaryText, ver
       </div>
 
       {results.length > 0 && (
-        <div className="verdict-summary__results">
-          {results.map((row) => (
-            <div
-              className={clsx(
-                "verdict-summary__figure",
-                row.highlight && "verdict-summary__figure--highlight"
-              )}
-              key={row.key}
-            >
-              <span className="verdict-summary__label">{row.label || row.key}</span>
-              <span className="verdict-summary__value">
-                {formatResult(row)}
-                {row.unit && <span className="verdict-summary__unit"> {row.unit}</span>}
-              </span>
-            </div>
-          ))}
-        </div>
+        <>
+          <h2 className="run-page__section">Results</h2>
+          <div className="verdict-summary__results">
+            {results.map((row) => (
+              <StatTile
+                key={row.key}
+                label={row.label || row.key}
+                tone={row.highlight ? "highlight" : "normal"}
+                value={
+                  <>
+                    {formatResult(row)}
+                    {row.unit && <span className="verdict-summary__unit"> {row.unit}</span>}
+                  </>
+                }
+              />
+            ))}
+          </div>
+        </>
       )}
 
-      {summaryText && <pre className="verdict-summary__text">{summaryText}</pre>}
+      {summaryText && (
+        <details className="verdict-summary__text">
+          <summary>Full summary</summary>
+          <Markdown text={summaryText} />
+        </details>
+      )}
     </section>
   );
 };

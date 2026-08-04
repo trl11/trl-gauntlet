@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Confirm, Spinner } from "@trl11/components/ui";
 import clsx from "clsx";
 import { useMemo, useState } from "react";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 
 import {
   abortRun,
@@ -15,6 +15,7 @@ import {
   getRunVerdict,
   listArtifacts,
   listRunNotes,
+  listSuites,
   stopRun,
 } from "@api/client";
 import ArtifactList from "@components/ArtifactList";
@@ -26,7 +27,7 @@ import LogStream from "@components/LogStream";
 import MetricsChart from "@components/MetricsChart";
 import NotesPanel from "@components/NotesPanel";
 import PageHeader from "@components/PageHeader";
-import StatusPill from "@components/StatusPill";
+import VerdictBanner from "@components/VerdictBanner";
 import VerdictSummary from "@components/VerdictSummary";
 import useEventStream from "@hooks/useEventStream";
 import { formatDuration, formatTimestamp } from "../utils/format";
@@ -60,6 +61,14 @@ export const RunPage: React.FC = () => {
   });
   const live = isLive(run.data?.status);
   const settled = run.data !== undefined && !live;
+
+  // Cached alongside every other page that lists suites, so this rarely
+  // triggers its own request. Only its manifest's default_metrics is used
+  // here, to seed the Metrics/Iterations pickers before the operator picks
+  // their own.
+  const suites = useQuery({ queryKey: ["suites"], queryFn: listSuites });
+  const defaultMetrics =
+    suites.data?.suites.find((suite) => suite.key === run.data?.suite)?.default_metrics ?? [];
 
   const stream = useEventStream({
     runId,
@@ -158,35 +167,43 @@ export const RunPage: React.FC = () => {
   const detail = run.data;
   const reconnecting = live && !stream.connected && !stream.ended;
 
+  // So an operator can tell a tab holds something new without opening it.
+  const tabCounts: Partial<Record<Tab, number>> = {
+    artifacts: files.length,
+    iterations: iterations.length,
+    log: logs.length,
+    notes: notes.data?.notes.length ?? 0,
+  };
+
   return (
     <div className="run-page">
       <PageHeader
         title={detail.suite}
-        subtitle={<span className="run-page__id">{detail.run_id}</span>}
         actions={
-          <div className="run-page__actions">
-            <StatusPill status={detail.status} verdict={detail.verdict} />
-            <Button
-              color="amber"
-              disabled={!live || control.isPending}
-              onClick={() => setPending("stop")}
-            >
-              Stop
-            </Button>
-            <Button
-              color="red"
-              disabled={!live || control.isPending}
-              onClick={() => setPending("abort")}
-            >
-              Abort
-            </Button>
-          </div>
+          live && (
+            <div className="run-page__actions">
+              <Button color="amber" disabled={control.isPending} onClick={() => setPending("stop")}>
+                Stop
+              </Button>
+              <Button color="red" disabled={control.isPending} onClick={() => setPending("abort")}>
+                Abort
+              </Button>
+            </div>
+          )
         }
       >
+        <span className="run-page__id">{detail.run_id}</span>
         <DefinitionRows
           rows={[
             { label: "profile", value: detail.profile ?? "-" },
-            { label: "unit", value: detail.unit_serial ?? "-" },
+            {
+              label: "unit",
+              value: detail.unit_serial ? (
+                <Link to={`/units/${detail.unit_serial}`}>{detail.unit_serial}</Link>
+              ) : (
+                "-"
+              ),
+            },
             { label: "target", value: detail.target ?? "-" },
             { label: "started", value: formatTimestamp(detail.started_at) },
             {
@@ -204,6 +221,8 @@ export const RunPage: React.FC = () => {
         )}
         {detail.fail_reason && <p className="run-page__failure">{detail.fail_reason}</p>}
       </PageHeader>
+
+      <VerdictBanner verdict={outcome} />
 
       {anomalies.length > 0 && (
         <section className="run-page__anomalies" aria-label="Anomalies">
@@ -225,33 +244,42 @@ export const RunPage: React.FC = () => {
       )}
 
       <div className="run-page__tabs" role="tablist" aria-label="Run views">
-        {TABS.map((name) => (
-          <button
-            aria-selected={tab === name}
-            className={clsx("run-page__tab", tab === name && "run-page__tab--active")}
-            key={name}
-            onClick={() => setTab(name)}
-            role="tab"
-            type="button"
-          >
-            {name}
-          </button>
-        ))}
+        {TABS.map((name) => {
+          const count = tabCounts[name];
+          return (
+            <button
+              aria-selected={tab === name}
+              className={clsx("run-page__tab", tab === name && "run-page__tab--active")}
+              key={name}
+              onClick={() => setTab(name)}
+              role="tab"
+              type="button"
+            >
+              {name}
+              {count !== undefined && count > 0 && (
+                <span className="run-page__tab-count" aria-hidden="true">
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       <div className="run-page__panel" role="tabpanel" aria-label={tab}>
         {tab === "overview" && (
           <div className="run-page__overview">
-            <VerdictSummary verdict={outcome} summaryText={summaryFile.data ?? null} />
-            <h2 className="run-page__section">Iterations</h2>
-            <IterationMap
-              iterations={iterations}
-              phases={phases}
-              onSelect={(iteration) => {
-                setSelected(iteration);
-                setTab("iterations");
-              }}
-            />
+            <VerdictSummary verdict={outcome} summaryText={summaryFile.data ?? null}>
+              <h2 className="run-page__section">Test Session</h2>
+              <IterationMap
+                iterations={iterations}
+                phases={phases}
+                onSelect={(iteration) => {
+                  setSelected(iteration);
+                  setTab("iterations");
+                }}
+              />
+            </VerdictSummary>
             {manifest.data && (
               <>
                 <h2 className="run-page__section">Provenance</h2>
@@ -268,10 +296,19 @@ export const RunPage: React.FC = () => {
           </div>
         )}
 
-        {tab === "log" && <LogStream lines={logs} name={detail.run_id} />}
-        {tab === "metrics" && <MetricsChart samples={samples} />}
+        {tab === "log" && <LogStream lines={logs} />}
+        {tab === "metrics" && (
+          <MetricsChart key={runId} runId={runId} samples={samples} defaultMetrics={defaultMetrics} />
+        )}
         {tab === "iterations" && (
-          <IterationTable iterations={iterations} samples={samples} selected={selected} />
+          <IterationTable
+            key={runId}
+            runId={runId}
+            iterations={iterations}
+            samples={samples}
+            selected={selected}
+            defaultMetrics={defaultMetrics}
+          />
         )}
         {tab === "artifacts" && <ArtifactList runId={runId} live={live} />}
         {tab === "notes" && (

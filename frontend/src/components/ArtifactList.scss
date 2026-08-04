@@ -92,6 +92,15 @@
     }
   }
 
+  &__too-large {
+    color: $trl-gray;
+    font-size: 13px;
+
+    a {
+      color: $indicator-blue;
+    }
+  }
+
   &__preview-title {
     font-family: $font-mono;
     font-size: 12px;

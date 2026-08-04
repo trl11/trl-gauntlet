@@ -112,6 +112,7 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
           <p className="instrument-panel__sub">{subtitle}</p>
         </div>
         <span
+          aria-live="polite"
           className={clsx(
             "instrument-panel__chip",
             instrument.available && "instrument-panel__chip--on"

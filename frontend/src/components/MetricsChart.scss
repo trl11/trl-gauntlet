@@ -6,16 +6,11 @@
   flex-direction: column;
   gap: 12px;
 
-  &__series {
+  &__pick {
     display: flex;
-    align-items: center;
-    gap: 14px;
-    flex-wrap: wrap;
-    padding: 10px 12px;
-    background-color: $trl-dark;
-    border: 1px solid $trl-dark-gray;
-    font-family: $font-mono;
-    font-size: 11px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
   }
 
   &__empty {
@@ -28,6 +23,10 @@
     background-color: $trl-dark;
     padding: 10px 8px 4px;
     color: $indicator-blue;
+
+    &:hover .metrics-chart__remove {
+      opacity: 1;
+    }
 
     &--c0 {
       color: $indicator-blue;
@@ -50,12 +49,29 @@
     }
   }
 
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
   &__title {
     font-family: $font-mono;
     font-size: 12px;
     font-weight: 500;
     color: $trl-light-gray;
     padding-left: 8px;
+  }
+
+  &__remove {
+    opacity: 0;
+    color: $trl-gray;
+    transition: opacity 0.15s ease;
+
+    &:focus-visible {
+      opacity: 1;
+    }
   }
 
   @include chart.chrome;

@@ -39,17 +39,10 @@ describe("VerdictSummary", () => {
     expect(screen.getByText(/no verdict/i)).toBeInTheDocument();
   });
 
-  it("shows the outcome and its reason", () => {
-    render(<VerdictSummary verdict={VERDICT} />);
-    expect(screen.getByText("FAILED")).toBeInTheDocument();
-    expect(screen.getByText("rail voltage out of tolerance on cycle 7")).toBeInTheDocument();
-  });
-
-  it("shows the counters and the duration", () => {
+  it("shows the counters", () => {
     render(<VerdictSummary verdict={VERDICT} />);
     expect(screen.getByText("7")).toBeInTheDocument();
     expect(screen.getByText("6")).toBeInTheDocument();
-    expect(screen.getByText("1m 5s")).toBeInTheDocument();
   });
 
   it("formats each headline figure the way the suite asked", () => {
@@ -58,13 +51,9 @@ describe("VerdictSummary", () => {
     expect(screen.getByText("2.0 KB")).toBeInTheDocument();
   });
 
-  it("marks a passing run as passed", () => {
-    render(<VerdictSummary verdict={{ passed: true, reason: "" }} />);
-    expect(screen.getByText("PASSED")).toBeInTheDocument();
-  });
-
-  it("renders the suite's own summary text", () => {
+  it("renders the suite's own summary text as markdown, not raw source", () => {
     render(<VerdictSummary verdict={VERDICT} summaryText="# Cycle report" />);
-    expect(screen.getByText("# Cycle report")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Cycle report" })).toBeInTheDocument();
+    expect(screen.queryByText("# Cycle report")).not.toBeInTheDocument();
   });
 });

@@ -20,14 +20,16 @@ dist/
 .pytest_cache/
 .ruff_cache/
 .venv/
+
 **/__pycache__/
 **/*.egg-info/
 **/*.py[cod]
 **/node_modules/
+
 build/
 docs/
 files/
 frontend/dist/
 output/
-packages/gauntlet/src/gauntlet/web_dist/
 tmp/
+web_dist/

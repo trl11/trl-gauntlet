@@ -96,7 +96,7 @@ describe("every route renders", () => {
     ).toBeInTheDocument();
     // The panels fed by the run history: recent runs, and the units behind them.
     expect(await screen.findByText("Recent runs")).toBeInTheDocument();
-    expect(await screen.findByRole("link", { name: "all units →" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "all units (2) →" })).toBeInTheDocument();
   });
 
   it("history lists the recorded runs and the server's total", async () => {
@@ -125,8 +125,7 @@ describe("every route renders", () => {
   it("units lists every unit with its counters", async () => {
     open("#/units");
     expect(await screen.findByRole("heading", { name: "Units" })).toBeInTheDocument();
-    const row = await screen.findByRole("link", { name: `Open unit ${fixtures.UNIT_SERIAL}` });
-    expect(within(row).getByText(fixtures.UNIT_SERIAL)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: fixtures.UNIT_SERIAL })).toBeInTheDocument();
   });
 
   it("one unit shows its counters, its history and its notes", async () => {

@@ -82,9 +82,9 @@ behind a toggle below 900px. There is no sidebar.
 |---|---|
 | Setup | `make setup` |
 | Devcontainer | `make dev` / `make dev-stop` |
-| Build the frontend and serve | `make run` |
-| Same, with auto-reload | `make serve` |
-| Stop what either started | `make stop` |
+| Build the frontend and serve, with auto-reload | `make run` |
+| Backend and frontend together, both hot-reloading | `make run-hmr` |
+| Stop what `make run` or `make run-hmr` started | `make stop` |
 | Frontend dev server on 7101 | `make frontend-dev` |
 | Build, check, and test everything | `make verify` |
 | Everything CI runs | `make check` |

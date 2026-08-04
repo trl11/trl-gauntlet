@@ -31,6 +31,15 @@
     color: $trl-gray;
   }
 
+  // Stable height across "no unit", "unit on bench" and "active run" states,
+  // so switching between them doesn't visibly resize the panel.
+  &__unit-panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 140px;
+  }
+
   &__actives {
     display: flex;
     flex-direction: column;

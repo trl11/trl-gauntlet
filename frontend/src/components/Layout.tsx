@@ -73,6 +73,7 @@ export const Layout: React.FC = () => {
     refetchInterval: 5000,
   });
   const live = activeRun(runs.data?.runs);
+  const current = NAV.find((item) => isTabActive(item, location.pathname));
 
   useEffect(() => setTabsOpen(false), [location.pathname]);
 
@@ -91,15 +92,17 @@ export const Layout: React.FC = () => {
           {version.data && <span className="layout__version">{`v${version.data.gauntlet}`}</span>}
         </div>
 
+        {current && <span className="layout__current-page">{current.label}</span>}
+
         <Button
           className="layout__tabs-toggle"
-          square
           aria-label={tabsOpen ? "Close navigation" : "Open navigation"}
           aria-expanded={tabsOpen}
           aria-controls="primary-tabs"
           onClick={() => setTabsOpen((open) => !open)}
         >
-          <FontAwesomeIcon icon={tabsOpen ? faXmark : faBars} />
+          <FontAwesomeIcon icon={tabsOpen ? faXmark : faBars} aria-hidden="true" />
+          <span>{tabsOpen ? "Close" : "Menu"}</span>
         </Button>
 
         <ul id="primary-tabs" className={clsx("layout__tabs", tabsOpen && "is-open")}>

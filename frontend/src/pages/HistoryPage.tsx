@@ -1,16 +1,18 @@
-import { useQuery } from "@tanstack/react-query";
-import { Button, FilterMenu, Pagination } from "@trl11/components/ui";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, Confirm, FilterMenu, Pagination } from "@trl11/components/ui";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 
-import { listRuns, listSuites, listUnits } from "@api/client";
+import { deleteRun, listRuns, listSuites, listUnits } from "@api/client";
+import type { RunRow } from "@api/types";
+import ListToolbar from "@components/ListToolbar";
 import PageHeader from "@components/PageHeader";
 import Panel from "@components/Panel";
 import RunDetails from "@components/RunDetails";
 import RunTable, { type SortDirection } from "@components/RunTable";
 import type { RunTableColumn } from "@components/run_columns";
 import { downloadCsv, toCsv } from "../utils/run_csv";
-import { LIVE_STATUSES } from "../utils/run_status";
+import { LIVE_STATUSES, RUN_STATUS_OPTIONS } from "../utils/run_status";
 
 import "./HistoryPage.scss";
 
@@ -27,16 +29,6 @@ const COLUMNS: RunTableColumn[] = [
   "status",
 ];
 
-/** Statuses a finished or in-flight run can carry. `live` stands for all four in-flight ones. */
-const STATUS_OPTIONS = [
-  { value: "all", label: "Any status" },
-  { value: "passed", label: "Passed" },
-  { value: "failed", label: "Failed" },
-  { value: "aborted", label: "Aborted" },
-  { value: "error", label: "Error" },
-  { value: "live", label: "In flight" },
-];
-
 /** Which statuses one filter value asks the API for. */
 function statusFilter(value: string): string[] {
   if (value === "all") return [];
@@ -44,10 +36,33 @@ function statusFilter(value: string): string[] {
   return [value];
 }
 
+/** Deletes every run named, reporting which ones the server refused. */
+async function deleteRuns(runIds: string[]): Promise<string[]> {
+  const results = await Promise.allSettled(runIds.map((runId) => deleteRun(runId)));
+  return runIds.filter((_runId, index) => results[index].status === "rejected");
+}
+
 /** Every recorded run, filtered and paged by the server, selectable and exportable. */
 export const HistoryPage: React.FC = () => {
+  const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
   const [selected, setSelected] = useState<string[]>([]);
+  const [confirming, setConfirming] = useState<RunRow[] | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const remove = useMutation({
+    mutationFn: (targets: RunRow[]) => deleteRuns(targets.map((run) => run.run_id)),
+    onSuccess: (failedIds, targets) => {
+      const deletedIds = targets.map((run) => run.run_id).filter((id) => !failedIds.includes(id));
+      setSelected((current) => current.filter((id) => !deletedIds.includes(id)));
+      queryClient.invalidateQueries({ queryKey: ["runs"] });
+      setDeleteError(
+        failedIds.length > 0
+          ? `Could not delete ${failedIds.length === 1 ? "1 run" : `${failedIds.length} runs`}; a run still in flight can't be deleted.`
+          : null
+      );
+    },
+  });
 
   const page = Math.max(1, Number(params.get("page") ?? 1) || 1);
   const size = Math.max(1, Number(params.get("size") ?? 20) || 20);
@@ -105,10 +120,10 @@ export const HistoryPage: React.FC = () => {
 
   return (
     <div className="history-page">
-      <PageHeader
-        title="History"
-        subtitle="Every run Gauntlet has recorded"
-        actions={
+      <PageHeader title="History" />
+
+      <ListToolbar
+        filter={
           <FilterMenu
             filterState={filters}
             setFilterState={setFilters}
@@ -123,7 +138,7 @@ export const HistoryPage: React.FC = () => {
                   })),
                 ],
               },
-              { id: "status", options: STATUS_OPTIONS },
+              { id: "status", options: RUN_STATUS_OPTIONS },
               {
                 id: "unit",
                 options: [
@@ -139,27 +154,33 @@ export const HistoryPage: React.FC = () => {
             ]}
           />
         }
+        status={
+          <>
+            {`${rows.length} of ${total} · page ${page} of ${totalPages}`}
+            {runs.isFetching ? " · refreshing" : ""}
+          </>
+        }
+        selectedCount={selected.length}
+        batchActions={
+          <>
+            <Button size="small" onClick={() => downloadCsv(toCsv(selectedRows))}>
+              Export CSV
+            </Button>
+            <Button size="small" onClick={() => setSelected([])}>
+              Clear
+            </Button>
+            <Button color="red" size="small" onClick={() => setConfirming(selectedRows)}>
+              Delete
+            </Button>
+          </>
+        }
       />
 
-      <div className="history-page__bar">
-        <span className="history-page__count">
-          {`${rows.length} of ${total} · page ${page} of ${totalPages}`}
-          {runs.isFetching ? " · refreshing" : ""}
-        </span>
-        <span className="history-page__bulk">
-          {`${selected.length} selected`}
-          <Button
-            size="small"
-            disabled={selectedRows.length === 0}
-            onClick={() => downloadCsv(toCsv(selectedRows))}
-          >
-            Export CSV
-          </Button>
-          <Button size="small" disabled={selected.length === 0} onClick={() => setSelected([])}>
-            Clear
-          </Button>
-        </span>
-      </div>
+      {deleteError && (
+        <p className="history-page__error" role="alert">
+          {deleteError}
+        </p>
+      )}
 
       {runs.isError ? (
         <p className="history-page__error">{(runs.error as Error).message}</p>
@@ -171,6 +192,7 @@ export const HistoryPage: React.FC = () => {
             emptyMessage="Nothing matches these filters."
             filterable={false}
             loading={runs.isPending}
+            onDeleteRun={(run) => setConfirming([run])}
             onSelectionChange={setSelected}
             onSort={(column, next) => write({ dir: next, sort: column })}
             pageSize={0}
@@ -189,6 +211,20 @@ export const HistoryPage: React.FC = () => {
         itemsPerPage={size}
         setItemsPerPage={(items) => write({ page: "1", size: String(items) })}
       />
+
+      {confirming && (
+        <Confirm
+          onConfirm={() => {
+            remove.mutate(confirming);
+            setConfirming(null);
+          }}
+          onDismiss={() => setConfirming(null)}
+        >
+          {confirming.length === 1
+            ? `Delete run ${confirming[0].run_id}? Its log, metrics and verdict are removed for good.`
+            : `Delete ${confirming.length} runs? Their logs, metrics and verdicts are removed for good.`}
+        </Confirm>
+      )}
     </div>
   );
 };

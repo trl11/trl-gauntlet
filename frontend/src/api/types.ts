@@ -127,6 +127,7 @@ export interface Suite {
   apiVersion: 1;
   category: string;
   conformance_profile: string;
+  default_metrics: string[];
   description: string;
   directory: string;
   exec: SuiteExec;

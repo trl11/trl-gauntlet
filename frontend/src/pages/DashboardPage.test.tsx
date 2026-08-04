@@ -100,6 +100,7 @@ function suite(): Suite {
     apiVersion: 1,
     category: "thermal",
     conformance_profile: "standard",
+    default_metrics: [],
     description: "Cycle the chamber.",
     directory: "/suites/thermal_cycle",
     exec: {
@@ -213,9 +214,21 @@ describe("DashboardPage", () => {
     expect(link).toHaveAttribute("href", "/instruments");
   });
 
-  it("counts outcomes over both windows", async () => {
+  it("shows the unit total in the units panel link", async () => {
     renderDashboard();
-    expect(await screen.findByText(/Last 24h: 1 passed, 0 failed, 0 other/)).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "all units (1) →" })).toBeInTheDocument();
+  });
+
+  it("suppresses stale state text for an unavailable instrument", async () => {
+    listInstruments.mockResolvedValue({
+      instruments: [
+        { ...instrument(), available: false, unavailable_reason: "no reply from the bus" },
+      ],
+    });
+    renderDashboard();
+    await screen.findByText("psu");
+    expect(screen.getByText("unavailable")).toBeInTheDocument();
+    expect(screen.queryByText(/output_enabled/)).not.toBeInTheDocument();
   });
 
   it("lists the recent runs", async () => {

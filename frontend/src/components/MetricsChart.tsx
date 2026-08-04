@@ -1,6 +1,8 @@
-import { Button, Checkbox } from "@trl11/components/ui";
+import { faXmark } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { Button, Tooltip } from "@trl11/components/ui";
 import clsx from "clsx";
-import { useId, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Brush,
   CartesianGrid,
@@ -12,14 +14,17 @@ import {
   YAxis,
 } from "recharts";
 
+import SeriesPicker from "@components/SeriesPicker";
+import usePersistedSeries from "@hooks/usePersistedSeries";
 import { formatNumber } from "../utils/format";
+import { naturalCompare } from "../utils/metrics";
 
 import "./MetricsChart.scss";
 
 /** How many colours the stylesheet defines for chart panels. */
 const COLOR_COUNT = 5;
 
-/** Series charted before the operator picks their own. */
+/** Series charted before the operator picks their own, when the suite declares none. */
 const DEFAULT_SERIES = 4;
 
 /** One flattened metrics record, live or replayed from `metrics.jsonl`. */
@@ -33,8 +38,16 @@ export interface MetricSample {
 
 /** Props for {@link MetricsChart}. */
 export interface MetricsChartProps {
+  /** Run this chart belongs to, to scope the persisted series pick. */
+  runId: string;
   /** Samples in arrival order. */
   samples: MetricSample[];
+  /**
+   * Series the suite declares as worth charting by default, in
+   * `suite.yaml`'s `default_metrics`. Only those the run actually reported
+   * are used; falls back to the first few reported series when none apply.
+   */
+  defaultMetrics: string[];
 }
 
 interface Row {
@@ -53,11 +66,12 @@ function elapsed(sample: MetricSample, firstTs: number): number {
  *
  * Series names come from the data, never from a list of known metrics, so a
  * suite can publish anything and it plots. Every chart shares a `syncId`, which
- * is what gives them one crosshair and one tooltip position.
+ * is what gives them one crosshair and one tooltip position. Which series are
+ * charted persists per run in `localStorage`, so leaving and returning to a
+ * run keeps the operator's picks.
  */
-export const MetricsChart: React.FC<MetricsChartProps> = ({ samples }) => {
-  const fieldId = useId();
-  const [chosen, setChosen] = useState<string[] | null>(null);
+export const MetricsChart: React.FC<MetricsChartProps> = ({ runId, samples, defaultMetrics }) => {
+  const [chosen, setChosen] = usePersistedSeries(`gauntlet:run:${runId}:metrics-series`);
   const [range, setRange] = useState<[number, number] | null>(null);
 
   const names = useMemo(() => {
@@ -65,7 +79,7 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({ samples }) => {
     for (const sample of samples) {
       for (const name of Object.keys(sample.values)) seen.add(name);
     }
-    return [...seen].sort();
+    return [...seen].sort(naturalCompare);
   }, [samples]);
 
   const rows = useMemo<Row[]>(() => {
@@ -74,14 +88,9 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({ samples }) => {
     return samples.map((sample) => ({ x: elapsed(sample, firstTs), ...sample.values }));
   }, [samples]);
 
-  const selected = chosen ?? names.slice(0, DEFAULT_SERIES);
-
-  const toggle = (name: string) => {
-    const next = selected.includes(name)
-      ? selected.filter((entry) => entry !== name)
-      : [...selected, name];
-    setChosen(next);
-  };
+  const reported = defaultMetrics.filter((name) => names.includes(name));
+  const selected = chosen ?? (reported.length > 0 ? reported : names.slice(0, DEFAULT_SERIES));
+  const remove = (name: string) => setChosen(selected.filter((entry) => entry !== name));
 
   if (names.length === 0) {
     return (
@@ -91,16 +100,8 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({ samples }) => {
 
   return (
     <section className="metrics-chart" aria-label="Metrics">
-      <div className="metrics-chart__series">
-        {names.map((name) => (
-          <Checkbox
-            key={name}
-            id={`${fieldId}-${name}`}
-            label={name}
-            checked={selected.includes(name)}
-            onChange={() => toggle(name)}
-          />
-        ))}
+      <div className="metrics-chart__pick">
+        <SeriesPicker names={names} selected={selected} onChange={setChosen} />
         {range && (
           <Button size="small" onClick={() => setRange(null)}>
             Reset zoom
@@ -119,7 +120,21 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({ samples }) => {
               `metrics-chart__panel--c${index % COLOR_COUNT}`
             )}
           >
-            <h3 className="metrics-chart__title">{name}</h3>
+            <div className="metrics-chart__header">
+              <h3 className="metrics-chart__title">{name}</h3>
+              <Tooltip content="Remove from chart">
+                <Button
+                  className="metrics-chart__remove"
+                  size="small"
+                  square
+                  color="transparent"
+                  aria-label={`Remove ${name} from chart`}
+                  onClick={() => remove(name)}
+                >
+                  <FontAwesomeIcon icon={faXmark} />
+                </Button>
+              </Tooltip>
+            </div>
             <ResponsiveContainer width="100%" height={index === selected.length - 1 ? 210 : 170}>
               <LineChart data={rows} syncId="run-metrics" margin={{ top: 4, right: 12, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" />

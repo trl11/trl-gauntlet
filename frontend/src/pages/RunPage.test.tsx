@@ -12,6 +12,7 @@ import {
   getRunVerdict,
   listArtifacts,
   listRunNotes,
+  listSuites,
   stopRun,
 } from "@api/client";
 import type { RunRow } from "@api/types";
@@ -30,6 +31,7 @@ vi.mock("@api/client", () => ({
   getRunVerdict: vi.fn(),
   listArtifacts: vi.fn(),
   listRunNotes: vi.fn(),
+  listSuites: vi.fn(),
   runEventsUrl: (runId: string) => `/api/runs/${runId}/events`,
   stopRun: vi.fn(),
 }));
@@ -93,6 +95,7 @@ function renderPage() {
 describe("RunPage", () => {
   beforeEach(() => {
     vi.mocked(getRun).mockResolvedValue(FINISHED);
+    vi.mocked(listSuites).mockResolvedValue({ errors: [], suites: [] });
     vi.mocked(getRunMetrics).mockResolvedValue({
       count: RECORDS.length,
       records: RECORDS as never,
@@ -115,7 +118,7 @@ describe("RunPage", () => {
     vi.mocked(listRunNotes).mockResolvedValue({ notes: [] });
   });
 
-  it("shows the run's identity, status and timings", async () => {
+  it("shows the run's identity and timings", async () => {
     renderPage();
     expect(await screen.findByRole("heading", { name: "thermal_cycle" })).toBeInTheDocument();
     expect(screen.getByText("run-1")).toBeInTheDocument();
@@ -123,7 +126,6 @@ describe("RunPage", () => {
     expect(screen.getByText("SN-42")).toBeInTheDocument();
     expect(screen.getByText("10.0.0.4")).toBeInTheDocument();
     expect(screen.getByText("12s")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("FAIL");
   });
 
   it("hydrates the verdict of a finished run from the stored files", async () => {
@@ -144,14 +146,15 @@ describe("RunPage", () => {
     await screen.findByText("FAILED");
     await userEvent.click(screen.getByRole("tab", { name: "iterations" }));
     expect(screen.getByText("rail low")).toBeInTheDocument();
-    expect(screen.getByText("rail.volts 2.9")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "rail.volts" })).toBeInTheDocument();
+    expect(screen.getByText("2.9")).toBeInTheDocument();
   });
 
   it("discovers the metric series from the stored records", async () => {
     renderPage();
     await screen.findByText("FAILED");
     await userEvent.click(screen.getByRole("tab", { name: "metrics" }));
-    expect(screen.getByLabelText("rail.volts")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "rail.volts" })).toBeInTheDocument();
   });
 
   it("reads the log of a finished run out of test.log", async () => {
@@ -162,11 +165,11 @@ describe("RunPage", () => {
     expect(screen.getByText("ERROR rail low")).toBeInTheDocument();
   });
 
-  it("disables the run controls once the run has finished", async () => {
+  it("hides the run controls once the run has finished", async () => {
     renderPage();
     await screen.findByRole("heading", { name: "thermal_cycle" });
-    expect(screen.getByRole("button", { name: "Stop" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Abort" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Abort" })).not.toBeInTheDocument();
   });
 
   it("stops a live run once the operator confirms", async () => {

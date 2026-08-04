@@ -21,17 +21,15 @@ import ActiveRun from "@components/ActiveRun";
 import DefinitionRows, { type DefinitionRow } from "@components/DefinitionRows";
 import EmptyState from "@components/EmptyState";
 import HostHealth from "@components/HostHealth";
-import OutcomeChart, { type OutcomeBucket } from "@components/OutcomeChart";
 import PageHeader from "@components/PageHeader";
 import Panel from "@components/Panel";
 import RunTable from "@components/RunTable";
 import StatusPill from "@components/StatusPill";
-import { formatBytes, formatTimestamp, toDate } from "../utils/format";
+import { formatBytes, formatTimestamp } from "../utils/format";
 import { isLive } from "../utils/run_status";
 
 import "./DashboardPage.scss";
 
-const DAY_MS = 86_400_000;
 /** How many host samples the sparklines keep. */
 const MAX_SAMPLES = 40;
 /** How many serials the units card lists. */
@@ -43,18 +41,6 @@ const RECENT_RUNS = 10;
 interface HostSample {
   cpu: number;
   memory: number;
-}
-
-function countOutcomes(runs: RunRow[], label: string, since: number): OutcomeBucket {
-  const bucket: OutcomeBucket = { failed: 0, label, other: 0, passed: 0 };
-  for (const run of runs) {
-    const ended = toDate(run.ended_at)?.getTime() ?? null;
-    if (ended === null || ended < since) continue;
-    if (run.status === "passed") bucket.passed += 1;
-    else if (run.status === "failed") bucket.failed += 1;
-    else if (!isLive(run.status)) bucket.other += 1;
-  }
-  return bucket;
 }
 
 /** The most recent run that names a unit, which is the unit on the bench. */
@@ -124,10 +110,6 @@ export const DashboardPage: React.FC = () => {
   const active = allRuns.filter((run) => isLive(run.status));
   const onBench = lastUnitRun(allRuns);
   const unitRows = recentUnits(units.data?.units ?? []);
-  const buckets = [
-    countOutcomes(allRuns, "Last 24h", now - DAY_MS),
-    countOutcomes(allRuns, "Last 7d", now - 7 * DAY_MS),
-  ];
   const discoveryErrors = suites.data?.errors ?? [];
   const disks = system.data?.disks ?? [];
   const fullest = [...disks].sort((a, b) => b.percent - a.percent)[0];
@@ -147,7 +129,7 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="dashboard-page">
-      <PageHeader title="Dashboard" subtitle="What the bench is doing right now" />
+      <PageHeader title="Dashboard" />
 
       {discoveryErrors.length > 0 && (
         <div className="dashboard-page__banner" role="alert">
@@ -164,29 +146,31 @@ export const DashboardPage: React.FC = () => {
       )}
 
       <Panel title={active.length > 0 ? "Active run" : "Unit under test"}>
-        {runs.isPending ? (
-          <Spinner />
-        ) : active.length > 0 ? (
-          <div className="dashboard-page__actives">
-            {active.map((run) => (
-              <ActiveRun key={run.run_id} now={now} run={run} />
-            ))}
-          </div>
-        ) : onBench === null ? (
-          <EmptyState
-            title="Nothing running"
-            message="Start a suite from Tests and it will appear here."
-            action={<Link to="/tests">Run a test</Link>}
-          />
-        ) : (
-          <DefinitionRows
-            rows={[
-              { label: "serial", value: onBench.unit_serial },
-              { label: "last suite", value: onBench.suite },
-              { label: "verdict", value: <StatusPill status={onBench.status} /> },
-            ]}
-          />
-        )}
+        <div className="dashboard-page__unit-panel">
+          {runs.isPending ? (
+            <Spinner />
+          ) : active.length > 0 ? (
+            <div className="dashboard-page__actives">
+              {active.map((run) => (
+                <ActiveRun key={run.run_id} now={now} run={run} />
+              ))}
+            </div>
+          ) : onBench === null ? (
+            <EmptyState
+              title="Nothing running"
+              message="Start a suite from Tests and it will appear here."
+              action={<Link to="/tests">Run a test</Link>}
+            />
+          ) : (
+            <DefinitionRows
+              rows={[
+                { label: "serial", value: onBench.unit_serial },
+                { label: "last suite", value: onBench.suite },
+                { label: "verdict", value: <StatusPill status={onBench.status} /> },
+              ]}
+            />
+          )}
+        </div>
       </Panel>
 
       <Panel
@@ -212,7 +196,7 @@ export const DashboardPage: React.FC = () => {
         title="Units"
         action={
           <Link className="panel__action" to="/units">
-            all units →
+            {units.data ? `all units (${units.data.units.length}) →` : "all units →"}
           </Link>
         }
       >
@@ -266,10 +250,6 @@ export const DashboardPage: React.FC = () => {
         )}
       </Panel>
 
-      <Panel title="Outcomes">
-        <OutcomeChart buckets={buckets} />
-      </Panel>
-
       <Panel
         title="Instruments"
         action={
@@ -300,7 +280,9 @@ export const DashboardPage: React.FC = () => {
                 />
                 <span className="dashboard-page__instrument-name">{instrument.name}</span>
                 <span className="dashboard-page__instrument-state">
-                  {stateSummary(instrument.state) || instrument.kind}
+                  {instrument.available
+                    ? stateSummary(instrument.state) || instrument.kind
+                    : "unavailable"}
                 </span>
               </Link>
             ))}

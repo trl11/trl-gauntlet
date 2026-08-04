@@ -22,6 +22,7 @@ import {
   getRunVerdict,
   listArtifacts,
   listRunNotes,
+  listSuites,
 } from "@api/client";
 import type { RunRow } from "@api/types";
 
@@ -39,6 +40,7 @@ vi.mock("@api/client", () => ({
   getRunVerdict: vi.fn(),
   listArtifacts: vi.fn(),
   listRunNotes: vi.fn(),
+  listSuites: vi.fn(),
   runEventsUrl: (runId: string) => `/api/runs/${runId}/events`,
   stopRun: vi.fn(),
 }));
@@ -248,7 +250,7 @@ async function capture(tab: string): Promise<Capture> {
     logTimes: [...rows].map((row) => row.querySelector(".log-stream__time")?.textContent ?? ""),
     panel: withoutGeneratedIds(screen.getByRole("tabpanel").innerHTML),
     provenance: screen.queryByText("Provenance") !== null,
-    series: screen.queryAllByLabelText("rail.volts").length,
+    series: screen.queryAllByRole("heading", { name: "rail.volts" }).length,
     verdict: screen.queryByRole("region", { name: "Verdict" })?.innerHTML ?? "",
   };
 }
@@ -282,6 +284,7 @@ async function fromStream(tab: string): Promise<Capture> {
 beforeEach(() => {
   FakeEventSource.instances = [];
   vi.stubGlobal("EventSource", FakeEventSource);
+  vi.mocked(listSuites).mockResolvedValue({ errors: [], suites: [] });
   vi.mocked(getRunMetrics).mockResolvedValue({
     count: RECORDS.length,
     records: RECORDS as never,

@@ -1,6 +1,6 @@
-import { faArrowDown, faArrowUp, faCopy, faDownload } from "@fortawesome/free-solid-svg-icons";
+import { faArrowDown, faArrowUp } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { Button, Checkbox, Input, Select, Tooltip } from "@trl11/components/ui";
+import { Button, Checkbox, FilterMenu, Input, Tooltip } from "@trl11/components/ui";
 import clsx from "clsx";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
@@ -21,12 +21,21 @@ const WRAP_LIMIT = 2000;
 /** Distance from the bottom, in pixels, that still counts as being at the bottom. */
 const STICK_MARGIN = 24;
 
+/** Gap kept between the log view's bottom edge and the viewport's, once expanded. */
+const BOTTOM_PADDING = 32;
+
+/** The view never shrinks below this, however little room the viewport has. */
+const MIN_VIEW_HEIGHT = 280;
+
 const LEVEL_OPTIONS = [
   { value: "all", label: "All levels" },
   { value: "info", label: "Info" },
   { value: "warning", label: "Warning" },
   { value: "error", label: "Error" },
 ];
+
+/** The filter values, in the shape the ui-kit `FilterMenu` holds them. */
+type Filters = React.ComponentProps<typeof FilterMenu>["filterState"];
 
 /**
  * One captured output line.
@@ -45,8 +54,6 @@ export interface LogLine {
 export interface LogStreamProps {
   /** Every line captured so far, oldest first. */
   lines: LogLine[];
-  /** Base name for the downloaded file. */
-  name?: string;
 }
 
 function logTime(ts: number | null): string {
@@ -78,19 +85,6 @@ function highlight(message: string, needle: string): React.ReactNode {
   return parts;
 }
 
-function asText(lines: LogLine[]): string {
-  return lines.map((line) => `${logTime(line.ts)} ${line.level} ${line.message}`.trim()).join("\n");
-}
-
-function download(text: string, filename: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
-
 /**
  * Append-only log viewer.
  *
@@ -100,31 +94,32 @@ function download(text: string, filename: string): void {
  * arithmetic depends on, so wrapping instead renders the last `WRAP_LIMIT`
  * rows outright.
  */
-export const LogStream: React.FC<LogStreamProps> = ({ lines, name = "run" }) => {
+export const LogStream: React.FC<LogStreamProps> = ({ lines }) => {
   const fieldId = useId();
   const viewRef = useRef<HTMLDivElement>(null);
 
-  const [level, setLevel] = useState("all");
+  const [filters, setFilters] = useState<Filters>({ level: "all" });
   const [needle, setNeedle] = useState("");
   const [wrap, setWrap] = useState(false);
   const [stick, setStick] = useState(true);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewport, setViewport] = useState(480);
   const [cursor, setCursor] = useState(0);
+  const [viewHeight, setViewHeight] = useState(MIN_VIEW_HEIGHT);
 
   const filtered = useMemo(() => {
     const target = needle.trim().toLowerCase();
     return lines.filter((line) => {
-      if (level !== "all" && line.level !== level) return false;
+      if (filters.level !== "all" && line.level !== filters.level) return false;
       return target === "" || line.message.toLowerCase().includes(target);
     });
-  }, [lines, level, needle]);
+  }, [lines, filters.level, needle]);
 
   const matches = needle.trim() === "" ? 0 : filtered.length;
 
   useEffect(() => {
     setCursor(0);
-  }, [needle, level]);
+  }, [needle, filters.level]);
 
   useEffect(() => {
     const element = viewRef.current;
@@ -133,6 +128,20 @@ export const LogStream: React.FC<LogStreamProps> = ({ lines, name = "run" }) => 
     const observer = new ResizeObserver(() => setViewport(element.clientHeight));
     observer.observe(element);
     return () => observer.disconnect();
+  }, []);
+
+  // Stretches the view down to the viewport's bottom edge, leaving room to spare,
+  // rather than the fixed height that left a gap below on tall screens.
+  useEffect(() => {
+    const element = viewRef.current;
+    if (!element) return;
+    const measure = () => {
+      const top = element.getBoundingClientRect().top;
+      setViewHeight(Math.max(MIN_VIEW_HEIGHT, window.innerHeight - top - BOTTOM_PADDING));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
   }, []);
 
   useEffect(() => {
@@ -170,80 +179,59 @@ export const LogStream: React.FC<LogStreamProps> = ({ lines, name = "run" }) => 
   return (
     <section className="log-stream" aria-label="Run log">
       <div className="log-stream__controls">
-        <Select
-          id={`${fieldId}-level`}
-          label="Level"
-          options={LEVEL_OPTIONS}
-          value={level}
-          onChange={(event) => setLevel(event.target.value)}
-        />
-        <Input
-          id={`${fieldId}-find`}
-          label="Find"
-          type="search"
-          placeholder="Filter lines"
-          value={needle}
-          onChange={(event) => setNeedle(event.target.value)}
-        />
-        <div className="log-stream__nav">
-          <span className="log-stream__matches">
-            {matches === 0 ? "no matches" : `${cursor + 1} / ${matches}`}
-          </span>
-          <Tooltip content="Previous match">
-            <Button
-              size="small"
-              square
-              disabled={matches === 0}
-              aria-label="Previous match"
-              onClick={() => jump(cursor - 1)}
-            >
-              <FontAwesomeIcon icon={faArrowUp} />
-            </Button>
-          </Tooltip>
-          <Tooltip content="Next match">
-            <Button
-              size="small"
-              square
-              disabled={matches === 0}
-              aria-label="Next match"
-              onClick={() => jump(cursor + 1)}
-            >
-              <FontAwesomeIcon icon={faArrowDown} />
-            </Button>
-          </Tooltip>
+        <span className="log-stream__matches">
+          {matches === 0 ? "no matches" : `${cursor + 1} / ${matches}`}
+        </span>
+        <div className="log-stream__find">
+          <Input
+            id={`${fieldId}-find`}
+            aria-label="Find"
+            type="search"
+            placeholder="Filter lines"
+            value={needle}
+            onChange={(event) => setNeedle(event.target.value)}
+          />
         </div>
+        <Tooltip content="Previous match">
+          <Button
+            size="small"
+            square
+            disabled={matches === 0}
+            aria-label="Previous match"
+            onClick={() => jump(cursor - 1)}
+          >
+            <FontAwesomeIcon icon={faArrowUp} />
+          </Button>
+        </Tooltip>
+        <Tooltip content="Next match">
+          <Button
+            size="small"
+            square
+            disabled={matches === 0}
+            aria-label="Next match"
+            onClick={() => jump(cursor + 1)}
+          >
+            <FontAwesomeIcon icon={faArrowDown} />
+          </Button>
+        </Tooltip>
         <Checkbox
           id={`${fieldId}-wrap`}
           label="Wrap lines"
           checked={wrap}
           onChange={(event) => setWrap(event.target.checked)}
         />
-        <div className="log-stream__actions">
-          <Tooltip content="Copy the filtered lines">
-            <Button
-              size="small"
-              square
-              aria-label="Copy log"
-              onClick={() => navigator.clipboard?.writeText(asText(filtered))}
-            >
-              <FontAwesomeIcon icon={faCopy} />
-            </Button>
-          </Tooltip>
-          <Tooltip content="Download the filtered lines">
-            <Button
-              size="small"
-              square
-              aria-label="Download log"
-              onClick={() => download(asText(filtered), `${name}.log`)}
-            >
-              <FontAwesomeIcon icon={faDownload} />
-            </Button>
-          </Tooltip>
+        <div className="log-stream__filter">
+          <FilterMenu
+            filterState={filters}
+            setFilterState={setFilters}
+            filters={[{ id: "level", options: LEVEL_OPTIONS }]}
+          />
         </div>
       </div>
 
       <div
         className={clsx("log-stream__view", wrap && "log-stream__view--wrap")}
+        style={{ height: viewHeight }}
         ref={viewRef}
         onScroll={onScroll}
         tabIndex={0}

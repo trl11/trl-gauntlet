@@ -107,7 +107,6 @@ export const TestsPage: React.FC = () => {
     <div className="tests-page">
       <PageHeader
         title="Tests"
-        subtitle="Pick a suite, choose a profile, start a run"
         actions={
           <Button onClick={() => rescan.mutate()} disabled={rescan.isPending}>
             <FontAwesomeIcon icon={faRotate} spin={rescan.isPending} aria-hidden="true" /> Rescan

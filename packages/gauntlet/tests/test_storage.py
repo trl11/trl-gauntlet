@@ -54,6 +54,18 @@ def _run(run_id: str, *, minute: int, serial: str | None, status: str = "passed"
     )
 
 
+class TestRunsIndex:
+    def test_delete_removes_the_row_and_returns_it(self, runs: RunsIndex) -> None:
+        runs.upsert(_run("r1", minute=0, serial="SN1"))
+        removed = runs.delete("r1")
+        assert removed is not None
+        assert removed.run_id == "r1"
+        assert runs.get("r1") is None
+
+    def test_deleting_an_unknown_run_is_none(self, runs: RunsIndex) -> None:
+        assert runs.delete("nope") is None
+
+
 class TestNotesIndex:
     def test_add_then_list(self, notes: NotesIndex) -> None:
         added = notes.add(SUBJECT_RUN, "r1", "looks fine", "gabe")

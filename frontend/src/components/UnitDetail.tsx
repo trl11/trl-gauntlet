@@ -1,8 +1,10 @@
 import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { DataField, Spinner } from "@trl11/components/ui";
-import { Link } from "react-router";
+import { Button, DataField, FilterMenu, Spinner } from "@trl11/components/ui";
+import clsx from "clsx";
+import { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router";
 import {
   CartesianGrid,
   Line,
@@ -13,15 +15,29 @@ import {
   YAxis,
 } from "recharts";
 
-import { addUnitNote, deleteUnitNote, getUnit, getUnitHistory, listUnitNotes } from "@api/client";
+import {
+  addUnitNote,
+  deleteUnitNote,
+  getUnit,
+  getUnitHistory,
+  listUnitNotes,
+  renameUnit,
+} from "@api/client";
 import type { RunRow } from "@api/types";
 import EmptyState from "@components/EmptyState";
+import ListToolbar from "@components/ListToolbar";
 import NotesPanel from "@components/NotesPanel";
 import PageHeader from "@components/PageHeader";
+import RenameDialog from "@components/RenameDialog";
 import RunTable from "@components/RunTable";
 import { formatPercent, formatTimestamp } from "../utils/format";
+import { health } from "../utils/health";
+import { matchesStatus, RUN_STATUS_OPTIONS } from "../utils/run_status";
 
 import "./UnitDetail.scss";
+
+/** The filter values, in the shape the ui-kit `FilterMenu` holds them. */
+type Filters = React.ComponentProps<typeof FilterMenu>["filterState"];
 
 /** Props for {@link UnitDetail}. */
 export interface UnitDetailProps {
@@ -46,6 +62,10 @@ function passRateSeries(runs: RunRow[]): Array<{ rate: number; run: string; star
 /** One unit: its counters, its pass rate over time, its runs, and its notes. */
 export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
   const client = useQueryClient();
+  const navigate = useNavigate();
+  const [renaming, setRenaming] = useState(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Filters>({ status: "all" });
 
   const unit = useQuery({ queryKey: ["unit", serial], queryFn: () => getUnit(serial) });
   const history = useQuery({
@@ -74,7 +94,20 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
     onSuccess: refreshNotes,
   });
 
+  const rename = useMutation({
+    mutationFn: (next: string) => renameUnit(serial, next),
+    onSuccess: (renamed) => {
+      client.invalidateQueries({ queryKey: ["units"] });
+      navigate(`/units/${encodeURIComponent(renamed.serial)}`, { replace: true });
+    },
+    onError: (error) => setRenameError(error.message),
+  });
+
   const runs = history.data?.runs ?? [];
+  const filteredRuns = useMemo(
+    () => runs.filter((run) => matchesStatus(run.status, String(filters.status))),
+    [runs, filters.status]
+  );
   const series = passRateSeries(runs);
   const rate =
     unit.data && unit.data.run_count > 0 ? (unit.data.passed / unit.data.run_count) * 100 : null;
@@ -83,13 +116,33 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
     <div className="unit-detail">
       <PageHeader
         title={<span className="unit-detail__serial">{serial}</span>}
-        subtitle={
-          <Link to="/units" className="unit-detail__back">
-            <FontAwesomeIcon icon={faArrowLeft} aria-hidden="true" />
-            All units
-          </Link>
+        actions={
+          <Button
+            size="small"
+            onClick={() => {
+              setRenameError(null);
+              setRenaming(true);
+            }}
+          >
+            Rename
+          </Button>
         }
-      />
+      >
+        <Link to="/units" className="unit-detail__back">
+          <FontAwesomeIcon icon={faArrowLeft} aria-hidden="true" />
+          All units
+        </Link>
+      </PageHeader>
+
+      {renaming && (
+        <RenameDialog
+          busy={rename.isPending}
+          error={renameError}
+          serial={serial}
+          onCancel={() => setRenaming(false)}
+          onRename={(next) => rename.mutate(next)}
+        />
+      )}
 
       {unit.isPending && <Spinner />}
 
@@ -111,7 +164,7 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
         {series.length === 0 ? (
           <p className="unit-detail__quiet">No runs to chart yet.</p>
         ) : (
-          <div className="unit-detail__chart">
+          <div className={clsx("unit-detail__chart", health(rate ?? series.at(-1)?.rate ?? 0))}>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={series} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
                 <CartesianGrid vertical={false} />
@@ -135,11 +188,24 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
 
       <section className="unit-detail__section" aria-label="Run history">
         <h2 className="unit-detail__title">Run history</h2>
+        <ListToolbar
+          filter={
+            <FilterMenu
+              filterState={filters}
+              setFilterState={setFilters}
+              filters={[{ id: "status", options: RUN_STATUS_OPTIONS }]}
+            />
+          }
+          status={`${filteredRuns.length} of ${runs.length}`}
+          selectedCount={0}
+          batchActions={null}
+        />
         <RunTable
-          runs={runs}
+          runs={filteredRuns}
           loading={history.isPending}
           columns={["status", "suite", "run_id", "profile", "started_at", "duration_s"]}
           emptyMessage="No runs have named this unit."
+          filterable={false}
         />
       </section>
 

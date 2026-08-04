@@ -294,6 +294,15 @@ export const stopRun = (runId: string): Promise<RunControlResult> =>
 export const abortRun = (runId: string): Promise<RunControlResult> =>
   request<RunControlResult>(`/api/runs/${encodeSegment(runId)}/abort`, { method: "POST" });
 
+/**
+ * `DELETE /api/runs/{id}`
+ *
+ * Permanently removes the run's row, notes, and directory. Refused while the
+ * run is still in flight.
+ */
+export const deleteRun = (runId: string): Promise<void> =>
+  request<void>(`/api/runs/${encodeSegment(runId)}`, { method: "DELETE" });
+
 /** URL of the SSE stream for one run, resuming after sequence number `since`. */
 export function runEventsUrl(runId: string, since: number): string {
   return apiUrl(`/api/runs/${encodeSegment(runId)}/events${query({ since })}`);

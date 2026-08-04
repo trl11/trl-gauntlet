@@ -30,6 +30,7 @@ function suite(partial: Partial<Suite> & { key: string; title: string }): Suite 
     apiVersion: 1,
     category: "hardware",
     conformance_profile: "",
+    default_metrics: [],
     description: "",
     directory: `/suites/${partial.key}`,
     exec: {

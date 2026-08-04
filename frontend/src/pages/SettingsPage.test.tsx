@@ -118,8 +118,9 @@ describe("SettingsPage", () => {
   it("spins each section while its query is in flight", () => {
     getSettings.mockReturnValue(pending());
     getSystemInfo.mockReturnValue(pending());
+    getVersion.mockReturnValue(pending());
     renderSettings();
-    expect(spinners()).toHaveLength(2);
+    expect(spinners()).toHaveLength(3);
   });
 
   it("reports settings that could not be read", async () => {

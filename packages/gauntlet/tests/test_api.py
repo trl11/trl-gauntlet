@@ -135,6 +135,43 @@ class TestRunLookup:
         assert client.get("/api/runs/nope").status_code == 404
 
 
+class TestRunDelete:
+    def test_delete_removes_the_row_the_notes_and_the_directory(self, client, add_run):
+        run_dir = client.app.state.settings.runs_dir / "alpha" / "r1"
+        run_dir.mkdir(parents=True)
+        (run_dir / "verdict.json").write_text("{}")
+        add_run("r1", run_dir=run_dir)
+        client.post("/api/runs/r1/notes", json={"body": "gone"})
+
+        assert client.delete("/api/runs/r1").json() == {"run_id": "r1", "deleted": True}
+        assert client.get("/api/runs/r1").status_code == 404
+        assert not run_dir.exists()
+
+    def test_delete_leaves_a_directory_outside_runs_dir_alone(self, client, add_run, tmp_path):
+        outside = tmp_path / "elsewhere" / "r1"
+        outside.mkdir(parents=True)
+        add_run("r1", run_dir=outside)
+
+        assert client.delete("/api/runs/r1").json() == {"run_id": "r1", "deleted": True}
+        assert outside.exists()
+
+    def test_delete_refuses_a_run_still_in_flight(self, client, add_run, monkeypatch):
+        add_run("r1", status="running")
+
+        class _Live:
+            finished = False
+
+        monkeypatch.setattr(client.app.state.supervisor, "get", lambda _run_id: _Live())
+
+        response = client.delete("/api/runs/r1")
+
+        assert response.status_code == 409
+        assert client.app.state.runs_index.get("r1") is not None
+
+    def test_unknown_run_delete_is_404(self, client):
+        assert client.delete("/api/runs/nope").status_code == 404
+
+
 class TestRunHistoryFilters:
     def test_total_counts_every_match_not_just_the_page(self, client, add_run):
         for index in range(5):

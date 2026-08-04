@@ -14,7 +14,9 @@ export const NotFoundPage: React.FC = () => {
 
   return (
     <div className="not-found-page">
-      <PageHeader title="Not found" subtitle={location.pathname} />
+      <PageHeader title="Not found">
+        <p className="not-found-page__path">{location.pathname}</p>
+      </PageHeader>
       <span className="not-found-page__code" aria-hidden="true">
         404
       </span>

@@ -1,0 +1,72 @@
+@use "@trl11/styles/theme.scss" as *;
+
+// `Popover`'s own panel sets position, background, border and padding; this
+// only adds what's specific to a series list. It also bounds the panel's own
+// height and scrolls it, since a flat (ungrouped) list has no bound of its
+// own and Popover's panel doesn't clip one either.
+.series-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 420px;
+  max-height: min(90vh, 760px);
+  overflow-y: auto;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    > input {
+      flex: 1;
+    }
+
+    > button {
+      white-space: nowrap;
+    }
+  }
+
+  &__empty {
+    font-size: 11px;
+    color: $trl-gray;
+  }
+
+  &__groups {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 320px;
+    overflow-y: auto;
+    // `overflow-y: auto` forces overflow-x to clip too, and the accordion
+    // chevron overflows its own box by a few px when rotated open. This
+    // padding gives it room so the left edge stops getting cut off.
+    padding-left: 6px;
+  }
+
+  &__group-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-transform: capitalize;
+  }
+
+  &__group-count {
+    font-family: $font-mono;
+    font-size: 10px;
+    color: $trl-gray;
+    text-transform: none;
+  }
+
+  &__group-actions {
+    margin-bottom: 8px;
+  }
+
+  &__flat {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-family: $font-mono;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+}

@@ -1188,6 +1188,13 @@
     "apiVersion": 1,
     "category": "examples",
     "conformance_profile": "quick.yaml",
+    "default_metrics": [
+      "cpu.percent",
+      "memory.used_percent",
+      "load.per_core",
+      "processes.running",
+      "thermal_max_c"
+    ],
     "description": "Samples the Linux host it runs on \u2014 CPU, load, memory, swap, disks, thermal zones, network counters, context switches, processes and uptime \u2014 and checks every sample against thresholds from the profile. Needs no hardware, so a fresh checkout can demonstrate a full run.\n",
     "directory": "/workspaces/gauntlet/suites/system_stats",
     "exec": {
@@ -1355,6 +1362,7 @@
         "apiVersion": 1,
         "category": "hardware",
         "conformance_profile": "mock.yaml",
+        "default_metrics": [],
         "description": "Exercise a CAN bus between the unit under test and the lab host. A sender installed on the unit emits an incrementing counter; the lab host receives from socketcan and records gaps and reordering.\n",
         "directory": "/workspaces/gauntlet/suites/can_bus",
         "exec": {
@@ -1442,6 +1450,7 @@
         "apiVersion": 1,
         "category": "hardware",
         "conformance_profile": "mock.yaml",
+        "default_metrics": [],
         "description": "Install a throughput probe on the unit under test and host a TCP server lab-side. Each tick times an upload and a download; the verdict gates on session-average throughput in each direction.\n",
         "directory": "/workspaces/gauntlet/suites/ethernet",
         "exec": {
@@ -1529,6 +1538,7 @@
         "apiVersion": 1,
         "category": "examples",
         "conformance_profile": "quick.yaml",
+        "default_metrics": [],
         "description": "A worked example of the common shape: sample something on a fixed cadence, fail iterations that breach a threshold, and roll the run up into a verdict. Copy this directory as the starting point for a Python suite.\n",
         "directory": "/workspaces/gauntlet/suites/example_sampled",
         "exec": {
@@ -1616,6 +1626,7 @@
         "apiVersion": 1,
         "category": "examples",
         "conformance_profile": "quick.yaml",
+        "default_metrics": [],
         "description": "The same contract satisfied by a bash script with no Gauntlet library at all. Proof that conforming means writing the right files, not importing anything. Start here for a suite in a language other than Python.\n",
         "directory": "/workspaces/gauntlet/suites/example_shell",
         "exec": {
@@ -1678,6 +1689,7 @@
         "apiVersion": 1,
         "category": "hardware",
         "conformance_profile": "mock.yaml",
+        "default_metrics": [],
         "description": "Drive a GPIO trigger line on the unit under test over SSH, one high/low pulse per iteration, and record where it stops responding. Also samples load, memory and disk on the unit between pulses.\n",
         "directory": "/workspaces/gauntlet/suites/hardware_trigger",
         "exec": {
@@ -1765,6 +1777,7 @@
         "apiVersion": 1,
         "category": "hardware",
         "conformance_profile": "mock.yaml",
+        "default_metrics": [],
         "description": "Cycle one or more piezo axes between a home and an extended position over MQTT, recording position, temperature and controller fault flags at the loaded endpoint.\n",
         "directory": "/workspaces/gauntlet/suites/piezo",
         "exec": {
@@ -1852,6 +1865,7 @@
         "apiVersion": 1,
         "category": "hardware",
         "conformance_profile": "mock.yaml",
+        "default_metrics": [],
         "description": "Exercise an RS422 serial link to the unit under test. The lab side sends ENQ probes and reads the counter replies, recording gaps and reordering against the expected sequence.\n",
         "directory": "/workspaces/gauntlet/suites/rs422",
         "exec": {
@@ -1939,6 +1953,7 @@
         "apiVersion": 1,
         "category": "hardware",
         "conformance_profile": "mock.yaml",
+        "default_metrics": [],
         "description": "Probe one or more SSDs on the unit under test. Each tick measures write and read bandwidth with dd, verifies a written block with a SHA-256 compare, and reads SMART error counters.\n",
         "directory": "/workspaces/gauntlet/suites/ssd",
         "exec": {
@@ -2044,6 +2059,13 @@
         "apiVersion": 1,
         "category": "examples",
         "conformance_profile": "quick.yaml",
+        "default_metrics": [
+          "cpu.percent",
+          "memory.used_percent",
+          "load.per_core",
+          "processes.running",
+          "thermal_max_c"
+        ],
         "description": "Samples the Linux host it runs on \u2014 CPU, load, memory, swap, disks, thermal zones, network counters, context switches, processes and uptime \u2014 and checks every sample against thresholds from the profile. Needs no hardware, so a fresh checkout can demonstrate a full run.\n",
         "directory": "/workspaces/gauntlet/suites/system_stats",
         "exec": {

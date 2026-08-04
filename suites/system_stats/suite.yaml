@@ -27,6 +27,13 @@ supports:
   target: false
   unit_serial: true
 
+default_metrics:
+  - cpu.percent
+  - memory.used_percent
+  - load.per_core
+  - processes.running
+  - thermal_max_c
+
 overrides:
   - name: duration_s
     flag: --duration-s

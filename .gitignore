@@ -15,20 +15,20 @@ dist/
 tmp/
 
 # Run artifacts and local settings
-output/
 gauntlet-runs/
+output/
 .env
 
-# Screenshots written by `npm run screenshots`
+# Temporary project runtime files
 files/
 
 # Frontend
 node_modules/
 frontend/node_modules/
 frontend/dist/
-packages/gauntlet/src/gauntlet/web_dist/
+web_dist/
 
-# Desktop shell: compiled main process, and the CPython `make app-runtime` fetches
+# Desktop app
 app/dist/
 app/node_modules/
 app/runtime/

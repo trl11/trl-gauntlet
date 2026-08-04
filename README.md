@@ -173,7 +173,7 @@ make frontend-test   # vitest
 make frontend-check  # prettier --check, eslint, tsc, vitest
 ```
 
-`make run` and `make serve` build the bundle first. See
+`make run` builds the bundle first. See
 [`docs/frontend.md`](docs/frontend.md) and
 [`frontend/README.md`](frontend/README.md).
 
@@ -209,9 +209,9 @@ confusing `bad interpreter`.
 |---|---|
 | `make setup` | Create `.venv`, install both packages editable |
 | `make dev` / `make dev-stop` / `make dev-status` | Start, stop, or query the devcontainer |
-| `make run` | Build the frontend and serve on `$(APP_PORT)`, default 7100 |
-| `make serve` | The same, with auto-reload |
-| `make stop` | Stop the server either started, and any suite it was running |
+| `make run` | Build the frontend and serve on `$(APP_PORT)`, default 7100, with auto-reload |
+| `make run-hmr` | Backend (auto-reload) and frontend dev server (HMR) together; browse `$(FRONTEND_PORT)`, default 7101 |
+| `make stop` | Stop the server `run` or `run-hmr` started, and any suite it was running |
 | `make frontend` | Build the frontend bundle |
 | `make frontend-dev` | Frontend dev server on 7101, proxying `/api` to 7100 |
 | `make frontend-test` | The frontend tests |

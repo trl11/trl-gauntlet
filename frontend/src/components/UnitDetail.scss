@@ -42,10 +42,21 @@
   }
 
   &__chart {
-    color: $indicator-blue;
     border: 1px solid $trl-dark-gray;
     background-color: rgba($trl-dark, 0.5);
     padding: 12px 8px 4px;
+
+    &.is-good {
+      color: $indicator-green;
+    }
+
+    &.is-fair {
+      color: $indicator-yellow;
+    }
+
+    &.is-poor {
+      color: $indicator-red;
+    }
   }
 
   &__quiet {

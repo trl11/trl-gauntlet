@@ -46,7 +46,6 @@ export const InstrumentsPage: React.FC = () => {
     <div className="instruments-page">
       <PageHeader
         title="Instruments"
-        subtitle="What Gauntlet can drive on a suite's behalf"
         actions={
           <Button color="blue" disabled={scan.isPending} onClick={() => scan.mutate()}>
             <FontAwesomeIcon icon={faRotate} spin={scan.isPending} />

@@ -50,8 +50,11 @@ export const SettingsPage: React.FC = () => {
     <div className="settings-page">
       <PageHeader
         title="Settings"
-        subtitle="How this installation is configured"
-        actions={<Badge color={badge.color}>{badge.label}</Badge>}
+        actions={
+          <Badge aria-live="polite" color={badge.color}>
+            {badge.label}
+          </Badge>
+        }
       />
 
       <div className="settings-page__grid">
@@ -107,15 +110,23 @@ export const SettingsPage: React.FC = () => {
         </Panel>
 
         <Panel title="Versions">
-          <DefinitionRows
-            rows={[
-              { label: "gauntlet", value: text(version.data?.gauntlet) },
-              { label: "suite sdk", value: text(version.data?.gauntlet_sdk) },
-              { label: "contract", value: text(version.data?.contract_version) },
-              { label: "python", value: text(version.data?.python) },
-              { label: "platform", value: text(version.data?.platform) },
-            ]}
-          />
+          {version.isPending ? (
+            <Spinner />
+          ) : version.isError ? (
+            <p className="settings-page__error" role="alert">
+              {version.error.message}
+            </p>
+          ) : (
+            <DefinitionRows
+              rows={[
+                { label: "gauntlet", value: text(version.data?.gauntlet) },
+                { label: "suite sdk", value: text(version.data?.gauntlet_sdk) },
+                { label: "contract", value: text(version.data?.contract_version) },
+                { label: "python", value: text(version.data?.python) },
+                { label: "platform", value: text(version.data?.platform) },
+              ]}
+            />
+          )}
         </Panel>
 
         <Panel title="Host">

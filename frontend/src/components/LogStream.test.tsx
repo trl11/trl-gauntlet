@@ -23,8 +23,10 @@ describe("LogStream", () => {
   });
 
   it("filters by level", async () => {
-    render(<LogStream lines={LINES} />);
-    await userEvent.selectOptions(screen.getByLabelText("Level"), "error");
+    const { container } = render(<LogStream lines={LINES} />);
+    const filterButton = container.querySelector(".fa-filter")!.closest("button")!;
+    await userEvent.click(filterButton);
+    await userEvent.selectOptions(screen.getByRole("combobox"), "error");
     expect(screen.queryByText("starting the chamber")).not.toBeInTheDocument();
     expect(screen.getByText("rail voltage out of tolerance")).toBeInTheDocument();
     expect(screen.getByText("1 of 3 lines")).toBeInTheDocument();

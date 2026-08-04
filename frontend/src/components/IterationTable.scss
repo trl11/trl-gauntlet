@@ -79,25 +79,29 @@
     white-space: nowrap;
   }
 
+  &__column-head:hover &__remove-column {
+    opacity: 1;
+  }
+
+  &__column-head-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  &__remove-column {
+    opacity: 0;
+    color: $trl-gray;
+    transition: opacity 0.15s ease;
+
+    &:focus-visible {
+      opacity: 1;
+    }
+  }
+
   &__reason {
     color: $trl-gray;
     max-width: 40ch;
-  }
-
-  &__values {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-
-  &__chip {
-    font-family: $font-mono;
-    font-size: 10px;
-    padding: 2px 6px;
-    background-color: $trl-dark;
-    border: 1px solid $trl-dark-gray;
-    border-radius: 2px;
-    white-space: nowrap;
   }
 
   @media (max-width: 900px) {

@@ -56,8 +56,22 @@
 
   &__actions {
     display: flex;
+    align-items: center;
     gap: 8px;
     margin-left: auto;
+  }
+
+  // Abort kills the process and writes no verdict, unlike Stop; recessed by
+  // default and set apart so a misclick doesn't reach it in place of Stop.
+  &__abort {
+    margin-left: 10px;
+    color: $trl-gray;
+
+    &:hover,
+    &:focus-visible {
+      color: $indicator-red;
+      border-color: rgba($indicator-red, 0.6);
+    }
   }
 
   &__error {
@@ -69,6 +83,7 @@
   @media (max-width: 900px) {
     &__actions {
       margin-left: 0;
+      flex-basis: 100%;
     }
   }
 }
