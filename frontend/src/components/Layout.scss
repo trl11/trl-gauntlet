@@ -56,9 +56,16 @@ $collapse-at: 900px;
     color: $trl-light-gray;
   }
 
+  &__current-page {
+    display: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: $trl-light-gray;
+    margin-left: auto;
+  }
+
   &__tabs-toggle {
     display: none;
-    margin-left: auto;
   }
 
   &__tabs {
@@ -145,8 +152,13 @@ $collapse-at: 900px;
 
 @media (max-width: $collapse-at) {
   .layout {
+    &__current-page {
+      display: inline-flex;
+    }
+
     &__tabs-toggle {
       display: inline-flex;
+      margin-left: 12px;
     }
 
     &__tabs {

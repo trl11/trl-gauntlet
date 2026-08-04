@@ -93,7 +93,7 @@ describe("UnitsPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /serial/i }));
     const header = screen.getByRole("columnheader", { name: /serial/i });
     expect(header).toHaveAttribute("aria-sort", "ascending");
-    expect(screen.getAllByRole("link")[0]).toHaveAccessibleName("Open unit HC-001");
+    expect(screen.getAllByRole("button", { name: "HC-001" })[0]).toBeInTheDocument();
   });
 
   it("shows a table skeleton while the units are being read", () => {

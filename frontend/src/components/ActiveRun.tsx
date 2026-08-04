@@ -56,7 +56,8 @@ export const ActiveRun: React.FC<ActiveRunProps> = ({ now, run }) => {
           Stop
         </Button>
         <Button
-          color="red"
+          className="active-run__abort"
+          color="outline"
           size="small"
           disabled={control.isPending}
           onClick={() => setConfirming("abort")}

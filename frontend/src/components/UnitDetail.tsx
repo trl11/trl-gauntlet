@@ -2,6 +2,7 @@ import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DataField, Spinner } from "@trl11/components/ui";
+import clsx from "clsx";
 import { Link } from "react-router";
 import {
   CartesianGrid,
@@ -20,6 +21,7 @@ import NotesPanel from "@components/NotesPanel";
 import PageHeader from "@components/PageHeader";
 import RunTable from "@components/RunTable";
 import { formatPercent, formatTimestamp } from "../utils/format";
+import { health } from "../utils/health";
 
 import "./UnitDetail.scss";
 
@@ -108,7 +110,7 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
         {series.length === 0 ? (
           <p className="unit-detail__quiet">No runs to chart yet.</p>
         ) : (
-          <div className="unit-detail__chart">
+          <div className={clsx("unit-detail__chart", health(rate ?? series.at(-1)?.rate ?? 0))}>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={series} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
                 <CartesianGrid vertical={false} />

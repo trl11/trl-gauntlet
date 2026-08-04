@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Button, FilterMenu, Pagination } from "@trl11/components/ui";
+import { Badge, Button, FilterMenu, Pagination } from "@trl11/components/ui";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 
@@ -10,7 +10,7 @@ import RunDetails from "@components/RunDetails";
 import RunTable, { type SortDirection } from "@components/RunTable";
 import type { RunTableColumn } from "@components/run_columns";
 import { downloadCsv, toCsv } from "../utils/run_csv";
-import { LIVE_STATUSES } from "../utils/run_status";
+import { LIVE_STATUSES, RUN_STATUS_OPTIONS } from "../utils/run_status";
 
 import "./HistoryPage.scss";
 
@@ -25,16 +25,6 @@ const COLUMNS: RunTableColumn[] = [
   "profile",
   "unit_serial",
   "status",
-];
-
-/** Statuses a finished or in-flight run can carry. `live` stands for all four in-flight ones. */
-const STATUS_OPTIONS = [
-  { value: "all", label: "Any status" },
-  { value: "passed", label: "Passed" },
-  { value: "failed", label: "Failed" },
-  { value: "aborted", label: "Aborted" },
-  { value: "error", label: "Error" },
-  { value: "live", label: "In flight" },
 ];
 
 /** Which statuses one filter value asks the API for. */
@@ -122,7 +112,7 @@ export const HistoryPage: React.FC = () => {
                   })),
                 ],
               },
-              { id: "status", options: STATUS_OPTIONS },
+              { id: "status", options: RUN_STATUS_OPTIONS },
               {
                 id: "unit",
                 options: [
@@ -146,7 +136,9 @@ export const HistoryPage: React.FC = () => {
           {runs.isFetching ? " · refreshing" : ""}
         </span>
         <span className="history-page__bulk">
-          {`${selected.length} selected`}
+          <Badge aria-live="polite" color={selected.length > 0 ? "blue" : "outline"}>
+            {`${selected.length} selected`}
+          </Badge>
           <Button
             size="small"
             disabled={selectedRows.length === 0}

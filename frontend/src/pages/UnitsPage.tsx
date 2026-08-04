@@ -1,4 +1,13 @@
-import { faPen, faSort, faSortDown, faSortUp, faTrash } from "@fortawesome/free-solid-svg-icons";
+import {
+  faCircleCheck,
+  faCircleExclamation,
+  faPen,
+  faSort,
+  faSortDown,
+  faSortUp,
+  faTrash,
+  faTriangleExclamation,
+} from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Confirm, Input, TableSkeleton } from "@trl11/components/ui";
@@ -15,6 +24,7 @@ import RenameDialog from "@components/RenameDialog";
 import StatusPill from "@components/StatusPill";
 import UnitDetail from "@components/UnitDetail";
 import { formatPercent, formatTimestamp } from "../utils/format";
+import { health } from "../utils/health";
 
 import "./UnitsPage.scss";
 
@@ -45,24 +55,23 @@ function compare(a: Unit, b: Unit, key: SortKey): number {
   return a[key] - b[key];
 }
 
-/** How healthy a pass rate looks, as a class the stylesheet colours. */
-function health(rate: number): string {
-  if (rate >= 90) return "is-good";
-  if (rate >= 70) return "is-fair";
-  return "is-poor";
-}
+/** The icon paired with a health tier, so it doesn't read by colour alone. */
+const HEALTH_ICON = {
+  "is-good": faCircleCheck,
+  "is-fair": faTriangleExclamation,
+  "is-poor": faCircleExclamation,
+};
 
-/** The pass-rate bar, coloured by how healthy the unit looks. */
+/** The pass-rate bar, coloured by how healthy the unit looks and iconed to match. */
 const PassRate: React.FC<{ rate: number | null }> = ({ rate }) => {
   if (rate === null) return <span className="units-page__quiet">-</span>;
+  const tier = health(rate);
   return (
     <span className="units-page__rate">
       <span className="units-page__rate-track">
-        <span
-          className={clsx("units-page__rate-fill", health(rate))}
-          style={{ width: `${rate}%` }}
-        />
+        <span className={clsx("units-page__rate-fill", tier)} style={{ width: `${rate}%` }} />
       </span>
+      <FontAwesomeIcon className={clsx("units-page__rate-icon", tier)} icon={HEALTH_ICON[tier]} />
       <span className="units-page__rate-text">{formatPercent(rate, 0)}</span>
     </span>
   );
@@ -190,20 +199,16 @@ const UnitsList: React.FC = () => {
             </thead>
             <tbody>
               {rows.map((unit) => (
-                <tr
-                  key={unit.serial}
-                  tabIndex={0}
-                  role="link"
-                  aria-label={`Open unit ${unit.serial}`}
-                  onClick={() => open(unit.serial)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      open(unit.serial);
-                    }
-                  }}
-                >
-                  <td className="units-page__serial">{unit.serial}</td>
+                <tr key={unit.serial}>
+                  <td className="units-page__open-cell">
+                    <button
+                      type="button"
+                      className="units-page__open units-page__serial"
+                      onClick={() => open(unit.serial)}
+                    >
+                      {unit.serial}
+                    </button>
+                  </td>
                   <td className="is-right">
                     <PassRate rate={passRate(unit)} />
                   </td>
@@ -225,8 +230,7 @@ const UnitsList: React.FC = () => {
                       square
                       color="transparent"
                       aria-label={`Rename unit ${unit.serial}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
+                      onClick={() => {
                         setFailure(null);
                         setRenaming(unit.serial);
                       }}
@@ -236,10 +240,9 @@ const UnitsList: React.FC = () => {
                     <Button
                       size="small"
                       square
-                      color="transparent"
+                      color="red"
                       aria-label={`Delete unit ${unit.serial}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
+                      onClick={() => {
                         setFailure(null);
                         setDeleting(unit.serial);
                       }}

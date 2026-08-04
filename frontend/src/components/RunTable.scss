@@ -61,17 +61,11 @@
 
     tbody tr {
       border-bottom: 1px solid rgba($trl-dark-gray, 0.6);
-      cursor: pointer;
       transition: background-color 0.15s ease;
 
-      &:hover,
-      &:focus-visible {
+      &:has(.run-table__open:hover),
+      &:has(.run-table__open:focus-visible) {
         background-color: rgba($trl-dark-gray, 0.5);
-        outline: none;
-      }
-
-      &:focus-visible {
-        box-shadow: inset 2px 0 0 $indicator-blue;
       }
 
       &:last-child {
@@ -110,6 +104,30 @@
     // height and the box would hang below the row; give it the box's height.
     .checkbox label {
       height: 30px;
+    }
+  }
+
+  &__open-cell {
+    padding: 0;
+  }
+
+  // The row's one accessible way to open it: a real button filling its cell,
+  // so keyboard and screen-reader users get one clear target per row instead
+  // of the whole row masquerading as a link.
+  &__open {
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 10px 14px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: inset 2px 0 0 $indicator-blue;
     }
   }
 
