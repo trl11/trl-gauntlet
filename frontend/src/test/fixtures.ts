@@ -9,7 +9,6 @@
 
 import type {
   ArtifactList,
-  CapabilityList,
   Health,
   Instrument,
   InstrumentCommand,
@@ -37,7 +36,6 @@ import type {
   UnitHistory,
   UnitList,
   Verdict,
-  Version,
 } from "@api/types";
 
 import captured from "./fixtures/api.json";
@@ -124,9 +122,7 @@ function asResult(row: (typeof captured.run_verdict.results)[number]): ResultRow
 }
 
 export const health: Health = captured.health;
-export const version: Version = captured.version;
 export const settings: Settings = captured.settings;
-export const capabilities: CapabilityList = captured.capabilities;
 export const suites: SuiteList = {
   ...captured.suites,
   suites: captured.suites.suites.map(asSuite),
@@ -152,7 +148,10 @@ export const runMetrics: MetricsResponse = {
 };
 export const runArtifacts: ArtifactList = captured.run_artifacts;
 export const runNotes: NoteList = captured.run_notes;
-export const units: UnitList = { units: captured.units.units.map(asUnit) };
+export const units: UnitList = {
+  total: captured.units.total,
+  units: captured.units.units.map(asUnit),
+};
 export const unit: UnitDetail = { ...asUnit(captured.unit), notes: captured.unit.notes };
 export const unitHistory: UnitHistory = {
   ...captured.unit_history,

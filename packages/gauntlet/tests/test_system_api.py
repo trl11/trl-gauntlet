@@ -22,16 +22,17 @@ class TestSystemInfo:
         assert set(body) == {
             "arch",
             "boot_time",
+            "contract_version",
             "cpu_count",
             "cpu_model",
             "gauntlet",
+            "gauntlet_sdk",
             "hostname",
             "kernel",
             "memory_total_bytes",
             "os",
             "python",
         }
-        assert body["gauntlet"] == client.get("/api/version").json()["gauntlet"]
         assert body["python"].count(".") == 2
 
     def test_survives_a_host_without_proc(self, client, missing_proc) -> None:

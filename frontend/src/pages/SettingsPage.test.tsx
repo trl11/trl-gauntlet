@@ -8,7 +8,6 @@ import { pending, spinners } from "../test/queries";
 const getHealth = vi.fn();
 const getSettings = vi.fn();
 const getSystemInfo = vi.fn();
-const getVersion = vi.fn();
 
 vi.mock("@api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@api/client")>();
@@ -17,7 +16,6 @@ vi.mock("@api/client", async (importOriginal) => {
     getHealth: () => getHealth(),
     getSettings: () => getSettings(),
     getSystemInfo: () => getSystemInfo(),
-    getVersion: () => getVersion(),
   };
 });
 
@@ -56,13 +54,8 @@ beforeEach(() => {
     memory_total_bytes: 34359738368,
     os: "Linux",
     python: "3.12.3",
-  });
-  getVersion.mockResolvedValue({
-    contract_version: 1,
-    gauntlet: "0.4.1",
     gauntlet_sdk: "0.4.1",
-    platform: "Linux",
-    python: "3.12.3",
+    contract_version: 1,
   });
 });
 
@@ -118,7 +111,6 @@ describe("SettingsPage", () => {
   it("spins each section while its query is in flight", () => {
     getSettings.mockReturnValue(pending());
     getSystemInfo.mockReturnValue(pending());
-    getVersion.mockReturnValue(pending());
     renderSettings();
     expect(spinners()).toHaveLength(3);
   });
@@ -129,9 +121,10 @@ describe("SettingsPage", () => {
     expect(await screen.findByText("config.yaml is unreadable")).toBeInTheDocument();
   });
 
+  // Host facts and versions come from the one query, so both panels report it.
   it("reports host facts that could not be read", async () => {
     getSystemInfo.mockRejectedValue(new Error("no /proc here"));
     renderSettings();
-    expect(await screen.findByText("no /proc here")).toBeInTheDocument();
+    expect(await screen.findAllByText("no /proc here")).toHaveLength(2);
   });
 });

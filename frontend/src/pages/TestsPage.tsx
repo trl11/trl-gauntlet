@@ -34,8 +34,7 @@ type VerifyReports = Record<string, VerifyReport>;
  * once, rather than showing reports against the suites of the previous scan.
  */
 async function rescanAndVerify(): Promise<{ catalog: SuiteList; reports: VerifyReports }> {
-  await rescanSuites();
-  const catalog = await listSuites();
+  const catalog = await rescanSuites();
   const reports = await Promise.all(catalog.suites.map((suite) => verifySuite(suite.key)));
   return {
     catalog,

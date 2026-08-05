@@ -108,7 +108,7 @@ class TestStop:
             assert client.post(f"/api/runs/{run_id}/stop").json() == {"run_id": run_id, "status": "stopping"}
             finished = wait_for_status(client, run_id, {"passed", "failed", "error", "aborted"})
             assert finished["status"] == "passed"
-            assert client.get(f"/api/runs/{run_id}/verdict").json()["stopped_early"] is True
+            assert client.get(f"/api/runs/{run_id}/artifacts/verdict.json").json()["stopped_early"] is True
 
     def test_stopping_a_finished_run_is_409(self, app_with) -> None:
         with app_with(slow=script_writing('{"passed": true, "reason": ""}')) as client:

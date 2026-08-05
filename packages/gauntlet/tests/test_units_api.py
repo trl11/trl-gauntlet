@@ -55,7 +55,7 @@ class TestUnits:
         client.post("/api/units/SN1/notes", json={"body": "gone"})
 
         body = client.delete("/api/units/SN1").json()
-        assert body == {"serial": "SN1", "deleted": True, "deleted_runs": 0}
+        assert body == {"id": "SN1", "deleted": True, "deleted_runs": 0}
         assert client.get("/api/runs/r1").status_code == 200
         assert client.get("/api/units/SN1").json()["notes"] == []
 
@@ -66,7 +66,7 @@ class TestUnits:
         client.post("/api/units/SN1/notes", json={"body": "gone"})
 
         body = client.delete("/api/units/SN1", params={"runs": "true"}).json()
-        assert body == {"serial": "SN1", "deleted": True, "deleted_runs": 2}
+        assert body == {"id": "SN1", "deleted": True, "deleted_runs": 2}
         assert client.get("/api/runs/r1").status_code == 404
         assert client.get("/api/runs/r2").status_code == 404
         assert client.get("/api/units/SN1").status_code == 404
@@ -111,7 +111,7 @@ class TestUnits:
         assert client.delete("/api/units/nope/notes/1").status_code == 404
 
     def test_no_units_lists_nothing(self, client) -> None:
-        assert client.get("/api/units").json() == {"units": []}
+        assert client.get("/api/units").json() == {"units": [], "total": 0}
 
     def test_renaming_to_the_same_serial_is_accepted(self, client, add_run) -> None:
         add_run("r1", unit_serial="SN1")

@@ -1,6 +1,11 @@
 """Reading the files a run produced.
 
 Every path is resolved inside the run directory and rejected if it escapes.
+
+One file is fetched through ``artifacts/{path}``, which serves text inline and
+anything else as a download; there is no second endpoint per artifact. The
+exception is ``metrics``, which parses JSONL and pages it rather than handing
+back the file.
 """
 
 from __future__ import annotations
@@ -71,18 +76,6 @@ async def get_artifact(request: Request, run_id: str, relative: str) -> Any:
     return FileResponse(path)
 
 
-@router.get("/runs/{run_id}/verdict")
-async def get_verdict(request: Request, run_id: str) -> dict[str, Any]:
-    """Parsed ``verdict.json``."""
-    return _read_json(_resolve(_run_dir(request, run_id), "verdict.json"))
-
-
-@router.get("/runs/{run_id}/manifest")
-async def get_manifest(request: Request, run_id: str) -> dict[str, Any]:
-    """Parsed ``manifest.json``."""
-    return _read_json(_resolve(_run_dir(request, run_id), "manifest.json"))
-
-
 @router.get("/runs/{run_id}/metrics")
 async def get_metrics(request: Request, run_id: str, limit: int = 5000) -> dict[str, Any]:
     """Parsed ``metrics.jsonl``, for charting a finished run.
@@ -105,13 +98,3 @@ async def get_metrics(request: Request, run_id: str, limit: int = 5000) -> dict[
             if isinstance(record, dict):
                 records.append(record)
     return {"run_id": run_id, "count": len(records), "records": records}
-
-
-def _read_json(path: Path) -> dict[str, Any]:
-    try:
-        data = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
-        raise HTTPException(status_code=500, detail=f"cannot read {path.name}: {exc}") from exc
-    if not isinstance(data, dict):
-        raise HTTPException(status_code=500, detail=f"{path.name} is not an object")
-    return data

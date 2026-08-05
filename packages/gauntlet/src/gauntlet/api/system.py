@@ -1,4 +1,4 @@
-"""Health, version, settings, and host telemetry.
+"""Health, settings, versions, and host telemetry.
 
 The telemetry endpoints report what :mod:`gauntlet.api.host_stats` reads from
 the host. ``cpu_percent`` is the one reading a single sample cannot give, so
@@ -7,7 +7,6 @@ the previous ``/proc/stat`` reading is kept on ``app.state``.
 
 from __future__ import annotations
 
-import platform
 import sys
 from typing import Any
 
@@ -25,22 +24,6 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.get("/version")
-async def version() -> dict[str, Any]:
-    """Versions of the app, the SDK, and the contract they speak."""
-    from gauntlet_sdk import __version__ as sdk_version
-
-    from gauntlet import __version__ as app_version
-
-    return {
-        "gauntlet": app_version,
-        "gauntlet_sdk": sdk_version,
-        "contract_version": CONTRACT_VERSION,
-        "python": sys.version.split()[0],
-        "platform": platform.platform(),
-    }
-
-
 @router.get("/settings")
 async def get_settings(request: Request) -> dict[str, Any]:
     """Current settings."""
@@ -49,10 +32,20 @@ async def get_settings(request: Request) -> dict[str, Any]:
 
 @router.get("/system/info")
 async def system_info() -> dict[str, Any]:
-    """Host facts that do not change while the app is running."""
+    """Host facts and versions, none of which change while the app is running.
+
+    Everything the retired `/version` reported is here: the host was already
+    described alongside the app's own version, and answering both from one
+    place stops `platform.platform()` being served twice under two names.
+    """
+    from gauntlet_sdk import __version__ as sdk_version
+
     from gauntlet import __version__ as app_version
 
-    return host_stats.static_info(app_version, sys.version.split()[0])
+    info = host_stats.static_info(app_version, sys.version.split()[0])
+    info["gauntlet_sdk"] = sdk_version
+    info["contract_version"] = CONTRACT_VERSION
+    return info
 
 
 @router.get("/system/data")

@@ -95,7 +95,7 @@ function renderPage(path = "/tests") {
 beforeEach(() => {
   listSuites.mockResolvedValue({ errors: [], suites: [SMOKE, THERMAL] });
   listInstruments.mockResolvedValue({ instruments: [instrument("chamber", true)] });
-  rescanSuites.mockResolvedValue({ count: 2, errors: [] });
+  rescanSuites.mockResolvedValue({ errors: [], suites: [SMOKE, THERMAL] });
   verifySuite.mockResolvedValue({
     checks: [{ detail: "manifest parses", fatal: true, name: "manifest", passed: true }],
     directory: "/suites/thermal_cycle",
@@ -153,6 +153,16 @@ describe("TestsPage", () => {
     await waitFor(() => expect(verifySuite).toHaveBeenCalledTimes(2));
     expect(verifySuite).toHaveBeenCalledWith("smoke");
     expect(verifySuite).toHaveBeenCalledWith("thermal_cycle");
+  });
+
+  it("takes the catalog from the rescan rather than reading the list again", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("button", { name: "Smoke" });
+    listSuites.mockClear();
+    await user.click(screen.getByRole("button", { name: "Rescan" }));
+    await waitFor(() => expect(verifySuite).toHaveBeenCalledTimes(2));
+    expect(listSuites).not.toHaveBeenCalled();
   });
 
   it("lists only the checks a suite failed", async () => {

@@ -39,7 +39,7 @@ def delete_note(request: Request, subject_kind: str, subject_id: str, note_id: i
     if note is None or note.subject_kind != subject_kind or note.subject_id != subject_id:
         raise HTTPException(status_code=404, detail=f"unknown note {note_id}")
     notes.delete(note_id)
-    return {"id": note_id, "deleted": True}
+    return {"id": str(note_id), "deleted": True}
 
 
 def list_notes(request: Request, subject_kind: str, subject_id: str) -> dict[str, Any]:

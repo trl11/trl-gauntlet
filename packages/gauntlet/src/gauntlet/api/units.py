@@ -31,7 +31,8 @@ class RenameBody(BaseModel):
 @router.get("/units")
 async def get_units(request: Request) -> dict[str, Any]:
     """Every unit any run has named, most recently seen first."""
-    return {"units": [unit.to_dict() for unit in _index(request).list()]}
+    units = [unit.to_dict() for unit in _index(request).list()]
+    return {"units": units, "total": len(units)}
 
 
 @router.get("/units/{serial}")
@@ -68,7 +69,7 @@ async def forget_unit(request: Request, serial: str, runs: bool = False) -> dict
     _unit_or_404(request, serial)
     deleted_runs = _delete_unit_runs(request, serial) if runs else 0
     _index(request).delete(serial)
-    return {"serial": serial, "deleted": True, "deleted_runs": deleted_runs}
+    return {"id": serial, "deleted": True, "deleted_runs": deleted_runs}
 
 
 @router.get("/units/{serial}/history")

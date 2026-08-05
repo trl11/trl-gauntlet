@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Badge, Spinner } from "@trl11/components/ui";
 
-import { apiUrl, getHealth, getSettings, getSystemInfo, getVersion } from "@api/client";
+import { apiUrl, getHealth, getSettings, getSystemInfo } from "@api/client";
 import DefinitionRows from "@components/DefinitionRows";
 import PageHeader from "@components/PageHeader";
 import Panel from "@components/Panel";
@@ -40,7 +40,6 @@ export const SettingsPage: React.FC = () => {
   });
   const info = useQuery({ queryKey: ["system-info"], queryFn: getSystemInfo });
   const settings = useQuery({ queryKey: ["settings"], queryFn: getSettings });
-  const version = useQuery({ queryKey: ["version"], queryFn: getVersion });
 
   const badge = healthBadge(health.isPending, health.isSuccess);
   const config = settings.data;
@@ -110,20 +109,20 @@ export const SettingsPage: React.FC = () => {
         </Panel>
 
         <Panel title="Versions">
-          {version.isPending ? (
+          {info.isPending ? (
             <Spinner />
-          ) : version.isError ? (
+          ) : info.isError ? (
             <p className="settings-page__error" role="alert">
-              {version.error.message}
+              {info.error.message}
             </p>
           ) : (
             <DefinitionRows
               rows={[
-                { label: "gauntlet", value: text(version.data?.gauntlet) },
-                { label: "suite sdk", value: text(version.data?.gauntlet_sdk) },
-                { label: "contract", value: text(version.data?.contract_version) },
-                { label: "python", value: text(version.data?.python) },
-                { label: "platform", value: text(version.data?.platform) },
+                { label: "gauntlet", value: text(host?.gauntlet) },
+                { label: "suite sdk", value: text(host?.gauntlet_sdk) },
+                { label: "contract", value: text(host?.contract_version) },
+                { label: "python", value: text(host?.python) },
+                { label: "platform", value: text(host?.os) },
               ]}
             />
           )}

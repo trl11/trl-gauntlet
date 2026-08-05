@@ -15,12 +15,9 @@ class TestCapabilities:
         assert body.status_code == 200
         assert body.json()["channels"]["1"]["voltage_setpoint"] == 9.0
 
-    def test_the_snapshot_describes_every_provider(self, client) -> None:
-        rows = client.get("/api/capabilities").json()["capabilities"]
-        psu = next(row for row in rows if row["name"] == "psu")
-        assert psu["available"] == "true"
-        assert psu["instance_id"] == "psu0"
-        assert psu["driver"] == "mock"
+    def test_this_router_lists_nothing(self, client) -> None:
+        """A suite is handed its grants; the bench is listed under /instruments."""
+        assert client.get("/api/capabilities").status_code == 404
 
     def test_a_provider_that_cannot_be_read_is_405(self, client) -> None:
         client.app.state.capabilities.register(_Opaque())

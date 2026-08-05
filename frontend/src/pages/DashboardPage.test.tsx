@@ -11,7 +11,6 @@ import { pending, spinners } from "../test/queries";
 
 const abortRun = vi.fn();
 const getSystemData = vi.fn();
-const listCapabilities = vi.fn();
 const listInstruments = vi.fn();
 const listRuns = vi.fn();
 const listSuites = vi.fn();
@@ -24,7 +23,6 @@ vi.mock("@api/client", async (importOriginal) => {
     ...actual,
     abortRun: (...args: unknown[]) => abortRun(...args),
     getSystemData: () => getSystemData(),
-    listCapabilities: () => listCapabilities(),
     listInstruments: () => listInstruments(),
     listRuns: (...args: unknown[]) => listRuns(...args),
     listSuites: () => listSuites(),
@@ -141,9 +139,6 @@ function renderDashboard() {
 beforeEach(() => {
   abortRun.mockResolvedValue({ run_id: "r2", status: "aborting" });
   getSystemData.mockResolvedValue(systemData());
-  listCapabilities.mockResolvedValue({
-    capabilities: [{ available: "true", instance_id: "c1", name: "chamber" }],
-  });
   listInstruments.mockResolvedValue({ instruments: [instrument()] });
   listRuns.mockResolvedValue({ runs: [run()] });
   listSuites.mockResolvedValue({ errors: [], suites: [suite()] });

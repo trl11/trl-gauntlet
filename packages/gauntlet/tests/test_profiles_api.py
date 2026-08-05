@@ -7,7 +7,7 @@ class TestProfileDiff:
     def test_reports_the_changed_lines(self, client) -> None:
         body = client.post(
             "/api/suites/alpha/profiles/quick.yaml/diff",
-            json={"content": "description: slow\niterations: 2\n"},
+            json={"body": "description: slow\niterations: 2\n"},
         )
         assert body.status_code == 200
         diff = body.json()["diff"]
@@ -16,17 +16,17 @@ class TestProfileDiff:
 
     def test_identical_content_diffs_to_nothing(self, client) -> None:
         current = client.get("/api/suites/alpha/profiles/quick.yaml").json()["body"]
-        response = client.post("/api/suites/alpha/profiles/quick.yaml/diff", json={"content": current})
+        response = client.post("/api/suites/alpha/profiles/quick.yaml/diff", json={"body": current})
         assert response.json()["diff"] == ""
 
     def test_name_without_the_extension_works(self, client) -> None:
-        assert client.post("/api/suites/alpha/profiles/quick/diff", json={"content": ""}).status_code == 200
+        assert client.post("/api/suites/alpha/profiles/quick/diff", json={"body": ""}).status_code == 200
 
     def test_unknown_profile_is_404(self, client) -> None:
-        assert client.post("/api/suites/alpha/profiles/nope/diff", json={"content": ""}).status_code == 404
+        assert client.post("/api/suites/alpha/profiles/nope/diff", json={"body": ""}).status_code == 404
 
     def test_unknown_suite_is_404(self, client) -> None:
-        assert client.post("/api/suites/nope/profiles/quick/diff", json={"content": ""}).status_code == 404
+        assert client.post("/api/suites/nope/profiles/quick/diff", json={"body": ""}).status_code == 404
 
 
 class TestProfileDuplicate:
@@ -56,7 +56,7 @@ class TestProfileBodies:
         assert client.post("/api/suites/alpha/profiles/quick.yaml/diff", json={}).status_code == 422
 
     def test_an_unexpected_diff_key_is_422(self, client) -> None:
-        response = client.post("/api/suites/alpha/profiles/quick.yaml/diff", json={"content": "", "force": True})
+        response = client.post("/api/suites/alpha/profiles/quick.yaml/diff", json={"body": "", "force": True})
         assert response.status_code == 422
 
     def test_a_duplicate_without_a_name_is_422(self, client) -> None:
@@ -83,7 +83,7 @@ class TestProfileBodies:
 class TestProfileDelete:
     def test_removes_an_operator_profile(self, client) -> None:
         client.put("/api/suites/alpha/profiles/mine", json={"body": "description: mine\n"})
-        assert client.delete("/api/suites/alpha/profiles/mine.yaml").json() == {"name": "mine.yaml", "deleted": True}
+        assert client.delete("/api/suites/alpha/profiles/mine.yaml").json() == {"id": "mine.yaml", "deleted": True}
         assert client.get("/api/suites/alpha/profiles/mine.yaml").status_code == 404
 
     def test_a_suite_own_profile_is_409(self, client) -> None:

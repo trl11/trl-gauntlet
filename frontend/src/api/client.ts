@@ -10,7 +10,7 @@
 
 import type {
   ArtifactList,
-  CapabilityList,
+  Deleted,
   ForgottenUnit,
   Health,
   InstrumentCommandResult,
@@ -21,7 +21,6 @@ import type {
   NoteList,
   ProfileContent,
   ProfileDiff,
-  RescanResult,
   RunControlResult,
   RunList,
   RunManifest,
@@ -37,7 +36,6 @@ import type {
   UnitList,
   Verdict,
   VerifyReport,
-  Version,
 } from "./types";
 
 /** Base URL every request is prefixed with. Empty means the current origin. */
@@ -175,9 +173,6 @@ const encodeSegment = encodeURIComponent;
 /** `GET /api/health` */
 export const getHealth = (): Promise<Health> => request<Health>("/api/health");
 
-/** `GET /api/version` */
-export const getVersion = (): Promise<Version> => request<Version>("/api/version");
-
 /** `GET /api/settings` */
 export const getSettings = (): Promise<Settings> => request<Settings>("/api/settings");
 
@@ -188,23 +183,15 @@ export const getSystemInfo = (): Promise<SystemInfo> => request<SystemInfo>("/ap
 export const getSystemData = (): Promise<SystemData> => request<SystemData>("/api/system/data");
 
 /* -------------------------------------------------------------------------
- * Capabilities
- * ---------------------------------------------------------------------- */
-
-/** `GET /api/capabilities` */
-export const listCapabilities = (): Promise<CapabilityList> =>
-  request<CapabilityList>("/api/capabilities");
-
-/* -------------------------------------------------------------------------
  * Suites, profiles, schemas
  * ---------------------------------------------------------------------- */
 
 /** `GET /api/suites` */
 export const listSuites = (): Promise<SuiteList> => request<SuiteList>("/api/suites");
 
-/** `POST /api/suites/rescan` */
-export const rescanSuites = (): Promise<RescanResult> =>
-  request<RescanResult>("/api/suites/rescan", { method: "POST" });
+/** `POST /api/suites/rescan`. Answers with the catalog the rescan found. */
+export const rescanSuites = (): Promise<SuiteList> =>
+  request<SuiteList>("/api/suites/rescan", { method: "POST" });
 
 /** `GET /api/suites/{key}/profile-schema` */
 export const getProfileSchema = (key: string): Promise<JsonSchema> =>
@@ -222,8 +209,8 @@ export const saveProfile = (key: string, name: string, body: string): Promise<Sa
   });
 
 /** `DELETE /api/suites/{key}/profiles/{name}` */
-export const deleteProfile = (key: string, name: string): Promise<void> =>
-  request<void>(`/api/suites/${encodeSegment(key)}/profiles/${encodeSegment(name)}`, {
+export const deleteProfile = (key: string, name: string): Promise<Deleted> =>
+  request<Deleted>(`/api/suites/${encodeSegment(key)}/profiles/${encodeSegment(name)}`, {
     method: "DELETE",
   });
 
@@ -231,7 +218,7 @@ export const deleteProfile = (key: string, name: string): Promise<void> =>
 export const diffProfile = (key: string, name: string, content: string): Promise<ProfileDiff> =>
   request<ProfileDiff>(`/api/suites/${encodeSegment(key)}/profiles/${encodeSegment(name)}/diff`, {
     method: "POST",
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ body: content }),
   });
 
 /** `POST /api/suites/{key}/profiles/{name}/duplicate` */
@@ -301,8 +288,8 @@ export const abortRun = (runId: string): Promise<RunControlResult> =>
  * Permanently removes the run's row, notes, and directory. Refused while the
  * run is still in flight.
  */
-export const deleteRun = (runId: string): Promise<void> =>
-  request<void>(`/api/runs/${encodeSegment(runId)}`, { method: "DELETE" });
+export const deleteRun = (runId: string): Promise<Deleted> =>
+  request<Deleted>(`/api/runs/${encodeSegment(runId)}`, { method: "DELETE" });
 
 /** URL of the SSE stream for one run, resuming after sequence number `since`. */
 export function runEventsUrl(runId: string, since: number): string {
@@ -325,13 +312,28 @@ export const getArtifactText = (runId: string, relative: string): Promise<string
   return requestText(`/api/runs/${encodeSegment(runId)}/artifacts/${path}`);
 };
 
-/** `GET /api/runs/{id}/verdict` */
-export const getRunVerdict = (runId: string): Promise<Verdict> =>
-  request<Verdict>(`/api/runs/${encodeSegment(runId)}/verdict`);
+/**
+ * One JSON artifact, parsed.
+ *
+ * The artifact endpoint is the only way to read a run's files, so a named one
+ * is fetched the same way as any other and decoded here.
+ */
+async function getArtifactJson<T>(runId: string, relative: string): Promise<T> {
+  const text = await getArtifactText(runId, relative);
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new ApiError(200, `${relative} is not valid JSON`, artifactUrl(runId, relative));
+  }
+}
 
-/** `GET /api/runs/{id}/manifest` */
+/** `verdict.json` from the run directory, parsed. */
+export const getRunVerdict = (runId: string): Promise<Verdict> =>
+  getArtifactJson<Verdict>(runId, "verdict.json");
+
+/** `manifest.json` from the run directory, parsed. */
 export const getRunManifest = (runId: string): Promise<RunManifest> =>
-  request<RunManifest>(`/api/runs/${encodeSegment(runId)}/manifest`);
+  getArtifactJson<RunManifest>(runId, "manifest.json");
 
 /** `GET /api/runs/{id}/metrics` */
 export const getRunMetrics = (runId: string, limit?: number): Promise<MetricsResponse> =>
@@ -353,8 +355,8 @@ export const addRunNote = (
   });
 
 /** `DELETE /api/runs/{id}/notes/{note_id}` */
-export const deleteRunNote = (runId: string, noteId: number): Promise<void> =>
-  request<void>(`/api/runs/${encodeSegment(runId)}/notes/${noteId}`, { method: "DELETE" });
+export const deleteRunNote = (runId: string, noteId: number): Promise<Deleted> =>
+  request<Deleted>(`/api/runs/${encodeSegment(runId)}/notes/${noteId}`, { method: "DELETE" });
 
 /* -------------------------------------------------------------------------
  * Units
@@ -400,8 +402,8 @@ export const addUnitNote = (
   });
 
 /** `DELETE /api/units/{serial}/notes/{note_id}` */
-export const deleteUnitNote = (serial: string, noteId: number): Promise<void> =>
-  request<void>(`/api/units/${encodeSegment(serial)}/notes/${noteId}`, { method: "DELETE" });
+export const deleteUnitNote = (serial: string, noteId: number): Promise<Deleted> =>
+  request<Deleted>(`/api/units/${encodeSegment(serial)}/notes/${noteId}`, { method: "DELETE" });
 
 /* -------------------------------------------------------------------------
  * Instruments
@@ -411,9 +413,9 @@ export const deleteUnitNote = (serial: string, noteId: number): Promise<void> =>
 export const listInstruments = (): Promise<InstrumentList> =>
   request<InstrumentList>("/api/instruments");
 
-/** `POST /api/instruments/scan` */
-export const scanInstruments = (): Promise<InstrumentList> =>
-  request<InstrumentList>("/api/instruments/scan", { method: "POST" });
+/** `POST /api/instruments/rescan`. Answers with the instruments found. */
+export const rescanInstruments = (): Promise<InstrumentList> =>
+  request<InstrumentList>("/api/instruments/rescan", { method: "POST" });
 
 /** `POST /api/instruments/{name}/command` */
 export const sendInstrumentCommand = (

@@ -51,7 +51,7 @@ class TestInstrumentsApi:
 
     def test_scan_reports_the_same_instruments(self, client) -> None:
         # The readings move between the two calls; the instruments do not.
-        scanned = client.post("/api/instruments/scan").json()["instruments"]
+        scanned = client.post("/api/instruments/rescan").json()["instruments"]
         listed = client.get("/api/instruments").json()["instruments"]
         assert [i["name"] for i in scanned] == [i["name"] for i in listed]
         assert [i["commands"] for i in scanned] == [i["commands"] for i in listed]
@@ -135,7 +135,7 @@ class TestInstrumentsApi:
         client.app.state.capabilities.register(flaky)
         assert client.get("/api/instruments/flaky").json()["available"] is False
         flaky.present = True
-        scanned = client.post("/api/instruments/scan").json()["instruments"]
+        scanned = client.post("/api/instruments/rescan").json()["instruments"]
         assert next(i for i in scanned if i["name"] == "flaky")["available"] is True
 
 

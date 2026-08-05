@@ -9,7 +9,7 @@ import InstrumentsPage from "./InstrumentsPage";
 import { pending, spinners } from "../test/queries";
 
 const listInstruments = vi.fn();
-const scanInstruments = vi.fn();
+const rescanInstruments = vi.fn();
 const sendInstrumentCommand = vi.fn();
 
 vi.mock("@api/client", async (importOriginal) => {
@@ -17,7 +17,7 @@ vi.mock("@api/client", async (importOriginal) => {
   return {
     ...actual,
     listInstruments: () => listInstruments(),
-    scanInstruments: () => scanInstruments(),
+    rescanInstruments: () => rescanInstruments(),
     sendInstrumentCommand: (...args: unknown[]) => sendInstrumentCommand(...args),
   };
 });
@@ -88,7 +88,7 @@ function renderPage() {
 
 beforeEach(() => {
   listInstruments.mockResolvedValue({ instruments: [psu, unknown] });
-  scanInstruments.mockResolvedValue({ instruments: [psu] });
+  rescanInstruments.mockResolvedValue({ instruments: [psu] });
   sendInstrumentCommand.mockResolvedValue({ state: {}, result: {} });
 });
 
@@ -134,7 +134,7 @@ describe("InstrumentsPage", () => {
     renderPage();
     await screen.findByRole("heading", { name: "psu" });
     await userEvent.click(screen.getByRole("button", { name: /scan/i }));
-    expect(scanInstruments).toHaveBeenCalled();
+    expect(rescanInstruments).toHaveBeenCalled();
   });
 
   it("posts a command to the instrument it belongs to", async () => {

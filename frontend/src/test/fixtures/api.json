@@ -1,35 +1,4 @@
 {
-  "capabilities": {
-    "capabilities": [
-      {
-        "available": "true",
-        "description": "Thermal chamber with a ramping air temperature.",
-        "driver": "mock",
-        "instance_id": "chamber0",
-        "kind": "chamber",
-        "model": "mock-chamber",
-        "name": "chamber"
-      },
-      {
-        "available": "true",
-        "description": "Eight-channel analog acquisition with two digital inputs.",
-        "driver": "mock",
-        "instance_id": "daq0",
-        "kind": "daq",
-        "model": "mock-daq",
-        "name": "daq"
-      },
-      {
-        "available": "true",
-        "description": "Two-channel bench supply with readback and current limiting.",
-        "driver": "mock",
-        "instance_id": "psu0",
-        "kind": "psu",
-        "model": "mock-psu",
-        "name": "psu"
-      }
-    ]
-  },
   "health": {
     "status": "ok"
   },
@@ -2297,9 +2266,11 @@
   "system_info": {
     "arch": "x86_64",
     "boot_time": "2026-06-01T16:22:44Z",
+    "contract_version": 1,
     "cpu_count": 24,
     "cpu_model": "AMD Ryzen 9 5900X 12-Core Processor",
     "gauntlet": "0.1.0",
+    "gauntlet_sdk": "0.1.0",
     "hostname": "bde7fd7761aa",
     "kernel": "6.8.0-117-generic",
     "memory_total_bytes": 67324526592,
@@ -2390,13 +2361,7 @@
         "run_count": 1,
         "serial": "SN-RENAMED-002"
       }
-    ]
-  },
-  "version": {
-    "contract_version": 1,
-    "gauntlet": "0.1.0",
-    "gauntlet_sdk": "0.1.0",
-    "platform": "Linux-6.8.0-117-generic-x86_64-with-glibc2.36",
-    "python": "3.12.11"
+    ],
+    "total": 2
   }
 }

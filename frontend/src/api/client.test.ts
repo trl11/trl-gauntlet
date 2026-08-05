@@ -27,9 +27,7 @@ import {
   getSystemInfo,
   getUnit,
   getUnitHistory,
-  getVersion,
   listArtifacts,
-  listCapabilities,
   listInstruments,
   listRunNotes,
   listRuns,
@@ -40,7 +38,7 @@ import {
   rescanSuites,
   runEventsUrl,
   saveProfile,
-  scanInstruments,
+  rescanInstruments,
   sendInstrumentCommand,
   startRun,
   stopRun,
@@ -161,11 +159,9 @@ describe("error mapping", () => {
 describe("every endpoint addresses its route", () => {
   const endpoints: [string, () => Promise<unknown>, string, string][] = [
     ["getHealth", getHealth, "GET", "/api/health"],
-    ["getVersion", getVersion, "GET", "/api/version"],
     ["getSettings", getSettings, "GET", "/api/settings"],
     ["getSystemInfo", getSystemInfo, "GET", "/api/system/info"],
     ["getSystemData", getSystemData, "GET", "/api/system/data"],
-    ["listCapabilities", listCapabilities, "GET", "/api/capabilities"],
     ["listSuites", listSuites, "GET", "/api/suites"],
     ["rescanSuites", rescanSuites, "POST", "/api/suites/rescan"],
     ["getProfileSchema", () => getProfileSchema("demo"), "GET", "/api/suites/demo/profile-schema"],
@@ -212,8 +208,6 @@ describe("every endpoint addresses its route", () => {
     ["abortRun", () => abortRun("r1"), "POST", "/api/runs/r1/abort"],
     ["deleteRun", () => deleteRun("r1"), "DELETE", "/api/runs/r1"],
     ["listArtifacts", () => listArtifacts("r1"), "GET", "/api/runs/r1/artifacts"],
-    ["getRunVerdict", () => getRunVerdict("r1"), "GET", "/api/runs/r1/verdict"],
-    ["getRunManifest", () => getRunManifest("r1"), "GET", "/api/runs/r1/manifest"],
     ["getRunMetrics", () => getRunMetrics("r1"), "GET", "/api/runs/r1/metrics"],
     [
       "getRunMetrics limited",
@@ -237,7 +231,7 @@ describe("every endpoint addresses its route", () => {
     ["listUnitNotes", () => listUnitNotes("SN-1"), "GET", "/api/units/SN-1/notes"],
     ["deleteUnitNote", () => deleteUnitNote("SN-1", 3), "DELETE", "/api/units/SN-1/notes/3"],
     ["listInstruments", listInstruments, "GET", "/api/instruments"],
-    ["scanInstruments", scanInstruments, "POST", "/api/instruments/scan"],
+    ["rescanInstruments", rescanInstruments, "POST", "/api/instruments/rescan"],
   ];
 
   it.each(endpoints)("%s issues %s %s", async (_name, call, method, url) => {
@@ -258,6 +252,27 @@ describe("every endpoint addresses its route", () => {
     fetchMock.mockResolvedValue(jsonResponse({ runs: [] }));
     await listRuns({ status: ["passed", "failed"] });
     expect(lastCall()[0]).toBe("/api/runs?status=passed&status=failed");
+  });
+});
+
+describe("json artifacts", () => {
+  it("reads the verdict through the one artifact endpoint", async () => {
+    fetchMock.mockResolvedValue(new Response('{"passed": true}'));
+    await expect(getRunVerdict("r1")).resolves.toEqual({ passed: true });
+    expect(lastCall()[0]).toBe("/api/runs/r1/artifacts/verdict.json");
+  });
+
+  it("reads the manifest the same way", async () => {
+    fetchMock.mockResolvedValue(new Response('{"suite": "demo"}'));
+    await expect(getRunManifest("r1")).resolves.toEqual({ suite: "demo" });
+    expect(lastCall()[0]).toBe("/api/runs/r1/artifacts/manifest.json");
+  });
+
+  it("rejects an artifact that is not valid JSON", async () => {
+    fetchMock.mockResolvedValue(new Response("{ truncated"));
+    const error = (await getRunVerdict("r1").catch((caught) => caught)) as ApiError;
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.detail).toBe("verdict.json is not valid JSON");
   });
 });
 

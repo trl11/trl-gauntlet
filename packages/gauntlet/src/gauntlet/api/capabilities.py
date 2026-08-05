@@ -4,6 +4,10 @@ Gauntlet holds the instrument. A suite names what it needs in ``requires:``,
 is granted a URL under this router, and reads and writes the device through it.
 :mod:`gauntlet.api.instruments` serves the same providers to the operator; this
 is the half the suite process sees.
+
+There is no listing here on purpose. A suite is handed the capabilities it was
+granted and discovers nothing else, and the operator sees the bench through
+``GET /api/instruments``.
 """
 
 from __future__ import annotations
@@ -15,12 +19,6 @@ from fastapi import APIRouter, HTTPException, Request
 from gauntlet.capabilities import CapabilityProvider, ReadableCapability, WritableCapability
 
 router = APIRouter()
-
-
-@router.get("/capabilities")
-async def get_capabilities(request: Request) -> dict[str, Any]:
-    """Registered capability providers and whether each is usable now."""
-    return {"capabilities": request.app.state.capabilities.snapshot()}
 
 
 @router.get("/capabilities/{name}")
