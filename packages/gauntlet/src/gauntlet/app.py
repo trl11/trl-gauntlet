@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from gauntlet.api import artifacts, capabilities, instruments, runs, suites, system, units
 from gauntlet.capabilities import CapabilityRegistry
 from gauntlet.config import Settings, load_settings
-from gauntlet.instruments import MockChamber, MockDaq, MockPsu
+from gauntlet.instruments import detect_instruments
 from gauntlet.storage import NotesIndex, RunRow, RunsIndex, UnitsIndex
 from gauntlet.suites import SuiteCatalog, discover_suites
 from gauntlet.supervisor import RunHandle, RunSupervisor
@@ -67,10 +67,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return app.state.suite_catalog
 
     registry = CapabilityRegistry(api_base=settings.api_base)
-    # Mock instruments are registered by default and replaced by name when real
-    # hardware is configured.
-    for instrument in (MockChamber(), MockDaq(), MockPsu()):
-        registry.register(instrument)
+
+    def detect() -> None:
+        detect_instruments(registry, settings)
+
+    # An instrument is registered only while its hardware answers. A scan runs
+    # this again, so one attached after startup is picked up without a restart
+    # and one unplugged stops being offered.
+    detect()
 
     # Notes and units share the runs database: a unit is an aggregate over the
     # runs table, and a note points at a row in one of the two.
@@ -107,6 +111,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.catalog = current_catalog
     app.state.rescan = rescan
     app.state.capabilities = registry
+    app.state.detect_instruments = detect
     app.state.notes_index = notes_index
     app.state.runs_index = runs_index
     app.state.units_index = units_index

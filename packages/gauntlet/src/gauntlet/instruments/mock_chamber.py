@@ -1,6 +1,8 @@
 """Simulated thermal chamber.
 
-Registered by default so capability wiring is exercisable without hardware.
+Registered only when ``simulated_instruments`` names it, so capability
+wiring stays exercisable without hardware while an ordinary bench shows
+only the instruments really attached to it.
 """
 
 from __future__ import annotations
@@ -97,7 +99,7 @@ class MockChamber:
         return self.state()
 
     def readouts(self) -> list[dict[str, Any]]:
-        """The air temperature as a tile, with what it is heading for below."""
+        """The air temperature lit large, with what it is heading for below."""
         return [
             readout("actual_c", "Air", precision=2, unit="C"),
             readout("setpoint_c", "Setpoint", precision=1, unit="C"),

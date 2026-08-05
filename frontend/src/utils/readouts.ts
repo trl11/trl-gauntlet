@@ -6,7 +6,7 @@ import { formatNumber } from "./format";
 /** Stands in for a reading the instrument did not report. */
 export const NO_READING = "—";
 
-/** One section of readouts: the tiles, then the strip beneath them. */
+/** One section of readouts: what the display burns large, then the row beneath. */
 export interface ReadoutGroup {
   headline: InstrumentReadout[];
   name: string;

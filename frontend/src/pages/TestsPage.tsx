@@ -1,9 +1,9 @@
 import { faRotate } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Input, Spinner } from "@trl11/components/ui";
+import { Button, Spinner } from "@trl11/components/ui";
 import clsx from "clsx";
-import { useId, useMemo, useState } from "react";
+import { useState } from "react";
 import { useSearchParams } from "react-router";
 
 import { listInstruments, listSuites, rescanSuites, verifySuite } from "@api/client";
@@ -22,11 +22,6 @@ function unmetRequirements(suite: Suite, instruments: Instrument[]): string[] {
     const instrument = instruments.find((entry) => entry.name === name);
     return instrument === undefined || !instrument.available;
   });
-}
-
-function matchesSearch(suite: Suite, search: string): boolean {
-  const text = `${suite.key} ${suite.title} ${suite.category} ${suite.description}`.toLowerCase();
-  return text.includes(search.trim().toLowerCase());
 }
 
 /** Every suite's conformance report, keyed by suite key. */
@@ -64,10 +59,8 @@ function byCategory(suites: Suite[]): Array<[string, Suite[]]> {
 
 /** The suite catalog: pick a suite, pick a profile, start a run. */
 export const TestsPage: React.FC = () => {
-  const searchId = useId();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<{ name: string; suite: string } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -88,12 +81,8 @@ export const TestsPage: React.FC = () => {
   });
 
   const all = suites.data?.suites ?? [];
-  const filtered = useMemo(
-    () => all.filter((suite) => matchesSearch(suite, search)),
-    [all, search]
-  );
   const requested = searchParams.get("suite") ?? "";
-  const selected = filtered.find((suite) => suite.key === requested) ?? filtered[0] ?? null;
+  const selected = all.find((suite) => suite.key === requested) ?? all[0] ?? null;
 
   // The picked profile belongs to one suite; selecting another leaves it
   // behind rather than showing it out of context.
@@ -143,16 +132,7 @@ export const TestsPage: React.FC = () => {
       {all.length > 0 && (
         <div className="tests-page__panes">
           <aside className="tests-page__rail">
-            <Input
-              id={searchId}
-              label="Search"
-              type="search"
-              placeholder="Filter suites"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            {filtered.length === 0 && <p className="muted">Nothing matches that search.</p>}
-            {byCategory(filtered).map(([category, members]) => (
+            {byCategory(all).map(([category, members]) => (
               <div key={category} className="tests-page__group">
                 <p className="tests-page__group-name">{category}</p>
                 {members.map((suite) => (

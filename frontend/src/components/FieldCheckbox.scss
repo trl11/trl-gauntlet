@@ -1,0 +1,28 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.field-checkbox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+
+  &__label {
+    color: $trl-gray;
+    font-size: 16px;
+  }
+
+  // The kit indents a checkbox to leave room for the text it sets beside the
+  // box. That text is the label above here, so the indent is dropped to put
+  // the box on the same left edge as the inputs alongside, and the box is
+  // given their height with its mark centred in it. The mark is the span; the
+  // kit hashes its class, so it is reached by position.
+  .checkbox > label {
+    min-height: 45px;
+    padding-left: 0;
+
+    > span {
+      top: 50%;
+      transform: translateY(-50%);
+    }
+  }
+}

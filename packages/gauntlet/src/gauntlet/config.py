@@ -49,6 +49,16 @@ class Settings:
     default_target: str = ""
     open_browser: bool = False
     log_level: str = "info"
+    # Where to look for each instrument. "auto" probes, "" does not look at
+    # all, and anything else is the serial port or USB serial number to use.
+    # An instrument is registered only once its hardware answers, so nothing
+    # simulated reaches the operator unless it is named below.
+    psu_port: str = "auto"
+    daq_serial: str = "auto"
+    # Instruments to simulate instead of probing for, by name. Empty, so the
+    # UI shows only hardware that is really attached; naming one here is for
+    # development and tests.
+    simulated_instruments: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         self.suite_roots = [Path(p).expanduser() for p in self.suite_roots]

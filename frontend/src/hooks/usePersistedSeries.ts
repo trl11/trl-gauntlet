@@ -9,13 +9,17 @@ import { useState } from "react";
  * Corrupt or missing storage is treated the same as no choice yet, rather
  * than as an error: this is a convenience, not a source of truth.
  */
-export function usePersistedSeries(storageKey: string): [string[] | null, (next: string[]) => void] {
+export function usePersistedSeries(
+  storageKey: string
+): [string[] | null, (next: string[]) => void] {
   const [selected, setSelected] = useState<string[] | null>(() => {
     try {
       const raw = localStorage.getItem(storageKey);
       if (raw == null) return null;
       const parsed: unknown = JSON.parse(raw);
-      return Array.isArray(parsed) && parsed.every((entry) => typeof entry === "string") ? parsed : null;
+      return Array.isArray(parsed) && parsed.every((entry) => typeof entry === "string")
+        ? parsed
+        : null;
     } catch {
       return null;
     }

@@ -34,12 +34,19 @@ def suite_root(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def settings(suite_root: Path, tmp_path: Path) -> Settings:
-    """Settings pointed at this test's throwaway suite root and data dir."""
+    """Settings pointed at this test's throwaway suite root and data dir.
+
+    Every instrument is simulated and none is probed for, so a test reads the
+    same on a bench with hardware attached as on one without.
+    """
     return Settings(
         host="127.0.0.1",
         port=7100,
         suite_roots=[suite_root],
         data_dir=tmp_path / "data",
+        daq_serial="",
+        psu_port="",
+        simulated_instruments=["chamber", "daq", "psu"],
     )
 
 

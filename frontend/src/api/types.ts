@@ -496,7 +496,7 @@ export interface InstrumentCommand {
   name: string;
 }
 
-/** Whether a readout is drawn as a large tile or as a row in the compact strip. */
+/** Whether the display burns a readout large or puts it in the row beneath. */
 export type ReadoutRole = "headline" | "summary";
 
 /**
@@ -530,6 +530,8 @@ export interface Instrument {
   /** How the instrument is attached, shown in the panel subtitle. */
   connection?: string;
   description: string;
+  /** Id of the run driving this instrument. Empty when nothing holds it. */
+  in_use_by?: string;
   instance_id: string;
   kind: string;
   name: string;
@@ -584,6 +586,14 @@ export interface UnitDetail extends Unit {
 /** `GET /api/units`. */
 export interface UnitList {
   units: Unit[];
+}
+
+/** `DELETE /api/units/{serial}`. */
+export interface ForgottenUnit {
+  deleted: boolean;
+  /** How many of the unit's runs went with it. Zero unless `runs` was set. */
+  deleted_runs: number;
+  serial: string;
 }
 
 /** `GET /api/units/{serial}/history`. */

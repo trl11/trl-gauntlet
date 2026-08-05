@@ -8,8 +8,9 @@ Gauntlet runs test suites. Suites declare themselves in a `suite.yaml`, write
 artifacts to a directory Gauntlet provides, and are otherwise independent of it.
 
 Read [`docs/contract.md`](docs/contract.md) before changing anything that
-crosses that boundary, and [`docs/frontend.md`](docs/frontend.md) before
-changing anything in `frontend/`.
+crosses that boundary, [`docs/frontend.md`](docs/frontend.md) before changing
+anything in `frontend/`, and [`docs/instruments.md`](docs/instruments.md)
+before changing anything in `capabilities/` or `instruments/`.
 
 ## Constraints
 
@@ -50,16 +51,17 @@ changing anything in `frontend/`.
 ## Layout
 
 ```
-packages/gauntlet-sdk/     library suite authors install
-packages/gauntlet/         application: discovery, supervisor, API, UI
-suites/                    built-in and reference suites
-frontend/                  React frontend, built into gauntlet/web_dist
 app/                       Electron shell: the desktop target
 docker/                    the server image: the other target
+docs/                      contract specification and guides
 dist/                      finished artifacts from either (gitignored)
 extras/trl-ui-kit/         shared component library (submodule)
+frontend/                  React frontend, built into gauntlet/web_dist
+packages/gauntlet/         application: discovery, supervisor, API, UI
+packages/gauntlet-sdk/     library suite authors install
 packages/gauntlet/src/gauntlet/scaffold/   suite scaffolder and its templates
-docs/                      contract specification and guides
+suites/                    built-in and reference suites
+system/                    host udev rules the USB instruments need
 ```
 
 Inside `packages/gauntlet/src/gauntlet`: `api/` (one router module per
@@ -138,8 +140,11 @@ and neither is on a package registry.
   it.
 - Discovery collects manifest errors into `SuiteCatalog.errors` rather than
   raising.
-- Renaming a unit rewrites `unit_serial` on its run rows; forgetting a unit
-  drops only its metadata and notes, never a run.
+- Renaming a unit rewrites `unit_serial` on its run rows. `DELETE
+  /api/units/{serial}` drops only its metadata and notes, never a run, so a
+  unit with runs is derived from them again; `?runs=true` deletes those runs
+  too, which is what the UI sends, and is refused while any of them is in
+  flight.
 - A run id ends in randomness, not anything constant within a process. Two runs
   starting in the same second must not share a directory.
 - `manifest.json` and the other artifacts exist only once the suite process
@@ -147,6 +152,20 @@ and neither is on a package registry.
   than treating either as an error.
 - Stopping the app signals the process group, so a reloader and any suite the
   run spawned go with it.
+- An instrument is registered only while its hardware answers, so the operator
+  sees the bench as it is. A scan re-runs detection: it picks up what was
+  attached since and drops what has gone. A provider driving hardware that
+  still answers is never rebuilt, because that would drop the connection the
+  panel reads through. Real and simulated are told apart by
+  `describe()["driver"] == "mock"`, never by class name.
+- The simulated instruments are registered only when `simulated_instruments`
+  names them. Nothing simulated reaches an operator who did not ask for it.
+- An instrument's `available()` is called on every UI poll, so it answers from
+  cached connection state rather than touching the device.
+- `GET /api/instruments` reports `in_use_by`, the in-flight run whose suite
+  declares that capability in `requires`. It is read from the manifest, never
+  from an instrument name, and while it is set the panel keeps that
+  instrument's latching key locked and will not let the operator release it.
 - `vite build` writes into `packages/gauntlet/src/gauntlet/web_dist/`. The app
   serves it at `/`, falls back to a placeholder when it is absent, and still
   answers unknown `/api/...` paths with a JSON 404 rather than the SPA shell.

@@ -1,6 +1,8 @@
 """Simulated bench power supply.
 
-Registered by default so capability wiring is exercisable without hardware.
+Registered only when ``simulated_instruments`` names it, so capability
+wiring stays exercisable without hardware while an ordinary bench shows
+only the instruments really attached to it.
 """
 
 from __future__ import annotations
@@ -134,7 +136,7 @@ class MockPsu:
         return self.state()
 
     def readouts(self) -> list[dict[str, Any]]:
-        """Readback as tiles per channel, with the setpoints beneath them."""
+        """Readback lit per channel, with the setpoints beneath it."""
         rows = []
         for name in self._channels:
             group = f"Channel {name}"

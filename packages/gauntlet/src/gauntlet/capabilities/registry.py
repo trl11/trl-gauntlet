@@ -102,10 +102,10 @@ class PresentableCapability(Protocol):
     """A provider that says how its state should be laid out.
 
     Without this facet the UI lists every value in ``state()`` as a key and a
-    value. With it, the provider nominates which values are worth a large tile,
-    which belong in the compact strip beneath them, and which command is the
-    one an operator reaches for. Nothing here changes what the instrument does;
-    it is presentation, declared by the side that knows the instrument.
+    value. With it, the provider nominates which values the display burns
+    large, which belong in the row beneath them, and which command is the one
+    an operator reaches for. Nothing here changes what the instrument does; it
+    is presentation, declared by the side that knows the instrument.
     """
 
     def connection(self) -> str:
@@ -122,9 +122,9 @@ class PresentableCapability(Protocol):
             {"key": "channels.1.voltage", "label": "Voltage", "unit": "V",
              "precision": 2, "role": "headline", "group": "Channel 1"}
 
-        ``role`` is ``"headline"`` for a large tile or ``"summary"`` for a row
-        in the compact strip. ``group`` splits a multi-channel instrument into
-        sections and may be empty.
+        ``role`` is ``"headline"`` for a reading the display burns large or
+        ``"summary"`` for the row beneath it. ``group`` splits a multi-channel
+        instrument into sections and may be empty.
         """
 
 
@@ -138,6 +138,14 @@ class CapabilityRegistry:
     def register(self, provider: CapabilityProvider) -> None:
         """Add a provider, replacing any earlier one with the same name."""
         self._providers[provider.name] = provider
+
+    def unregister(self, name: str) -> CapabilityProvider | None:
+        """Drop a provider, returning it, or ``None`` if there was none.
+
+        A capability nothing provides is missing rather than unavailable: it
+        stops being offered to a suite and stops appearing to the operator.
+        """
+        return self._providers.pop(name, None)
 
     def names(self) -> list[str]:
         return sorted(self._providers)

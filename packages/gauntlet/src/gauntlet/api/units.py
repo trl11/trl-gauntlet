@@ -2,7 +2,8 @@
 
 A unit is derived from the runs that name it. Renaming rewrites those run rows
 so the history follows the unit; forgetting a unit drops only its metadata and
-notes.
+notes, and the unit stays derivable from the runs it leaves behind. Deleting it
+with `runs=true` takes those runs too, and nothing is left to derive.
 """
 
 from __future__ import annotations
@@ -13,7 +14,8 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
 from gauntlet.api.notes import NoteBody, add_note, delete_note, list_notes
-from gauntlet.storage import SUBJECT_UNIT, RunFilters, UnitConflict, UnitRow, UnitsIndex
+from gauntlet.api.runs import remove_run_dir
+from gauntlet.storage import SUBJECT_RUN, SUBJECT_UNIT, RunFilters, UnitConflict, UnitRow, UnitsIndex
 
 router = APIRouter()
 
@@ -56,11 +58,17 @@ async def rename_unit(request: Request, serial: str, body: RenameBody) -> dict[s
 
 
 @router.delete("/units/{serial}")
-async def forget_unit(request: Request, serial: str) -> dict[str, Any]:
-    """Forget a unit's metadata and notes. Its runs stay in history."""
+async def forget_unit(request: Request, serial: str, runs: bool = False) -> dict[str, Any]:
+    """Forget a unit's metadata and notes.
+
+    Its runs stay in history unless `runs` is set, which deletes every run the
+    unit names as well, leaving nothing the unit could be derived from again.
+    Refused while one of those runs is still in flight.
+    """
     _unit_or_404(request, serial)
+    deleted_runs = _delete_unit_runs(request, serial) if runs else 0
     _index(request).delete(serial)
-    return {"serial": serial, "deleted": True}
+    return {"serial": serial, "deleted": True, "deleted_runs": deleted_runs}
 
 
 @router.get("/units/{serial}/history")
@@ -94,6 +102,29 @@ async def delete_unit_note(request: Request, serial: str, note_id: int) -> dict[
     """Remove one note from a unit."""
     _unit_or_404(request, serial)
     return delete_note(request, SUBJECT_UNIT, serial, note_id)
+
+
+def _delete_unit_runs(request: Request, serial: str) -> int:
+    """Delete every run one unit names, with its notes and its directory.
+
+    Refuses the whole set if any of them is still in flight, so a unit is
+    never left half deleted.
+    """
+    index = request.app.state.runs_index
+    filters = RunFilters(unit_serial=serial)
+    total = index.count(filters)
+    rows = index.list(filters, limit=total) if total else []
+    supervisor = request.app.state.supervisor
+    for row in rows:
+        handle = supervisor.get(row.run_id)
+        if handle is not None and not handle.finished:
+            raise HTTPException(status_code=409, detail=f"run {row.run_id} is still in flight")
+    for row in rows:
+        if index.delete(row.run_id) is None:
+            continue
+        request.app.state.notes_index.delete_subject(SUBJECT_RUN, row.run_id)
+        remove_run_dir(request, row.run_dir)
+    return len(rows)
 
 
 def _index(request: Request) -> UnitsIndex:

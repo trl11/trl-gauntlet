@@ -1,15 +1,16 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Input, Modal, Select, Spinner } from "@trl11/components/ui";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router";
 
-import { startRun } from "@api/client";
+import { getProfile, listUnits, startRun } from "@api/client";
 import type { Suite } from "@api/types";
 import OverrideForm from "@components/OverrideForm";
 import {
   initialOverrideValues,
   overrideArgv,
   overridePayload,
+  profileFields,
   validateOverrides,
   type OverrideValues,
 } from "../utils/overrides";
@@ -47,6 +48,30 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
     initialOverrideValues(suite.overrides)
   );
 
+  // The selected profile holds the values the run would use, so the override
+  // controls are seeded from it and reseeded whenever the profile changes.
+  const content = useQuery({
+    queryKey: ["profile", suite.key, profile],
+    queryFn: () => getProfile(suite.key, profile),
+    enabled: profile !== "" && suite.overrides.length > 0,
+  });
+  const body = profile === "" ? "" : (content.data?.body ?? "");
+  useEffect(() => {
+    setValues(initialOverrideValues(suite.overrides, profileFields(body)));
+  }, [body, suite.overrides]);
+
+  // The units already tested, offered as completions for the serial. Most
+  // recently seen first, because the unit on the bench is usually the one just
+  // run. Typing a serial no unit has yet is still how a new one is recorded.
+  const units = useQuery({
+    queryKey: ["units"],
+    queryFn: listUnits,
+    enabled: suite.supports.unit_serial,
+  });
+  const known = [...(units.data?.units ?? [])].sort((a, b) =>
+    (b.last_seen ?? "").localeCompare(a.last_seen ?? "")
+  );
+
   const errors = validateOverrides(suite.overrides, values);
   const invalid = Object.keys(errors).length > 0;
 
@@ -79,56 +104,71 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
       >
         {suite.description && <p className="run-start-modal__description">{suite.description}</p>}
 
-        <div className="run-start-modal__fields">
-          {profiles.length > 0 ? (
-            <Select
-              id={`${fieldId}-profile`}
-              label="Profile"
-              options={[
-                { value: "", label: "(no profile)" },
-                ...profiles.map((entry) => ({
-                  value: entry.name,
-                  label: entry.user_authored ? `${entry.name} (edited)` : entry.name,
-                })),
-              ]}
-              value={profile}
-              disabled={start.isPending}
-              onChange={(event) => setProfile(event.target.value)}
-            />
-          ) : (
-            <p className="run-start-modal__note">This suite offers no profiles.</p>
-          )}
+        <section className="run-start-modal__section" aria-label="Common settings">
+          <h2 className="run-start-modal__heading">Common settings</h2>
+          <div className="run-start-modal__fields">
+            {profiles.length > 0 ? (
+              <Select
+                id={`${fieldId}-profile`}
+                label="Profile"
+                options={[
+                  { value: "", label: "(no profile)" },
+                  ...profiles.map((entry) => ({
+                    value: entry.name,
+                    label: entry.user_authored ? `${entry.name} (edited)` : entry.name,
+                  })),
+                ]}
+                value={profile}
+                disabled={start.isPending}
+                onChange={(event) => setProfile(event.target.value)}
+              />
+            ) : (
+              <p className="run-start-modal__note">This suite offers no profiles.</p>
+            )}
 
-          {suite.supports.target && (
-            <Input
-              id={`${fieldId}-target`}
-              label="Target"
-              hint="Address of the unit under test"
-              placeholder="(configured default)"
-              value={target}
-              disabled={start.isPending}
-              onChange={(event) => setTarget(event.target.value)}
-            />
-          )}
+            {suite.supports.target && (
+              <Input
+                id={`${fieldId}-target`}
+                label="Target"
+                hint="Address of the unit under test"
+                placeholder="(configured default)"
+                value={target}
+                disabled={start.isPending}
+                onChange={(event) => setTarget(event.target.value)}
+              />
+            )}
 
-          {suite.supports.unit_serial && (
-            <Input
-              id={`${fieldId}-serial`}
-              label="Unit serial"
-              hint="Recorded against the unit's history"
-              placeholder="HC-001"
-              value={unitSerial}
-              disabled={start.isPending}
-              onChange={(event) => setUnitSerial(event.target.value)}
-            />
-          )}
-        </div>
+            {suite.supports.unit_serial && (
+              <>
+                <Input
+                  id={`${fieldId}-serial`}
+                  label="Unit serial"
+                  hint={
+                    known.length > 0
+                      ? "Pick a unit already tested, or type a new serial"
+                      : "Recorded against the unit's history"
+                  }
+                  list={`${fieldId}-serials`}
+                  placeholder="HC-001"
+                  value={unitSerial}
+                  disabled={start.isPending}
+                  onChange={(event) => setUnitSerial(event.target.value)}
+                />
+                <datalist id={`${fieldId}-serials`}>
+                  {known.map((entry) => (
+                    <option key={entry.serial} value={entry.serial} />
+                  ))}
+                </datalist>
+              </>
+            )}
+          </div>
+        </section>
 
         {suite.overrides.length > 0 && (
           <section className="run-start-modal__section" aria-label="Overrides">
             <h2 className="run-start-modal__heading">Overrides</h2>
             <OverrideForm
-              disabled={start.isPending}
+              disabled={start.isPending || content.isLoading}
               errors={errors}
               onChange={setValues}
               overrides={suite.overrides}

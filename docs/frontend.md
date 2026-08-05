@@ -143,10 +143,26 @@ key, nor on an instrument name.
 | `requires[]` | The capabilities checked against `GET /api/instruments` before the run button is enabled. |
 | `profile-schema` | The profile editor form, built by `SchemaForm` from the JSON Schema at `GET /api/suites/{key}/profile-schema`. |
 | A provider's `state()` | The rows of its instrument panel. |
+| A provider's `readouts()` | What the display lights, in the groups and to the precision it asked for. |
 | A provider's `commands()` | One form per command, its inputs built from that command's `fields[]`. |
 
 `InstrumentPanel` is the only instrument component, and it is rendered for every
 instrument. A new instrument gets a working panel by being registered.
+
+The panel is drawn as a bench instrument's front face. Declared readouts light a
+`SevenSegment` display, cycling green, red and amber in the order the provider
+declared them, and a reading seven bars cannot spell falls back to plain text. A
+command field that declares both a minimum and a maximum gets a `Knob` beside
+its entry, turned by dragging, by clicking a point on it, or by the arrow keys;
+`utils/dial.ts` is the angle arithmetic behind it. None of this is chosen per
+instrument: position and declared range are all either component reads.
+
+A primary command that settles one boolean, and otherwise only picks what to
+settle it for, becomes a latching key: pressing it sends the opposite of what
+it last sent. A lock beside it has to be released first, and stays where the
+operator leaves it. `GET /api/instruments` reports `in_use_by`, the run whose
+suite declared it `requires` that capability, and while a run holds an
+instrument its lock is shut and cannot be released.
 
 A `grep` for a suite key or an instrument name under `frontend/src/` should
 return nothing but test fixtures.

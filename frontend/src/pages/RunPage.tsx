@@ -298,7 +298,12 @@ export const RunPage: React.FC = () => {
 
         {tab === "log" && <LogStream lines={logs} />}
         {tab === "metrics" && (
-          <MetricsChart key={runId} runId={runId} samples={samples} defaultMetrics={defaultMetrics} />
+          <MetricsChart
+            key={runId}
+            runId={runId}
+            samples={samples}
+            defaultMetrics={defaultMetrics}
+          />
         )}
         {tab === "iterations" && (
           <IterationTable

@@ -1,16 +1,25 @@
 import clsx from "clsx";
 import { useEffect, useState } from "react";
 
-import type { Instrument } from "@api/types";
+import type { Instrument, InstrumentReadout } from "@api/types";
 import CommandForm from "@components/CommandForm";
 import InstrumentState from "@components/InstrumentState";
 import ReadoutChart from "@components/ReadoutChart";
+import SevenSegment from "@components/SevenSegment";
 import { readingText, readoutGroups, valueAt, type ReadoutGroup } from "../utils/readouts";
 
 import "./InstrumentPanel.scss";
 
 /** How many polls of history the headline chart keeps. */
 const MAX_SAMPLES = 60;
+
+/**
+ * Lamp colours the display cycles through, in the order readouts arrive.
+ *
+ * Which reading burns which colour is a matter of position alone, so a panel
+ * for an instrument nobody has seen still lights up like a bench instrument.
+ */
+const TONES = ["green", "red", "amber"] as const;
 
 /** Props every instrument panel takes. */
 export interface InstrumentPanelProps {
@@ -24,7 +33,31 @@ export interface InstrumentPanelProps {
   onCommand: (command: string, args: Record<string, unknown>) => void | Promise<unknown>;
 }
 
-/** One group of readouts: its tiles, its chart, and its compact strip. */
+/**
+ * One reading lit on the display, with its unit ringed the way a panel rings it.
+ *
+ * A reading that is on burns green whatever colour its position would give it,
+ * because that is what an indicator lamp does.
+ */
+const Reading: React.FC<{
+  readout: InstrumentReadout;
+  state: Record<string, unknown>;
+  tone: (typeof TONES)[number];
+}> = ({ readout, state, tone }) => {
+  const value = valueAt(state, readout.key);
+  return (
+    <div className="instrument-panel__reading">
+      <SevenSegment
+        tone={value === true ? "green" : tone}
+        value={readingText(value, readout.precision)}
+      />
+      {readout.unit && <span className="instrument-panel__unit">{readout.unit}</span>}
+      <span className="instrument-panel__reading-label">{readout.label}</span>
+    </div>
+  );
+};
+
+/** One group of readouts: the lit display, then its chart. */
 const ReadoutGroupView: React.FC<{
   group: ReadoutGroup;
   history: Array<Record<string, number>>;
@@ -32,38 +65,33 @@ const ReadoutGroupView: React.FC<{
 }> = ({ group, history, state }) => (
   <section className="instrument-panel__group">
     {group.name && <h3 className="instrument-panel__group-name">{group.name}</h3>}
-    {group.headline.length > 0 && (
-      <div className="instrument-panel__tiles">
-        {group.headline.map((entry) => (
-          <div className="instrument-panel__tile" key={entry.key}>
-            <span className="instrument-panel__tile-label">{entry.label}</span>
-            <span className="instrument-panel__tile-value">
-              {readingText(valueAt(state, entry.key), entry.precision)}
-            </span>
-            <span className="instrument-panel__tile-unit">{entry.unit}</span>
-          </div>
-        ))}
-      </div>
-    )}
+    <div className="instrument-panel__display">
+      {group.headline.length > 0 && (
+        <div className="instrument-panel__readings">
+          {group.headline.map((entry, index) => (
+            <Reading
+              key={entry.key}
+              readout={entry}
+              state={state}
+              tone={TONES[index % TONES.length]}
+            />
+          ))}
+        </div>
+      )}
+      {group.summary.length > 0 && (
+        <div className="instrument-panel__readings instrument-panel__readings--small">
+          {group.summary.map((entry) => (
+            <Reading key={entry.key} readout={entry} state={state} tone="amber" />
+          ))}
+        </div>
+      )}
+    </div>
     <ReadoutChart
       history={history}
       series={group.headline
         .filter((entry) => typeof valueAt(state, entry.key) === "number")
         .map((entry) => ({ key: entry.key, label: entry.label }))}
     />
-    {group.summary.length > 0 && (
-      <dl className="instrument-panel__strip">
-        {group.summary.map((entry) => (
-          <div key={entry.key}>
-            <dt>{entry.label}</dt>
-            <dd>
-              {readingText(valueAt(state, entry.key), entry.precision)}
-              {entry.unit && <span className="instrument-panel__strip-unit"> {entry.unit}</span>}
-            </dd>
-          </div>
-        ))}
-      </dl>
-    )}
   </section>
 );
 
@@ -151,35 +179,49 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
         <p className="instrument-panel__quiet">Takes no commands.</p>
       )}
 
-      {rows.map((command) => (
-        <CommandForm
-          key={command.name}
-          command={command}
-          disabled={disabled}
-          onSubmit={(args) => onCommand(command.name, args)}
-        />
-      ))}
+      <div className="instrument-panel__deck">
+        {rows.length > 0 && (
+          <div className="instrument-panel__modules">
+            {rows.map((command) => (
+              <CommandForm
+                key={command.name}
+                command={command}
+                disabled={disabled}
+                onSubmit={(args) => onCommand(command.name, args)}
+              />
+            ))}
+          </div>
+        )}
 
-      {footer.length > 0 && (
-        <div className="instrument-panel__footer">
-          {footer.map((command) => (
-            <CommandForm
-              key={command.name}
-              command={command}
-              disabled={disabled}
-              onSubmit={(args) => onCommand(command.name, args)}
-            />
-          ))}
-        </div>
-      )}
+        {footer.length > 0 && (
+          <div className="instrument-panel__keypad">
+            {footer.map((command) => (
+              <CommandForm
+                key={command.name}
+                command={command}
+                disabled={disabled}
+                onSubmit={(args) => onCommand(command.name, args)}
+              />
+            ))}
+          </div>
+        )}
 
-      {primary && (
-        <CommandForm
-          command={primary}
-          disabled={disabled}
-          onSubmit={(args) => onCommand(primary.name, args)}
-          primary
-        />
+        {primary && (
+          <CommandForm
+            command={primary}
+            disabled={disabled}
+            held={Boolean(instrument.in_use_by)}
+            onSubmit={(args) => onCommand(primary.name, args)}
+            primary
+          />
+        )}
+      </div>
+
+      {instrument.in_use_by && (
+        <p className="instrument-panel__held">
+          run {instrument.in_use_by} is driving this instrument; its key stays locked until the run
+          ends
+        </p>
       )}
 
       {error && (

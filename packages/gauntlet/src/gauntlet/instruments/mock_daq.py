@@ -1,6 +1,8 @@
 """Simulated data acquisition unit.
 
-Registered by default so capability wiring is exercisable without hardware.
+Registered only when ``simulated_instruments`` names it, so capability
+wiring stays exercisable without hardware while an ordinary bench shows
+only the instruments really attached to it.
 """
 
 from __future__ import annotations
@@ -136,7 +138,7 @@ class MockDaq:
         return self.state()
 
     def readouts(self) -> list[dict[str, Any]]:
-        """A tile per analog input, with its range and the digital lines below."""
+        """A reading per analog input, with its range and the digital lines below."""
         rows = []
         with self._lock:
             units = {name: channel.unit for name, channel in self._analog.items()}

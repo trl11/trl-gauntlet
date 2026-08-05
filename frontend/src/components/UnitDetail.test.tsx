@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RunRow, UnitDetail as UnitDetailRow } from "@api/types";
@@ -9,6 +9,7 @@ import type { RunRow, UnitDetail as UnitDetailRow } from "@api/types";
 import UnitDetail from "./UnitDetail";
 
 const addUnitNote = vi.fn();
+const deleteRun = vi.fn();
 const deleteUnitNote = vi.fn();
 const getUnit = vi.fn();
 const getUnitHistory = vi.fn();
@@ -20,6 +21,7 @@ vi.mock("@api/client", async (importOriginal) => {
   return {
     ...actual,
     addUnitNote: (...args: unknown[]) => addUnitNote(...args),
+    deleteRun: (...args: unknown[]) => deleteRun(...args),
     deleteUnitNote: (...args: unknown[]) => deleteUnitNote(...args),
     getUnit: (...args: unknown[]) => getUnit(...args),
     getUnitHistory: (...args: unknown[]) => getUnitHistory(...args),
@@ -63,8 +65,11 @@ function renderDetail() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
-        <UnitDetail serial="HC-001" />
+      <MemoryRouter initialEntries={["/units/HC-001"]}>
+        <Routes>
+          <Route path="/units/:serial" element={<UnitDetail serial="HC-001" />} />
+          <Route path="/units" element={<p>units list</p>} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>
   );
@@ -77,6 +82,7 @@ beforeEach(() => {
     notes: [{ id: 1, body: "cracked lid", author: "gabe", created_at: "2026-01-02T00:00:00Z" }],
   });
   addUnitNote.mockResolvedValue({ id: 2, body: "x", author: null, created_at: "" });
+  deleteRun.mockResolvedValue(undefined);
   deleteUnitNote.mockResolvedValue(undefined);
   renameUnit.mockResolvedValue({ ...unit(), serial: "HC-002" });
 });
@@ -104,6 +110,65 @@ describe("UnitDetail", () => {
     renderDetail();
     expect(await screen.findByText("r-1")).toBeInTheDocument();
     expect(screen.getByText("r-2")).toBeInTheDocument();
+  });
+
+  it("deletes one of the unit's runs from its row menu, after confirming", async () => {
+    renderDetail();
+    await userEvent.click(await screen.findByRole("button", { name: "Actions for run r-1" }));
+    const menu = document.querySelector(".row-menu") as HTMLElement;
+    await userEvent.click(within(menu).getByRole("button", { name: "Delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => expect(deleteRun).toHaveBeenCalledWith("r-1"));
+  });
+
+  it("leaves the run alone when the confirmation is dismissed", async () => {
+    renderDetail();
+    await userEvent.click(await screen.findByRole("button", { name: "Actions for run r-1" }));
+    const menu = document.querySelector(".row-menu") as HTMLElement;
+    await userEvent.click(within(menu).getByRole("button", { name: "Delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+
+    expect(deleteRun).not.toHaveBeenCalled();
+  });
+
+  it("refetches the unit's counters once a run is deleted", async () => {
+    renderDetail();
+    await screen.findByText("r-1");
+    getUnit.mockClear();
+    getUnitHistory.mockClear();
+
+    await userEvent.click(screen.getByRole("button", { name: "Actions for run r-1" }));
+    const menu = document.querySelector(".row-menu") as HTMLElement;
+    await userEvent.click(within(menu).getByRole("button", { name: "Delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => expect(getUnitHistory).toHaveBeenCalled());
+    expect(getUnit).toHaveBeenCalled();
+  });
+
+  it("reports a run the server refused to delete", async () => {
+    deleteRun.mockRejectedValue(new Error("run is in flight"));
+    renderDetail();
+    await userEvent.click(await screen.findByRole("button", { name: "Actions for run r-1" }));
+    const menu = document.querySelector(".row-menu") as HTMLElement;
+    await userEvent.click(within(menu).getByRole("button", { name: "Delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "A run still in flight can't be deleted."
+    );
+  });
+
+  it("returns to the list when the unit's last run is deleted", async () => {
+    getUnitHistory.mockResolvedValue({ runs: [run("r-1", "passed")] });
+    renderDetail();
+    await userEvent.click(await screen.findByRole("button", { name: "Actions for run r-1" }));
+    const menu = document.querySelector(".row-menu") as HTMLElement;
+    await userEvent.click(within(menu).getByRole("button", { name: "Delete" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(await screen.findByText("units list")).toBeInTheDocument();
   });
 
   it("charts the pass rate once there are runs", async () => {

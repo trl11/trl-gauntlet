@@ -14,6 +14,8 @@ dependencies = [
     "fastapi>=0.110",
     "gauntlet-sdk",
     "pydantic>=2",
+    "pyserial>=3.5",
+    "pyusb>=1.2",
     "pyyaml>=6.0",
     "uvicorn[standard]>=0.27",
 ]

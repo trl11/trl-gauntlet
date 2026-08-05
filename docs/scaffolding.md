@@ -1,7 +1,9 @@
 # Scaffolding a suite
 
 `gauntlet new-suite` generates a suite directory from a template bundled with
-the package. `make suite-new` wraps it.
+the package. `make suite-new` wraps it. This is how the generator works; for
+what to write in the suite it generates, see
+[`writing-a-suite.md`](writing-a-suite.md).
 
 ```bash
 gauntlet new-suite thermal_cycle

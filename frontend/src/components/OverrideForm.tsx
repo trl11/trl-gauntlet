@@ -1,7 +1,8 @@
-import { Checkbox, Input, Select } from "@trl11/components/ui";
+import { Input, Select } from "@trl11/components/ui";
 import { useId } from "react";
 
 import type { SuiteOverride } from "@api/types";
+import FieldCheckbox from "@components/FieldCheckbox";
 import { isNumeric, type OverrideValues } from "../utils/overrides";
 
 import "./OverrideForm.scss";
@@ -50,21 +51,20 @@ export const OverrideForm: React.FC<OverrideFormProps> = ({
     <div className="override-form">
       {overrides.map((override) => {
         const id = `${fieldId}-${override.name}`;
-        const label = override.label || override.name;
-        const hint = [override.help, override.unit && `in ${override.unit}`]
-          .filter(Boolean)
-          .join(" · ");
+        const name = override.label || override.name;
+        const label = override.unit ? `${name} (${override.unit})` : name;
+        const hint = override.help;
 
         if (override.type === "boolean") {
           return (
-            <Checkbox
+            <FieldCheckbox
               key={override.name}
               id={id}
               label={label}
               hint={hint || undefined}
               checked={values[override.name] === true}
               disabled={disabled}
-              onChange={(event) => update(override.name, event.target.checked)}
+              onChange={(checked) => update(override.name, checked)}
             />
           );
         }

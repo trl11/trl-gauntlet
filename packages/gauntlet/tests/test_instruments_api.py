@@ -2,6 +2,28 @@
 
 from __future__ import annotations
 
+import textwrap
+import time
+
+_SLOW_SCRIPT = textwrap.dedent(
+    """\
+    #!/usr/bin/env bash
+    set -euo pipefail
+    sleep 30
+    """
+)
+
+
+def _wait_until_idle(client, timeout_s=20.0) -> None:
+    """Block until no run holds anything, so the next test starts clean."""
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        held = [i["in_use_by"] for i in client.get("/api/instruments").json()["instruments"]]
+        if not any(held):
+            return
+        time.sleep(0.1)
+    raise AssertionError(f"an instrument was still held after {timeout_s}s")
+
 
 class TestInstrumentsApi:
     def test_lists_every_registered_instrument(self, client) -> None:
@@ -115,6 +137,32 @@ class TestInstrumentsApi:
         flaky.present = True
         scanned = client.post("/api/instruments/scan").json()["instruments"]
         assert next(i for i in scanned if i["name"] == "flaky")["available"] is True
+
+
+class TestInstrumentsInUse:
+    """Which run, if any, is driving each instrument."""
+
+    def test_nothing_is_held_while_no_run_is_in_flight(self, client) -> None:
+        for instrument in client.get("/api/instruments").json()["instruments"]:
+            assert instrument["in_use_by"] == ""
+
+    def test_a_run_holds_only_what_its_suite_requires(self, client, make_suite) -> None:
+        make_suite("busy", requires=["psu"], script=_SLOW_SCRIPT)
+        client.post("/api/suites/rescan")
+        run_id = client.post("/api/runs", json={"suite": "busy"}).json()["run_id"]
+        try:
+            held = {i["name"]: i["in_use_by"] for i in client.get("/api/instruments").json()["instruments"]}
+            assert held == {"chamber": "", "daq": "", "psu": run_id}
+        finally:
+            client.post(f"/api/runs/{run_id}/abort")
+        _wait_until_idle(client)
+
+    def test_a_finished_run_holds_nothing(self, client, make_suite) -> None:
+        make_suite("brief", requires=["psu"])
+        client.post("/api/suites/rescan")
+        run_id = client.post("/api/runs", json={"suite": "brief"}).json()["run_id"]
+        _wait_until_idle(client)
+        assert client.get(f"/api/runs/{run_id}").json()["status"] == "passed"
 
 
 class _Bare:

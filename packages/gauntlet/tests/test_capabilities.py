@@ -52,6 +52,22 @@ class TestRegistry:
     def test_an_unregistered_name_is_none(self) -> None:
         assert CapabilityRegistry().provider("psu") is None
 
+    def test_unregistering_returns_the_provider_and_forgets_it(self) -> None:
+        registry = CapabilityRegistry()
+        psu = _Provider("psu")
+        registry.register(psu)
+        assert registry.unregister("psu") is psu
+        assert registry.names() == []
+
+    def test_unregistering_a_name_that_was_never_there_is_none(self) -> None:
+        assert CapabilityRegistry().unregister("psu") is None
+
+    def test_an_unregistered_capability_is_missing(self) -> None:
+        registry = CapabilityRegistry()
+        registry.register(_Provider("psu"))
+        registry.unregister("psu")
+        assert registry.missing(["psu"]) == ["psu"]
+
     def test_missing_reports_the_unregistered_and_the_unavailable(self) -> None:
         registry = CapabilityRegistry()
         registry.register(_Provider("psu"))

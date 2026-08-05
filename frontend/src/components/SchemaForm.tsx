@@ -1,7 +1,8 @@
-import { Checkbox, Input, Select } from "@trl11/components/ui";
+import { Input, Select } from "@trl11/components/ui";
 import { useId } from "react";
 
 import type { JsonSchema } from "@api/types";
+import FieldCheckbox from "@components/FieldCheckbox";
 
 import "./SchemaForm.scss";
 
@@ -132,13 +133,13 @@ const Field: React.FC<FieldProps> = ({
   if (kind === "boolean") {
     const checked = value === undefined ? node.default === true : value === true;
     return (
-      <Checkbox
+      <FieldCheckbox
         id={fieldId}
         label={label}
         hint={hint}
         checked={checked}
         disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
+        onChange={onChange}
       />
     );
   }

@@ -1,0 +1,22 @@
+# udev rules for the USB instruments Gauntlet claims itself, rather than
+# through a kernel driver that already owns a node for them.
+#
+# Install on whichever host the instruments are plugged into. It is the host's
+# rules that decide the node's owner: a devcontainer, the server image and the
+# desktop app all see the result rather than set it.
+#
+#     sudo cp system/99-gauntlet-instruments.rules /etc/udev/rules.d/
+#     sudo udevadm control --reload-rules
+#     sudo udevadm trigger
+#
+# A serial instrument needs no rule here. The kernel's usbserial drivers create
+# /dev/ttyUSB* and /dev/ttyACM* owned by dialout already, which is why the PSU
+# works with nothing installed. An instrument driven over raw USB is claimed
+# through usbfs, whose nodes default to root:root 0664 — enough to read the
+# descriptors, not enough to talk to the device.
+#
+# Verify: the node under /dev/bus/usb matching the instrument's bus and device
+# number in `lsusb` should be mode 660, owned root:dialout.
+
+# DATAQ Instruments USB DAQs (DI-1100, DI-2008, DI-4108, DI-4208, ...).
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0683", MODE="0660", GROUP="dialout"

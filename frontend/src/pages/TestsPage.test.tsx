@@ -124,18 +124,18 @@ describe("TestsPage", () => {
     expect(screen.getByText("Chamber profile with per-segment pass/fail.")).toBeInTheDocument();
   });
 
-  it("filters the rail by the search box", async () => {
-    const user = userEvent.setup();
+  it("lists every discovered suite, with no search box to filter them", async () => {
     renderPage();
-    await user.type(await screen.findByLabelText("Search"), "smoke");
-    expect(screen.queryByRole("button", { name: "Thermal Cycle" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Thermal Cycle" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Smoke" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Search")).not.toBeInTheDocument();
   });
 
-  it("shows what a suite produces and requires", async () => {
+  it("keeps what a suite produces and requires out of the detail pane", async () => {
     renderPage("/tests?suite=thermal_cycle");
-    expect(await screen.findByText("metrics")).toBeInTheDocument();
-    expect(screen.getByText("chamber")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Start run" })).toBeInTheDocument();
+    expect(screen.queryByText("metrics")).not.toBeInTheDocument();
+    expect(screen.queryByText("chamber")).not.toBeInTheDocument();
   });
 
   it("refuses to start a suite whose requirement is unavailable, and says why", async () => {

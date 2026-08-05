@@ -20,6 +20,11 @@ export interface NotesPanelProps {
   onAdd: (body: string, author: string | null) => void | Promise<unknown>;
   /** Called with the id of the note the operator confirmed deleting. */
   onDelete: (noteId: number) => void | Promise<unknown>;
+  /**
+   * Draws the panel's own "Notes" heading. Turn it off where the caller heads
+   * the section itself, which also leaves it to name the region.
+   */
+  titled?: boolean;
 }
 
 /** Read, add, and delete the notes attached to a run or a unit. */
@@ -29,6 +34,7 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
   notes,
   onAdd,
   onDelete,
+  titled = true,
 }) => {
   const fieldId = useId();
   const [body, setBody] = useState("");
@@ -51,11 +57,15 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
   };
 
   return (
-    <section className={clsx("notes-panel", className)} aria-label="Notes">
-      <div className="notes-panel__head">
-        <h2 className="notes-panel__title">Notes</h2>
-        {busy && <Spinner className="notes-panel__spinner" />}
-      </div>
+    <section className={clsx("notes-panel", className)} aria-label={titled ? "Notes" : undefined}>
+      {titled ? (
+        <div className="notes-panel__head">
+          <h2 className="notes-panel__title">Notes</h2>
+          {busy && <Spinner className="notes-panel__spinner" />}
+        </div>
+      ) : (
+        busy && <Spinner className="notes-panel__spinner" />
+      )}
 
       <form className="notes-panel__form" onSubmit={submit}>
         <Input

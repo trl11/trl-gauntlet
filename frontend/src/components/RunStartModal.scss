@@ -29,6 +29,27 @@
     color: $trl-gray;
   }
 
+  // The serial completes from a datalist, and Chrome paints its own picker
+  // arrow for that: a different glyph, at the field's edge rather than the
+  // kit's inset, and only while the field has focus. It is made invisible and
+  // the kit's select arrow painted in the kit's place, so this field and the
+  // profile dropdown beside it carry the same arrow in the same spot. The
+  // arrow is copied rather than shared because the kit hashes its class names.
+  &__fields input[list] {
+    padding-right: 40px;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg fill='gray' viewBox='0 0 24 24' width='16' height='16' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M7 10l5 5 5-5H7z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1.5rem;
+
+    // Left in place over the painted arrow, so clicking it still opens the list.
+    &::-webkit-calendar-picker-indicator {
+      width: 24px;
+      margin: 0;
+      opacity: 0;
+    }
+  }
+
   &__section {
     display: flex;
     flex-direction: column;
