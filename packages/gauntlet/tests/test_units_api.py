@@ -95,6 +95,24 @@ class TestUnits:
         assert client.get("/api/runs/r1").status_code == 200
         assert client.get("/api/units/SN1").status_code == 200
 
+    def test_delete_with_runs_skips_a_row_that_went_first(self, client, add_run, monkeypatch) -> None:
+        """A row can vanish between listing it and deleting it; the rest still go."""
+        add_run("r1", unit_serial="SN1")
+        add_run("r2", unit_serial="SN1")
+        index = client.app.state.runs_index
+        real_delete = index.delete
+
+        def vanish(run_id):
+            return None if run_id == "r1" else real_delete(run_id)
+
+        monkeypatch.setattr(index, "delete", vanish)
+
+        body = client.delete("/api/units/SN1", params={"runs": "true"}).json()
+
+        assert body["deleted_runs"] == 2
+        assert client.get("/api/runs/r1").status_code == 200
+        assert client.get("/api/runs/r2").status_code == 404
+
     def test_delete_without_runs_leaves_the_unit_derivable(self, client, add_run) -> None:
         add_run("r1", unit_serial="SN1")
 
