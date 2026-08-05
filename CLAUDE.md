@@ -140,8 +140,11 @@ and neither is on a package registry.
   it.
 - Discovery collects manifest errors into `SuiteCatalog.errors` rather than
   raising.
-- Renaming a unit rewrites `unit_serial` on its run rows; forgetting a unit
-  drops only its metadata and notes, never a run.
+- Renaming a unit rewrites `unit_serial` on its run rows. `DELETE
+  /api/units/{serial}` drops only its metadata and notes, never a run, so a
+  unit with runs is derived from them again; `?runs=true` deletes those runs
+  too, which is what the UI sends, and is refused while any of them is in
+  flight.
 - A run id ends in randomness, not anything constant within a process. Two runs
   starting in the same second must not share a directory.
 - `manifest.json` and the other artifacts exist only once the suite process

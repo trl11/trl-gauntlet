@@ -119,22 +119,24 @@ describe("UnitsPage", () => {
     expect(await screen.findByText("No units yet")).toBeInTheDocument();
   });
 
-  it("forgets a unit once the operator confirms", async () => {
+  it("deletes a unit with its runs, counting them in the confirmation", async () => {
     renderUnits();
     await screen.findByText("HC-001");
     await userEvent.click(screen.getByRole("button", { name: "Actions for unit HC-001" }));
     const menu = document.querySelector(".row-menu") as HTMLElement;
     await userEvent.click(within(menu).getByRole("button", { name: "Delete" }));
+    expect(screen.getByText(/Delete unit HC-001 and 4 runs\?/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
     expect(deleteUnit).toHaveBeenCalledWith("HC-001");
   });
 
-  it("batch-deletes every selected unit", async () => {
+  it("batch-deletes every selected unit with its runs", async () => {
     renderUnits();
     await screen.findByText("HC-001");
     await userEvent.click(screen.getByLabelText("Select unit HC-001"));
     await userEvent.click(screen.getByLabelText("Select unit HC-002"));
     await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(screen.getByText(/Delete 2 units and 6 runs\?/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
     expect(deleteUnit).toHaveBeenCalledWith("HC-001");
     expect(deleteUnit).toHaveBeenCalledWith("HC-002");

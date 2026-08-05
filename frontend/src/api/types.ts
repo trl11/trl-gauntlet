@@ -588,6 +588,14 @@ export interface UnitList {
   units: Unit[];
 }
 
+/** `DELETE /api/units/{serial}`. */
+export interface ForgottenUnit {
+  deleted: boolean;
+  /** How many of the unit's runs went with it. Zero unless `runs` was set. */
+  deleted_runs: number;
+  serial: string;
+}
+
 /** `GET /api/units/{serial}/history`. */
 export interface UnitHistory {
   runs: RunRow[];

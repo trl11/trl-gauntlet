@@ -132,7 +132,7 @@ async def delete_run(request: Request, run_id: str) -> dict[str, Any]:
     if row is None:
         raise HTTPException(status_code=404, detail=f"unknown run {run_id!r}")
     request.app.state.notes_index.delete_subject(SUBJECT_RUN, run_id)
-    _remove_run_dir(request, row.run_dir)
+    remove_run_dir(request, row.run_dir)
     return {"run_id": run_id, "deleted": True}
 
 
@@ -227,7 +227,7 @@ def _frame(payload: dict[str, Any]) -> str:
     return f"event: {payload.get('type', 'message')}\ndata: {json.dumps(payload)}\n\n"
 
 
-def _remove_run_dir(request: Request, run_dir: str) -> None:
+def remove_run_dir(request: Request, run_dir: str) -> None:
     """Delete a run's directory, refusing to touch anything outside runs_dir."""
     runs_dir = request.app.state.settings.runs_dir.resolve()
     path = Path(run_dir).resolve()

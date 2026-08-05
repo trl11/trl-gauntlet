@@ -1,15 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@api/client";
-import type { Suite } from "@api/types";
+import type { Suite, Unit } from "@api/types";
 
 import RunStartModal from "./RunStartModal";
 
 const getProfile = vi.fn();
+const listUnits = vi.fn();
 const startRun = vi.fn();
 
 vi.mock("@api/client", async (importOriginal) => {
@@ -17,9 +18,24 @@ vi.mock("@api/client", async (importOriginal) => {
   return {
     ...actual,
     getProfile: (...args: unknown[]) => getProfile(...args),
+    listUnits: (...args: unknown[]) => listUnits(...args),
     startRun: (...args: unknown[]) => startRun(...args),
   };
 });
+
+/** A unit as `GET /api/units` reports it, with only the fields the modal reads. */
+function unit(serial: string, lastSeen: string | null): Unit {
+  return {
+    failed: 0,
+    first_seen: lastSeen,
+    last_run: null,
+    last_seen: lastSeen,
+    note_count: 0,
+    passed: 0,
+    run_count: 0,
+    serial,
+  };
+}
 
 function suite(partial: Partial<Suite> = {}): Suite {
   return {
@@ -114,6 +130,9 @@ beforeEach(() => {
     name: "mock.yaml",
     path: "/p/mock.yaml",
   });
+  listUnits.mockResolvedValue({
+    units: [unit("HC-001", "2026-01-01T00:00:00Z"), unit("HC-009", "2026-06-01T00:00:00Z")],
+  });
   startRun.mockResolvedValue({ run_id: "20260101T000000Z-0001" });
 });
 
@@ -137,6 +156,41 @@ describe("RunStartModal", () => {
     renderModal(suite({ supports: { target: false, unit_serial: true } }));
     expect(screen.getByLabelText("Unit serial")).toBeInTheDocument();
     expect(screen.queryByLabelText("Target")).not.toBeInTheDocument();
+  });
+
+  it("gathers the profile, target and serial under one common section", async () => {
+    renderModal(suite({ supports: { target: true, unit_serial: true } }));
+    const common = await screen.findByRole("region", { name: "Common settings" });
+    expect(within(common).getByLabelText("Profile")).toBeInTheDocument();
+    expect(within(common).getByLabelText("Target")).toBeInTheDocument();
+    expect(within(common).getByLabelText("Unit serial")).toBeInTheDocument();
+    expect(within(common).queryByLabelText("Duration (s)")).not.toBeInTheDocument();
+  });
+
+  it("offers the units already tested, most recently seen first", async () => {
+    const { container } = renderModal(suite({ supports: { target: false, unit_serial: true } }));
+    await waitFor(() => expect(container.querySelectorAll("datalist option")).toHaveLength(2));
+    const serial = screen.getByLabelText("Unit serial");
+    const options = container.querySelector(`datalist#${CSS.escape(serial.getAttribute("list")!)}`);
+    expect([...(options?.querySelectorAll("option") ?? [])].map((o) => o.value)).toEqual([
+      "HC-009",
+      "HC-001",
+    ]);
+  });
+
+  it("still accepts a serial no unit has yet", async () => {
+    const user = userEvent.setup();
+    renderModal(suite({ supports: { target: false, unit_serial: true } }));
+    await waitFor(() => expect(screen.getByLabelText("Duration (s)")).toHaveValue(300));
+    await user.type(screen.getByLabelText("Unit serial"), "HC-042");
+    await user.click(screen.getByRole("button", { name: "Start run" }));
+    expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ unit_serial: "HC-042" }));
+  });
+
+  it("asks for no units when the suite records no serial", async () => {
+    renderModal(suite({ supports: { target: true, unit_serial: false } }));
+    await waitFor(() => expect(screen.getByLabelText("Duration (s)")).toHaveValue(300));
+    expect(listUnits).not.toHaveBeenCalled();
   });
 
   it("fills each override with the value the selected profile gives it", async () => {

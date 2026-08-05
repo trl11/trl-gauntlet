@@ -124,12 +124,11 @@ describe("TestsPage", () => {
     expect(screen.getByText("Chamber profile with per-segment pass/fail.")).toBeInTheDocument();
   });
 
-  it("filters the rail by the search box", async () => {
-    const user = userEvent.setup();
+  it("lists every discovered suite, with no search box to filter them", async () => {
     renderPage();
-    await user.type(await screen.findByLabelText("Search"), "smoke");
-    expect(screen.queryByRole("button", { name: "Thermal Cycle" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Thermal Cycle" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Smoke" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Search")).not.toBeInTheDocument();
   });
 
   it("keeps what a suite produces and requires out of the detail pane", async () => {

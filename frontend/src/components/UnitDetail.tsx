@@ -1,7 +1,7 @@
 import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, DataField, FilterMenu, Spinner } from "@trl11/components/ui";
+import { Button, Confirm, DataField, FilterMenu, Spinner } from "@trl11/components/ui";
 import clsx from "clsx";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -17,6 +17,7 @@ import {
 
 import {
   addUnitNote,
+  deleteRun,
   deleteUnitNote,
   getUnit,
   getUnitHistory,
@@ -66,6 +67,8 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
   const [renaming, setRenaming] = useState(false);
   const [renameError, setRenameError] = useState<string | null>(null);
   const [filters, setFilters] = useState<Filters>({ status: "all" });
+  const [confirming, setConfirming] = useState<RunRow | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const unit = useQuery({ queryKey: ["unit", serial], queryFn: () => getUnit(serial) });
   const history = useQuery({
@@ -76,6 +79,8 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
     queryKey: ["unit-notes", serial],
     queryFn: () => listUnitNotes(serial),
   });
+
+  const runs = history.data?.runs ?? [];
 
   const refreshNotes = () => {
     client.invalidateQueries({ queryKey: ["unit-notes", serial] });
@@ -94,6 +99,28 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
     onSuccess: refreshNotes,
   });
 
+  // Deleting a run drops it from this unit's history and from its counters, so
+  // the unit is refetched alongside the history rather than only the table. A
+  // unit is aggregated from its run rows, so deleting the last one leaves no
+  // unit to show and the list is where the operator goes instead.
+  const removeRun = useMutation({
+    mutationFn: (runId: string) => deleteRun(runId),
+    onSuccess: (_result, runId) => {
+      setDeleteError(null);
+      if (runs.length === 1 && runs[0].run_id === runId) {
+        client.invalidateQueries({ queryKey: ["units"] });
+        client.invalidateQueries({ queryKey: ["runs"] });
+        navigate("/units", { replace: true });
+        return;
+      }
+      client.invalidateQueries({ queryKey: ["unit", serial] });
+      client.invalidateQueries({ queryKey: ["unit-history", serial] });
+      client.invalidateQueries({ queryKey: ["units"] });
+      client.invalidateQueries({ queryKey: ["runs"] });
+    },
+    onError: () => setDeleteError("A run still in flight can't be deleted."),
+  });
+
   const rename = useMutation({
     mutationFn: (next: string) => renameUnit(serial, next),
     onSuccess: (renamed) => {
@@ -103,7 +130,6 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
     onError: (error) => setRenameError(error.message),
   });
 
-  const runs = history.data?.runs ?? [];
   const filteredRuns = useMemo(
     () => runs.filter((run) => matchesStatus(run.status, String(filters.status))),
     [runs, filters.status]
@@ -200,22 +226,44 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
           selectedCount={0}
           batchActions={null}
         />
+        {deleteError && (
+          <p className="unit-detail__error" role="alert">
+            {deleteError}
+          </p>
+        )}
         <RunTable
           runs={filteredRuns}
           loading={history.isPending}
           columns={["status", "suite", "run_id", "profile", "started_at", "duration_s"]}
           emptyMessage="No runs have named this unit."
           filterable={false}
+          onDeleteRun={setConfirming}
         />
       </section>
 
-      <NotesPanel
-        className="unit-detail__notes"
-        notes={notes.data?.notes ?? []}
-        busy={notes.isPending || addNote.isPending || removeNote.isPending}
-        onAdd={(body, author) => addNote.mutateAsync({ author, body })}
-        onDelete={(noteId) => removeNote.mutateAsync(noteId)}
-      />
+      {confirming && (
+        <Confirm
+          onConfirm={() => {
+            removeRun.mutate(confirming.run_id);
+            setConfirming(null);
+          }}
+          onDismiss={() => setConfirming(null)}
+        >
+          {`Delete run ${confirming.run_id}? Its log, metrics and verdict are removed for good.`}
+        </Confirm>
+      )}
+
+      <section className="unit-detail__section" aria-label="Notes">
+        <h2 className="unit-detail__title">Notes</h2>
+        <NotesPanel
+          className="unit-detail__notes"
+          notes={notes.data?.notes ?? []}
+          busy={notes.isPending || addNote.isPending || removeNote.isPending}
+          onAdd={(body, author) => addNote.mutateAsync({ author, body })}
+          onDelete={(noteId) => removeNote.mutateAsync(noteId)}
+          titled={false}
+        />
+      </section>
     </div>
   );
 };

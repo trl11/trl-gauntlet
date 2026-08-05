@@ -226,7 +226,7 @@ describe("every endpoint addresses its route", () => {
     ["deleteRunNote", () => deleteRunNote("r1", 7), "DELETE", "/api/runs/r1/notes/7"],
     ["listUnits", listUnits, "GET", "/api/units"],
     ["getUnit", () => getUnit("SN-1"), "GET", "/api/units/SN-1"],
-    ["deleteUnit", () => deleteUnit("SN-1"), "DELETE", "/api/units/SN-1"],
+    ["deleteUnit", () => deleteUnit("SN-1"), "DELETE", "/api/units/SN-1?runs=true"],
     ["getUnitHistory", () => getUnitHistory("SN-1"), "GET", "/api/units/SN-1/history"],
     [
       "getUnitHistory limited",

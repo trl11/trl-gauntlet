@@ -27,7 +27,26 @@ import { health } from "../utils/health";
 
 import "./UnitsPage.scss";
 
-/** Deletes every unit named, reporting which ones the server refused. */
+/**
+ * What the operator is asked to confirm.
+ *
+ * A unit is derived from the runs that name it, so deleting one has to take
+ * those runs with it or the unit is listed again from them. The confirmation
+ * counts what goes.
+ */
+function confirmationFor(serials: string[], units: Unit[]): string {
+  const named = serials.length === 1 ? `unit ${serials[0]}` : `${serials.length} units`;
+  const runs = units
+    .filter((unit) => serials.includes(unit.serial))
+    .reduce((total, unit) => total + unit.run_count, 0);
+  const counted = runs === 1 ? "1 run" : `${runs} runs`;
+  return `Delete ${named} and ${counted}? Every log, metric and verdict is removed for good.`;
+}
+
+/**
+ * Deletes every unit named along with its runs, reporting which ones the
+ * server refused.
+ */
 async function deleteUnits(serials: string[]): Promise<string[]> {
   const results = await Promise.allSettled(serials.map((serial) => deleteUnit(serial)));
   return serials.filter((_serial, index) => results[index].status === "rejected");
@@ -298,9 +317,7 @@ const UnitsList: React.FC = () => {
 
       {deleting !== null && (
         <Confirm onConfirm={() => remove.mutate(deleting)} onDismiss={() => setDeleting(null)}>
-          {deleting.length === 1
-            ? `Forget unit ${deleting[0]}? Its runs stay in history; its notes and counters are removed.`
-            : `Forget ${deleting.length} units? Their runs stay in history; their notes and counters are removed.`}
+          {confirmationFor(deleting, units.data?.units ?? [])}
         </Confirm>
       )}
     </div>

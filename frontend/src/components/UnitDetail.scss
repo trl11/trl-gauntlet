@@ -64,6 +64,14 @@
     color: $trl-gray;
   }
 
+  &__error {
+    padding: 10px 12px;
+    font-size: 13px;
+    color: $indicator-red;
+    border-left: 2px solid $indicator-red;
+    background-color: rgba($trl-dark, 0.6);
+  }
+
   @include chart.chrome;
 }
 

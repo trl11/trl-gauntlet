@@ -11,6 +11,7 @@
 import type {
   ArtifactList,
   CapabilityList,
+  ForgottenUnit,
   Health,
   InstrumentCommandResult,
   InstrumentList,
@@ -373,9 +374,11 @@ export const renameUnit = (serial: string, newSerial: string): Promise<UnitDetai
     body: JSON.stringify({ serial: newSerial }),
   });
 
-/** `DELETE /api/units/{serial}` */
-export const deleteUnit = (serial: string): Promise<void> =>
-  request<void>(`/api/units/${encodeSegment(serial)}`, { method: "DELETE" });
+/** `DELETE /api/units/{serial}`: the unit and every run that names it. */
+export const deleteUnit = (serial: string): Promise<ForgottenUnit> =>
+  request<ForgottenUnit>(`/api/units/${encodeSegment(serial)}${query({ runs: true })}`, {
+    method: "DELETE",
+  });
 
 /** `GET /api/units/{serial}/history` */
 export const getUnitHistory = (serial: string, limit?: number): Promise<UnitHistory> =>
