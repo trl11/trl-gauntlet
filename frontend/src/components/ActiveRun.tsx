@@ -1,10 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Confirm } from "@trl11/components/ui";
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 
 import { abortRun, stopRun } from "@api/client";
 import type { RunRow } from "@api/types";
+import IterationMap from "@components/IterationMap";
 import StatusPill from "@components/StatusPill";
 import useEventStream from "@hooks/useEventStream";
 import { formatDuration, toDate } from "../utils/format";
@@ -21,6 +22,7 @@ export interface ActiveRunProps {
 /** One in-flight run, with its live phase and the two ways to end it. */
 export const ActiveRun: React.FC<ActiveRunProps> = ({ now, run }) => {
   const client = useQueryClient();
+  const navigate = useNavigate();
   const [confirming, setConfirming] = useState<"abort" | "stop" | null>(null);
   const stream = useEventStream({ runId: run.run_id, maxLogLines: 1, maxMetricSamples: 1 });
   const control = useMutation({
@@ -65,6 +67,15 @@ export const ActiveRun: React.FC<ActiveRunProps> = ({ now, run }) => {
           Abort
         </Button>
       </div>
+      {(stream.iterations.length > 0 || stream.phases.length > 0) && (
+        <div className="active-run__progress">
+          <IterationMap
+            iterations={stream.iterations}
+            phases={stream.phases}
+            onSelect={() => navigate(`/runs/${encodeURIComponent(run.run_id)}`)}
+          />
+        </div>
+      )}
       {control.isError && <p className="active-run__error">{(control.error as Error).message}</p>}
       {confirming && (
         <Confirm

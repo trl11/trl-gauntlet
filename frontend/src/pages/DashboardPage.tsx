@@ -9,14 +9,13 @@ import { Link } from "react-router";
 import { getSystemData, listInstruments, listRuns, listSuites, listUnits } from "@api/client";
 import type { RunRow, Unit } from "@api/types";
 import ActiveRun from "@components/ActiveRun";
-import DefinitionRows from "@components/DefinitionRows";
-import EmptyState from "@components/EmptyState";
 import HostHealth from "@components/HostHealth";
+import InstrumentTile from "@components/InstrumentTile";
 import PageHeader from "@components/PageHeader";
 import Panel from "@components/Panel";
 import RunTable from "@components/RunTable";
 import StatusPill from "@components/StatusPill";
-import { formatTimestamp } from "../utils/format";
+import { formatRelativeTime, formatTimestamp } from "../utils/format";
 import { isLive } from "../utils/run_status";
 
 import "./DashboardPage.scss";
@@ -34,9 +33,44 @@ interface HostSample {
   memory: number;
 }
 
+/** Props for {@link SectionHead}. */
+interface SectionHeadProps {
+  /** A link aligned right in the heading row. */
+  action?: React.ReactNode;
+  title: string;
+}
+
+/** The label above a block of the dashboard that is not drawn as a card. */
+const SectionHead: React.FC<SectionHeadProps> = ({ action, title }) => (
+  <div className="dashboard-page__section-head">
+    <h2 className="dashboard-page__section-title">{title}</h2>
+    {action}
+  </div>
+);
+
+/** What the bench last held: the run that named a unit, and the serial it named. */
+interface BenchUnit {
+  run: RunRow;
+  serial: string;
+}
+
 /** The most recent run that names a unit, which is the unit on the bench. */
-function lastUnitRun(runs: RunRow[]): RunRow | null {
-  return runs.find((run) => run.unit_serial) ?? null;
+function lastUnitRun(runs: RunRow[]): BenchUnit | null {
+  for (const run of runs) {
+    if (run.unit_serial) return { run, serial: run.unit_serial };
+  }
+  return null;
+}
+
+/**
+ * What the first card calls itself.
+ *
+ * A run in flight holds the unit, so the card names the run. With nothing
+ * running there is no unit under test, only the last one that was.
+ */
+function benchTitle(running: boolean, held: boolean): string {
+  if (running) return "Active run";
+  return held ? "Last unit tested" : "Unit under test";
 }
 
 /** The units seen most recently, newest first. */
@@ -45,18 +79,6 @@ function recentUnits(units: Unit[]): Unit[] {
     String(b.last_seen ?? "").localeCompare(String(a.last_seen ?? ""))
   );
   return ordered.slice(0, RECENT_UNITS);
-}
-
-/**
- * The first few state values an instrument reports, as `key value` pairs.
- * Objects and arrays are skipped; the panel on /instruments renders those.
- */
-function stateSummary(state: Record<string, unknown>): string {
-  return Object.entries(state)
-    .filter(([, value]) => value === null || typeof value !== "object")
-    .slice(0, 3)
-    .map(([key, value]) => `${key} ${String(value)}`)
-    .join(" · ");
 }
 
 /** What the bench is doing right now: live runs, host health, recent history. */
@@ -97,8 +119,14 @@ export const DashboardPage: React.FC = () => {
   const allRuns = runs.data?.runs ?? [];
   const active = allRuns.filter((run) => isLive(run.status));
   const onBench = lastUnitRun(allRuns);
+  const instrumentRows = instruments.data?.instruments ?? [];
   const unitRows = recentUnits(units.data?.units ?? []);
   const discoveryErrors = suites.data?.errors ?? [];
+
+  // The record the units list already holds for whatever the bench last held,
+  // so the card counts its history without asking for anything of its own.
+  const benchRecord =
+    onBench === null ? undefined : units.data?.units.find((unit) => unit.serial === onBench.serial);
 
   return (
     <div className="dashboard-page">
@@ -118,7 +146,19 @@ export const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      <Panel title={active.length > 0 ? "Active run" : "Unit under test"}>
+      <Panel
+        title={benchTitle(active.length > 0, onBench !== null)}
+        action={
+          // A unit that is only the last one tested says when, so hours-old
+          // history is not read as the unit on the bench right now.
+          active.length === 0 &&
+          onBench !== null && (
+            <span className="dashboard-page__tested">
+              {`last tested ${formatTimestamp(onBench.run.started_at, { second: undefined })} · ${formatRelativeTime(onBench.run.started_at, new Date(now))}`}
+            </span>
+          )
+        }
+      >
         <div className="dashboard-page__unit-panel">
           {runs.isPending ? (
             <Spinner />
@@ -129,31 +169,56 @@ export const DashboardPage: React.FC = () => {
               ))}
             </div>
           ) : onBench === null ? (
-            <EmptyState
-              title="Nothing running"
-              message="Start a suite from Tests and it will appear here."
-              action={<Link to="/tests">Run a test</Link>}
-            />
+            <div className="dashboard-page__idle">
+              <p>Nothing running</p>
+              <Link to="/tests">Run a test</Link>
+            </div>
           ) : (
-            <DefinitionRows
-              rows={[
-                { label: "serial", value: onBench.unit_serial },
-                { label: "last suite", value: onBench.suite },
-                { label: "verdict", value: <StatusPill status={onBench.status} /> },
-              ]}
-            />
+            <Link
+              aria-label={`Open the ${onBench.run.suite} run of unit ${onBench.serial}`}
+              className="dashboard-page__unit"
+              to={`/runs/${encodeURIComponent(onBench.run.run_id)}`}
+            >
+              <div className="dashboard-page__unit-head">
+                <span className="dashboard-page__unit-serial">{onBench.serial}</span>
+                <p className="dashboard-page__unit-suite">last suite {onBench.run.suite}</p>
+              </div>
+
+              <dl className="dashboard-page__unit-facts">
+                <div>
+                  <dt>runs</dt>
+                  <dd>{benchRecord?.run_count ?? "-"}</dd>
+                </div>
+                <div>
+                  <dt>passed</dt>
+                  <dd className={clsx(benchRecord && benchRecord.passed > 0 && "is-passed")}>
+                    {benchRecord?.passed ?? "-"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>failed</dt>
+                  <dd className={clsx(benchRecord && benchRecord.failed > 0 && "is-failed")}>
+                    {benchRecord?.failed ?? "-"}
+                  </dd>
+                </div>
+              </dl>
+
+              <StatusPill status={onBench.run.status} />
+            </Link>
           )}
         </div>
       </Panel>
 
-      <Panel
-        title="Recent runs"
-        action={
-          <Link className="panel__action" to="/history">
-            all runs →
-          </Link>
-        }
-      >
+      <section className="dashboard-page__section">
+        <SectionHead
+          title="Recent runs"
+          action={
+            <Link className="dashboard-page__section-action" to="/history">
+              {/* The total the server counted, not the page of it fetched here. */}
+              {runs.data ? `all runs (${runs.data.total}) →` : "all runs →"}
+            </Link>
+          }
+        />
         <RunTable
           runs={allRuns.slice(0, RECENT_RUNS)}
           loading={runs.isPending}
@@ -162,120 +227,96 @@ export const DashboardPage: React.FC = () => {
           columns={["started_at", "duration_s", "unit_serial", "suite", "status"]}
           emptyMessage="No runs recorded yet."
         />
-      </Panel>
+      </section>
 
-      <Panel
-        className="dashboard-page__units-panel"
-        title="Units"
-        action={
-          <Link className="panel__action" to="/units">
-            {units.data ? `all units (${units.data.units.length}) →` : "all units →"}
-          </Link>
-        }
-      >
+      <section className="dashboard-page__section">
+        <SectionHead
+          title="Units"
+          action={
+            <Link className="dashboard-page__section-action" to="/units">
+              {units.data ? `all units (${units.data.units.length}) →` : "all units →"}
+            </Link>
+          }
+        />
         {units.isPending ? (
           <Spinner />
         ) : unitRows.length === 0 ? (
           <p className="dashboard-page__quiet">No unit has been on the bench yet.</p>
         ) : (
-          <table className="dashboard-page__units">
-            <thead>
-              <tr>
-                <th scope="col">Serial</th>
-                <th scope="col" className="is-right">
-                  Runs
-                </th>
-                <th scope="col" className="is-right">
-                  Passed
-                </th>
-                <th scope="col" className="is-right">
-                  Failed
-                </th>
-                <th scope="col">Last tested</th>
-                <th scope="col">Last run</th>
-              </tr>
-            </thead>
-            <tbody>
-              {unitRows.map((unit) => (
-                <tr key={unit.serial}>
-                  <td>
-                    <Link to={`/units/${encodeURIComponent(unit.serial)}`}>{unit.serial}</Link>
-                  </td>
-                  <td className="is-right">{unit.run_count}</td>
-                  <td className={clsx("is-right", unit.passed > 0 && "is-passed")}>
-                    {unit.passed}
-                  </td>
-                  <td className={clsx("is-right", unit.failed > 0 && "is-failed")}>
-                    {unit.failed}
-                  </td>
-                  <td>{formatTimestamp(unit.last_seen)}</td>
-                  <td>
-                    {unit.last_run ? (
-                      <StatusPill status={unit.last_run.status} />
-                    ) : (
-                      <span className="dashboard-page__quiet">-</span>
-                    )}
-                  </td>
+          <div className="dashboard-page__units-scroll">
+            <table className="dashboard-page__units">
+              <thead>
+                <tr>
+                  <th scope="col">Serial</th>
+                  <th scope="col" className="is-right">
+                    Runs
+                  </th>
+                  <th scope="col" className="is-right">
+                    Passed
+                  </th>
+                  <th scope="col" className="is-right">
+                    Failed
+                  </th>
+                  <th scope="col">Last tested</th>
+                  <th scope="col">Last run</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Panel>
-
-      <Panel
-        title="Instruments"
-        action={
-          <Link className="panel__action" to="/instruments">
-            manage →
-          </Link>
-        }
-      >
-        {instruments.isPending ? (
-          <Spinner />
-        ) : (instruments.data?.instruments ?? []).length === 0 ? (
-          <EmptyState title="No instruments" message="Gauntlet is holding no instruments." />
-        ) : (
-          <div className="dashboard-page__instruments">
-            {(instruments.data?.instruments ?? []).map((instrument) => (
-              <Link
-                className="dashboard-page__instrument"
-                key={instrument.name}
-                to="/instruments"
-                aria-label={`${instrument.name}, ${instrument.available ? "available" : "unavailable"}`}
-              >
-                <span
-                  className={clsx(
-                    "dashboard-page__dot",
-                    instrument.available && "dashboard-page__dot--on"
-                  )}
-                  aria-hidden="true"
-                />
-                <span className="dashboard-page__instrument-name">{instrument.name}</span>
-                <span className="dashboard-page__instrument-state">
-                  {instrument.available
-                    ? stateSummary(instrument.state) || instrument.kind
-                    : "unavailable"}
-                </span>
-              </Link>
-            ))}
+              </thead>
+              <tbody>
+                {unitRows.map((unit) => (
+                  <tr key={unit.serial}>
+                    <td>
+                      <Link
+                        className="dashboard-page__serial"
+                        to={`/units/${encodeURIComponent(unit.serial)}`}
+                      >
+                        {unit.serial}
+                      </Link>
+                    </td>
+                    <td className="is-right">{unit.run_count}</td>
+                    <td className={clsx("is-right", unit.passed > 0 && "is-passed")}>
+                      {unit.passed}
+                    </td>
+                    <td className={clsx("is-right", unit.failed > 0 && "is-failed")}>
+                      {unit.failed}
+                    </td>
+                    <td>{formatTimestamp(unit.last_seen)}</td>
+                    <td>{unit.last_run ? <StatusPill status={unit.last_run.status} /> : "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
-      </Panel>
+      </section>
 
-      <Panel title="Host health">
-        {system.isPending ? (
-          <Spinner />
-        ) : system.isError ? (
-          <p className="dashboard-page__error">Host telemetry is unavailable.</p>
-        ) : (
-          <HostHealth
-            cpuHistory={samples.map((sample) => sample.cpu)}
-            data={system.data}
-            memoryHistory={samples.map((sample) => sample.memory)}
-          />
+      <section className="dashboard-page__section">
+        <SectionHead title="System" />
+        <div className="dashboard-page__tiles">
+          {system.isPending ? (
+            <Spinner />
+          ) : system.isError ? (
+            <p className="dashboard-page__error">Host telemetry is unavailable.</p>
+          ) : (
+            <HostHealth
+              cpuHistory={samples.map((sample) => sample.cpu)}
+              data={system.data}
+              memoryHistory={samples.map((sample) => sample.memory)}
+            />
+          )}
+
+          {instruments.isPending ? (
+            <Spinner />
+          ) : (
+            instrumentRows.map((instrument) => (
+              <InstrumentTile instrument={instrument} key={instrument.name} />
+            ))
+          )}
+        </div>
+
+        {!instruments.isPending && instrumentRows.length === 0 && (
+          <p className="dashboard-page__quiet">No instrument is registered.</p>
         )}
-      </Panel>
+      </section>
     </div>
   );
 };

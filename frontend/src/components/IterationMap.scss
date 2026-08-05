@@ -33,6 +33,10 @@
       background-color: rgba($trl-green, 0.55);
     }
 
+    &--warned {
+      background-color: rgba($indicator-yellow, 0.55);
+    }
+
     &--failed {
       background-color: rgba($trl-red, 0.8);
     }

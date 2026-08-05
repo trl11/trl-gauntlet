@@ -1,0 +1,12 @@
+@use "@trl11/styles/theme.scss" as *;
+
+// The window a bench instrument reads through: near-black glass with a sheen
+// across its top edge, lit from somewhere above and in front of it.
+@mixin glass {
+  border: 1px solid $trl-dark-gray;
+  background:
+    linear-gradient(180deg, rgba($trl-light-gray, 0.05), transparent 22%),
+    radial-gradient(120% 90% at 50% -20%, rgba($trl-light-gray, 0.05), transparent 60%),
+    $trl-background;
+  box-shadow: inset 0 2px 12px rgba($trl-background, 0.9);
+}

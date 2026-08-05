@@ -50,6 +50,40 @@ describe("IterationMap", () => {
     expect(onSelect).toHaveBeenCalledWith(2);
   });
 
+  it("warns on an iteration that passed while a phase inside it did not", () => {
+    const iterations: IterationRow[] = [
+      { elapsed_run_s: 2, images: [], iteration: 1, reason: "", success: true },
+    ];
+    const phases: PhaseRow[] = [
+      { detail: {}, elapsed_s: 1, iteration: 1, phase: "soak", success: true },
+      { detail: {}, elapsed_s: 1, iteration: 1, phase: "check", success: false },
+    ];
+    render(<IterationMap iterations={iterations} phases={phases} />);
+    const cell = screen.getByRole("button", { name: "#1 · passed with warnings · 2s" });
+    expect(cell).toHaveClass("iteration-map__cell--warned");
+    expect(screen.getByText("1 iterations, 0 failed, 1 warned")).toBeInTheDocument();
+  });
+
+  it("warns on an iteration the suite passed but recorded a reason against", () => {
+    const iterations: IterationRow[] = [
+      { elapsed_run_s: 2, images: [], iteration: 1, reason: "skipped, no chamber", success: true },
+    ];
+    render(<IterationMap iterations={iterations} phases={[]} />);
+    expect(
+      screen.getByRole("button", { name: "#1 · passed with warnings · 2s · skipped, no chamber" })
+    ).toHaveClass("iteration-map__cell--warned");
+  });
+
+  it("burns a clean iteration green and a failed one red", () => {
+    render(<IterationMap iterations={ITERATIONS} phases={PHASES} />);
+    expect(screen.getByRole("button", { name: "#1 · passed · 2s" })).toHaveClass(
+      "iteration-map__cell--ok"
+    );
+    expect(screen.getByRole("button", { name: "#2 · failed · 3s · rail low" })).toHaveClass(
+      "iteration-map__cell--failed"
+    );
+  });
+
   it("keeps phases no iteration reported rather than dropping them", () => {
     const phases: PhaseRow[] = [
       { detail: {}, elapsed_s: 4, iteration: null, phase: "setup", success: true },

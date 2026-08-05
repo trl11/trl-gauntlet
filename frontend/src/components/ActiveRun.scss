@@ -1,14 +1,19 @@
 @use "@trl11/styles/theme.scss" as *;
 
 .active-run {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 16px;
-  padding: 14px 16px;
-  border: 1px solid $trl-dark-gray;
+  padding: 4px 0 4px 14px;
   border-left: 3px solid $indicator-blue;
-  background-color: rgba($trl-dark, 0.6);
+
+  // Anywhere on the card that is not a control opens the run, and hovering it
+  // anywhere says which link that is.
+  &:hover &__suite {
+    text-decoration: underline;
+  }
 
   &__head {
     display: flex;
@@ -17,10 +22,17 @@
     min-width: 0;
   }
 
+  // The run's one link, stretched across the card behind everything on it.
   &__suite {
     font-size: 15px;
     color: $trl-light-gray;
     text-decoration: none;
+
+    &::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+    }
 
     &:hover,
     &:focus-visible {
@@ -54,7 +66,11 @@
     }
   }
 
+  // The controls and the squares sit above the stretched link, so each keeps
+  // the click that belongs to it.
   &__actions {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -72,6 +88,14 @@
       color: $indicator-red;
       border-color: rgba($indicator-red, 0.6);
     }
+  }
+
+  // The squares run the width of the card, under the facts they belong to.
+  &__progress {
+    position: relative;
+    z-index: 1;
+    flex-basis: 100%;
+    min-width: 0;
   }
 
   &__error {

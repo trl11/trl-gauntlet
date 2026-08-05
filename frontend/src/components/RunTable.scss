@@ -1,4 +1,5 @@
 @use "@trl11/styles/theme.scss" as *;
+@use "@styles/table";
 
 .run-table {
   display: flex;
@@ -31,45 +32,14 @@
   }
 
   &__table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 14px;
-
-    th,
-    td {
-      text-align: left;
-      padding: 10px 14px;
-      white-space: nowrap;
-
-      &.is-right {
-        text-align: right;
-      }
-    }
-
-    thead th {
-      background-color: $trl-dark;
-      color: $trl-gray;
-      font-weight: 500;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      border-bottom: 1px solid $trl-dark-gray;
-      position: sticky;
-      top: 0;
-      z-index: 1;
-    }
+    @include table.base;
 
     tbody tr {
-      border-bottom: 1px solid rgba($trl-dark-gray, 0.6);
       transition: background-color 0.15s ease;
 
       &:has(.run-table__open:hover),
       &:has(.run-table__open:focus-visible) {
         background-color: rgba($trl-dark-gray, 0.5);
-      }
-
-      &:last-child {
-        border-bottom: none;
       }
     }
   }
@@ -161,19 +131,8 @@
     }
   }
 
-  &__table a {
-    color: $trl-light-gray;
-    text-decoration: none;
-
-    &:hover,
-    &:focus-visible {
-      text-decoration: underline;
-    }
-  }
-
   &__mono {
-    font-family: $font-mono;
-    font-size: 12px;
+    @include table.identifier;
   }
 
   &__reason {

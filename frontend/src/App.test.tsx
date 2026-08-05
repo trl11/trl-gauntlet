@@ -82,10 +82,10 @@ describe("every route renders", () => {
     }
   });
 
-  it("dashboard lists host health and the recent runs", async () => {
+  it("dashboard lists the system figures and the recent runs", async () => {
     open("#/");
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
-    expect(await screen.findByText("Host health")).toBeInTheDocument();
+    expect(await screen.findByText("System")).toBeInTheDocument();
     expect(await screen.findByText("Memory")).toBeInTheDocument();
     // The sampled figures reach the tiles, not just their labels.
     expect(await screen.findByText("CPU")).toBeInTheDocument();

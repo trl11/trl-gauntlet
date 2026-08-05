@@ -7,7 +7,6 @@ import { deleteRun, listRuns, listSuites, listUnits } from "@api/client";
 import type { RunRow } from "@api/types";
 import ListToolbar from "@components/ListToolbar";
 import PageHeader from "@components/PageHeader";
-import Panel from "@components/Panel";
 import RunDetails from "@components/RunDetails";
 import RunTable, { type SortDirection } from "@components/RunTable";
 import type { RunTableColumn } from "@components/run_columns";
@@ -185,23 +184,21 @@ export const HistoryPage: React.FC = () => {
       {runs.isError ? (
         <p className="history-page__error">{(runs.error as Error).message}</p>
       ) : (
-        <Panel title="Runs">
-          <RunTable
-            columns={COLUMNS}
-            direction={direction}
-            emptyMessage="Nothing matches these filters."
-            filterable={false}
-            loading={runs.isPending}
-            onDeleteRun={(run) => setConfirming([run])}
-            onSelectionChange={setSelected}
-            onSort={(column, next) => write({ dir: next, sort: column })}
-            pageSize={0}
-            renderExpanded={(run) => <RunDetails run={run} />}
-            runs={rows}
-            selectedIds={selected}
-            sort={sort}
-          />
-        </Panel>
+        <RunTable
+          columns={COLUMNS}
+          direction={direction}
+          emptyMessage="Nothing matches these filters."
+          filterable={false}
+          loading={runs.isPending}
+          onDeleteRun={(run) => setConfirming([run])}
+          onSelectionChange={setSelected}
+          onSort={(column, next) => write({ dir: next, sort: column })}
+          pageSize={0}
+          renderExpanded={(run) => <RunDetails run={run} />}
+          runs={rows}
+          selectedIds={selected}
+          sort={sort}
+        />
       )}
 
       <Pagination

@@ -25,6 +25,23 @@ export interface IterationCell {
   success: boolean;
 }
 
+/** What one square burns: it passed, it passed with something to say, it failed. */
+type CellState = "failed" | "ok" | "warned";
+
+/**
+ * The state of one square.
+ *
+ * An iteration the suite recorded as a pass is still worth flagging when
+ * something inside it did not pass, or when the suite recorded a reason
+ * alongside the pass — which is how a skipped or degraded iteration reaches
+ * us, the contract carrying no outcome for an iteration beyond `success`.
+ */
+function stateOf(cell: IterationCell): CellState {
+  if (!cell.success) return "failed";
+  if (cell.reason || cell.phases.some((phase) => !phase.success)) return "warned";
+  return "ok";
+}
+
 /** Props for {@link IterationMap}. */
 export interface IterationMapProps {
   /** Iterations in the order they completed. */
@@ -78,12 +95,16 @@ function toCells(iterations: IterationRow[], phases: PhaseRow[]): IterationCell[
   return cells;
 }
 
+/** How one square's state reads in its summary. */
+const STATE_WORDS: Record<CellState, string> = {
+  failed: "failed",
+  ok: "passed",
+  warned: "passed with warnings",
+};
+
 /** The headline a square reports on hover, and to a screen reader. */
 function describe(cell: IterationCell): string {
-  const parts = [
-    cell.iteration == null ? "run" : `#${cell.iteration}`,
-    cell.success ? "passed" : "failed",
-  ];
+  const parts = [cell.iteration == null ? "run" : `#${cell.iteration}`, STATE_WORDS[stateOf(cell)]];
   if (cell.duration_s != null) parts.push(formatDuration(cell.duration_s));
   if (cell.reason) parts.push(cell.reason);
   return parts.join(" · ");
@@ -96,10 +117,20 @@ function describePhases(cell: IterationCell): string {
     .join(" · ");
 }
 
+/** The tally above the squares, naming only the states that occurred. */
+function tally(cells: IterationCell[]): string {
+  const failed = cells.filter((cell) => stateOf(cell) === "failed").length;
+  const warned = cells.filter((cell) => stateOf(cell) === "warned").length;
+  const counts = [`${cells.length} iterations`, `${failed} failed`];
+  if (warned > 0) counts.push(`${warned} warned`);
+  return counts.join(", ");
+}
+
 /**
- * Every iteration of a run as one small square, green when it passed and red
- * when it did not. A run of thousands stays on one screen; hovering a square
- * summarises it and clicking one opens it in the iterations table.
+ * Every iteration of a run as one small square: green when it passed, yellow
+ * when it passed with something to report, red when it did not. A run of
+ * thousands stays on one screen; hovering a square summarises it and clicking
+ * one opens it in the iterations table.
  */
 export const IterationMap: React.FC<IterationMapProps> = ({ iterations, onSelect, phases }) => {
   const cells = useMemo(() => toCells(iterations, phases), [iterations, phases]);
@@ -108,11 +139,9 @@ export const IterationMap: React.FC<IterationMapProps> = ({ iterations, onSelect
     return <p className="iteration-map__empty">No iterations have been reported for this run.</p>;
   }
 
-  const failures = cells.filter((cell) => !cell.success).length;
-
   return (
     <section className="iteration-map" aria-label="Iterations">
-      <p className="iteration-map__count">{`${cells.length} iterations, ${failures} failed`}</p>
+      <p className="iteration-map__count">{tally(cells)}</p>
 
       <div className="iteration-map__grid">
         {cells.map((cell, index) => (
@@ -127,10 +156,7 @@ export const IterationMap: React.FC<IterationMapProps> = ({ iterations, onSelect
           >
             <button
               aria-label={describe(cell)}
-              className={clsx(
-                "iteration-map__cell",
-                cell.success ? "iteration-map__cell--ok" : "iteration-map__cell--failed"
-              )}
+              className={clsx("iteration-map__cell", `iteration-map__cell--${stateOf(cell)}`)}
               onClick={() => cell.iteration != null && onSelect?.(cell.iteration)}
               type="button"
             />

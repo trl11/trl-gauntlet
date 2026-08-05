@@ -1,7 +1,0 @@
-@use "@trl11/styles/theme.scss" as *;
-
-.host-health {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 12px;
-}
