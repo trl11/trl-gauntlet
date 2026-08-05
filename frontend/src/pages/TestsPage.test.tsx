@@ -132,10 +132,11 @@ describe("TestsPage", () => {
     expect(screen.getByRole("button", { name: "Smoke" })).toBeInTheDocument();
   });
 
-  it("shows what a suite produces and requires", async () => {
+  it("keeps what a suite produces and requires out of the detail pane", async () => {
     renderPage("/tests?suite=thermal_cycle");
-    expect(await screen.findByText("metrics")).toBeInTheDocument();
-    expect(screen.getByText("chamber")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Start run" })).toBeInTheDocument();
+    expect(screen.queryByText("metrics")).not.toBeInTheDocument();
+    expect(screen.queryByText("chamber")).not.toBeInTheDocument();
   });
 
   it("refuses to start a suite whose requirement is unavailable, and says why", async () => {

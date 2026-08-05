@@ -57,17 +57,23 @@ function ValidatingHarness() {
 describe("OverrideForm", () => {
   it("renders one control per declared override, honouring label, unit and help", () => {
     render(<Harness />);
-    expect(screen.getByLabelText("Duration")).toHaveAttribute("type", "number");
-    expect(screen.getByText("in s")).toBeInTheDocument();
+    expect(screen.getByLabelText("Duration (s)")).toHaveAttribute("type", "number");
     expect(screen.getByText("Free text")).toBeInTheDocument();
     expect(screen.getByLabelText("stop_on_failure")).toBeChecked();
     expect(screen.getByLabelText("mode")).toBeInTheDocument();
   });
 
+  it("labels a boolean above its box, as it labels every other control", () => {
+    render(<Harness />);
+    const label = screen.getByText("stop_on_failure");
+    expect(label.tagName).toBe("LABEL");
+    expect(label).toHaveAttribute("for", screen.getByLabelText("stop_on_failure").id);
+  });
+
   it("steps a whole number by one and a real number by any amount", () => {
     render(<Harness />);
     expect(screen.getByLabelText("cycles")).toHaveAttribute("step", "1");
-    expect(screen.getByLabelText("Duration")).toHaveAttribute("step", "any");
+    expect(screen.getByLabelText("Duration (s)")).toHaveAttribute("step", "any");
   });
 
   it("offers the declared choices plus the suite default", () => {
@@ -114,7 +120,7 @@ describe("OverrideForm validates what is typed into it", () => {
   it("rejects a value below the declared minimum", async () => {
     const user = userEvent.setup();
     render(<ValidatingHarness />);
-    await user.type(screen.getByLabelText("Duration"), "0.01");
+    await user.type(screen.getByLabelText("Duration (s)"), "0.01");
     expect(screen.getByText("must be at least 0.1")).toBeInTheDocument();
   });
 
@@ -129,7 +135,7 @@ describe("OverrideForm validates what is typed into it", () => {
     const user = userEvent.setup();
     render(<ValidatingHarness />);
     await user.type(screen.getByLabelText("cycles"), "5");
-    await user.type(screen.getByLabelText("Duration"), "2.5");
+    await user.type(screen.getByLabelText("Duration (s)"), "2.5");
     expect(screen.getByTestId("errors")).toHaveTextContent("{}");
   });
 

@@ -14,6 +14,7 @@ export interface SuiteDetailProps {
   onStart: () => void;
   selectedProfile: string | null;
   suite: Suite;
+  /** Requirements of this suite that no available instrument satisfies. */
   unmet: string[];
   /** This suite's report from the last rescan, or null if it has not been verified. */
   verify: VerifyReport | null;
@@ -47,27 +48,6 @@ const SuiteDetail: React.FC<SuiteDetailProps> = ({
       </header>
 
       {suite.description && <p className="suite-detail__description">{suite.description}</p>}
-
-      <dl className="suite-detail__meta">
-        <dt>Produces</dt>
-        <dd>
-          {suite.produces.map((artifact) => (
-            <Badge key={artifact}>{artifact}</Badge>
-          ))}
-        </dd>
-        <dt>Requires</dt>
-        <dd>
-          {suite.requires.length === 0 ? (
-            <span className="muted">nothing</span>
-          ) : (
-            suite.requires.map((name) => (
-              <Badge key={name} color={unmet.includes(name) ? "red" : "green"}>
-                {name}
-              </Badge>
-            ))
-          )}
-        </dd>
-      </dl>
 
       {unmet.length > 0 && (
         <p className="suite-detail__blocked" role="status">

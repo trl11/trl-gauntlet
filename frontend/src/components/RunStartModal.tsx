@@ -1,15 +1,16 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Input, Modal, Select, Spinner } from "@trl11/components/ui";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router";
 
-import { startRun } from "@api/client";
+import { getProfile, startRun } from "@api/client";
 import type { Suite } from "@api/types";
 import OverrideForm from "@components/OverrideForm";
 import {
   initialOverrideValues,
   overrideArgv,
   overridePayload,
+  profileFields,
   validateOverrides,
   type OverrideValues,
 } from "../utils/overrides";
@@ -46,6 +47,18 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
   const [values, setValues] = useState<OverrideValues>(() =>
     initialOverrideValues(suite.overrides)
   );
+
+  // The selected profile holds the values the run would use, so the override
+  // controls are seeded from it and reseeded whenever the profile changes.
+  const content = useQuery({
+    queryKey: ["profile", suite.key, profile],
+    queryFn: () => getProfile(suite.key, profile),
+    enabled: profile !== "" && suite.overrides.length > 0,
+  });
+  const body = profile === "" ? "" : (content.data?.body ?? "");
+  useEffect(() => {
+    setValues(initialOverrideValues(suite.overrides, profileFields(body)));
+  }, [body, suite.overrides]);
 
   const errors = validateOverrides(suite.overrides, values);
   const invalid = Object.keys(errors).length > 0;
@@ -128,7 +141,7 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
           <section className="run-start-modal__section" aria-label="Overrides">
             <h2 className="run-start-modal__heading">Overrides</h2>
             <OverrideForm
-              disabled={start.isPending}
+              disabled={start.isPending || content.isLoading}
               errors={errors}
               onChange={setValues}
               overrides={suite.overrides}

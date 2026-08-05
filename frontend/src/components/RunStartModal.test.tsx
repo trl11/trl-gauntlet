@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,11 +9,16 @@ import type { Suite } from "@api/types";
 
 import RunStartModal from "./RunStartModal";
 
+const getProfile = vi.fn();
 const startRun = vi.fn();
 
 vi.mock("@api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@api/client")>();
-  return { ...actual, startRun: (...args: unknown[]) => startRun(...args) };
+  return {
+    ...actual,
+    getProfile: (...args: unknown[]) => getProfile(...args),
+    startRun: (...args: unknown[]) => startRun(...args),
+  };
 });
 
 function suite(partial: Partial<Suite> = {}): Suite {
@@ -104,6 +109,11 @@ function renderModal(value = suite(), initialProfile: string | null = null) {
 }
 
 beforeEach(() => {
+  getProfile.mockResolvedValue({
+    body: "cycles: 12\nduration_s: 300\nstop_on_failure: true\n",
+    name: "mock.yaml",
+    path: "/p/mock.yaml",
+  });
   startRun.mockResolvedValue({ run_id: "20260101T000000Z-0001" });
 });
 
@@ -129,19 +139,49 @@ describe("RunStartModal", () => {
     expect(screen.queryByLabelText("Target")).not.toBeInTheDocument();
   });
 
+  it("fills each override with the value the selected profile gives it", async () => {
+    renderModal();
+    await waitFor(() => expect(screen.getByLabelText("Duration (s)")).toHaveValue(300));
+    expect(screen.getByLabelText("Cycles")).toHaveValue(12);
+    expect(screen.getByLabelText("Stop on failure")).toBeChecked();
+  });
+
+  it("falls back to the manifest default for a field the profile omits", async () => {
+    getProfile.mockResolvedValue({ body: "cycles: 12\n", name: "mock.yaml", path: "/p/mock.yaml" });
+    renderModal();
+    await waitFor(() => expect(screen.getByLabelText("Cycles")).toHaveValue(12));
+    expect(screen.getByLabelText("Duration (s)")).toHaveValue(60);
+    expect(screen.getByLabelText("Stop on failure")).not.toBeChecked();
+  });
+
+  it("refills the overrides when the operator picks another profile", async () => {
+    const user = userEvent.setup();
+    renderModal();
+    await waitFor(() => expect(screen.getByLabelText("Duration (s)")).toHaveValue(300));
+    getProfile.mockResolvedValue({
+      body: "duration_s: 7200\n",
+      name: "long.yaml",
+      path: "/p/long.yaml",
+    });
+    await user.selectOptions(screen.getByLabelText("Profile"), "long.yaml");
+    await waitFor(() => expect(screen.getByLabelText("Duration (s)")).toHaveValue(7200));
+  });
+
   it("summarises the argv the choices produce", async () => {
     const user = userEvent.setup();
     renderModal();
-    await user.clear(screen.getByLabelText("Duration"));
-    await user.type(screen.getByLabelText("Duration"), "90");
-    expect(screen.getByText("--duration-s 90 --cycles 3")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Duration (s)")).toHaveValue(300));
+    await user.clear(screen.getByLabelText("Duration (s)"));
+    await user.type(screen.getByLabelText("Duration (s)"), "90");
+    expect(screen.getByText("--duration-s 90 --cycles 12 --stop-on-failure")).toBeInTheDocument();
     await user.click(screen.getByLabelText("Stop on failure"));
-    expect(screen.getByText("--duration-s 90 --cycles 3 --stop-on-failure")).toBeInTheDocument();
+    expect(screen.getByText("--duration-s 90 --cycles 12")).toBeInTheDocument();
   });
 
   it("blocks the run while an override is invalid", async () => {
     const user = userEvent.setup();
     renderModal();
+    await waitFor(() => expect(screen.getByLabelText("Cycles")).toHaveValue(12));
     await user.type(screen.getByLabelText("Cycles"), ".5");
     expect(screen.getByRole("button", { name: "Start run" })).toBeDisabled();
     expect(startRun).not.toHaveBeenCalled();
@@ -150,10 +190,11 @@ describe("RunStartModal", () => {
   it("posts the declared overrides and navigates to the run", async () => {
     const user = userEvent.setup();
     renderModal();
+    await waitFor(() => expect(screen.getByLabelText("Duration (s)")).toHaveValue(300));
     await user.type(screen.getByLabelText("Target"), "192.168.55.1");
     await user.click(screen.getByRole("button", { name: "Start run" }));
     expect(startRun).toHaveBeenCalledWith({
-      overrides: { cycles: 3, duration_s: 60, stop_on_failure: false },
+      overrides: { cycles: 12, duration_s: 300, stop_on_failure: true },
       profile: "mock.yaml",
       suite: "thermal_cycle",
       target: "192.168.55.1",

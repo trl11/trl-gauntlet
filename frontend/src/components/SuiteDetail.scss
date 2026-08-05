@@ -40,24 +40,6 @@
     color: $trl-light-gray;
   }
 
-  &__meta {
-    display: grid;
-    grid-template-columns: 110px 1fr;
-    align-items: center;
-    gap: 10px 16px;
-    font-size: 13px;
-
-    dt {
-      color: $trl-gray;
-    }
-
-    dd {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-  }
-
   &__blocked {
     padding: 10px 12px;
     font-size: 13px;

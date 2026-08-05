@@ -5,6 +5,16 @@
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
   align-items: start;
+
+  // Labels carry their override's unit, so a long one wraps and would drop its
+  // control below the controls beside it. Each label reserves two lines and
+  // sits at the bottom of them, which keeps a row's controls on one line.
+  > div > label {
+    display: flex;
+    align-items: flex-end;
+    min-height: 40px;
+    line-height: 20px;
+  }
 }
 
 @media (max-width: 900px) {

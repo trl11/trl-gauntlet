@@ -6,6 +6,7 @@ import {
   initialOverrideValues,
   overrideArgv,
   overridePayload,
+  profileFields,
   validateOverrides,
 } from "./overrides";
 
@@ -42,6 +43,48 @@ describe("initialOverrideValues", () => {
 
   it("leaves an override without a default unset", () => {
     expect(initialOverrideValues([override({ name: "mode" })])).toEqual({ mode: "" });
+  });
+
+  it("prefers the profile's value over the declared default", () => {
+    const specs = [
+      override({ name: "duration_s", type: "number", default: 60 }),
+      override({ name: "verbose", type: "boolean", default: true }),
+      override({ name: "mode", default: "fast" }),
+    ];
+    const profile = { duration_s: 300, mode: "slow", verbose: false };
+    expect(initialOverrideValues(specs, profile)).toEqual({
+      duration_s: "300",
+      verbose: false,
+      mode: "slow",
+    });
+  });
+
+  it("keeps the declared default for a field the profile omits", () => {
+    const specs = [override({ name: "mode", default: "fast" })];
+    expect(initialOverrideValues(specs, { other: "x" })).toEqual({ mode: "fast" });
+  });
+
+  it("ignores a profile field that is a nested block rather than a value", () => {
+    const specs = [override({ name: "link", default: "eth0" })];
+    expect(initialOverrideValues(specs, { link: { iface: "can0" } })).toEqual({ link: "eth0" });
+  });
+});
+
+describe("profileFields", () => {
+  it("reads the top-level fields of a profile", () => {
+    expect(profileFields("duration_s: 60\nlink:\n  iface: can0\n")).toEqual({
+      duration_s: 60,
+      link: { iface: "can0" },
+    });
+  });
+
+  it("yields nothing for a profile that will not parse", () => {
+    expect(profileFields("duration_s: [1, 2\n")).toEqual({});
+  });
+
+  it("yields nothing for a profile that is not a mapping", () => {
+    expect(profileFields("- one\n- two\n")).toEqual({});
+    expect(profileFields("")).toEqual({});
   });
 });
 

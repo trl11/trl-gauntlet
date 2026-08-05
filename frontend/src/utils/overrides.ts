@@ -5,6 +5,8 @@
  * any particular suite.
  */
 
+import { parse } from "yaml";
+
 import type { SuiteOverride } from "@api/types";
 
 /**
@@ -20,14 +22,48 @@ export function isNumeric(override: SuiteOverride): boolean {
   return override.type === "integer" || override.type === "number";
 }
 
-/** The value each override starts at, taken from its declared default. */
-export function initialOverrideValues(overrides: SuiteOverride[]): OverrideValues {
+/**
+ * The top-level fields of a profile, or nothing when it will not parse.
+ *
+ * A profile the operator is about to run is not theirs to fix here, so a
+ * broken one yields no defaults rather than an error.
+ */
+export function profileFields(body: string): Record<string, unknown> {
+  try {
+    const parsed: unknown = parse(body);
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return parsed as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+/** A profile field an override control can hold: a scalar, never a nested block. */
+function scalarField(value: unknown): boolean | number | string | null {
+  const usable =
+    typeof value === "boolean" || typeof value === "number" || typeof value === "string";
+  return usable ? (value as boolean | number | string) : null;
+}
+
+/**
+ * The value each override starts at.
+ *
+ * An override sets the profile field of the same name, so the profile's own
+ * value is what the run would use and is what the operator is shown. An
+ * override the profile says nothing about falls back to the manifest's
+ * declared default, and then to empty, which also means the suite decides.
+ */
+export function initialOverrideValues(
+  overrides: SuiteOverride[],
+  profile: Record<string, unknown> = {}
+): OverrideValues {
   const values: OverrideValues = {};
   for (const override of overrides) {
+    const declared = scalarField(profile[override.name]) ?? override.default;
     if (override.type === "boolean") {
-      values[override.name] = override.default === true;
+      values[override.name] = declared === true;
     } else {
-      values[override.name] = override.default == null ? "" : String(override.default);
+      values[override.name] = declared == null ? "" : String(declared);
     }
   }
   return values;
