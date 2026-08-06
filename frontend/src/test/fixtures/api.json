@@ -1,4 +1,121 @@
 {
+  "campaign_hardware": {
+    "apiVersion": 1,
+    "description": "The suites that drive real hardware over a transport. Each declares the transport it needs as an extra of gauntlet-sdk, and each ships a mock profile that runs without any of it. Membership is ./suites: a suite added there joins this campaign on the next rescan, with or without an entry below.\n",
+    "directory": "/workspaces/gauntlet/campaigns/hardware",
+    "key": "hardware",
+    "member_count": 6,
+    "members": [
+      {
+        "component": "",
+        "declared": true,
+        "fixture": "",
+        "host": "",
+        "notes": "SSD bandwidth, SHA-256 write-verify and SMART counters, over SSH.",
+        "overrides": {},
+        "present": true,
+        "profile": "smoke.yaml",
+        "suite": "ssd",
+        "target": "",
+        "test_vehicle": "",
+        "title": "SSD Endurance",
+        "unit_serial": ""
+      },
+      {
+        "component": "",
+        "declared": true,
+        "fixture": "",
+        "host": "",
+        "notes": "Timed upload and download between the unit and the lab host, over SSH and TCP.",
+        "overrides": {},
+        "present": true,
+        "profile": "smoke.yaml",
+        "suite": "ethernet",
+        "target": "",
+        "test_vehicle": "",
+        "title": "Ethernet Throughput",
+        "unit_serial": ""
+      },
+      {
+        "component": "",
+        "declared": true,
+        "fixture": "",
+        "host": "",
+        "notes": "GPIO trigger pulse train, over SSH.",
+        "overrides": {},
+        "present": true,
+        "profile": "smoke.yaml",
+        "suite": "hardware_trigger",
+        "target": "",
+        "test_vehicle": "",
+        "title": "Hardware Trigger",
+        "unit_serial": ""
+      },
+      {
+        "component": "",
+        "declared": true,
+        "fixture": "",
+        "host": "",
+        "notes": "Counter frames from the unit, over SSH and socketcan.",
+        "overrides": {},
+        "present": true,
+        "profile": "smoke.yaml",
+        "suite": "can_bus",
+        "target": "",
+        "test_vehicle": "",
+        "title": "CAN Bus Link",
+        "unit_serial": ""
+      },
+      {
+        "component": "",
+        "declared": true,
+        "fixture": "",
+        "host": "",
+        "notes": "Counter replies over an RS422 serial link.",
+        "overrides": {},
+        "present": true,
+        "profile": "smoke.yaml",
+        "suite": "rs422",
+        "target": "",
+        "test_vehicle": "",
+        "title": "RS422 Link",
+        "unit_serial": ""
+      },
+      {
+        "component": "",
+        "declared": true,
+        "fixture": "",
+        "host": "",
+        "notes": "Extend-and-return motion cycles, over MQTT.",
+        "overrides": {},
+        "present": true,
+        "profile": "smoke.yaml",
+        "suite": "piezo",
+        "target": "",
+        "test_vehicle": "",
+        "title": "Piezo Motion",
+        "unit_serial": ""
+      }
+    ],
+    "suites": "./suites",
+    "suites_dir": "/workspaces/gauntlet/campaigns/hardware/suites",
+    "title": "Hardware Bench"
+  },
+  "campaigns": {
+    "campaigns": [
+      {
+        "apiVersion": 1,
+        "description": "The suites that drive real hardware over a transport. Each declares the transport it needs as an extra of gauntlet-sdk, and each ships a mock profile that runs without any of it. Membership is ./suites: a suite added there joins this campaign on the next rescan, with or without an entry below.\n",
+        "directory": "/workspaces/gauntlet/campaigns/hardware",
+        "key": "hardware",
+        "member_count": 6,
+        "suites": "./suites",
+        "suites_dir": "/workspaces/gauntlet/campaigns/hardware/suites",
+        "title": "Hardware Bench"
+      }
+    ],
+    "errors": []
+  },
   "health": {
     "status": "ok"
   },
@@ -2330,6 +2447,7 @@
     ]
   },
   "units": {
+    "total": 2,
     "units": [
       {
         "failed": 0,
@@ -2361,7 +2479,6 @@
         "run_count": 1,
         "serial": "SN-RENAMED-002"
       }
-    ],
-    "total": 2
+    ]
   }
 }

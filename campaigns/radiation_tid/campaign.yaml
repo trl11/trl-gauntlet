@@ -1,0 +1,135 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/campaigns/schema
+apiVersion: 1
+key: radiation_tid
+title: Radiation TID
+description: 'Total ionising dose characterisation of the flight component set, one suite
+  per component. Every suite here is a placeholder: it runs and passes without hardware so
+  the campaign has a green baseline, and none of them measures anything yet.'
+suites: ./suites
+members:
+- suite: tid_lan7430
+  component: LAN7430-I/Y9X
+  test_vehicle: EVB-LAN7430
+  host: Raspberry Pi
+  fixture: 1-1
+  profile: standard.yaml
+  notes: Can use a JM201, or wait for the EVB-LAN7430 to arrive.
+- suite: tid_ads7138
+  component: ADS7138QRTERQ1
+  test_vehicle: PRE-10161
+  host: Raspberry Pi
+  fixture: 1-1
+  profile: standard.yaml
+  notes: Waiting on PRE-10161.
+- suite: tid_tmp100
+  component: TMP100AQDBVRQ1
+  test_vehicle: PRE-10161
+  host: Raspberry Pi
+  fixture: 1-1
+  profile: standard.yaml
+  notes: Waiting on PRE-10161. A thermocouple is to be added to the BOM.
+- suite: tid_max96793
+  component: MAX96793GTJ/VY+
+  test_vehicle: LI-IMX728-GMSL3-070H
+  host: JM201
+  fixture: 2-1
+  profile: standard.yaml
+  notes: Waiting on LI-IMX728-GMSL3-070H.
+- suite: tid_max96792
+  component: MAX96792AGTM/VY+
+  test_vehicle: LI-GMSL3-USB3.2
+  host: JM201
+  fixture: 3-1
+  profile: standard.yaml
+  notes: Waiting on LI-IMX728-GMSL3-070H.
+- suite: tid_asm330lhb
+  component: ASM330LHBG1TR
+  test_vehicle: STEVAL-MKI244A
+  host: Linux laptop through the eval MCU and STEVAL-MKI109D
+  fixture: 4-1
+  profile: standard.yaml
+  notes: Waiting on STEVAL-MKI244A.
+- suite: tid_cdcv304
+  component: CDCV304TPWREP
+  test_vehicle: PRE-10163
+  host: Signal generator
+  fixture: 4-1
+  profile: standard.yaml
+  notes: Frequency and voltage to drive CLKIN.
+- suite: tid_tle9250
+  component: TLE9250VLEXUMA1
+  test_vehicle: PRE-10165
+  host: Signal generator
+  fixture: 5-1
+  profile: standard.yaml
+  notes: Frequency and voltage to drive CLKIN.
+- suite: tid_ap7387q
+  component: AP7387Q-50Y-13
+  test_vehicle: PRE-10165
+  host: Power supply
+  fixture: 5-1
+  profile: standard.yaml
+  notes: A load is needed.
+- suite: tid_mcp9509
+  component: MCP9509CT-E/OT
+  test_vehicle: PRE-10167
+  host: AP7387Q-50Y-13
+  fixture: 6-1
+  profile: standard.yaml
+  notes: Set temperature and measure voltage.
+- suite: tid_interpolator
+  component: Interpolator
+  test_vehicle: Interpolator
+  host: PMD401
+  fixture: Standalone-Interpolator
+  profile: standard.yaml
+  notes: Need to check whether we have a setup.
+- suite: tid_pmd401
+  component: PMD401
+  test_vehicle: PMD401
+  host: Linux laptop / Windows
+  fixture: Standalone-PMD401
+  profile: standard.yaml
+  notes: Need to check whether we have a setup.
+- suite: tid_sn65hvd76
+  component: SN65HVD76D
+  test_vehicle: PRE-10173
+  host: Signal generator
+  fixture: 7-1
+  profile: standard.yaml
+  notes: Frequency and voltage to drive CLKIN.
+- suite: tid_ntb0104
+  component: NTB0104GU12,115
+  test_vehicle: PRE-10169
+  host: Signal generator
+  fixture: 8-1
+  profile: standard.yaml
+  notes: Frequency and voltage to drive CLKIN.
+- suite: tid_bts70502
+  component: BTS70502EPLXUMA1
+  test_vehicle: PRE-10169
+  host: Power supply
+  fixture: 8-1
+  profile: standard.yaml
+  notes: Frequency and voltage to drive CLKIN.
+- suite: tid_pic18f26k83
+  component: PIC18F26K83-E/SS
+  test_vehicle: TBD
+  host: Jetson or Linux laptop
+  fixture: 9-1
+  profile: standard.yaml
+  notes: TBD - test vehicle, host and software approach are not yet defined.
+- suite: tid_imx492
+  component: IMX492
+  test_vehicle: TBD
+  host: TBD
+  fixture: TBD
+  profile: standard.yaml
+  notes: TBD - test vehicle, host and software approach are not yet defined.
+- suite: tid_imx565
+  component: IMX565
+  test_vehicle: TBD
+  host: TBD
+  fixture: TBD
+  profile: standard.yaml
+  notes: TBD - test vehicle, host and software approach are not yet defined.

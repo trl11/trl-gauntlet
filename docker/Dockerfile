@@ -47,14 +47,18 @@ COPY --from=frontend /build/packages/gauntlet/src/gauntlet/web_dist/ \
      ./packages/gauntlet/src/gauntlet/web_dist/
 RUN pip install --no-cache-dir ./packages/gauntlet-sdk ./packages/gauntlet
 
-# The built-in suites ship with the image. A deployment adds its own by
-# mounting them at /suites, which discovery skips when it is absent.
+# The built-in suites and campaigns ship with the image. A deployment adds its
+# own by mounting them at /suites and /campaigns, which discovery skips when
+# they are absent. A campaign carries its own suites, so mounting one at
+# /campaigns is enough to add every suite inside it.
 COPY suites/ ./suites/
+COPY campaigns/ ./campaigns/
 
 # Runs, the run index and config are the only state. Everything else in the
 # image is read-only to the server.
 ENV GAUNTLET_DATA_DIR=/data \
-    GAUNTLET_SUITE_PATH=/opt/gauntlet/suites:/suites
+    GAUNTLET_SUITE_PATH=/opt/gauntlet/suites:/suites \
+    GAUNTLET_CAMPAIGN_PATH=/opt/gauntlet/campaigns:/campaigns
 
 RUN useradd --create-home --uid 1000 gauntlet && \
     mkdir -p /data && chown gauntlet:gauntlet /data

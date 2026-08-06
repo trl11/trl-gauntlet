@@ -9,6 +9,8 @@
 
 import type {
   ArtifactList,
+  Campaign,
+  CampaignList,
   Health,
   Instrument,
   InstrumentCommand,
@@ -78,6 +80,10 @@ function asRun(row: CapturedRun): RunRow {
 
 function asUnit(row: CapturedUnit): Unit {
   return { ...row, last_run: { ...row.last_run, status: literal<RunStatus>(row.last_run.status) } };
+}
+
+function asCampaign(entry: (typeof captured.campaigns.campaigns)[number]): Campaign {
+  return { ...entry, apiVersion: 1 };
 }
 
 function asSuite(entry: (typeof captured.suites.suites)[number]): Suite {
@@ -160,6 +166,14 @@ export const unitHistory: UnitHistory = {
 export const unitNotes: NoteList = captured.unit_notes;
 export const instruments: InstrumentList = {
   instruments: captured.instruments.instruments.map(asInstrument),
+};
+export const campaigns: CampaignList = {
+  ...captured.campaigns,
+  campaigns: captured.campaigns.campaigns.map(asCampaign),
+};
+export const campaign: Campaign = {
+  ...asCampaign(captured.campaign_hardware),
+  members: captured.campaign_hardware.members,
 };
 export const systemInfo: SystemInfo = captured.system_info;
 export const systemData: SystemData = captured.system_data;

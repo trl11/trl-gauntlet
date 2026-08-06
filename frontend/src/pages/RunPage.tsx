@@ -197,6 +197,18 @@ export const RunPage: React.FC = () => {
           rows={[
             { label: "profile", value: detail.profile ?? "-" },
             {
+              label: "campaign",
+              value: detail.campaign ? (
+                <Link
+                  to={`/tests?view=campaigns&campaign=${encodeURIComponent(detail.campaign.key)}`}
+                >
+                  {detail.campaign.title}
+                </Link>
+              ) : (
+                "-"
+              ),
+            },
+            {
               label: "unit",
               value: detail.unit_serial ? (
                 <Link to={`/units/${detail.unit_serial}`}>{detail.unit_serial}</Link>

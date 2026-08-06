@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
+apiVersion: 1
+key: tid_max96793
+title: MAX96793 GMSL3 Serializer
+category: radiation
+description: >
+  Total ionising dose characterisation of the MAX96793GTJ/VY+ on LI-
+  IMX728-GMSL3-070H. Execute a continuous capture loop monitoring image
+  reception status (success/fail), dropped frame count, corruption count,
+  and data rate in Mbps. Placeholder: the measurement is not implemented
+  yet.
+
+exec:
+  command: ["python", "-m", "suite.cli"]
+  args:
+    profile: --profile
+    run_dir: --run-dir
+    target: --target
+    unit_serial: --unit-serial
+  profile_schema_command: ["python", "-m", "suite.cli", "--print-profile-schema"]
+
+profiles: ./profiles
+conformance_profile: quick.yaml
+
+produces: [events, junit, manifest, metrics, summary, verdict]
+requires: []
+
+supports:
+  target: true
+  unit_serial: true
+
+overrides:
+  - name: duration_s
+    flag: --duration-s
+    type: number
+    label: Duration
+    unit: s
+  - name: sample_period_s
+    flag: --sample-period-s
+    type: number
+    label: Sample period
+    unit: s

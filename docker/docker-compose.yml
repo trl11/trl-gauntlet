@@ -23,6 +23,10 @@ services:
       # devcontainer that is not this file's directory, so the devcontainer
       # exports the host's path to the checkout.
       - ${GAUNTLET_SUITES:-${GAUNTLET_HOST_WORKSPACE:-..}/docker/suites}:/suites:ro
+      # Campaigns beyond the built-in ones, on the same terms. A campaign
+      # carries its own suites, so one mounted here brings them with it and
+      # needs no second mount above.
+      - ${GAUNTLET_CAMPAIGNS:-${GAUNTLET_HOST_WORKSPACE:-..}/docker/campaigns}:/campaigns:ro
     restart: unless-stopped
 
     # A suite that drives real hardware needs the device the transport speaks

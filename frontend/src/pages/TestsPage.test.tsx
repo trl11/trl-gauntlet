@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Instrument, Suite } from "@api/types";
+import type { Campaign, CampaignMember, Instrument, Suite } from "@api/types";
 
 import TestsPage from "./TestsPage";
 import { pending, spinners } from "../test/queries";
@@ -12,6 +12,9 @@ import { pending, spinners } from "../test/queries";
 const listInstruments = vi.fn();
 const listSuites = vi.fn();
 const rescanSuites = vi.fn();
+const listCampaigns = vi.fn();
+const rescanCampaigns = vi.fn();
+const getCampaign = vi.fn();
 const verifySuite = vi.fn();
 
 vi.mock("@api/client", async (importOriginal) => {
@@ -21,6 +24,9 @@ vi.mock("@api/client", async (importOriginal) => {
     listInstruments: () => listInstruments(),
     listSuites: () => listSuites(),
     rescanSuites: () => rescanSuites(),
+    listCampaigns: () => listCampaigns(),
+    rescanCampaigns: () => rescanCampaigns(),
+    getCampaign: (...args: unknown[]) => getCampaign(...args),
     verifySuite: (...args: unknown[]) => verifySuite(...args),
   };
 });
@@ -65,6 +71,33 @@ const THERMAL = suite({
 
 const SMOKE = suite({ category: "software", key: "smoke", title: "Smoke" });
 
+const BENCH: Campaign = {
+  apiVersion: 1,
+  description: "Suites that drive real hardware.",
+  directory: "/campaigns/bench",
+  key: "bench",
+  member_count: 1,
+  suites: "./suites",
+  suites_dir: "/campaigns/bench/suites",
+  title: "Hardware Bench",
+};
+
+const MEMBER: CampaignMember = {
+  component: "LAN7430-I/Y9X",
+  declared: true,
+  fixture: "1-1",
+  host: "Raspberry Pi",
+  notes: "",
+  overrides: {},
+  present: true,
+  profile: "smoke.yaml",
+  suite: "thermal_cycle",
+  target: "",
+  test_vehicle: "EVB",
+  title: "Thermal Cycle",
+  unit_serial: "",
+};
+
 function instrument(name: string, available: boolean): Instrument {
   return {
     available,
@@ -96,6 +129,9 @@ beforeEach(() => {
   listSuites.mockResolvedValue({ errors: [], suites: [SMOKE, THERMAL] });
   listInstruments.mockResolvedValue({ instruments: [instrument("chamber", true)] });
   rescanSuites.mockResolvedValue({ errors: [], suites: [SMOKE, THERMAL] });
+  listCampaigns.mockResolvedValue({ campaigns: [BENCH], errors: [] });
+  rescanCampaigns.mockResolvedValue({ campaigns: [BENCH], errors: [] });
+  getCampaign.mockResolvedValue({ ...BENCH, members: [MEMBER] });
   verifySuite.mockResolvedValue({
     checks: [{ detail: "manifest parses", fatal: true, name: "manifest", passed: true }],
     directory: "/suites/thermal_cycle",
@@ -232,5 +268,70 @@ describe("TestsPage", () => {
     listSuites.mockResolvedValue({ errors: ["/suites/bad/suite.yaml: missing key"], suites: [] });
     renderPage();
     expect(await screen.findByRole("alert")).toHaveTextContent("missing key");
+  });
+});
+
+describe("TestsPage campaign view", () => {
+  it("shows the suite rail until the campaign view is chosen", async () => {
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: "Thermal Cycle" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Hardware Bench" })).not.toBeInTheDocument();
+  });
+
+  it("switches to campaigns and back without leaving the page", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("button", { name: "Thermal Cycle" });
+
+    await user.click(screen.getByRole("tab", { name: "Campaigns" }));
+    expect(await screen.findByRole("region", { name: "Hardware Bench" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "All tests" }));
+    expect(await screen.findByRole("button", { name: "Thermal Cycle" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Hardware Bench" })).not.toBeInTheDocument();
+  });
+
+  it("opens on the campaign view when the query string asks for it", async () => {
+    renderPage("/tests?view=campaigns");
+
+    expect(await screen.findByRole("region", { name: "Hardware Bench" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Campaigns" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("does not fetch campaigns until the view needs them", async () => {
+    renderPage();
+    await screen.findByRole("button", { name: "Thermal Cycle" });
+
+    expect(listCampaigns).not.toHaveBeenCalled();
+  });
+
+  it("rescans campaigns rather than suites while showing them", async () => {
+    const user = userEvent.setup();
+    renderPage("/tests?view=campaigns");
+    await screen.findByRole("region", { name: "Hardware Bench" });
+
+    await user.click(screen.getByRole("button", { name: /Rescan/ }));
+
+    await waitFor(() => expect(rescanCampaigns).toHaveBeenCalled());
+    expect(rescanSuites).not.toHaveBeenCalled();
+  });
+
+  it("reports a campaign discovery error without hiding the rest", async () => {
+    listCampaigns.mockResolvedValue({
+      campaigns: [BENCH],
+      errors: ["campaign.yaml: apiVersion 99 is not supported"],
+    });
+    renderPage("/tests?view=campaigns");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("apiVersion 99");
+    expect(await screen.findByRole("region", { name: "Hardware Bench" })).toBeInTheDocument();
+  });
+
+  it("says so when no campaign was discovered", async () => {
+    listCampaigns.mockResolvedValue({ campaigns: [], errors: [] });
+    renderPage("/tests?view=campaigns");
+
+    expect(await screen.findByText("No campaigns discovered")).toBeInTheDocument();
   });
 });

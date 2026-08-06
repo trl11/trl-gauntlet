@@ -18,12 +18,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-from gauntlet.api import artifacts, capabilities, instruments, runs, suites, system, units
+from gauntlet.api import artifacts, campaigns, capabilities, instruments, runs, suites, system, units
+from gauntlet.campaigns import CampaignCatalog
 from gauntlet.capabilities import CapabilityRegistry
+from gauntlet.catalog import scan
 from gauntlet.config import Settings, load_settings
 from gauntlet.instruments import detect_instruments
 from gauntlet.storage import NotesIndex, RunRow, RunsIndex, UnitsIndex
-from gauntlet.suites import SuiteCatalog, discover_suites
+from gauntlet.suites import SuiteCatalog
 from gauntlet.supervisor import RunHandle, RunSupervisor
 
 log = logging.getLogger("gauntlet")
@@ -56,14 +58,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["*"], allow_headers=["*"])
 
-    catalog = discover_suites(settings.suite_roots)
-    _log_catalog(catalog, settings)
+    catalog, campaign_catalog = scan(settings)
+    _log_catalog(catalog, campaign_catalog, settings)
 
     def current_catalog() -> SuiteCatalog:
         return app.state.suite_catalog
 
+    def current_campaigns() -> CampaignCatalog:
+        return app.state.campaign_catalog
+
     def rescan() -> SuiteCatalog:
-        app.state.suite_catalog = discover_suites(settings.suite_roots)
+        app.state.suite_catalog, app.state.campaign_catalog = scan(settings)
         return app.state.suite_catalog
 
     registry = CapabilityRegistry(api_base=settings.api_base)
@@ -108,7 +113,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.state.settings = settings
     app.state.suite_catalog = catalog
+    app.state.campaign_catalog = campaign_catalog
     app.state.catalog = current_catalog
+    app.state.campaigns = current_campaigns
     app.state.rescan = rescan
     app.state.capabilities = registry
     app.state.detect_instruments = detect
@@ -129,6 +136,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(system.router, prefix="/api", tags=["system"])
     app.include_router(suites.router, prefix="/api", tags=["suites"])
+    app.include_router(campaigns.router, prefix="/api", tags=["campaigns"])
     app.include_router(runs.router, prefix="/api", tags=["runs"])
     app.include_router(artifacts.router, prefix="/api", tags=["artifacts"])
     app.include_router(units.router, prefix="/api", tags=["units"])
@@ -178,11 +186,15 @@ def _mount_frontend(app: FastAPI) -> None:
         return FileResponse(candidate if candidate.is_file() else index)
 
 
-def _log_catalog(catalog: SuiteCatalog, settings: Settings) -> None:
+def _log_catalog(catalog: SuiteCatalog, campaigns: CampaignCatalog, settings: Settings) -> None:
     roots = ", ".join(str(p) for p in settings.suite_roots)
     log.info("discovered %d suite(s) in %s", len(catalog.suites), roots)
     for error in catalog.errors:
         log.warning("suite discovery: %s", error)
+    campaign_roots = ", ".join(str(p) for p in settings.campaign_roots)
+    log.info("discovered %d campaign(s) in %s", len(campaigns.campaigns), campaign_roots)
+    for error in campaigns.errors:
+        log.warning("campaign discovery: %s", error)
 
 
 def _app_version() -> str:

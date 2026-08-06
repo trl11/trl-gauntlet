@@ -15,6 +15,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from gauntlet.api.notes import NoteBody, add_note, delete_note, list_notes
+from gauntlet.catalog import campaigns_by_suite
 from gauntlet.storage import SUBJECT_RUN, RunFilters, RunRow
 from gauntlet.supervisor import Event, RunConflict, RunHandle, RunRejected, RunRequest
 
@@ -73,7 +74,9 @@ async def list_runs(
     # A run is indexed as soon as it starts, so the in-flight handle stands in
     # for its row and carries the fresher status. Once the run has finished the
     # row wins, because that is what a rename or any later edit rewrites.
-    return {"runs": [live.get(row.run_id, row.to_dict()) for row in rows], "total": index.count(filters)}
+    owners = _campaign_owners(request)
+    payloads = [_with_campaign(live.get(row.run_id, row.to_dict()), owners) for row in rows]
+    return {"runs": payloads, "total": index.count(filters)}
 
 
 @router.post("/runs", status_code=201)
@@ -95,7 +98,7 @@ async def start_run(request: Request, body: StartRunBody) -> dict[str, Any]:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except RunRejected as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    request.app.state.runs_index.upsert(_to_row(handle))
+    request.app.state.runs_index.upsert(to_row(handle))
     return handle.to_dict()
 
 
@@ -107,14 +110,15 @@ async def get_run(request: Request, run_id: str) -> dict[str, Any]:
     status and the argv it was spawned with. A finished run is answered from
     the index, which is what a rename or any later edit rewrites.
     """
+    owners = _campaign_owners(request)
     handle = request.app.state.supervisor.get(run_id)
     if handle is not None and not handle.finished:
-        return handle.to_dict()
+        return _with_campaign(handle.to_dict(), owners)
     row = request.app.state.runs_index.get(run_id)
     if row is not None:
-        return row.to_dict()
+        return _with_campaign(row.to_dict(), owners)
     if handle is not None:
-        return handle.to_dict()
+        return _with_campaign(handle.to_dict(), owners)
     raise HTTPException(status_code=404, detail=f"unknown run {run_id!r}")
 
 
@@ -244,7 +248,25 @@ def _run_or_404(request: Request, run_id: str) -> None:
         raise HTTPException(status_code=404, detail=f"unknown run {run_id!r}")
 
 
-def _to_row(handle: RunHandle) -> RunRow:
+def _campaign_owners(request: Request) -> dict[str, Any]:
+    """Which campaign groups each suite, resolved once for a whole response."""
+    return campaigns_by_suite(request.app.state.catalog(), request.app.state.campaigns())
+
+
+def _with_campaign(payload: dict[str, Any], owners: dict[str, Any]) -> dict[str, Any]:
+    """Name the campaign a run's suite belongs to, or null.
+
+    Derived from the suite key at request time, never recorded on the run: it
+    says which campaign groups that suite now, not that the campaign started
+    the run.
+    """
+    owner = owners.get(str(payload.get("suite", "")))
+    payload["campaign"] = None if owner is None else {"key": owner.key, "title": owner.manifest.title}
+    return payload
+
+
+def to_row(handle: RunHandle) -> RunRow:
+    """Convert a live run handle into the row the index stores."""
     return RunRow(
         run_id=handle.run_id,
         suite=handle.suite,

@@ -14,8 +14,16 @@ from gauntlet import cli
 
 @pytest.fixture(autouse=True)
 def isolated_data_dir(monkeypatch, tmp_path: Path):
-    """Keep ``load_settings`` away from the developer's own config and output."""
+    """Keep ``load_settings`` away from the developer's own config and output.
+
+    The campaign root is pointed at an empty directory rather than unset: the
+    default is ``./campaigns``, so a test run from the repository would
+    otherwise discover the built-in campaigns and every suite they carry.
+    """
+    empty = tmp_path / "no-campaigns"
+    empty.mkdir()
     monkeypatch.setenv("GAUNTLET_DATA_DIR", str(tmp_path / "data"))
+    monkeypatch.setenv("GAUNTLET_CAMPAIGN_PATH", str(empty))
     monkeypatch.delenv("GAUNTLET_SUITE_PATH", raising=False)
 
 
@@ -215,3 +223,35 @@ class TestParser:
     def test_no_subcommand_is_rejected(self) -> None:
         with pytest.raises(SystemExit):
             cli.main([])
+
+
+class TestCampaignRoots:
+    """A campaign contributes its suites to what the CLI sees."""
+
+    def test_a_campaign_suite_is_listed(self, capsys, make_campaign, make_suite, campaign_root, suite_root: Path):
+        campaign = make_campaign("bench")
+        make_suite("beta", root=campaign.suites_dir)
+
+        assert cli.main(["list", "--suites", str(suite_root), "--campaigns", str(campaign_root)]) == 0
+
+        assert "beta" in capsys.readouterr().out
+
+    def test_campaign_and_suite_roots_are_both_read(
+        self, capsys, make_campaign, make_suite, campaign_root, suite_root: Path
+    ):
+        campaign = make_campaign("bench")
+        make_suite("alpha")
+        make_suite("beta", root=campaign.suites_dir)
+
+        assert cli.main(["list", "--suites", str(suite_root), "--campaigns", str(campaign_root), "--json"]) == 0
+
+        body = json.loads(capsys.readouterr().out)
+        assert [entry["key"] for entry in body["suites"]] == ["alpha", "beta"]
+
+    def test_verify_checks_campaign_suites_too(self, capsys, make_campaign, make_suite, campaign_root, suite_root):
+        campaign = make_campaign("bench")
+        make_suite("beta", root=campaign.suites_dir)
+
+        assert cli.main(["verify", "--suites", str(suite_root), "--campaigns", str(campaign_root)]) == 0
+
+        assert capsys.readouterr().out.count("[PASS]") == 1
