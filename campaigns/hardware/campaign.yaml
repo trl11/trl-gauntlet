@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/campaigns/schema
+apiVersion: 1
+key: hardware
+title: Hardware Bench
+description: >
+  The suites that drive real hardware over a transport. Each declares the
+  transport it needs as an extra of gauntlet-sdk, and each ships a mock profile
+  that runs without any of it. Membership is ./suites: a suite added there joins
+  this campaign on the next rescan, with or without an entry below.
+
+suites: ./suites
+
+members:
+  - suite: ssd
+    profile: smoke.yaml
+    notes: SSD bandwidth, SHA-256 write-verify and SMART counters, over SSH.
+  - suite: ethernet
+    profile: smoke.yaml
+    notes: Timed upload and download between the unit and the lab host, over SSH and TCP.
+  - suite: hardware_trigger
+    profile: smoke.yaml
+    notes: GPIO trigger pulse train, over SSH.
+  - suite: can_bus
+    profile: smoke.yaml
+    notes: Counter frames from the unit, over SSH and socketcan.
+  - suite: rs422
+    profile: smoke.yaml
+    notes: Counter replies over an RS422 serial link.
+  - suite: piezo
+    profile: smoke.yaml
+    notes: Extend-and-return motion cycles, over MQTT.

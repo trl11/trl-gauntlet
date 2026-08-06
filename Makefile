@@ -232,13 +232,13 @@ suite-templates: ensure-setup
 	@$(BIN)/gauntlet templates
 
 suite-list: ensure-setup
-	@$(BIN)/gauntlet list --suites $(SUITES)
+	@$(BIN)/gauntlet list --suites $(SUITES) --campaigns $(CAMPAIGNS)
 
 suite-verify: ensure-setup
-	@$(BIN)/gauntlet verify --suites $(SUITES)
+	@$(BIN)/gauntlet verify --suites $(SUITES) --campaigns $(CAMPAIGNS)
 
 suite-verify-run: ensure-setup
-	@$(BIN)/gauntlet verify --suites $(SUITES) --run
+	@$(BIN)/gauntlet verify --suites $(SUITES) --campaigns $(CAMPAIGNS) --run
 
 # Every suite's tests import a package literally named `suite`, so two suites
 # cannot share one pytest process. Each gets its own, rooted at its directory.

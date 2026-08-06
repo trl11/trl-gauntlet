@@ -95,7 +95,7 @@ async def start_run(request: Request, body: StartRunBody) -> dict[str, Any]:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except RunRejected as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    request.app.state.runs_index.upsert(_to_row(handle))
+    request.app.state.runs_index.upsert(to_row(handle))
     return handle.to_dict()
 
 
@@ -244,7 +244,8 @@ def _run_or_404(request: Request, run_id: str) -> None:
         raise HTTPException(status_code=404, detail=f"unknown run {run_id!r}")
 
 
-def _to_row(handle: RunHandle) -> RunRow:
+def to_row(handle: RunHandle) -> RunRow:
+    """Convert a live run handle into the row the index stores."""
     return RunRow(
         run_id=handle.run_id,
         suite=handle.suite,

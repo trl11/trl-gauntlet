@@ -7,15 +7,29 @@ Guidance for coding agents working in this repository.
 Gauntlet runs test suites. Suites declare themselves in a `suite.yaml`, write
 artifacts to a directory Gauntlet provides, and are otherwise independent of it.
 
+A campaign groups the suites of one test programme. It declares itself in a
+`campaign.yaml` and contributes its own suite directory to discovery, so its
+suites are ordinary suites.
+
 Read [`docs/contract.md`](docs/contract.md) before changing anything that
 crosses that boundary, [`docs/frontend.md`](docs/frontend.md) before changing
-anything in `frontend/`, and [`docs/instruments.md`](docs/instruments.md)
-before changing anything in `capabilities/` or `instruments/`.
+anything in `frontend/`, [`docs/instruments.md`](docs/instruments.md)
+before changing anything in `capabilities/` or `instruments/`, and
+[`docs/campaigns.md`](docs/campaigns.md) before changing anything in
+`campaigns/`.
 
 ## Constraints
 
 - No suite-specific code in `packages/gauntlet/`. Behaviour a suite needs is
   declared in its manifest and read generically.
+- No campaign-specific code anywhere. A campaign is read from its manifest and
+  its suite directory; a campaign key in `packages/gauntlet/` or
+  `frontend/src/` outside a test fixture is a defect.
+- A campaign is not part of the suite contract. A suite never learns which
+  campaign it belongs to, so `CampaignManifest` lives in
+  `gauntlet.campaigns.manifest`, not `gauntlet_sdk.contract`, and its JSON
+  Schema is served by `GET /api/campaigns/schema` rather than
+  `GET /api/schemas/{name}`.
 - `gauntlet-sdk` depends on pydantic and pyyaml. SSH support is the optional
   `remote` extra. Do not add required dependencies.
 - No schema files in the tree. `gauntlet_sdk.contract` is the definition;
@@ -52,6 +66,8 @@ before changing anything in `capabilities/` or `instruments/`.
 
 ```
 app/                       Electron shell: the desktop target
+campaigns/                 campaign directories, each with its own suites
+campaigns/hardware/        built-in: every suite that drives real hardware
 docker/                    the server image: the other target
 docs/                      contract specification and guides
 dist/                      finished artifacts from either (gitignored)
@@ -60,14 +76,15 @@ frontend/                  React frontend, built into gauntlet/web_dist
 packages/gauntlet/         application: discovery, supervisor, API, UI
 packages/gauntlet-sdk/     library suite authors install
 packages/gauntlet/src/gauntlet/scaffold/   suite scaffolder and its templates
-suites/                    built-in and reference suites
+suites/                    reference suites and system_stats; hardware lives
+                           in the campaign above
 system/                    host udev rules the USB instruments need
 ```
 
 Inside `packages/gauntlet/src/gauntlet`: `api/` (one router module per
-resource), `capabilities/`, `instruments/`, `conformance/`, `scaffold/`,
-`storage/` (one module per table), `suites/` (discovery and the manifest
-loader), `supervisor/`.
+resource), `campaigns/` (discovery and the manifest loader), `capabilities/`,
+`instruments/`, `conformance/`, `scaffold/`, `storage/` (one module per table),
+`suites/` (discovery and the manifest loader), `supervisor/`.
 
 Inside `frontend/src`: `api/` (client and types), `components/`, `hooks/`,
 `pages/` (one per route), `styles/`, `test/` (setup and captured fixtures),
@@ -139,7 +156,21 @@ and neither is on a package registry.
   directory to `PYTHONPATH`. Every code path that spawns a suite process uses
   it.
 - Discovery collects manifest errors into `SuiteCatalog.errors` rather than
-  raising.
+  raising. `CampaignCatalog.errors` does the same for `campaign.yaml`.
+- Campaign membership is the campaign's suite directory, never its `members`
+  list. A suite dropped into that directory joins with no entry; a declared
+  member whose suite is absent is still listed, marked `present: false`.
+- A campaign's coverage is derived from the runs index by suite key, never
+  stored on a run. `RunsIndex.import_tree` rebuilds that table from disk and a
+  suite process does not know its campaign, so a stored column would not
+  survive a reimport.
+- Campaign roots are read before suite discovery runs, and the configured suite
+  roots are searched first, so a suite shipped with Gauntlet wins over a
+  campaign shadowing its key. `gauntlet.catalog.scan` is the only place a
+  catalog is built; the CLI and the server both go through it, so
+  `gauntlet list` and `gauntlet verify` see campaign suites too.
+- `PUT /api/campaigns/{key}/manifest` writes only after the new text validates,
+  and refuses to change `key`. A rejected edit leaves the file as it was.
 - Renaming a unit rewrites `unit_serial` on its run rows. `DELETE
   /api/units/{serial}` drops only its metadata and notes, never a run, so a
   unit with runs is derived from them again; `?runs=true` deletes those runs

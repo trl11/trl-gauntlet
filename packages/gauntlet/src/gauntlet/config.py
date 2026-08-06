@@ -33,6 +33,17 @@ def default_suite_roots() -> list[Path]:
     return [Path.cwd() / "suites"]
 
 
+def default_campaign_roots() -> list[Path]:
+    """Directories searched for ``campaign.yaml`` files.
+
+    ``GAUNTLET_CAMPAIGN_PATH`` takes a colon-separated list.
+    """
+    env = os.environ.get("GAUNTLET_CAMPAIGN_PATH")
+    if env:
+        return [Path(p).expanduser() for p in env.split(os.pathsep) if p]
+    return [Path.cwd() / "campaigns"]
+
+
 @dataclass
 class Settings:
     """Runtime configuration."""
@@ -43,6 +54,10 @@ class Settings:
     host: str = "0.0.0.0"
     port: int = 7100
     suite_roots: list[Path] = field(default_factory=default_suite_roots)
+    # A campaign contributes its own suite directory to discovery, so pointing
+    # one of these at a directory is all it takes to pick up the suites inside
+    # it. Nothing is rebuilt; a rescan is enough.
+    campaign_roots: list[Path] = field(default_factory=default_campaign_roots)
     data_dir: Path = field(default_factory=default_data_dir)
     runs_dir_override: Path | None = None
     profiles_dir_override: Path | None = None
@@ -62,6 +77,7 @@ class Settings:
 
     def __post_init__(self) -> None:
         self.suite_roots = [Path(p).expanduser() for p in self.suite_roots]
+        self.campaign_roots = [Path(p).expanduser() for p in self.campaign_roots]
         self.data_dir = Path(self.data_dir).expanduser()
 
     # Run artifacts and operator-authored profiles default to locations under
@@ -103,6 +119,7 @@ class Settings:
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["suite_roots"] = [str(p) for p in self.suite_roots]
+        payload["campaign_roots"] = [str(p) for p in self.campaign_roots]
         for key, value in payload.items():
             if isinstance(value, Path):
                 payload[key] = str(value)

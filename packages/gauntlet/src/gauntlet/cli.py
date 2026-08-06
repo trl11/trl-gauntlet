@@ -11,10 +11,10 @@ from pathlib import Path
 
 from gauntlet_sdk.contract import CONTRACT_MODELS, json_schema
 
+from gauntlet.catalog import scan
 from gauntlet.config import Settings, load_settings
 from gauntlet.conformance import Report, verify_suite
 from gauntlet.scaffold import ScaffoldError, available_templates, render
-from gauntlet.suites import discover_suites
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -26,17 +26,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     serve.add_argument("--host", default=None)
     serve.add_argument("--port", type=int, default=None)
     serve.add_argument("--suites", action="append", default=None, metavar="DIR", help="suite root (repeatable)")
+    serve.add_argument("--campaigns", action="append", default=None, metavar="DIR", help="campaign root (repeatable)")
     serve.add_argument("--reload", action="store_true", help="restart on code changes")
     serve.add_argument("--log-level", default=None, choices=["debug", "info", "warning", "error"])
 
     listing = sub.add_parser("list", help="list discovered suites")
     listing.add_argument("--suites", action="append", default=None, metavar="DIR")
+    listing.add_argument("--campaigns", action="append", default=None, metavar="DIR")
     listing.add_argument("--json", action="store_true")
 
     verify = sub.add_parser("verify", help="check a suite against the contract")
     verify.add_argument("directory", type=Path, nargs="?", help="suite directory (default: every discovered suite)")
     verify.add_argument("--run", action="store_true", help="execute the conformance profile and check its artifacts")
     verify.add_argument("--suites", action="append", default=None, metavar="DIR")
+    verify.add_argument("--campaigns", action="append", default=None, metavar="DIR")
     verify.add_argument("--json", action="store_true")
 
     schema = sub.add_parser("schema", help="print a contract schema as JSON Schema")
@@ -84,6 +87,8 @@ def _settings(args: argparse.Namespace) -> Settings:
             overrides[key] = value
     if getattr(args, "suites", None):
         overrides["suite_roots"] = [Path(p) for p in args.suites]
+    if getattr(args, "campaigns", None):
+        overrides["campaign_roots"] = [Path(p) for p in args.campaigns]
     return load_settings(overrides)
 
 
@@ -93,8 +98,9 @@ def _serve(args: argparse.Namespace) -> int:
     settings = _settings(args)
     settings.ensure_dirs()
     print(f"Gauntlet on http://{settings.host}:{settings.port}", file=sys.stderr)
-    print(f"  suites  {', '.join(str(p) for p in settings.suite_roots)}", file=sys.stderr)
-    print(f"  runs    {settings.runs_dir}", file=sys.stderr)
+    print(f"  suites     {', '.join(str(p) for p in settings.suite_roots)}", file=sys.stderr)
+    print(f"  campaigns  {', '.join(str(p) for p in settings.campaign_roots)}", file=sys.stderr)
+    print(f"  runs       {settings.runs_dir}", file=sys.stderr)
     if args.reload:
         # Reload requires an import string rather than an application instance.
         uvicorn.run(
@@ -114,7 +120,7 @@ def _serve(args: argparse.Namespace) -> int:
 
 def _list(args: argparse.Namespace) -> int:
     settings = _settings(args)
-    catalog = discover_suites(settings.suite_roots)
+    catalog, _ = scan(settings)
     if args.json:
         print(json.dumps(catalog.to_dict(), indent=2))
         return 0 if not catalog.errors else 1
@@ -134,7 +140,7 @@ def _verify(args: argparse.Namespace) -> int:
         reports = [verify_suite(args.directory, execute=args.run)]
     else:
         settings = _settings(args)
-        catalog = discover_suites(settings.suite_roots)
+        catalog, _ = scan(settings)
         reports = [verify_suite(s.directory, execute=args.run) for s in catalog.suites.values()]
         if not reports:
             print("no suites to verify", file=sys.stderr)

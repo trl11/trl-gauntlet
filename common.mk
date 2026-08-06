@@ -23,6 +23,7 @@ PY           := $(BIN)/python
 APP          := $(ROOT)/packages/gauntlet
 SDK          := $(ROOT)/packages/gauntlet-sdk
 SUITES       := $(ROOT)/suites
+CAMPAIGNS    := $(ROOT)/campaigns
 FRONTEND     := $(ROOT)/frontend
 FRONTEND_OUT := $(APP)/src/gauntlet/web_dist
 # The Electron shell, and the relocatable CPython it ships the backend in.
