@@ -9,16 +9,18 @@ export interface PanelProps {
   children: React.ReactNode;
   className?: string;
   /** The header label. Drawn uppercase and letter-spaced. */
-  title: string;
+  title?: string;
 }
 
 /** A dark card with a micro-label header, used for every block of the UI. */
 export const Panel: React.FC<PanelProps> = ({ action, children, className, title }) => (
   <section className={clsx("panel", className)}>
-    <div className="panel__head">
-      <h2 className="panel__title">{title}</h2>
-      {action}
-    </div>
+    {(title || action) && (
+      <div className="panel__head">
+        {title && <h2 className="panel__title">{title}</h2>}
+        {action}
+      </div>
+    )}
     {children}
   </section>
 );

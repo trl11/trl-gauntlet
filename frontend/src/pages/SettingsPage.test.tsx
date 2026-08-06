@@ -66,53 +66,50 @@ afterEach(() => {
 describe("SettingsPage", () => {
   it("reports the health of the API", async () => {
     renderSettings();
-    expect(await screen.findByText("API HEALTHY")).toBeInTheDocument();
+    expect(await screen.findByText("healthy")).toBeInTheDocument();
+    expect(screen.getByText("api server")).toBeInTheDocument();
   });
 
   it("says so when the API does not answer", async () => {
     getHealth.mockRejectedValue(new Error("cannot reach the Gauntlet API"));
     renderSettings();
-    expect(await screen.findByText("API UNREACHABLE")).toBeInTheDocument();
+    expect(await screen.findByText("unreachable")).toBeInTheDocument();
   });
 
-  it("shows the service settings and the paths", async () => {
+  // The health probe answers on its own, so its row survives the rest failing.
+  it("still reports the health of the API when the settings cannot be read", async () => {
+    getSettings.mockRejectedValue(new Error("config.yaml is unreadable"));
     renderSettings();
-    expect(await screen.findByText("127.0.0.1")).toBeInTheDocument();
-    expect(screen.getByText("7100")).toBeInTheDocument();
-    expect(screen.getByText("/home/dev/.local/share/gauntlet/runs")).toBeInTheDocument();
-    expect(screen.getByText("/workspaces/gauntlet/suites")).toBeInTheDocument();
+    expect(await screen.findByText("healthy")).toBeInTheDocument();
+    expect(screen.queryByText("port")).not.toBeInTheDocument();
   });
 
-  it("links to the API documentation and the schemas", () => {
-    renderSettings();
-    expect(screen.getByRole("link", { name: "API documentation" })).toHaveAttribute(
-      "href",
-      "/docs"
-    );
-    expect(screen.getByRole("link", { name: "Contract schemas" })).toHaveAttribute(
-      "href",
-      "/api/schemas"
-    );
-  });
-
-  it("shows every version the API reports", async () => {
-    renderSettings();
-    expect(await screen.findAllByText("0.4.1")).not.toHaveLength(0);
-    expect(screen.getByText("contract")).toBeInTheDocument();
-  });
-
-  it("shows the host facts", async () => {
+  it("shows the info section, with the host it runs on and the versions it runs", async () => {
     renderSettings();
     expect(await screen.findByText("bench-01")).toBeInTheDocument();
-    expect(screen.getByText("AMD Ryzen 7")).toBeInTheDocument();
-    expect(screen.getByText("32.0 GB")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Info" })).toBeInTheDocument();
+    expect(screen.getAllByText("0.4.1")).toHaveLength(2);
   });
 
-  it("spins each section while its query is in flight", () => {
+  it("shows the runtime section, with the settings the service answers on", async () => {
+    renderSettings();
+    expect(await screen.findByText("7100")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Runtime" })).toBeInTheDocument();
+    expect(screen.getByText("info")).toBeInTheDocument();
+  });
+
+  it("shows the documentation section, linking to the API documentation", () => {
+    renderSettings();
+    expect(screen.getByRole("heading", { name: "Documentation" })).toBeInTheDocument();
+    expect(screen.getByText("api documentation")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "swagger" })).toHaveAttribute("href", "/docs");
+  });
+
+  it("spins each section whose query is in flight", () => {
     getSettings.mockReturnValue(pending());
     getSystemInfo.mockReturnValue(pending());
     renderSettings();
-    expect(spinners()).toHaveLength(3);
+    expect(spinners()).toHaveLength(2);
   });
 
   it("reports settings that could not be read", async () => {
@@ -121,10 +118,9 @@ describe("SettingsPage", () => {
     expect(await screen.findByText("config.yaml is unreadable")).toBeInTheDocument();
   });
 
-  // Host facts and versions come from the one query, so both panels report it.
   it("reports host facts that could not be read", async () => {
     getSystemInfo.mockRejectedValue(new Error("no /proc here"));
     renderSettings();
-    expect(await screen.findAllByText("no /proc here")).toHaveLength(2);
+    expect(await screen.findByText("no /proc here")).toBeInTheDocument();
   });
 });

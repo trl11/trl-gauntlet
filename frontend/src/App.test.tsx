@@ -143,11 +143,11 @@ describe("every route renders", () => {
     }
   });
 
-  it("settings shows the resolved paths, including the runs index", async () => {
+  it("settings shows the host and the version it runs", async () => {
     open("#/settings");
     expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
-    expect(await screen.findByText(fixtures.settings.runs_dir)).toBeInTheDocument();
-    expect(await screen.findByText(fixtures.settings.runs_index_path)).toBeInTheDocument();
+    expect(await screen.findByText(String(fixtures.systemInfo.hostname))).toBeInTheDocument();
+    expect(await screen.findByText(String(fixtures.settings.port))).toBeInTheDocument();
   });
 
   it("an unknown route renders the not-found page", async () => {
