@@ -43,7 +43,19 @@ export const ApiErrorBanner: React.FC = () => {
       }
     };
     recompute();
-    return cache.subscribe(recompute);
+    // The cache notifies while another component is still rendering — mounting
+    // a query is what notifies it — so recomputing inline would set state
+    // during that render. One microtask later the render has committed, and
+    // several notifications in a row collapse into a single pass.
+    let queued = false;
+    return cache.subscribe(() => {
+      if (queued) return;
+      queued = true;
+      queueMicrotask(() => {
+        queued = false;
+        recompute();
+      });
+    });
   }, [client]);
 
   useEffect(() => {

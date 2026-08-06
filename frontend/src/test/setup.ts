@@ -23,6 +23,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   for (const id of pending) clearTimer(id);
   pending.clear();
+  localStorage.clear();
 });
 
 // jsdom implements neither of these, and the ui-kit and recharts both read them.

@@ -335,3 +335,74 @@ describe("TestsPage campaign view", () => {
     expect(await screen.findByText("No campaigns discovered")).toBeInTheDocument();
   });
 });
+
+describe("TestsPage remembered view", () => {
+  it("returns to the campaign view on a visit that names no parameters", async () => {
+    const user = userEvent.setup();
+    const first = renderPage();
+    await screen.findByRole("button", { name: "Thermal Cycle" });
+    await user.click(screen.getByRole("tab", { name: "Campaigns" }));
+    await screen.findByRole("region", { name: "Hardware Bench" });
+    first.unmount();
+
+    renderPage();
+
+    expect(await screen.findByRole("region", { name: "Hardware Bench" })).toBeInTheDocument();
+  });
+
+  it("returns to the campaign that was open", async () => {
+    const first = renderPage("/tests?view=campaigns&campaign=bench");
+    await screen.findByRole("region", { name: "Hardware Bench" });
+    first.unmount();
+
+    renderPage();
+
+    await screen.findByRole("region", { name: "Hardware Bench" });
+    expect(getCampaign).toHaveBeenLastCalledWith("bench");
+  });
+
+  it("honours a link that names a view over what was remembered", async () => {
+    const user = userEvent.setup();
+    const first = renderPage();
+    await screen.findByRole("button", { name: "Thermal Cycle" });
+    await user.click(screen.getByRole("tab", { name: "Campaigns" }));
+    await screen.findByRole("region", { name: "Hardware Bench" });
+    first.unmount();
+
+    renderPage("/tests?view=suites");
+
+    expect(await screen.findByRole("button", { name: "Thermal Cycle" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Hardware Bench" })).not.toBeInTheDocument();
+  });
+
+  it("forgets the campaign view once the operator goes back to all tests", async () => {
+    const user = userEvent.setup();
+    const first = renderPage();
+    await screen.findByRole("button", { name: "Thermal Cycle" });
+    await user.click(screen.getByRole("tab", { name: "Campaigns" }));
+    await screen.findByRole("region", { name: "Hardware Bench" });
+    await user.click(screen.getByRole("tab", { name: "All tests" }));
+    await screen.findByRole("button", { name: "Thermal Cycle" });
+    first.unmount();
+
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: "Thermal Cycle" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Hardware Bench" })).not.toBeInTheDocument();
+  });
+
+  it("works when storage is unavailable", async () => {
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("denied");
+    });
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("denied");
+    });
+
+    renderPage("/tests?view=campaigns");
+
+    expect(await screen.findByRole("region", { name: "Hardware Bench" })).toBeInTheDocument();
+    getItem.mockRestore();
+    setItem.mockRestore();
+  });
+});

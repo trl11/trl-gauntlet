@@ -21,11 +21,17 @@ import PageHeader from "@components/PageHeader";
 import ProfileEditor from "@components/ProfileEditor";
 import RunStartModal from "@components/RunStartModal";
 import SuiteDetail from "@components/SuiteDetail";
+import useRememberedSearch from "@hooks/useRememberedSearch";
 
 import "./TestsPage.scss";
 
 /** What the rail lists: every suite, or the campaigns that group them. */
 type View = "campaigns" | "suites";
+
+/** Where the last visit's view and selection are kept. */
+const REMEMBERED = "gauntlet.tests.search";
+/** The parameters worth carrying from one visit to the next. */
+const REMEMBERED_KEYS = ["campaign", "suite", "view"];
 
 /** Requirements of this suite that no available instrument satisfies. */
 function unmetRequirements(suite: Suite, instruments: Instrument[]): string[] {
@@ -77,6 +83,10 @@ function byCategory(suites: Suite[]): Array<[string, Suite[]]> {
 export const TestsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
+  // Reaching Tests from the navigation bar returns to the view and selection
+  // last left, so running a campaign's suites one after another does not mean
+  // choosing the campaign again each time.
+  useRememberedSearch(REMEMBERED, REMEMBERED_KEYS);
   const [picked, setPicked] = useState<{ name: string; suite: string } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -134,8 +144,7 @@ export const TestsPage: React.FC = () => {
 
   const show = (next: View) => {
     const params = new URLSearchParams(searchParams);
-    if (next === "suites") params.delete("view");
-    else params.set("view", next);
+    params.set("view", next);
     setSearchParams(params, { replace: true });
   };
   const select = (key: string) => {
