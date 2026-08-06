@@ -47,7 +47,12 @@ runtime:
 	@mkdir -p $(DESKTOP_RUNTIME)
 	@echo "CPython $(PYTHON_BUILD_VERSION) ($(PYTHON_BUILD_RELEASE))"
 	@curl -fsSL $(PYTHON_BUILD_URL) | tar -xz -C $(DESKTOP_RUNTIME) --strip-components=1
-	@$(DESKTOP_RUNTIME)/bin/python -m pip install --no-cache-dir --disable-pip-version-check \
+	# -s, because this interpreter shares its minor version with the build
+	# host's and would otherwise read ~/.local/lib/pythonX.Y/site-packages.
+	# pip counts anything it finds there as already installed and puts nothing
+	# in the bundle, so a dependency the build host happens to have is the one
+	# the app ships without.
+	@$(DESKTOP_RUNTIME)/bin/python -s -m pip install --no-cache-dir --disable-pip-version-check \
 		$(SDK) $(APP)
 	@$(MAKE) --no-print-directory prune
 
