@@ -19,11 +19,14 @@ class TestSystem:
     def test_health(self, client):
         assert client.get("/api/health").json() == {"status": "ok"}
 
-    def test_version_reports_the_contract(self, client):
-        assert client.get("/api/version").json()["contract_version"] == 1
+    def test_system_info_reports_the_contract(self, client):
+        assert client.get("/api/system/info").json()["contract_version"] == 1
 
-    def test_capabilities_include_the_mocks(self, client):
-        names = {c["name"] for c in client.get("/api/capabilities").json()["capabilities"]}
+    def test_there_is_no_separate_version_endpoint(self, client):
+        assert client.get("/api/version").status_code == 404
+
+    def test_instruments_include_the_mocks(self, client):
+        names = {i["name"] for i in client.get("/api/instruments").json()["instruments"]}
         assert {"psu", "daq", "chamber"} <= names
 
 
@@ -106,7 +109,7 @@ class TestRuns:
 
         listed = client.get(f"/api/runs/{run_id}/artifacts").json()
         assert {"verdict.json", "metrics.jsonl"} <= {a["path"] for a in listed["artifacts"]}
-        assert client.get(f"/api/runs/{run_id}/verdict").json()["passed"] is True
+        assert client.get(f"/api/runs/{run_id}/artifacts/verdict.json").json()["passed"] is True
         assert client.get(f"/api/runs/{run_id}/metrics").json()["count"] == 1
 
     def test_artifact_traversal_is_blocked(self, client):
@@ -143,7 +146,7 @@ class TestRunDelete:
         add_run("r1", run_dir=run_dir)
         client.post("/api/runs/r1/notes", json={"body": "gone"})
 
-        assert client.delete("/api/runs/r1").json() == {"run_id": "r1", "deleted": True}
+        assert client.delete("/api/runs/r1").json() == {"id": "r1", "deleted": True}
         assert client.get("/api/runs/r1").status_code == 404
         assert not run_dir.exists()
 
@@ -152,7 +155,7 @@ class TestRunDelete:
         outside.mkdir(parents=True)
         add_run("r1", run_dir=outside)
 
-        assert client.delete("/api/runs/r1").json() == {"run_id": "r1", "deleted": True}
+        assert client.delete("/api/runs/r1").json() == {"id": "r1", "deleted": True}
         assert outside.exists()
 
     def test_delete_refuses_a_run_still_in_flight(self, client, add_run, monkeypatch):

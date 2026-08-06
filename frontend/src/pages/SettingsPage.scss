@@ -14,16 +14,11 @@
 
     .panel {
       padding: 20px 24px 24px;
-      gap: 18px;
+      gap: 28px;
     }
 
     .definition-rows > div {
-      padding: 8px 0;
-      border-bottom: 1px solid rgba($trl-dark-gray, 0.6);
-
-      &:last-child {
-        border-bottom: none;
-      }
+      padding: 6px 0;
     }
 
     .definition-rows dt {
@@ -36,8 +31,38 @@
     }
   }
 
+  &__section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-start;
+
+    // Everything below the heading takes the panel's width.
+    .definition-rows,
+    .settings-page__error {
+      align-self: stretch;
+    }
+  }
+
+  // The heading carries the only rule in the panel, so it reads as the start
+  // of a block rather than as another row.
+  &__section-title {
+    width: 100%;
+    padding-bottom: 8px;
+    border-bottom: 1px solid $trl-dark-gray;
+    font-family: $font-mono;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: $trl-light-gray;
+  }
+
   &__error {
     font-size: 13px;
+    color: $indicator-red;
+  }
+
+  &__fault {
     color: $indicator-red;
   }
 }

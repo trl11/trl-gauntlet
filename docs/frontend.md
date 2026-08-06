@@ -95,6 +95,55 @@ not write hex values.
 Fonts are copied from `extras/trl-ui-kit/fonts` into `frontend/public/font` and
 declared with `@font-face` in `src/styles/main.scss`.
 
+## The kit's design-system skill
+
+The submodule carries a coding-agent skill at
+`extras/trl-ui-kit/.claude/skills/trl11-frontend`, describing the design system
+and the component API. Tooling scopes a skill to the directory it is found in,
+which would be the one directory the rules never apply to, so
+`.claude/skills/trl11-frontend` symlinks it into this repository and work under
+`frontend/` picks it up.
+
+Its `references/styling.md` and `references/components.md` are authoritative
+here: the colour tokens, the typography scale, the spacing constants, the
+`filter: brightness()` hover and disabled states, kebab-case with BEM
+modifiers, and the props of every component the kit exports.
+
+The skill was written against a different application, and six of its rules
+describe that one rather than this one.
+
+| The skill says | Gauntlet |
+|---|---|
+| `@trl11/ui-kit/...` imports | `@trl11/...`, per the alias table above |
+| `@utils/backend`, `@utils/toast` | `@api/client`, the only module that calls `fetch` |
+| `components/media` players | unresolvable here, along with `components/vip` |
+| MQTT subscriptions invalidate queries | polling; there is no MQTT dependency |
+| `@tanstack/react-router`, `routeTree.gen.ts` | `react-router`, `HashRouter`, no generated tree |
+| A 46px icon sidebar, and pages offset for it | a fixed top tab bar, and no sidebar |
+
+Correct a divergence here rather than in the submodule, which this repository
+only ever consumes.
+
+### Sharp corners
+
+The skill states the rule as never rounding a corner. The kit reads it more
+precisely, and the distinction is what the shape is standing for.
+
+Anything that is a surface has square corners: the panels a page is built
+from, the cards inside them, buttons, text fields and dropdowns, tabs, badges,
+table cells, dialogs and the bar across the top. Nothing is softened, and
+softening one is the easiest way to make a screen stop matching the rest of
+the application. The look is milled — a face cut from a sheet, edges left as
+they came off the tool — rather than the rounded cards of a web dashboard.
+
+Roundness is reserved for depicting something that is round on real
+equipment: the status light beside an instrument's name, the lamp on a power
+key, the cap of a rotary knob, the dot marking a run's state, the ring around
+a unit of measurement. These read as fittings mounted on the panel, and their
+roundness is what separates them from it. A circle in the interface should
+always be a thing you could point at on a bench; if it is a container for
+content, it is a rectangle.
+
 ## Running against a live API
 
 ```bash

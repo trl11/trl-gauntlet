@@ -36,7 +36,7 @@ class TestNotes:
 
     def test_delete(self, client, subjects, kind) -> None:
         note_id = client.post(subjects[kind], json={"body": "wrong"}).json()["id"]
-        assert client.delete(f"{subjects[kind]}/{note_id}").json() == {"id": note_id, "deleted": True}
+        assert client.delete(f"{subjects[kind]}/{note_id}").json() == {"id": str(note_id), "deleted": True}
         assert client.get(subjects[kind]).json()["notes"] == []
 
     def test_deleting_an_unknown_note_is_404(self, client, subjects, kind) -> None:

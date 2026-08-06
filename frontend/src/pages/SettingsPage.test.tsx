@@ -8,7 +8,6 @@ import { pending, spinners } from "../test/queries";
 const getHealth = vi.fn();
 const getSettings = vi.fn();
 const getSystemInfo = vi.fn();
-const getVersion = vi.fn();
 
 vi.mock("@api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@api/client")>();
@@ -17,7 +16,6 @@ vi.mock("@api/client", async (importOriginal) => {
     getHealth: () => getHealth(),
     getSettings: () => getSettings(),
     getSystemInfo: () => getSystemInfo(),
-    getVersion: () => getVersion(),
   };
 });
 
@@ -56,13 +54,8 @@ beforeEach(() => {
     memory_total_bytes: 34359738368,
     os: "Linux",
     python: "3.12.3",
-  });
-  getVersion.mockResolvedValue({
-    contract_version: 1,
-    gauntlet: "0.4.1",
     gauntlet_sdk: "0.4.1",
-    platform: "Linux",
-    python: "3.12.3",
+    contract_version: 1,
   });
 });
 
@@ -73,54 +66,50 @@ afterEach(() => {
 describe("SettingsPage", () => {
   it("reports the health of the API", async () => {
     renderSettings();
-    expect(await screen.findByText("API HEALTHY")).toBeInTheDocument();
+    expect(await screen.findByText("healthy")).toBeInTheDocument();
+    expect(screen.getByText("api server")).toBeInTheDocument();
   });
 
   it("says so when the API does not answer", async () => {
     getHealth.mockRejectedValue(new Error("cannot reach the Gauntlet API"));
     renderSettings();
-    expect(await screen.findByText("API UNREACHABLE")).toBeInTheDocument();
+    expect(await screen.findByText("unreachable")).toBeInTheDocument();
   });
 
-  it("shows the service settings and the paths", async () => {
+  // The health probe answers on its own, so its row survives the rest failing.
+  it("still reports the health of the API when the settings cannot be read", async () => {
+    getSettings.mockRejectedValue(new Error("config.yaml is unreadable"));
     renderSettings();
-    expect(await screen.findByText("127.0.0.1")).toBeInTheDocument();
-    expect(screen.getByText("7100")).toBeInTheDocument();
-    expect(screen.getByText("/home/dev/.local/share/gauntlet/runs")).toBeInTheDocument();
-    expect(screen.getByText("/workspaces/gauntlet/suites")).toBeInTheDocument();
+    expect(await screen.findByText("healthy")).toBeInTheDocument();
+    expect(screen.queryByText("port")).not.toBeInTheDocument();
   });
 
-  it("links to the API documentation and the schemas", () => {
-    renderSettings();
-    expect(screen.getByRole("link", { name: "API documentation" })).toHaveAttribute(
-      "href",
-      "/docs"
-    );
-    expect(screen.getByRole("link", { name: "Contract schemas" })).toHaveAttribute(
-      "href",
-      "/api/schemas"
-    );
-  });
-
-  it("shows every version the API reports", async () => {
-    renderSettings();
-    expect(await screen.findAllByText("0.4.1")).not.toHaveLength(0);
-    expect(screen.getByText("contract")).toBeInTheDocument();
-  });
-
-  it("shows the host facts", async () => {
+  it("shows the info section, with the host it runs on and the versions it runs", async () => {
     renderSettings();
     expect(await screen.findByText("bench-01")).toBeInTheDocument();
-    expect(screen.getByText("AMD Ryzen 7")).toBeInTheDocument();
-    expect(screen.getByText("32.0 GB")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Info" })).toBeInTheDocument();
+    expect(screen.getAllByText("0.4.1")).toHaveLength(2);
   });
 
-  it("spins each section while its query is in flight", () => {
+  it("shows the runtime section, with the settings the service answers on", async () => {
+    renderSettings();
+    expect(await screen.findByText("7100")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Runtime" })).toBeInTheDocument();
+    expect(screen.getByText("info")).toBeInTheDocument();
+  });
+
+  it("shows the documentation section, linking to the API documentation", () => {
+    renderSettings();
+    expect(screen.getByRole("heading", { name: "Documentation" })).toBeInTheDocument();
+    expect(screen.getByText("api documentation")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "swagger" })).toHaveAttribute("href", "/docs");
+  });
+
+  it("spins each section whose query is in flight", () => {
     getSettings.mockReturnValue(pending());
     getSystemInfo.mockReturnValue(pending());
-    getVersion.mockReturnValue(pending());
     renderSettings();
-    expect(spinners()).toHaveLength(3);
+    expect(spinners()).toHaveLength(2);
   });
 
   it("reports settings that could not be read", async () => {

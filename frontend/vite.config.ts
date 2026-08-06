@@ -47,6 +47,10 @@ export default defineConfig({
         ws: true,
         bypass: (req) => (/\.[jt]sx?($|\?)/.test(req.url ?? "") ? req.url : undefined),
       },
+      // The API documentation the settings page links to is served by the
+      // backend, and without these Vite answers with the SPA shell instead.
+      "/docs": { target: "http://127.0.0.1:7100", changeOrigin: true },
+      "/openapi.json": { target: "http://127.0.0.1:7100", changeOrigin: true },
     },
   },
   build: {

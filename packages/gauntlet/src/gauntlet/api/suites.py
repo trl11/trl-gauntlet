@@ -22,11 +22,15 @@ _PROFILE_SCHEMA_TIMEOUT_S = 15.0
 
 
 class ProfileContentBody(BaseModel):
-    """Request body carrying edited profile text."""
+    """Request body carrying edited profile text.
+
+    The field is named as `GET /suites/{key}/profiles/{name}` returns it, so
+    reading a profile, saving it and diffing it all speak of its `body`.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    content: str
+    body: str
 
 
 class ProfileNameBody(BaseModel):
@@ -39,6 +43,13 @@ class ProfileNameBody(BaseModel):
 
 def _catalog(request: Request) -> Any:
     return request.app.state.catalog()
+
+
+def _catalog_payload(request: Request, catalog: Any) -> dict[str, Any]:
+    """One catalog serialized with every suite's profiles resolved."""
+    profiles_dir = request.app.state.settings.profiles_dir
+    profiles = {key: list_profiles(suite, profiles_dir) for key, suite in catalog.suites.items()}
+    return dict(catalog.to_dict(profiles))
 
 
 def _suite_or_404(request: Request, key: str) -> Any:
@@ -83,26 +94,25 @@ def _write_profile(request: Request, key: str, filename: str, content: str) -> d
 @router.get("/suites")
 async def get_suites(request: Request) -> dict[str, Any]:
     """Every discovered suite, with its profiles."""
-    catalog = _catalog(request)
-    settings = request.app.state.settings
-    profiles = {key: list_profiles(suite, settings.profiles_dir) for key, suite in catalog.suites.items()}
-    return catalog.to_dict(profiles)
+    return _catalog_payload(request, _catalog(request))
 
 
 @router.post("/suites/rescan")
 async def rescan_suites(request: Request) -> dict[str, Any]:
-    """Re-read the suite roots."""
-    catalog = request.app.state.rescan()
-    return {"count": len(catalog.suites), "errors": catalog.errors}
+    """Re-read the suite roots and report the catalog they now hold.
+
+    The catalog comes back rather than a count, so a caller that rescans to
+    refresh what it is showing does not have to follow with `GET /suites`.
+    """
+    return _catalog_payload(request, request.app.state.rescan())
 
 
 @router.get("/suites/{key}")
 async def get_suite(request: Request, key: str) -> dict[str, Any]:
     """One suite, with its profiles."""
     suite = _suite_or_404(request, key)
-    settings = request.app.state.settings
     payload = suite.to_dict()
-    payload["profiles_available"] = [p.to_dict() for p in list_profiles(suite, settings.profiles_dir)]
+    payload["profiles_available"] = [p.to_dict() for p in list_profiles(suite, request.app.state.settings.profiles_dir)]
     return payload
 
 
@@ -158,16 +168,13 @@ async def get_profile(request: Request, key: str, name: str) -> dict[str, Any]:
 
 
 @router.put("/suites/{key}/profiles/{name}")
-async def put_profile(request: Request, key: str, name: str, payload: dict[str, Any]) -> dict[str, Any]:
+async def put_profile(request: Request, key: str, name: str, payload: ProfileContentBody) -> dict[str, Any]:
     """Save an operator-authored profile.
 
     Writes to the user profile directory; a suite's own files are not modified.
     """
     _suite_or_404(request, key)
-    body = payload.get("body")
-    if not isinstance(body, str):
-        raise HTTPException(status_code=422, detail="`body` must be a string")
-    return _write_profile(request, key, _profile_filename(name), body)
+    return _write_profile(request, key, _profile_filename(name), payload.body)
 
 
 @router.delete("/suites/{key}/profiles/{name}")
@@ -180,7 +187,7 @@ async def delete_profile(request: Request, key: str, name: str) -> dict[str, Any
         info.path.unlink()
     except OSError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return {"name": info.name, "deleted": True}
+    return {"id": info.name, "deleted": True}
 
 
 @router.post("/suites/{key}/profiles/{name}/diff")
@@ -193,7 +200,7 @@ async def post_profile_diff(request: Request, key: str, name: str, body: Profile
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     diff = difflib.unified_diff(
         current.splitlines(),
-        body.content.splitlines(),
+        body.body.splitlines(),
         fromfile=f"a/{info.name}",
         tofile=f"b/{info.name}",
         lineterm="",

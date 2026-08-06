@@ -117,12 +117,12 @@ The web UI renders suite-agnostic forms and views from these endpoints:
 | Live run | `GET /api/runs/{id}/events` |
 | History | `GET /api/runs`, filtered by `suite`, `unit_serial`, repeated `status`, `after`, `before`, and sorted by `sort` and `direction` |
 | Finished-run charts | `GET /api/runs/{id}/metrics` |
-| Run artifacts | `GET /api/runs/{id}/artifacts`, `/artifacts/{path}`, `/verdict`, `/manifest` |
+| Run artifacts | `GET /api/runs/{id}/artifacts` and `/artifacts/{path}`, the one way to read a run's files |
 | Run and unit notes | `GET|POST /api/{runs,units}/{id}/notes`, `DELETE .../notes/{note_id}` |
 | Units under test | `GET /api/units`, `GET|PATCH|DELETE /api/units/{serial}`, `GET /api/units/{serial}/history` |
-| Instrument panels | `GET /api/instruments`, `GET /api/instruments/{name}`, `POST /api/instruments/scan`, `POST /api/instruments/{name}/command` |
+| Instrument panels | `GET /api/instruments`, `GET /api/instruments/{name}`, `POST /api/instruments/rescan`, `POST /api/instruments/{name}/command` |
 | Host health | `GET /api/system/info` for static facts, `GET /api/system/data` for sampled figures |
-| Settings | `GET /api/settings`, `GET /api/version`, `GET /api/health` |
+| Settings | `GET /api/settings`, `GET /api/system/info`, `GET /api/health` |
 
 SSE event types are `status`, `log`, `metrics`, `phase`, `iteration`,
 `anomaly`, `verdict`, and `end`.

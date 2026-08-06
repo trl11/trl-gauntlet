@@ -133,7 +133,7 @@ async def delete_run(request: Request, run_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"unknown run {run_id!r}")
     request.app.state.notes_index.delete_subject(SUBJECT_RUN, run_id)
     remove_run_dir(request, row.run_dir)
-    return {"run_id": run_id, "deleted": True}
+    return {"id": run_id, "deleted": True}
 
 
 @router.get("/runs/{run_id}/notes")

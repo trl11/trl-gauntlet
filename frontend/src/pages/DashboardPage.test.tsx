@@ -11,7 +11,6 @@ import { pending, spinners } from "../test/queries";
 
 const abortRun = vi.fn();
 const getSystemData = vi.fn();
-const listCapabilities = vi.fn();
 const listInstruments = vi.fn();
 const listRuns = vi.fn();
 const listSuites = vi.fn();
@@ -24,7 +23,6 @@ vi.mock("@api/client", async (importOriginal) => {
     ...actual,
     abortRun: (...args: unknown[]) => abortRun(...args),
     getSystemData: () => getSystemData(),
-    listCapabilities: () => listCapabilities(),
     listInstruments: () => listInstruments(),
     listRuns: (...args: unknown[]) => listRuns(...args),
     listSuites: () => listSuites(),
@@ -141,11 +139,8 @@ function renderDashboard() {
 beforeEach(() => {
   abortRun.mockResolvedValue({ run_id: "r2", status: "aborting" });
   getSystemData.mockResolvedValue(systemData());
-  listCapabilities.mockResolvedValue({
-    capabilities: [{ available: "true", instance_id: "c1", name: "chamber" }],
-  });
   listInstruments.mockResolvedValue({ instruments: [instrument()] });
-  listRuns.mockResolvedValue({ runs: [run()] });
+  listRuns.mockResolvedValue({ runs: [run()], total: 42 });
   listSuites.mockResolvedValue({ errors: [], suites: [suite()] });
   listUnits.mockResolvedValue({ units: [unit()] });
   stopRun.mockResolvedValue({ run_id: "r2", status: "stopping" });
@@ -157,7 +152,7 @@ afterEach(() => {
 
 describe("DashboardPage", () => {
   it("says so when nothing is running and nothing has been on the bench", async () => {
-    listRuns.mockResolvedValue({ runs: [] });
+    listRuns.mockResolvedValue({ runs: [], total: 0 });
     listUnits.mockResolvedValue({ units: [] });
     renderDashboard();
     expect(await screen.findByText("Nothing running")).toBeInTheDocument();
@@ -194,10 +189,27 @@ describe("DashboardPage", () => {
     expect(serials).toEqual(["NEWER", "OLDER"]);
   });
 
-  it("shows the last unit under test when no run is in flight", async () => {
+  it("headlines the last unit tested with the record the units list holds", async () => {
     renderDashboard();
-    expect(await screen.findByText("serial")).toBeInTheDocument();
-    expect(screen.getAllByText("HC-001").length).toBeGreaterThan(0);
+    const title = await screen.findByRole("heading", { name: "Last unit tested" });
+    const card = within(title.closest("section") as HTMLElement);
+    expect(card.getByText("HC-001")).toBeInTheDocument();
+    expect(card.getByText("runs").nextElementSibling).toHaveTextContent("7");
+    expect(card.getByText("passed").nextElementSibling).toHaveTextContent("5");
+    expect(card.getByText("failed").nextElementSibling).toHaveTextContent("2");
+  });
+
+  it("opens the run behind the last unit tested", async () => {
+    renderDashboard();
+    const card = await screen.findByRole("link", {
+      name: "Open the thermal_cycle run of unit HC-001",
+    });
+    expect(card).toHaveAttribute("href", "/runs/r1");
+  });
+
+  it("says when the last unit was tested, so a stale one is not read as live", async () => {
+    renderDashboard();
+    expect(await screen.findByText(/^last tested /)).toBeInTheDocument();
   });
 
   it("lists the host health tiles", async () => {
@@ -214,12 +226,20 @@ describe("DashboardPage", () => {
     expect(link).toHaveAttribute("href", "/instruments");
   });
 
+  it("shows every recorded run in the recent runs link, not the ten it lists", async () => {
+    renderDashboard();
+    expect(await screen.findByRole("link", { name: "all runs (42) →" })).toHaveAttribute(
+      "href",
+      "/history"
+    );
+  });
+
   it("shows the unit total in the units panel link", async () => {
     renderDashboard();
     expect(await screen.findByRole("link", { name: "all units (1) →" })).toBeInTheDocument();
   });
 
-  it("suppresses stale state text for an unavailable instrument", async () => {
+  it("shows why an instrument is unavailable in place of its stale readings", async () => {
     listInstruments.mockResolvedValue({
       instruments: [
         { ...instrument(), available: false, unavailable_reason: "no reply from the bus" },
@@ -227,7 +247,7 @@ describe("DashboardPage", () => {
     });
     renderDashboard();
     await screen.findByText("psu");
-    expect(screen.getByText("unavailable")).toBeInTheDocument();
+    expect(screen.getByText("no reply from the bus")).toBeInTheDocument();
     expect(screen.queryByText(/output_enabled/)).not.toBeInTheDocument();
   });
 
@@ -254,6 +274,7 @@ describe("DashboardPage", () => {
   it("shows a live run with its elapsed time and controls", async () => {
     listRuns.mockResolvedValue({
       runs: [run({ ended_at: null, run_id: "r2", status: "running" })],
+      total: 1,
     });
     renderDashboard();
     expect(await screen.findByRole("link", { name: "thermal_cycle" })).toHaveAttribute(
@@ -267,6 +288,7 @@ describe("DashboardPage", () => {
   it("stops a run only once the operator confirms", async () => {
     listRuns.mockResolvedValue({
       runs: [run({ ended_at: null, run_id: "r2", status: "running" })],
+      total: 1,
     });
     renderDashboard();
     await userEvent.click(await screen.findByRole("button", { name: "Stop" }));
@@ -296,12 +318,13 @@ describe("DashboardPage", () => {
   it("says so when no instrument is registered", async () => {
     listInstruments.mockResolvedValue({ instruments: [] });
     renderDashboard();
-    expect(await screen.findByText("No instruments")).toBeInTheDocument();
+    expect(await screen.findByText("No instrument is registered.")).toBeInTheDocument();
   });
 
   it("leaves the run alone when the operator dismisses the abort", async () => {
     listRuns.mockResolvedValue({
       runs: [run({ ended_at: null, run_id: "r2", status: "running" })],
+      total: 1,
     });
     renderDashboard();
     await userEvent.click(await screen.findByRole("button", { name: "Abort" }));

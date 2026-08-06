@@ -18,7 +18,6 @@ import type { Unit } from "@api/types";
 import EmptyState from "@components/EmptyState";
 import ListToolbar from "@components/ListToolbar";
 import PageHeader from "@components/PageHeader";
-import Panel from "@components/Panel";
 import RowMenu from "@components/RowMenu";
 import StatusPill from "@components/StatusPill";
 import UnitDetail from "@components/UnitDetail";
@@ -220,7 +219,7 @@ const UnitsList: React.FC = () => {
       )}
 
       {rows.length > 0 && (
-        <Panel className="units-page__panel" title="Inventory">
+        <div className="units-page__scroll">
           <table className="units-page__table">
             <thead>
               <tr>
@@ -312,7 +311,7 @@ const UnitsList: React.FC = () => {
               ))}
             </tbody>
           </table>
-        </Panel>
+        </div>
       )}
 
       {deleting !== null && (

@@ -1,4 +1,5 @@
 @use "@trl11/styles/theme.scss" as *;
+@use "@styles/table";
 
 .dashboard-page {
   display: flex;
@@ -31,112 +32,117 @@
     color: $trl-gray;
   }
 
+  // A block the page shows without a card around it, because what it holds
+  // already carries its own frame.
+  &__section {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  &__section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  &__section-title {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: $trl-gray;
+  }
+
+  &__section-action {
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $indicator-blue;
+    text-decoration: none;
+
+    &:hover,
+    &:focus-visible {
+      text-decoration: underline;
+      outline: none;
+    }
+  }
+
   // Stable height across "no unit", "unit on bench" and "active run" states,
-  // so switching between them doesn't visibly resize the panel.
+  // so switching between them doesn't visibly resize the card.
   &__unit-panel {
     display: flex;
     flex-direction: column;
     justify-content: center;
     min-height: 140px;
+
+    // A label and its value read as a pair, rather than at opposite edges of
+    // the card.
+    .definition-rows {
+      max-width: 420px;
+    }
   }
 
-  &__actives {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+  &__tested {
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
   }
 
-  &__instruments {
+  // The serial is the headline, its record is read across from it, and the
+  // whole of it opens the run that produced the verdict.
+  &__unit {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  &__instrument {
-    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
-    border: 1px solid $trl-dark-gray;
-    background-color: rgba($trl-dark, 0.6);
+    gap: 16px 32px;
     text-decoration: none;
-    min-width: 0;
 
     &:hover,
     &:focus-visible {
-      border-color: $indicator-blue;
+      filter: brightness(1.25);
       outline: none;
     }
   }
 
-  &__dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background-color: $trl-dark-gray;
-    flex: none;
-
-    &--on {
-      background-color: $indicator-green;
-    }
+  &__unit-head {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
   }
 
-  &__instrument-name {
+  &__unit-serial {
     font-family: $font-mono;
-    font-size: 12px;
+    font-size: 28px;
+    line-height: 1.1;
     color: $trl-light-gray;
+    overflow-wrap: anywhere;
   }
 
-  &__instrument-state {
-    font-size: 10px;
+  &__unit-suite {
+    font-size: 12px;
     color: $trl-gray;
+  }
+
+  &__unit-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 28px;
     margin-left: auto;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
 
-  &__units-panel {
-    overflow-x: auto;
-  }
-
-  &__units {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-
-    th,
-    td {
-      text-align: left;
-      padding: 8px 12px;
-      white-space: nowrap;
-
-      &.is-right {
-        text-align: right;
-      }
-    }
-
-    thead th {
-      color: $trl-gray;
-      font-weight: 500;
-      font-size: 12px;
+    dt {
+      font-size: 10px;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
-      border-bottom: 1px solid $trl-dark-gray;
+      color: $trl-gray;
     }
 
-    tbody tr {
-      border-bottom: 1px solid rgba($trl-dark-gray, 0.6);
-
-      &:last-child {
-        border-bottom: none;
-      }
-    }
-
-    td {
+    dd {
       font-family: $font-mono;
-      font-size: 12px;
+      font-size: 20px;
       color: $trl-light-gray;
+      margin-top: 4px;
 
       // A count of zero stays neutral, so a clean unit reads as quiet.
       &.is-passed {
@@ -147,9 +153,18 @@
         color: $indicator-red;
       }
     }
+  }
+
+  &__idle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: $trl-gray;
 
     a {
-      color: $trl-light-gray;
+      color: $indicator-blue;
       text-decoration: none;
 
       &:hover,
@@ -158,5 +173,45 @@
         outline: none;
       }
     }
+  }
+
+  &__actives {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  // Every card the section shows sits on this one grid, host figure and
+  // instrument display alike, so they come out the same width and, through
+  // the equal rows, the same height.
+  &__tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    grid-auto-rows: 1fr;
+    gap: 12px;
+  }
+
+  &__units-scroll {
+    overflow-x: auto;
+    border: 1px solid $trl-dark-gray;
+  }
+
+  &__units {
+    @include table.base;
+
+    td {
+      // A count of zero stays neutral, so a clean unit reads as quiet.
+      &.is-passed {
+        color: $indicator-green;
+      }
+
+      &.is-failed {
+        color: $indicator-red;
+      }
+    }
+  }
+
+  &__serial {
+    @include table.identifier;
   }
 }

@@ -41,8 +41,8 @@ async def list_instruments(request: Request) -> dict[str, Any]:
     return {"instruments": _snapshot(request)}
 
 
-@router.post("/instruments/scan")
-async def scan_instruments(request: Request) -> dict[str, Any]:
+@router.post("/instruments/rescan")
+async def rescan_instruments(request: Request) -> dict[str, Any]:
     """Look for hardware again and report what is registered afterwards.
 
     Detection runs at startup, so this is what picks up an instrument attached

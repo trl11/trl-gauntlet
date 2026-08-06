@@ -140,12 +140,16 @@ untouched. The instrument's other commands stay drivable.
 |---|---|
 | `GET /api/instruments` | Every instrument: state, commands, readouts, `available`, `in_use_by` |
 | `GET /api/instruments/{name}` | One of them |
-| `POST /api/instruments/scan` | Run detection again and report what is registered afterwards |
+| `POST /api/instruments/rescan` | Run detection again and report what is registered afterwards |
 | `POST /api/instruments/{name}/command` | Drive one, as `{"command": ..., "args": {...}}` |
 | `GET|POST /api/capabilities/{name}` | The same providers, for the suite process |
 
 A rejected command is a 422 carrying the provider's own words; an instrument
 that takes no commands at all is a 405.
+
+There is no `GET /api/capabilities`. A suite is handed the capabilities it was
+granted and discovers nothing else, and the bench an operator sees is
+`GET /api/instruments`, which reports the same providers in more detail.
 
 ## Writing a provider
 

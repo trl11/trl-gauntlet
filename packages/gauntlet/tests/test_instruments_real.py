@@ -16,8 +16,10 @@ from gauntlet.config import Settings
 from gauntlet.instruments import detect_instruments, is_simulated
 from gauntlet.instruments.di2008_daq import (
     Di2008Daq,
+    Di2008Error,
     decode_scans,
     mode_unit,
+    open_usb,
     slist_word,
     strip_echo,
     value_from_code,
@@ -476,3 +478,595 @@ class TestDetection:
         before = registry.provider("psu")
         detect_instruments(registry, settings)
         assert registry.provider("psu") is before
+
+
+class _FakeEndpoint:
+    """One bulk endpoint, recording what the driver put on it."""
+
+    def __init__(self, direction: int, *, reads: list[bytes] | None = None, fails: bool = False) -> None:
+        self.bEndpointAddress = direction
+        self.written: list[bytes] = []
+        self._reads = reads or []
+        self._fails = fails
+
+    def read(self, size: int, timeout: int) -> bytes:
+        if self._fails:
+            raise ValueError("pipe stalled")
+        return self._reads.pop(0) if self._reads else b""
+
+    def write(self, data: bytes) -> None:
+        self.written.append(data)
+
+
+class _FakeUsbDevice:
+    """A device as pyusb hands it over, down to the two endpoints."""
+
+    IN, OUT = 0x81, 0x01
+
+    def __init__(
+        self,
+        *,
+        endpoints: tuple[int, ...] = (IN, OUT),
+        kernel_driver: bool = False,
+        detach_raises: bool = False,
+        configure_raises: bool = False,
+        serial: str = "DAQ-1",
+    ) -> None:
+        self.iSerialNumber = 3
+        self.serial = serial
+        self.detached = False
+        self.configured = False
+        self._endpoints = endpoints
+        self._kernel_driver = kernel_driver
+        self._detach_raises = detach_raises
+        self._configure_raises = configure_raises
+
+    def detach_kernel_driver(self, interface: int) -> None:
+        if self._detach_raises:
+            raise ValueError("busy")
+        self.detached = True
+
+    def get_active_configuration(self) -> dict[tuple[int, int], list[_FakeEndpoint]]:
+        return {(0, 0): [_FakeEndpoint(address) for address in self._endpoints]}
+
+    def is_kernel_driver_active(self, interface: int) -> bool:
+        return self._kernel_driver
+
+    def set_configuration(self) -> None:
+        if self._configure_raises:
+            raise ValueError("cannot configure")
+        self.configured = True
+
+
+# Stands in for the libusb backend handle, which the driver only checks for.
+_A_BACKEND = object()
+
+
+def _install_pyusb(
+    monkeypatch: Any,
+    *,
+    devices: list[_FakeUsbDevice] | None = None,
+    backend: Any = _A_BACKEND,
+    backend_raises: bool = False,
+    string_raises: bool = False,
+) -> dict[str, Any]:
+    """Put a stand-in for pyusb on `sys.modules`, as `open_usb` imports it.
+
+    `open_usb` imports pyusb inside the call precisely so a host without it
+    reports an unavailable instrument, which is also what makes it reachable
+    from a test on a machine with no libusb.
+    """
+    import sys
+    import types
+
+    disposed: list[Any] = []
+
+    usb = types.ModuleType("usb")
+    core = types.ModuleType("usb.core")
+    util = types.ModuleType("usb.util")
+    libusb1 = types.ModuleType("usb.backend.libusb1")
+    backends = types.ModuleType("usb.backend")
+
+    def get_backend() -> Any:
+        if backend_raises:
+            raise ValueError("libusb missing")
+        return backend
+
+    def find(find_all: bool = False, **kwargs: Any) -> list[_FakeUsbDevice]:
+        return list(devices or [])
+
+    def get_string(device: Any, index: Any) -> str:
+        if string_raises:
+            raise ValueError("no descriptor")
+        return device.serial
+
+    util.ENDPOINT_IN = 0x80
+    util.ENDPOINT_OUT = 0x00
+    util.endpoint_direction = lambda address: address & 0x80
+    util.find_descriptor = lambda interface, custom_match: next(
+        (entry for entry in interface if custom_match(entry)), None
+    )
+    util.get_string = get_string
+    util.dispose_resources = disposed.append
+    core.find = find
+    libusb1.get_backend = get_backend
+    backends.libusb1 = libusb1
+    usb.backend = backends
+    usb.core = core
+    usb.util = util
+
+    for name, module in {
+        "usb": usb,
+        "usb.backend": backends,
+        "usb.backend.libusb1": libusb1,
+        "usb.core": core,
+        "usb.util": util,
+    }.items():
+        monkeypatch.setitem(sys.modules, name, module)
+    return {"disposed": disposed, "util": util}
+
+
+class TestOpenUsb:
+    """Claiming the device, which is the driver's only untestable-looking half."""
+
+    def test_a_host_without_pyusb_reports_it(self, monkeypatch: Any) -> None:
+        import sys
+
+        for name in ("usb", "usb.core", "usb.util", "usb.backend", "usb.backend.libusb1"):
+            monkeypatch.setitem(sys.modules, name, None)
+        with pytest.raises(Di2008Error, match="pyusb is not importable"):
+            open_usb()
+
+    def test_a_backend_that_will_not_load_reports_it(self, monkeypatch: Any) -> None:
+        _install_pyusb(monkeypatch, backend_raises=True)
+        with pytest.raises(Di2008Error, match="libusb backend unusable"):
+            open_usb()
+
+    def test_no_backend_at_all_names_the_package_to_install(self, monkeypatch: Any) -> None:
+        _install_pyusb(monkeypatch, backend=None)
+        with pytest.raises(Di2008Error, match="install libusb"):
+            open_usb()
+
+    def test_an_empty_bus_is_reported(self, monkeypatch: Any) -> None:
+        _install_pyusb(monkeypatch, devices=[])
+        with pytest.raises(Di2008Error, match="no DI-2008 on the USB bus"):
+            open_usb()
+
+    def test_the_first_device_is_claimed_when_no_serial_is_asked_for(self, monkeypatch: Any) -> None:
+        first, second = _FakeUsbDevice(serial="AAA"), _FakeUsbDevice(serial="BBB")
+        _install_pyusb(monkeypatch, devices=[first, second])
+
+        transport = open_usb()
+
+        assert transport.serial_number() == "AAA"
+        assert first.configured is True
+        assert second.configured is False
+
+    def test_a_serial_filter_picks_its_device(self, monkeypatch: Any) -> None:
+        first, second = _FakeUsbDevice(serial="AAA"), _FakeUsbDevice(serial="BBB")
+        _install_pyusb(monkeypatch, devices=[first, second])
+
+        assert open_usb("BBB").serial_number() == "BBB"
+        assert second.configured is True
+
+    def test_a_serial_filter_that_matches_nothing_is_reported(self, monkeypatch: Any) -> None:
+        _install_pyusb(monkeypatch, devices=[_FakeUsbDevice(serial="AAA")])
+        with pytest.raises(Di2008Error, match="no DI-2008 with serial matching"):
+            open_usb("ZZZ")
+
+    def test_a_kernel_driver_is_detached_first(self, monkeypatch: Any) -> None:
+        device = _FakeUsbDevice(kernel_driver=True)
+        _install_pyusb(monkeypatch, devices=[device])
+
+        open_usb()
+
+        assert device.detached is True
+
+    def test_a_kernel_driver_that_will_not_detach_does_not_stop_the_claim(self, monkeypatch: Any) -> None:
+        device = _FakeUsbDevice(kernel_driver=True, detach_raises=True)
+        _install_pyusb(monkeypatch, devices=[device])
+
+        assert open_usb().serial_number() == "DAQ-1"
+        assert device.detached is False
+
+    def test_a_device_that_will_not_configure_is_reported(self, monkeypatch: Any) -> None:
+        _install_pyusb(monkeypatch, devices=[_FakeUsbDevice(configure_raises=True)])
+        with pytest.raises(Di2008Error, match="cannot claim the DI-2008"):
+            open_usb()
+
+    def test_an_interface_without_both_endpoints_is_reported(self, monkeypatch: Any) -> None:
+        _install_pyusb(monkeypatch, devices=[_FakeUsbDevice(endpoints=(_FakeUsbDevice.IN,))])
+        with pytest.raises(Di2008Error, match="no bulk endpoint pair"):
+            open_usb()
+
+    def test_a_device_that_will_not_name_itself_reports_an_empty_serial(self, monkeypatch: Any) -> None:
+        _install_pyusb(monkeypatch, devices=[_FakeUsbDevice()], string_raises=True)
+        assert open_usb().serial_number() == ""
+
+
+class TestLibusbTransport:
+    """The endpoint pair, once claimed."""
+
+    def _transport(self, monkeypatch: Any, **kwargs: Any) -> Any:
+        _install_pyusb(monkeypatch, devices=[_FakeUsbDevice(**kwargs)])
+        return open_usb()
+
+    def test_a_write_goes_to_the_out_endpoint(self, monkeypatch: Any) -> None:
+        transport = self._transport(monkeypatch)
+        transport.write(b"stop\r")
+        assert transport._endpoint_out.written == [b"stop\r"]
+
+    def test_a_read_returns_the_bytes_waiting(self, monkeypatch: Any) -> None:
+        transport = self._transport(monkeypatch)
+        transport._endpoint_in._reads = [b"\x01\x02"]
+        assert transport.read(64, 50) == b"\x01\x02"
+
+    def test_a_read_that_times_out_is_empty_rather_than_an_error(self, monkeypatch: Any) -> None:
+        transport = self._transport(monkeypatch)
+        transport._endpoint_in._fails = True
+        assert transport.read(64, 50) == b""
+
+    def test_closing_releases_the_device(self, monkeypatch: Any) -> None:
+        state = _install_pyusb(monkeypatch, devices=[_FakeUsbDevice()])
+        transport = open_usb()
+
+        transport.close()
+
+        assert len(state["disposed"]) == 1
+
+    def test_closing_survives_a_release_that_fails(self, monkeypatch: Any) -> None:
+        state = _install_pyusb(monkeypatch, devices=[_FakeUsbDevice()])
+        transport = open_usb()
+
+        def explode(device: Any) -> None:
+            raise ValueError("already gone")
+
+        state["util"].dispose_resources = explode
+        transport.close()  # does not raise
+
+
+class TestDi2008Failures:
+    """What the DAQ does when the device stops behaving."""
+
+    def test_a_transport_that_will_not_open_is_reported_not_raised(self) -> None:
+        def refuse(_serial: str) -> Any:
+            raise Di2008Error("no DI-2008 on the USB bus")
+
+        daq = Di2008Daq(clock=_Clock(), open_transport=refuse)
+
+        assert daq.available() is False
+        assert "no DI-2008" in daq.describe()["unavailable_reason"]
+
+    def test_a_device_that_answers_no_info_query_is_dropped(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock)
+        transport.write = lambda data: None  # type: ignore[method-assign]
+        daq = Di2008Daq(clock=clock, open_transport=lambda _: transport)
+
+        assert daq.available() is False
+        assert "did not answer" in daq.describe()["unavailable_reason"]
+        assert transport.closed is True
+
+    def test_a_command_on_an_unavailable_unit_is_refused_with_the_reason(self) -> None:
+        def refuse(_serial: str) -> Any:
+            raise Di2008Error("no DI-2008 on the USB bus")
+
+        daq = Di2008Daq(clock=_Clock(), open_transport=refuse)
+        with pytest.raises(CommandRejected, match="daq is unavailable"):
+            daq.command("sample", {})
+
+    def test_an_unknown_command_is_refused(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, codes=(0,) * 8), clock)
+        with pytest.raises(CommandRejected, match="no command 'launch'"):
+            daq.command("launch", {})
+
+    def test_an_acquisition_that_fails_mid_scan_drops_the_unit(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock, codes=(0,) * 8)
+        daq = _daq(transport, clock)
+        assert daq.available() is True
+
+        def explode(data: bytes) -> None:
+            raise OSError("endpoint gone")
+
+        transport.write = explode  # type: ignore[method-assign]
+        reading = daq._acquire()
+
+        assert reading == dict.fromkeys(daq._modes)
+        assert "acquisition failed" in daq.describe()["unavailable_reason"]
+
+    def test_a_window_with_no_complete_scan_keeps_the_last_reading(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock, codes=(3276,) * 8, scans=1)
+        daq = _daq(transport, clock)
+        first = daq.command("sample", {})["channels"]
+        assert first["1"] is not None
+
+        transport._scans = 0
+        again = daq._acquire()
+
+        assert again == first
+
+    def test_a_command_without_a_transport_says_so(self) -> None:
+        daq = Di2008Daq(clock=_Clock(), open_transport=lambda _: _FakeDaq(_Clock()))
+        with pytest.raises(Di2008Error, match="not connected"):
+            daq._command("stop")
+
+    def test_a_unit_that_will_not_stop_on_the_way_out_still_closes(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock, codes=(0,) * 8)
+        daq = _daq(transport, clock)
+        assert daq.available() is True
+
+        def explode(data: bytes) -> None:
+            raise OSError("already unplugged")
+
+        transport.write = explode  # type: ignore[method-assign]
+        daq.close()
+
+        assert transport.closed is True
+
+    def test_the_usb_serial_stands_in_when_the_device_reports_none(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock, codes=(0,) * 8)
+        original = transport.write
+
+        def blank_the_serial(data: bytes) -> None:
+            if data == b"info 6\r":
+                transport.commands.append("info 6")
+                return
+            original(data)
+
+        transport.write = blank_the_serial  # type: ignore[method-assign]
+        daq = _daq(transport, clock)
+
+        assert daq.available() is True
+        assert daq.describe()["serial"] == "USB-SERIAL"
+        assert "USB-SERIAL" in daq.connection()
+
+
+class TestDi2008Surface:
+    """The members the panel and the capability API read."""
+
+    def _live(self) -> tuple[Di2008Daq, _FakeDaq, _Clock]:
+        clock = _Clock()
+        transport = _FakeDaq(clock, codes=(3276,) * 8)
+        daq = _daq(transport, clock)
+        assert daq.available() is True
+        return daq, transport, clock
+
+    def test_it_reports_the_instance_the_suite_addresses(self) -> None:
+        assert Di2008Daq(instance="daq7", open_transport=lambda _: _FakeDaq(_Clock())).instance_id() == "daq7"
+
+    def test_sampling_is_the_command_the_panel_leads_with(self) -> None:
+        daq, _transport, _clock = self._live()
+        assert daq.primary_command() == "sample"
+
+    def test_reading_the_capability_gives_the_same_state_the_panel_shows(self) -> None:
+        daq, _transport, _clock = self._live()
+        assert daq.read() == daq.state()
+
+    def test_a_readout_is_declared_per_channel_and_per_mode(self) -> None:
+        daq, _transport, _clock = self._live()
+        rows = daq.readouts()
+        keys = [row["key"] for row in rows]
+        assert "channels.1.value" in keys
+        assert "channels.8.mode" in keys
+        assert len(rows) == 16
+
+    def test_a_readout_carries_the_unit_its_mode_reads_in(self) -> None:
+        daq, _transport, _clock = self._live()
+        daq.command("set_mode", {"channel": "2", "mode": "tc_k"})
+        rows = {row["key"]: row for row in daq.readouts()}
+        assert rows["channels.1.value"]["unit"] == "V"
+        assert rows["channels.2.value"]["unit"] == "C"
+
+    def test_writing_the_capability_runs_the_command_and_answers_with_the_state(self) -> None:
+        daq, _transport, _clock = self._live()
+        state = daq.write({"command": "set_mode", "args": {"channel": "3", "mode": "5v"}})
+        assert state["channels"]["3"]["mode"] == "5v"
+
+    def test_a_scan_list_with_no_channels_decodes_to_nothing(self) -> None:
+        assert decode_scans(b"\x01\x02", 0) == []
+
+    def test_an_empty_capture_has_no_echo_to_strip(self) -> None:
+        assert strip_echo(b"") == b""
+
+
+class TestHm310tFailures:
+    """What the supply does when the port or the slave misbehaves."""
+
+    def test_a_port_that_will_not_open_is_reported_not_raised(self) -> None:
+        def refuse(_name: str) -> Any:
+            raise OSError("permission denied")
+
+        psu = Hm310tPsu("/dev/fake", clock=_Clock(), open_port=refuse)
+
+        assert psu.available() is False
+        assert "cannot open /dev/fake" in psu.describe()["unavailable_reason"]
+
+    def test_a_slave_that_is_not_a_supply_is_rejected(self) -> None:
+        supply = _FakeSupply(**{"0x0030": 60000})
+        psu = _psu(supply)
+
+        assert psu.available() is False
+        assert "no supply answering" in psu.describe()["unavailable_reason"]
+        assert supply.closed is True
+
+    def test_a_command_on_an_unavailable_supply_is_refused_with_the_reason(self) -> None:
+        def refuse(_name: str) -> Any:
+            raise OSError("permission denied")
+
+        psu = Hm310tPsu("/dev/fake", clock=_Clock(), open_port=refuse)
+        with pytest.raises(CommandRejected, match="psu is unavailable"):
+            psu.command("set_voltage", {"voltage": 1.0})
+
+    def test_a_write_that_fails_is_refused_and_drops_the_port(self) -> None:
+        supply = _FakeSupply()
+        psu = _psu(supply)
+        assert psu.available() is True
+
+        def explode(data: bytes) -> int:
+            raise OSError("cable pulled")
+
+        supply.write = explode  # type: ignore[method-assign]
+        with pytest.raises(CommandRejected, match="writing register 0x0030 failed"):
+            psu.command("set_voltage", {"voltage": 5.0})
+        assert "write of register 0x0030 failed" in psu.describe()["unavailable_reason"]
+
+    def test_a_port_that_will_not_close_does_not_raise(self) -> None:
+        supply = _FakeSupply()
+        psu = _psu(supply)
+        assert psu.available() is True
+
+        def explode() -> None:
+            raise OSError("already gone")
+
+        supply.close = explode  # type: ignore[method-assign]
+        psu.close()  # does not raise
+
+
+class TestHm310tSurface:
+    """The members the panel and the capability API read."""
+
+    def test_it_names_the_port_and_its_line_settings(self) -> None:
+        assert _psu(_FakeSupply()).connection() == "/dev/fake at 9600 8N1"
+
+    def test_it_reports_the_instance_the_suite_addresses(self) -> None:
+        psu = Hm310tPsu("/dev/fake", clock=_Clock(), instance="psu9", open_port=lambda _: _FakeSupply())
+        assert psu.instance_id() == "psu9"
+
+    def test_reading_the_capability_gives_the_same_state_the_panel_shows(self) -> None:
+        psu = _psu(_FakeSupply())
+        assert psu.read() == psu.state()
+
+    def test_writing_the_capability_runs_the_command_and_answers_with_the_state(self) -> None:
+        psu = _psu(_FakeSupply())
+        state = psu.write({"command": "set_voltage", "args": {"voltage": 3.3}})
+        assert state["voltage_setpoint"] == 3.3
+
+
+class TestModbusReplies:
+    """Frames the supply should never send, and what reading them says."""
+
+    def _parse(self, frame: bytes, function: int = 0x03) -> Any:
+        from gauntlet.instruments.hm310t_psu import _parse_response
+
+        return _parse_response(frame, function)
+
+    def _crc(self, body: bytes) -> bytes:
+        return body + modbus_crc(body)
+
+    def test_a_reply_too_short_to_carry_a_crc_is_refused(self) -> None:
+        with pytest.raises(ModbusError, match="short reply"):
+            self._parse(b"\x01\x03")
+
+    def test_a_reply_from_another_slave_is_refused(self) -> None:
+        with pytest.raises(ModbusError, match="reply from slave 9"):
+            self._parse(self._crc(b"\x09\x03\x02\x00\x01"))
+
+    def test_a_reply_for_another_function_is_refused(self) -> None:
+        with pytest.raises(ModbusError, match="expected 0x03"):
+            self._parse(self._crc(b"\x01\x04\x02\x00\x01"))
+
+    def test_a_reply_whose_byte_count_does_not_match_is_refused(self) -> None:
+        with pytest.raises(ModbusError, match="claims 4 bytes, carries 2"):
+            self._parse(self._crc(b"\x01\x03\x04\x00\x01"))
+
+    def test_a_silent_port_is_refused(self) -> None:
+        from gauntlet.instruments.hm310t_psu import _read_frame
+
+        supply = _FakeSupply()
+        with pytest.raises(ModbusError, match="no reply"):
+            _read_frame(supply)
+
+    def test_a_reply_that_stops_before_its_byte_count_is_refused(self) -> None:
+        from gauntlet.instruments.hm310t_psu import _read_frame
+
+        class _Truncated:
+            def __init__(self) -> None:
+                self._pending = b"\x01\x03"
+
+            def read(self, size: int) -> bytes:
+                taken, self._pending = self._pending[:size], self._pending[size:]
+                return taken
+
+        with pytest.raises(ModbusError, match="ended before its byte count"):
+            _read_frame(_Truncated())
+
+
+class TestDetectionChoices:
+    """Which driver detection builds, before any of them is registered."""
+
+    def _settings(self, tmp_path: Any, **overrides: Any) -> Settings:
+        return Settings(data_dir=tmp_path / "data", **{"daq_serial": "", "psu_port": "", **overrides})
+
+    def test_a_named_daq_serial_is_taken_at_its_word(self, tmp_path: Any) -> None:
+        """A serial names one unit, so it is built without probing the bus."""
+        registry = CapabilityRegistry()
+        detect_instruments(registry, self._settings(tmp_path, daq_serial="DAQ-42"))
+
+        daq = registry.provider("daq")
+        assert daq is not None
+        assert daq.describe()["driver"] == "di2008"
+
+    def test_a_named_psu_port_is_taken_at_its_word(self, tmp_path: Any) -> None:
+        registry = CapabilityRegistry()
+        detect_instruments(registry, self._settings(tmp_path, psu_port="/dev/ttyUSB9"))
+
+        psu = registry.provider("psu")
+        assert psu is not None
+        assert psu.describe()["driver"] == "hm310t"
+
+    def test_auto_drops_a_daq_that_does_not_answer(self, tmp_path: Any) -> None:
+        registry = CapabilityRegistry()
+        detect_instruments(registry, self._settings(tmp_path, daq_serial="auto"))
+        assert registry.provider("daq") is None
+
+    def test_auto_drops_a_psu_when_no_candidate_port_answers(self, monkeypatch: Any, tmp_path: Any) -> None:
+        from gauntlet.instruments import detect
+
+        monkeypatch.setattr(detect, "candidate_ports", lambda: ["/dev/ttyUSB8", "/dev/ttyUSB9"])
+        registry = CapabilityRegistry()
+        detect_instruments(registry, self._settings(tmp_path, psu_port="auto"))
+        assert registry.provider("psu") is None
+
+    def test_a_real_device_replaces_the_simulation_standing_in_for_it(self, tmp_path: Any) -> None:
+        registry = CapabilityRegistry()
+        detect_instruments(registry, self._settings(tmp_path, simulated_instruments=["psu"]))
+        assert is_simulated(registry.provider("psu")) is True
+
+        detect_instruments(registry, self._settings(tmp_path, psu_port="/dev/ttyUSB9"))
+
+        assert is_simulated(registry.provider("psu")) is False
+
+
+class TestDi2008Quiet:
+    """Paths a healthy unit never takes."""
+
+    def test_the_commands_it_offers_name_every_channel_and_mode(self) -> None:
+        daq = Di2008Daq(clock=_Clock(), open_transport=lambda _: _FakeDaq(_Clock()))
+        commands = {entry["name"]: entry for entry in daq.commands()}
+
+        assert set(commands) == {"sample", "set_mode"}
+        fields = {field["name"]: field for field in commands["set_mode"]["fields"]}
+        assert list(fields["channel"]["choices"]) == [str(n) for n in range(1, 9)]
+        assert "tc_k" in fields["mode"]["choices"]
+
+    def test_acquiring_without_a_transport_answers_the_last_reading(self) -> None:
+        daq = Di2008Daq(clock=_Clock(), open_transport=lambda _: _FakeDaq(_Clock()))
+        assert daq._acquire() == dict.fromkeys(daq._modes)
+
+    def test_draining_without_a_transport_reads_nothing(self) -> None:
+        daq = Di2008Daq(clock=_Clock(), open_transport=lambda _: _FakeDaq(_Clock()))
+        assert daq._drain() == b""
+
+    def test_draining_collects_what_an_earlier_session_left_behind(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock, codes=(0,) * 8)
+        daq = _daq(transport, clock)
+        assert daq.available() is True
+
+        transport._pending = b"leftover\r"
+        assert daq._drain() == b"leftover\r"

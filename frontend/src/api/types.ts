@@ -141,16 +141,10 @@ export interface Suite {
   title: string;
 }
 
-/** `GET /api/suites`. */
+/** `GET /api/suites`, and `POST /api/suites/rescan`. */
 export interface SuiteList {
   errors: string[];
   suites: Suite[];
-}
-
-/** `POST /api/suites/rescan`. */
-export interface RescanResult {
-  count: number;
-  errors: string[];
 }
 
 /** `GET /api/suites/{key}/profiles/{name}`. */
@@ -466,11 +460,6 @@ export interface Capability {
   [key: string]: string;
 }
 
-/** `GET /api/capabilities`. */
-export interface CapabilityList {
-  capabilities: Capability[];
-}
-
 /**
  * One argument of an instrument command.
  *
@@ -585,15 +574,20 @@ export interface UnitDetail extends Unit {
 
 /** `GET /api/units`. */
 export interface UnitList {
+  total: number;
   units: Unit[];
 }
 
-/** `DELETE /api/units/{serial}`. */
-export interface ForgottenUnit {
+/** What every `DELETE` answers with: the identifier from the path, and that it went. */
+export interface Deleted {
   deleted: boolean;
+  id: string;
+}
+
+/** `DELETE /api/units/{serial}`. */
+export interface ForgottenUnit extends Deleted {
   /** How many of the unit's runs went with it. Zero unless `runs` was set. */
   deleted_runs: number;
-  serial: string;
 }
 
 /** `GET /api/units/{serial}/history`. */
@@ -624,15 +618,6 @@ export interface Health {
   status: string;
 }
 
-/** `GET /api/version`. */
-export interface Version {
-  contract_version: number;
-  gauntlet: string;
-  gauntlet_sdk: string;
-  platform: string;
-  python: string;
-}
-
 /** `GET /api/settings`. */
 export interface Settings {
   data_dir: string;
@@ -659,9 +644,11 @@ export interface Settings {
 export interface SystemInfo {
   arch: string | null;
   boot_time: string | null;
+  contract_version: number;
   cpu_count: number | null;
   cpu_model: string | null;
   gauntlet: string;
+  gauntlet_sdk: string;
   hostname: string | null;
   kernel: string | null;
   memory_total_bytes: number | null;

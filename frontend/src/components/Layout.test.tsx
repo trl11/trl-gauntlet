@@ -8,14 +8,14 @@ import type { RunRow } from "@api/types";
 
 import Layout from "./Layout";
 
-const getVersion = vi.fn();
+const getSystemInfo = vi.fn();
 const listRuns = vi.fn();
 
 vi.mock("@api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@api/client")>();
   return {
     ...actual,
-    getVersion: () => getVersion(),
+    getSystemInfo: () => getSystemInfo(),
     listRuns: (...args: unknown[]) => listRuns(...args),
   };
 });
@@ -55,12 +55,12 @@ function renderLayout(initial = "/") {
 }
 
 beforeEach(() => {
-  getVersion.mockResolvedValue({
+  getSystemInfo.mockResolvedValue({
     gauntlet: "0.4.1",
     gauntlet_sdk: "0.4.1",
     contract_version: 1,
     python: "3.12.3",
-    platform: "Linux",
+    os: "Linux",
   });
   listRuns.mockResolvedValue({ runs: [] });
 });

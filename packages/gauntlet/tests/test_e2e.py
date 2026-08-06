@@ -55,12 +55,12 @@ def e2e_run(tmp_path_factory) -> dict[str, Any]:
             "artifacts": client.get(f"/api/runs/{run_id}/artifacts").json(),
             "events": events,
             "history": client.get("/api/runs").json(),
-            "manifest": client.get(f"/api/runs/{run_id}/manifest").json(),
+            "manifest": client.get(f"/api/runs/{run_id}/artifacts/manifest.json").json(),
             "metrics": client.get(f"/api/runs/{run_id}/metrics").json(),
             "run": client.get(f"/api/runs/{run_id}").json(),
             "run_id": run_id,
             "unit": client.get(f"/api/units/{UNIT}").json(),
-            "verdict": client.get(f"/api/runs/{run_id}/verdict").json(),
+            "verdict": client.get(f"/api/runs/{run_id}/artifacts/verdict.json").json(),
         }
 
 

@@ -49,6 +49,13 @@ $collapse-at: 900px;
     user-select: none;
   }
 
+  // As tall as the ink of the wordmark beside it, and as wide as the mark's
+  // own proportions make it.
+  &__mark {
+    height: 22px;
+    width: auto;
+  }
+
   &__wordmark {
     font-size: 26px;
     font-weight: 600;

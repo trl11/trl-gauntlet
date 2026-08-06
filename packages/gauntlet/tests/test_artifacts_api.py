@@ -70,11 +70,11 @@ class TestReadingOne:
 
 
 class TestParsedFiles:
-    def test_verdict_is_parsed(self, client, artifacts: Path) -> None:
-        assert client.get("/api/runs/r1/verdict").json()["passed"] is True
+    def test_verdict_is_served_as_the_file(self, client, artifacts: Path) -> None:
+        assert client.get("/api/runs/r1/artifacts/verdict.json").json()["passed"] is True
 
-    def test_manifest_is_parsed(self, client, artifacts: Path) -> None:
-        assert client.get("/api/runs/r1/manifest").json()["suite"] == "alpha"
+    def test_manifest_is_served_as_the_file(self, client, artifacts: Path) -> None:
+        assert client.get("/api/runs/r1/artifacts/manifest.json").json()["suite"] == "alpha"
 
     def test_metrics_keeps_only_the_json_objects(self, client, artifacts: Path) -> None:
         body = client.get("/api/runs/r1/metrics").json()
@@ -84,20 +84,17 @@ class TestParsedFiles:
     def test_metrics_honours_the_limit(self, client, artifacts: Path) -> None:
         assert client.get("/api/runs/r1/metrics", params={"limit": 1}).json()["count"] == 1
 
-    def test_a_verdict_that_is_not_json_is_500(self, client, artifacts: Path) -> None:
+    def test_a_malformed_verdict_is_served_verbatim(self, client, artifacts: Path) -> None:
+        """Artifacts are files. Nothing here parses one, so nothing here rejects one."""
         (artifacts / "verdict.json").write_text("{ truncated")
-        assert client.get("/api/runs/r1/verdict").status_code == 500
-
-    def test_a_verdict_that_is_not_an_object_is_500(self, client, artifacts: Path) -> None:
-        (artifacts / "verdict.json").write_text("[1, 2, 3]")
-        response = client.get("/api/runs/r1/verdict")
-        assert response.status_code == 500
-        assert "not an object" in response.json()["detail"]
+        response = client.get("/api/runs/r1/artifacts/verdict.json")
+        assert response.status_code == 200
+        assert response.text == "{ truncated"
 
     def test_a_run_without_the_file_is_404(self, client, add_run, tmp_path: Path) -> None:
         empty = tmp_path / "empty"
         empty.mkdir()
         add_run("bare", run_dir=empty)
-        assert client.get("/api/runs/bare/verdict").status_code == 404
-        assert client.get("/api/runs/bare/manifest").status_code == 404
+        assert client.get("/api/runs/bare/artifacts/verdict.json").status_code == 404
+        assert client.get("/api/runs/bare/artifacts/manifest.json").status_code == 404
         assert client.get("/api/runs/bare/metrics").status_code == 404

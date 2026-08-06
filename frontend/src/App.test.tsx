@@ -17,19 +17,18 @@ const TEXT: Record<string, string> = {
   [`/api/runs/${fixtures.RUN_ID}/artifacts/test.log`]: "system_stats: starting\nsample 1 ok\n",
   [`/api/runs/${fixtures.RUN_ID}/artifacts/summary.md`]:
     "# system_stats\n\nAll samples within limits.\n",
+  [`/api/runs/${fixtures.RUN_ID}/artifacts/verdict.json`]: JSON.stringify(fixtures.runVerdict),
+  [`/api/runs/${fixtures.RUN_ID}/artifacts/manifest.json`]: JSON.stringify(fixtures.runManifest),
 };
 
 const JSON_BODIES: Record<string, unknown> = {
-  "/api/capabilities": fixtures.capabilities,
   "/api/health": fixtures.health,
   "/api/instruments": fixtures.instruments,
   "/api/runs": fixtures.runs,
   [`/api/runs/${fixtures.RUN_ID}`]: fixtures.run,
   [`/api/runs/${fixtures.RUN_ID}/artifacts`]: fixtures.runArtifacts,
-  [`/api/runs/${fixtures.RUN_ID}/manifest`]: fixtures.runManifest,
   [`/api/runs/${fixtures.RUN_ID}/metrics`]: fixtures.runMetrics,
   [`/api/runs/${fixtures.RUN_ID}/notes`]: fixtures.runNotes,
-  [`/api/runs/${fixtures.RUN_ID}/verdict`]: fixtures.runVerdict,
   "/api/schemas": fixtures.schemas,
   "/api/settings": fixtures.settings,
   "/api/suites": fixtures.suites,
@@ -42,7 +41,6 @@ const JSON_BODIES: Record<string, unknown> = {
   [`/api/units/${fixtures.UNIT_SERIAL}`]: fixtures.unit,
   [`/api/units/${fixtures.UNIT_SERIAL}/history`]: fixtures.unitHistory,
   [`/api/units/${fixtures.UNIT_SERIAL}/notes`]: fixtures.unitNotes,
-  "/api/version": fixtures.version,
 };
 
 /** Answer one request from the captured bodies, or 404 the way the API would. */
@@ -84,10 +82,10 @@ describe("every route renders", () => {
     }
   });
 
-  it("dashboard lists host health and the recent runs", async () => {
+  it("dashboard lists the system figures and the recent runs", async () => {
     open("#/");
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
-    expect(await screen.findByText("Host health")).toBeInTheDocument();
+    expect(await screen.findByText("System")).toBeInTheDocument();
     expect(await screen.findByText("Memory")).toBeInTheDocument();
     // The sampled figures reach the tiles, not just their labels.
     expect(await screen.findByText("CPU")).toBeInTheDocument();
@@ -145,11 +143,11 @@ describe("every route renders", () => {
     }
   });
 
-  it("settings shows the resolved paths, including the runs index", async () => {
+  it("settings shows the host and the version it runs", async () => {
     open("#/settings");
     expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
-    expect(await screen.findByText(fixtures.settings.runs_dir)).toBeInTheDocument();
-    expect(await screen.findByText(fixtures.settings.runs_index_path)).toBeInTheDocument();
+    expect(await screen.findByText(String(fixtures.systemInfo.hostname))).toBeInTheDocument();
+    expect(await screen.findByText(String(fixtures.settings.port))).toBeInTheDocument();
   });
 
   it("an unknown route renders the not-found page", async () => {

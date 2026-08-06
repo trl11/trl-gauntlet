@@ -1,11 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Badge, Spinner } from "@trl11/components/ui";
+import { Spinner } from "@trl11/components/ui";
 
-import { apiUrl, getHealth, getSettings, getSystemInfo, getVersion } from "@api/client";
-import DefinitionRows from "@components/DefinitionRows";
+import { apiUrl, getHealth, getSettings, getSystemInfo } from "@api/client";
+import DefinitionRows, { type DefinitionRow } from "@components/DefinitionRows";
 import PageHeader from "@components/PageHeader";
 import Panel from "@components/Panel";
-import { formatBytes, formatTimestamp } from "../utils/format";
 
 import "./SettingsPage.scss";
 
@@ -20,17 +19,14 @@ function text(value: unknown): string {
   return String(value);
 }
 
-/** The badge shown for the health probe: its colour and its wording. */
-function healthBadge(
-  pending: boolean,
-  healthy: boolean
-): { color: "green" | "outline" | "red"; label: string } {
-  if (healthy) return { color: "green", label: "API HEALTHY" };
-  if (pending) return { color: "outline", label: "CHECKING" };
-  return { color: "red", label: "API UNREACHABLE" };
+/** How the health probe reads: its wording, and whether it is a fault. */
+function healthStatus(pending: boolean, healthy: boolean): { failed: boolean; label: string } {
+  if (healthy) return { failed: false, label: "healthy" };
+  if (pending) return { failed: false, label: "checking" };
+  return { failed: true, label: "unreachable" };
 }
 
-/** Settings, host telemetry, and versions. */
+/** What the service is and where it answers. */
 export const SettingsPage: React.FC = () => {
   const health = useQuery({
     queryKey: ["health"],
@@ -40,116 +36,86 @@ export const SettingsPage: React.FC = () => {
   });
   const info = useQuery({ queryKey: ["system-info"], queryFn: getSystemInfo });
   const settings = useQuery({ queryKey: ["settings"], queryFn: getSettings });
-  const version = useQuery({ queryKey: ["version"], queryFn: getVersion });
 
-  const badge = healthBadge(health.isPending, health.isSuccess);
+  const status = healthStatus(health.isPending, health.isSuccess);
   const config = settings.data;
   const host = info.data;
 
+  // The health probe answers on its own, so its row is drawn whatever the
+  // settings query behind the rest of the section is doing.
+  const runtime: DefinitionRow[] = [
+    {
+      label: "api server",
+      value: (
+        <span aria-live="polite" className={status.failed ? "settings-page__fault" : undefined}>
+          {status.label}
+        </span>
+      ),
+    },
+  ];
+  if (config) {
+    runtime.push(
+      { label: "port", value: text(config.port) },
+      { label: "log level", value: text(config.log_level) }
+    );
+  }
+
   return (
     <div className="settings-page">
-      <PageHeader
-        title="Settings"
-        actions={
-          <Badge aria-live="polite" color={badge.color}>
-            {badge.label}
-          </Badge>
-        }
-      />
+      <PageHeader title="Settings" />
 
       <div className="settings-page__grid">
-        <Panel
-          title="Service"
-          action={
-            <a className="panel__action" href={apiUrl("/docs")} target="_blank" rel="noreferrer">
-              API documentation
-            </a>
-          }
-        >
-          {settings.isPending ? (
-            <Spinner />
-          ) : settings.isError ? (
-            <p className="settings-page__error" role="alert">
-              {settings.error.message}
-            </p>
-          ) : (
+        <Panel>
+          <div className="settings-page__section">
+            <h3 className="settings-page__section-title">Info</h3>
+            {info.isPending ? (
+              <Spinner />
+            ) : info.isError ? (
+              <p className="settings-page__error" role="alert">
+                {info.error.message}
+              </p>
+            ) : (
+              <DefinitionRows
+                rows={[
+                  { label: "hostname", value: text(host?.hostname) },
+                  { label: "gauntlet", value: text(host?.gauntlet) },
+                  { label: "gauntlet sdk", value: text(host?.gauntlet_sdk) },
+                ]}
+              />
+            )}
+          </div>
+
+          <div className="settings-page__section">
+            <h3 className="settings-page__section-title">Runtime</h3>
+            <DefinitionRows rows={runtime} />
+            {settings.isPending && <Spinner />}
+            {settings.isError && (
+              <p className="settings-page__error" role="alert">
+                {settings.error.message}
+              </p>
+            )}
+          </div>
+
+          <div className="settings-page__section">
+            <h3 className="settings-page__section-title">Documentation</h3>
             <DefinitionRows
               rows={[
-                { label: "host", value: text(config?.host) },
-                { label: "port", value: text(config?.port) },
-                { label: "log level", value: text(config?.log_level) },
-                { label: "opens a browser", value: text(config?.open_browser) },
-                { label: "default target", value: text(config?.default_target) },
+                {
+                  label: "api documentation",
+                  value: (
+                    <a
+                      className="panel__action"
+                      href={apiUrl("/docs")}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      swagger
+                    </a>
+                  ),
+                },
               ]}
             />
-          )}
-        </Panel>
-
-        <Panel
-          title="Paths"
-          action={
-            <a
-              className="panel__action"
-              href={apiUrl("/api/schemas")}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Contract schemas
-            </a>
-          }
-        >
-          <DefinitionRows
-            rows={[
-              { label: "data dir", value: text(config?.data_dir) },
-              { label: "runs dir", value: text(config?.runs_dir) },
-              { label: "profiles dir", value: text(config?.profiles_dir) },
-              { label: "runs index", value: text(config?.runs_index_path) },
-              { label: "suite roots", value: text(config?.suite_roots) },
-            ]}
-          />
-        </Panel>
-
-        <Panel title="Versions">
-          {version.isPending ? (
-            <Spinner />
-          ) : version.isError ? (
-            <p className="settings-page__error" role="alert">
-              {version.error.message}
-            </p>
-          ) : (
-            <DefinitionRows
-              rows={[
-                { label: "gauntlet", value: text(version.data?.gauntlet) },
-                { label: "suite sdk", value: text(version.data?.gauntlet_sdk) },
-                { label: "contract", value: text(version.data?.contract_version) },
-                { label: "python", value: text(version.data?.python) },
-                { label: "platform", value: text(version.data?.platform) },
-              ]}
-            />
-          )}
-        </Panel>
-
-        <Panel title="Host">
-          {info.isPending ? (
-            <Spinner />
-          ) : info.isError ? (
-            <p className="settings-page__error" role="alert">
-              {info.error.message}
-            </p>
-          ) : (
-            <DefinitionRows
-              rows={[
-                { label: "hostname", value: text(host?.hostname) },
-                { label: "operating system", value: text(host?.os) },
-                { label: "kernel", value: text(host?.kernel) },
-                { label: "architecture", value: text(host?.arch) },
-                { label: "cpu", value: text(host?.cpu_model) },
-                { label: "cores", value: text(host?.cpu_count) },
-                { label: "memory", value: formatBytes(host?.memory_total_bytes) },
-                { label: "booted", value: formatTimestamp(host?.boot_time) },
-              ]}
-            />
-          )}
+          </div>
         </Panel>
       </div>
     </div>

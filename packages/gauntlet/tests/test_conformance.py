@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import textwrap
+
+import pytest
 
 from gauntlet.conformance import verify_suite
 
@@ -244,6 +247,45 @@ class TestExecutionChecks:
         check = _check(report, "run: metrics.jsonl records match the contract")
         assert check.passed
         assert "1 records checked" in check.detail
+
+    def test_a_long_metrics_file_is_sampled_rather_than_read_whole(self, make_suite):
+        """A run can write far more records than a conformance pass needs to
+        read, so checking stops at the cap and says how many it looked at."""
+        script = textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            run_dir="${GAUNTLET_RUN_DIR}"
+            mkdir -p "$run_dir"
+            for n in $(seq 1 600); do
+              echo '{"kind":"live","timestamp":1}' >> "$run_dir/metrics.jsonl"
+            done
+            echo '{"passed": true}' > "$run_dir/verdict.json"
+            """
+        )
+        report = verify_suite(make_suite("alpha", script=script).directory, execute=True)
+
+        check = _check(report, "run: metrics.jsonl records match the contract")
+        assert check.passed
+        assert "500 records checked" in check.detail
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root reads a file whatever its mode")
+    def test_a_metrics_file_that_cannot_be_read_is_reported(self, make_suite):
+        """An unreadable file is a finding, not a crash mid-report."""
+        script = textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            run_dir="${GAUNTLET_RUN_DIR}"
+            mkdir -p "$run_dir"
+            echo '{"kind":"live","timestamp":1}' > "$run_dir/metrics.jsonl"
+            chmod 000 "$run_dir/metrics.jsonl"
+            echo '{"passed": true}' > "$run_dir/verdict.json"
+            """
+        )
+        report = verify_suite(make_suite("alpha", script=script).directory, execute=True)
+
+        assert not _check(report, "run: metrics.jsonl is readable").passed
 
     def test_malformed_metrics_line_is_caught(self, make_suite):
         script = textwrap.dedent(

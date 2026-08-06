@@ -16,7 +16,7 @@ import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 
-import { getVersion, listRuns } from "@api/client";
+import { getSystemInfo, listRuns } from "@api/client";
 import type { RunRow } from "@api/types";
 import logo from "@assets/logo.svg";
 import ApiErrorBanner from "@components/ApiErrorBanner";
@@ -66,7 +66,11 @@ export const Layout: React.FC = () => {
   const { closeHelp, helpOpen, shortcuts } = useGlobalShortcuts();
   const [tabsOpen, setTabsOpen] = useState(false);
 
-  const version = useQuery({ queryKey: ["version"], queryFn: getVersion, staleTime: 300_000 });
+  const version = useQuery({
+    queryKey: ["system-info"],
+    queryFn: getSystemInfo,
+    staleTime: 300_000,
+  });
   const runs = useQuery({
     queryKey: ["runs", "active"],
     queryFn: () => listRuns({ limit: 20 }),
@@ -86,7 +90,7 @@ export const Layout: React.FC = () => {
       <nav className="layout__bar" aria-label="Primary">
         <div className="layout__brand-group">
           <Link to="/" className="layout__brand">
-            <img src={logo} alt="" width={26} height={26} />
+            <img className="layout__mark" src={logo} alt="" />
             <span className="layout__wordmark">Gauntlet</span>
           </Link>
           {version.data && <span className="layout__version">{`v${version.data.gauntlet}`}</span>}

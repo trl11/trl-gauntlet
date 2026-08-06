@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Spinner } from "@trl11/components/ui";
 import { useState } from "react";
 
-import { listInstruments, scanInstruments, sendInstrumentCommand } from "@api/client";
+import { listInstruments, rescanInstruments, sendInstrumentCommand } from "@api/client";
 import EmptyState from "@components/EmptyState";
 import InstrumentPanel from "@components/InstrumentPanel";
 import PageHeader from "@components/PageHeader";
@@ -26,7 +26,7 @@ export const InstrumentsPage: React.FC = () => {
   });
 
   const scan = useMutation({
-    mutationFn: scanInstruments,
+    mutationFn: rescanInstruments,
     onSuccess: (result) => client.setQueryData(["instruments"], result),
   });
 

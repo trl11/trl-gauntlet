@@ -45,14 +45,20 @@ class TestRescan:
         response = client.post("/api/suites/rescan")
 
         assert response.status_code == 200
-        assert response.json()["count"] == 2
+        assert [suite["key"] for suite in response.json()["suites"]] == ["alpha", "beta"]
         assert response.json()["errors"] == []
         assert _keys(client) == ["alpha", "beta"]
+
+    def test_rescan_answers_with_the_catalog_so_no_second_read_is_needed(self, client):
+        body = client.post("/api/suites/rescan").json()
+
+        assert body == client.get("/api/suites").json()
+        assert [p["name"] for p in body["suites"][0]["profiles_available"]] == ["quick.yaml"]
 
     def test_a_suite_removed_after_startup_is_dropped(self, client, suite_root):
         (suite_root / "alpha" / "suite.yaml").unlink()
 
-        assert client.post("/api/suites/rescan").json()["count"] == 0
+        assert client.post("/api/suites/rescan").json()["suites"] == []
         assert client.get("/api/suites/alpha").status_code == 404
 
     def test_a_broken_manifest_is_reported_without_hiding_the_others(self, client, suite_root):
@@ -62,7 +68,7 @@ class TestRescan:
 
         body = client.post("/api/suites/rescan").json()
 
-        assert body["count"] == 1
+        assert [suite["key"] for suite in body["suites"]] == ["alpha"]
         assert len(body["errors"]) == 1
 
 
@@ -79,6 +85,11 @@ class TestSuiteDetail:
         names = [p["name"] for p in client.get("/api/suites/alpha").json()["profiles_available"]]
 
         assert sorted(names) == ["mine.yaml", "quick.yaml"]
+
+    def test_one_suite_matches_its_entry_in_the_catalog(self, client):
+        listed = client.get("/api/suites").json()["suites"][0]
+
+        assert client.get("/api/suites/alpha").json() == listed
 
     def test_an_unknown_suite_is_404(self, client):
         assert client.get("/api/suites/nope").status_code == 404
@@ -176,7 +187,7 @@ class TestUnreadableFiles:
         (suite_root / "alpha" / "profiles" / "quick.yaml").chmod(0o000)
 
         try:
-            response = client.post("/api/suites/alpha/profiles/quick.yaml/diff", json={"content": ""})
+            response = client.post("/api/suites/alpha/profiles/quick.yaml/diff", json={"body": ""})
             assert response.status_code == 500
         finally:
             (suite_root / "alpha" / "profiles" / "quick.yaml").chmod(0o644)

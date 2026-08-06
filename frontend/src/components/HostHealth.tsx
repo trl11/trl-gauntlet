@@ -2,8 +2,6 @@ import type { SystemData, SystemDisk, SystemTemperature } from "@api/types";
 import StatTile, { type StatTone } from "@components/StatTile";
 import { formatBytes, formatPercent } from "../utils/format";
 
-import "./HostHealth.scss";
-
 /** Props for {@link HostHealth}. */
 export interface HostHealthProps {
   /** CPU percentages behind the CPU sparkline, oldest first. */
@@ -37,13 +35,18 @@ function thermalTone(celsius: number): StatTone {
   return "normal";
 }
 
-/** The five figures that say whether the host running the bench is healthy. */
+/**
+ * The five figures that say whether the host running the bench is healthy.
+ *
+ * The tiles are returned loose rather than in a grid of their own, so the
+ * caller can lay them out alongside whatever else it shows.
+ */
 export const HostHealth: React.FC<HostHealthProps> = ({ cpuHistory, data, memoryHistory }) => {
   const disk = fullest(data?.disks ?? []);
   const thermal = hottest(data?.temperatures ?? []);
 
   return (
-    <div className="host-health">
+    <>
       <StatTile
         label="CPU"
         value={formatPercent(data?.cpu_percent)}
@@ -78,7 +81,7 @@ export const HostHealth: React.FC<HostHealthProps> = ({ cpuHistory, data, memory
         detail={thermal ? thermal.label : "no sensors"}
         tone={thermal ? thermalTone(thermal.celsius) : "normal"}
       />
-    </div>
+    </>
   );
 };
 

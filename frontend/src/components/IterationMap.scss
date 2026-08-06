@@ -27,11 +27,14 @@
     height: 14px;
     padding: 0;
     border: 1px solid transparent;
-    border-radius: 2px;
     cursor: pointer;
 
     &--ok {
       background-color: rgba($trl-green, 0.55);
+    }
+
+    &--warned {
+      background-color: rgba($indicator-yellow, 0.55);
     }
 
     &--failed {
