@@ -244,6 +244,50 @@ def _busy_percent(before: tuple[int, int] | None, after: tuple[int, int] | None)
     return round(max(0.0, min(100.0, 100.0 * (1.0 - idle / total))), 1)
 
 
+def disk_for(path: Path) -> dict[str, Any] | None:
+    """Usage of the filesystem a given path is written to.
+
+    The mount with the longest matching prefix wins, because that is the one a
+    write to the path actually lands on. A container bind-mounts one host
+    volume under several names, so picking the fullest mount instead would name
+    whichever of them happened to sort first — accurate as a reading, and
+    meaningless as a label.
+
+    The nearest existing parent is measured, so a directory Gauntlet has not
+    created yet still reports the disk it will be created on.
+    """
+    target = _nearest_existing(path)
+    if target is None:
+        return None
+    within = [disk for disk in disks() if _is_within(target, str(disk["mount"]))]
+    if within:
+        return max(within, key=lambda disk: len(str(disk["mount"])))
+    return _disk_usage(str(target))
+
+
+def _nearest_existing(path: Path) -> Path | None:
+    """``path`` if it exists, else the closest parent that does."""
+    try:
+        current = path.resolve()
+    except OSError:
+        return None
+    for candidate in [current, *current.parents]:
+        try:
+            if candidate.exists():
+                return candidate
+        except OSError:
+            return None
+    return None
+
+
+def _is_within(path: Path, mount: str) -> bool:
+    try:
+        path.relative_to(mount)
+    except ValueError:
+        return False
+    return True
+
+
 def _disk_usage(mount: str) -> dict[str, Any] | None:
     try:
         usage = shutil.disk_usage(mount)

@@ -212,12 +212,11 @@ describe("DashboardPage", () => {
     expect(await screen.findByText(/^last tested /)).toBeInTheDocument();
   });
 
-  it("lists the host health tiles", async () => {
+  it("leaves host telemetry to the settings page", async () => {
     renderDashboard();
-    expect(await screen.findByText("42.5%")).toBeInTheDocument();
-    expect(screen.getByText("2 cores")).toBeInTheDocument();
-    expect(screen.getByText("72.5 °C")).toBeInTheDocument();
-    expect(screen.getByText("gpu")).toBeInTheDocument();
+    await screen.findByRole("link", { name: "psu, available" });
+    expect(screen.queryByText("42.5%")).not.toBeInTheDocument();
+    expect(getSystemData).not.toHaveBeenCalled();
   });
 
   it("links each instrument to the instruments page", async () => {
@@ -298,21 +297,14 @@ describe("DashboardPage", () => {
   });
 
   it("spins every section while its query is in flight", () => {
-    getSystemData.mockReturnValue(pending());
     listInstruments.mockReturnValue(pending());
     listRuns.mockReturnValue(pending());
     listSuites.mockReturnValue(pending());
     listUnits.mockReturnValue(pending());
     renderDashboard();
-    // Host health, the active-run card, the instrument list and the units table.
-    expect(spinners()).toHaveLength(4);
+    // The active-run card, the instrument list and the units table.
+    expect(spinners()).toHaveLength(3);
     expect(screen.queryByText("Nothing running")).not.toBeInTheDocument();
-  });
-
-  it("says so when host telemetry cannot be read", async () => {
-    getSystemData.mockRejectedValue(new Error("no /proc"));
-    renderDashboard();
-    expect(await screen.findByText("Host telemetry is unavailable.")).toBeInTheDocument();
   });
 
   it("says so when no instrument is registered", async () => {

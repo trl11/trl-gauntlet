@@ -49,6 +49,7 @@ class TestSystemData:
         assert set(body) == {
             "cpu_per_core",
             "cpu_percent",
+            "disk",
             "disks",
             "load_avg",
             "memory",
@@ -80,3 +81,18 @@ class TestSystemData:
         assert body["process_count"] is None
         # disk_usage("/") still answers, so the root filesystem is reported.
         assert [disk["mount"] for disk in body["disks"]] == ["/"]
+
+
+class TestRunsDisk:
+    def test_system_data_names_the_disk_the_runs_are_written_to(self, client):
+        payload = client.get("/api/system/data").json()
+
+        disk = payload["disk"]
+        assert disk is not None
+        assert str(client.app.state.settings.runs_dir).startswith(str(disk["mount"]))
+
+    def test_it_is_one_of_the_listed_disks(self, client):
+        payload = client.get("/api/system/data").json()
+
+        mounts = [entry["mount"] for entry in payload["disks"]]
+        assert payload["disk"]["mount"] in mounts

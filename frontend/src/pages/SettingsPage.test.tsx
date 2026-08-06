@@ -2,12 +2,15 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { SystemData } from "@api/types";
+
 import SettingsPage from "./SettingsPage";
 import { pending, spinners } from "../test/queries";
 
 const getHealth = vi.fn();
 const getSettings = vi.fn();
 const getSystemInfo = vi.fn();
+const getSystemData = vi.fn();
 
 vi.mock("@api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@api/client")>();
@@ -16,8 +19,30 @@ vi.mock("@api/client", async (importOriginal) => {
     getHealth: () => getHealth(),
     getSettings: () => getSettings(),
     getSystemInfo: () => getSystemInfo(),
+    getSystemData: () => getSystemData(),
   };
 });
+
+function systemData(): SystemData {
+  return {
+    cpu_percent: 42.5,
+    cpu_per_core: [40, 45],
+    disk: { free: 500, mount: "/workspaces/gauntlet", percent: 40, total: 1000, used: 400 },
+    disks: [
+      { free: 100, mount: "/", percent: 91, total: 1000, used: 900 },
+      { free: 500, mount: "/workspaces/gauntlet", percent: 40, total: 1000, used: 400 },
+    ],
+    load_avg: [0.5, 0.4, 0.3],
+    memory: { available: 4, percent: 55, total: 16, used: 12 },
+    process_count: 120,
+    swap: { percent: 0, total: 0, used: 0 },
+    temperatures: [
+      { celsius: 41.2, label: "cpu" },
+      { celsius: 72.5, label: "gpu" },
+    ],
+    uptime_s: 3600,
+  };
+}
 
 function renderSettings() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -30,6 +55,7 @@ function renderSettings() {
 
 beforeEach(() => {
   getHealth.mockResolvedValue({ status: "ok" });
+  getSystemData.mockResolvedValue(systemData());
   getSettings.mockResolvedValue({
     data_dir: "/home/dev/.local/share/gauntlet",
     default_target: "",
@@ -108,8 +134,10 @@ describe("SettingsPage", () => {
   it("spins each section whose query is in flight", () => {
     getSettings.mockReturnValue(pending());
     getSystemInfo.mockReturnValue(pending());
+    getSystemData.mockReturnValue(pending());
     renderSettings();
-    expect(spinners()).toHaveLength(2);
+    // Host telemetry, the info block and the settings behind the runtime block.
+    expect(spinners()).toHaveLength(3);
   });
 
   it("reports settings that could not be read", async () => {
@@ -122,5 +150,67 @@ describe("SettingsPage", () => {
     getSystemInfo.mockRejectedValue(new Error("no /proc here"));
     renderSettings();
     expect(await screen.findByText("no /proc here")).toBeInTheDocument();
+  });
+});
+
+describe("SettingsPage host telemetry", () => {
+  it("lists the host figures as label and value", async () => {
+    renderSettings();
+
+    expect(await screen.findByText("Host stats")).toBeInTheDocument();
+    // The heading is drawn before the query settles, so the first figure is
+    // what says the readings arrived.
+    expect(await screen.findByText("42.5%")).toBeInTheDocument();
+    // Testing Library collapses the spacing the row is written with.
+    expect(screen.getByText(/0\.50\s+0\.40\s+0\.30/)).toBeInTheDocument();
+    expect(screen.getByText("72.5 °C · gpu")).toBeInTheDocument();
+    expect(screen.getByText("55.0% · 12 B of 16 B")).toBeInTheDocument();
+  });
+
+  it("names the disk the runs are written to, not the fullest one", async () => {
+    renderSettings();
+
+    expect(
+      await screen.findByText("40.0% · 500 B free on /workspaces/gauntlet")
+    ).toBeInTheDocument();
+    // The root filesystem is fuller and is not what Gauntlet writes to.
+    expect(screen.queryByText(/91\.0%/)).not.toBeInTheDocument();
+  });
+
+  it("names only the hottest sensor", async () => {
+    renderSettings();
+
+    expect(await screen.findByText("72.5 °C · gpu")).toBeInTheDocument();
+    expect(screen.queryByText(/41\.2/)).not.toBeInTheDocument();
+  });
+
+  it("shows a dash when the server could not read that disk", async () => {
+    getSystemData.mockResolvedValue({ ...systemData(), disk: null });
+    renderSettings();
+
+    await screen.findByText("42.5%");
+    expect(screen.getByText("cpu").closest("dl")).toHaveTextContent("disk-");
+  });
+
+  it("says the cpu is sampling until a second reading has been taken", async () => {
+    getSystemData.mockResolvedValue({ ...systemData(), cpu_percent: null });
+    renderSettings();
+
+    expect(await screen.findByText("sampling")).toBeInTheDocument();
+  });
+
+  it("says so when host telemetry cannot be read", async () => {
+    getSystemData.mockRejectedValue(new Error("no /proc"));
+    renderSettings();
+
+    expect(await screen.findByText("Host telemetry is unavailable.")).toBeInTheDocument();
+  });
+
+  it("keeps the rest of the page when telemetry fails", async () => {
+    getSystemData.mockRejectedValue(new Error("no /proc"));
+    renderSettings();
+
+    await screen.findByText("Host telemetry is unavailable.");
+    expect(screen.getByText("bench-01")).toBeInTheDocument();
   });
 });

@@ -82,19 +82,16 @@ describe("every route renders", () => {
     }
   });
 
-  it("dashboard lists the system figures and the recent runs", async () => {
+  it("dashboard lists the instruments and the recent runs", async () => {
     open("#/");
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
-    expect(await screen.findByText("System")).toBeInTheDocument();
-    expect(await screen.findByText("Memory")).toBeInTheDocument();
-    // The sampled figures reach the tiles, not just their labels.
-    expect(await screen.findByText("CPU")).toBeInTheDocument();
-    expect(
-      await screen.findByText(`${fixtures.systemData.cpu_per_core.length} cores`)
-    ).toBeInTheDocument();
+    // A heading, not the nav tab of the same name.
+    expect(await screen.findByRole("heading", { name: "Instruments" })).toBeInTheDocument();
     // The panels fed by the run history: recent runs, and the units behind them.
     expect(await screen.findByText("Recent runs")).toBeInTheDocument();
     expect(await screen.findByRole("link", { name: "all units (2) →" })).toBeInTheDocument();
+    // Host telemetry belongs to the settings page.
+    expect(screen.queryByText("Host stats")).not.toBeInTheDocument();
   });
 
   it("history lists the recorded runs and the server's total", async () => {
@@ -143,11 +140,16 @@ describe("every route renders", () => {
     }
   });
 
-  it("settings shows the host and the version it runs", async () => {
+  it("settings shows the host, the version it runs, and its telemetry", async () => {
     open("#/settings");
     expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
     expect(await screen.findByText(String(fixtures.systemInfo.hostname))).toBeInTheDocument();
     expect(await screen.findByText(String(fixtures.settings.port))).toBeInTheDocument();
+    // The readings reach the rows, not just their labels.
+    expect(await screen.findByText("Host stats")).toBeInTheDocument();
+    expect(
+      await screen.findByText(String(fixtures.systemData.cpu_per_core.length))
+    ).toBeInTheDocument();
   });
 
   it("an unknown route renders the not-found page", async () => {

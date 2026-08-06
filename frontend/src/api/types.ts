@@ -762,6 +762,11 @@ export interface SystemTemperature {
 export interface SystemData {
   cpu_percent: number | null;
   cpu_per_core: number[];
+  /**
+   * The filesystem this Gauntlet writes its runs to, or null when it cannot be
+   * read. Null on a payload captured before the field existed.
+   */
+  disk?: SystemDisk | null;
   disks: SystemDisk[];
   /** One, five, and fifteen minute load averages, or null where the host has none. */
   load_avg: number[] | null;

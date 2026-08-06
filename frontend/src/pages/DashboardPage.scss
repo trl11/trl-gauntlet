@@ -184,9 +184,13 @@
   // Every card the section shows sits on this one grid, host figure and
   // instrument display alike, so they come out the same width and, through
   // the equal rows, the same height.
+  // Fixed tracks rather than fractions: an instrument tile lays its readings
+  // out two to a row at this width, and stretching one to fill the row pulls
+  // them into a single line with the figures far apart. A bench with one
+  // instrument gets the same tile as a bench with eight.
   &__tiles {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    grid-template-columns: repeat(auto-fill, 220px);
     grid-auto-rows: 1fr;
     gap: 12px;
   }

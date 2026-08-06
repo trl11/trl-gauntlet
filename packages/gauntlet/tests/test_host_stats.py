@@ -299,3 +299,38 @@ class TestStaticInfo:
 
 def _raise_oserror(*args: object, **kwargs: object) -> None:
     raise OSError("no")
+
+
+class TestDiskFor:
+    """The filesystem a given path is written to."""
+
+    def test_names_the_mount_the_path_is_under(self, tmp_path: Path):
+        disk = host_stats.disk_for(tmp_path)
+
+        assert disk is not None
+        assert str(tmp_path).startswith(str(disk["mount"]))
+
+    def test_every_mount_reports_itself(self):
+        # Every mount is under "/", so the deepest match has to win or a bind
+        # mount is reported as the root filesystem it happens to sit on.
+        for listed in host_stats.disks():
+            found = host_stats.disk_for(Path(str(listed["mount"])))
+
+            assert found is not None
+            assert found["mount"] == listed["mount"]
+
+    def test_a_path_that_does_not_exist_reports_its_nearest_parent(self, tmp_path: Path):
+        # A runs directory Gauntlet has not created yet still names the disk it
+        # would be created on.
+        absent = tmp_path / "runs" / "not" / "there"
+
+        disk = host_stats.disk_for(absent)
+
+        assert disk is not None
+        assert disk["total"] > 0
+
+    def test_it_carries_the_same_shape_as_a_listed_disk(self, tmp_path: Path):
+        disk = host_stats.disk_for(tmp_path)
+
+        assert disk is not None
+        assert set(disk) == {"free", "mount", "percent", "total", "used"}

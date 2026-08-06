@@ -6,10 +6,9 @@ import clsx from "clsx";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
-import { getSystemData, listInstruments, listRuns, listSuites, listUnits } from "@api/client";
+import { listInstruments, listRuns, listSuites, listUnits } from "@api/client";
 import type { RunRow, Unit } from "@api/types";
 import ActiveRun from "@components/ActiveRun";
-import HostHealth from "@components/HostHealth";
 import InstrumentTile from "@components/InstrumentTile";
 import PageHeader from "@components/PageHeader";
 import Panel from "@components/Panel";
@@ -20,18 +19,10 @@ import { isLive } from "../utils/run_status";
 
 import "./DashboardPage.scss";
 
-/** How many host samples the sparklines keep. */
-const MAX_SAMPLES = 40;
 /** How many serials the units card lists. */
 const RECENT_UNITS = 10;
 /** How many runs the recent runs table lists. */
 const RECENT_RUNS = 10;
-
-/** One reading of the figures the sparklines plot. */
-interface HostSample {
-  cpu: number;
-  memory: number;
-}
 
 /** Props for {@link SectionHead}. */
 interface SectionHeadProps {
@@ -81,20 +72,14 @@ function recentUnits(units: Unit[]): Unit[] {
   return ordered.slice(0, RECENT_UNITS);
 }
 
-/** What the bench is doing right now: live runs, host health, recent history. */
+/** What the bench is doing right now: live runs, instruments, recent history. */
 export const DashboardPage: React.FC = () => {
   const [now, setNow] = useState(() => Date.now());
-  const [samples, setSamples] = useState<HostSample[]>([]);
 
   const runs = useQuery({
     queryKey: ["runs", "dashboard"],
     queryFn: () => listRuns({ limit: 200 }),
     refetchInterval: 5000,
-  });
-  const system = useQuery({
-    queryKey: ["system", "data"],
-    queryFn: getSystemData,
-    refetchInterval: 3000,
   });
   const instruments = useQuery({
     queryKey: ["instruments"],
@@ -108,13 +93,6 @@ export const DashboardPage: React.FC = () => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-
-  useEffect(() => {
-    const data = system.data;
-    if (!data) return;
-    const sample = { cpu: data.cpu_percent ?? 0, memory: data.memory.percent ?? 0 };
-    setSamples((previous) => [...previous, sample].slice(-MAX_SAMPLES));
-  }, [system.data, system.dataUpdatedAt]);
 
   const allRuns = runs.data?.runs ?? [];
   const active = allRuns.filter((run) => isLive(run.status));
@@ -290,20 +268,8 @@ export const DashboardPage: React.FC = () => {
       </section>
 
       <section className="dashboard-page__section">
-        <SectionHead title="System" />
+        <SectionHead title="Instruments" />
         <div className="dashboard-page__tiles">
-          {system.isPending ? (
-            <Spinner />
-          ) : system.isError ? (
-            <p className="dashboard-page__error">Host telemetry is unavailable.</p>
-          ) : (
-            <HostHealth
-              cpuHistory={samples.map((sample) => sample.cpu)}
-              data={system.data}
-              memoryHistory={samples.map((sample) => sample.memory)}
-            />
-          )}
-
           {instruments.isPending ? (
             <Spinner />
           ) : (
