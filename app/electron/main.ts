@@ -37,6 +37,11 @@ let backendErrors: string[] = [];
  * app is installed on, so exec fails with ENOENT. The interpreter itself is
  * relocatable, which is why it is the one thing invoked by path.
  *
+ * `-s` keeps it out of ~/.local/lib/pythonX.Y/site-packages, which it would
+ * otherwise read ahead of its own whenever the machine has the same minor
+ * version. The bundle carries everything it imports, and a stray copy of one
+ * of those on the machine it runs on is not a copy anyone chose.
+ *
  * In development it is the checkout's virtualenv, which is what `make run`
  * uses, and whose shebang is correct because nothing moved.
  */
@@ -44,7 +49,7 @@ function backendCommand(): { args: string[]; program: string } {
   if (app.isPackaged) {
     return {
       program: path.join(process.resourcesPath, "runtime", "bin", "python3"),
-      args: ["-m", "gauntlet"],
+      args: ["-s", "-m", "gauntlet"],
     };
   }
   return { program: path.join(REPO_ROOT, ".venv", "bin", "gauntlet"), args: [] };
