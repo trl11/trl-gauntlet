@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import yaml
-
 
 def _keys(client) -> list[str]:
     return [campaign["key"] for campaign in client.get("/api/campaigns").json()["campaigns"]]
@@ -97,6 +95,17 @@ class TestMembership:
         assert member["declared"] is False
         assert member["present"] is True
 
+    def test_an_undeclared_member_still_carries_every_field(self, client, make_campaign, make_suite):
+        campaign = make_campaign("demo_campaign", members=[{"suite": "beta", "fixture": "1-1"}])
+        make_suite("beta", root=campaign.suites_dir)
+        make_suite("gamma", root=campaign.suites_dir)
+
+        client.post("/api/campaigns/rescan")
+
+        declared, undeclared = _members(client)
+        assert set(declared) == set(undeclared)
+        assert undeclared["fixture"] == ""
+
     def test_a_declared_member_with_no_suite_is_listed_as_absent(self, client, make_campaign):
         make_campaign("demo_campaign", members=[{"suite": "missing"}])
 
@@ -121,108 +130,30 @@ class TestMembership:
         assert member["profile"] == "quick.yaml"
 
 
-class TestCoverage:
-    def test_a_member_with_no_runs_reports_zero(self, client, make_campaign, make_suite):
+class TestMemberPayload:
+    def test_a_member_carries_no_run_history(self, client, make_campaign, make_suite, add_run):
+        # A campaign groups suites and says how to run them. What those suites
+        # have done belongs to the run, which names its campaign instead.
         campaign = make_campaign("demo_campaign")
         make_suite("beta", root=campaign.suites_dir)
-
         client.post("/api/campaigns/rescan")
+        add_run("r1", suite="beta")
 
         member = _members(client)[0]
-        assert member["run_count"] == 0
-        assert member["last_run"] is None
 
-    def test_coverage_counts_runs_by_suite(self, client, make_campaign, make_suite, add_run):
-        campaign = make_campaign("demo_campaign")
-        make_suite("beta", root=campaign.suites_dir)
-        client.post("/api/campaigns/rescan")
-
-        add_run("r1", suite="beta", status="passed")
-        add_run("r2", suite="beta", status="failed")
-
-        member = _members(client)[0]
-        assert member["run_count"] == 2
-        assert member["passed"] == 1
-        assert member["failed"] == 1
-        assert member["last_run"]["run_id"] == "r2"
-
-    def test_coverage_survives_rebuilding_the_index_from_disk(self, client, make_campaign, make_suite, add_run):
-        campaign = make_campaign("demo_campaign")
-        make_suite("beta", root=campaign.suites_dir)
-        client.post("/api/campaigns/rescan")
-        add_run("r1", suite="beta", status="passed")
-
-        # Membership is derived from the suite key, so nothing about the
-        # campaign is stored on the run row for a reimport to lose.
-        client.post("/api/campaigns/rescan")
-
-        assert _members(client)[0]["run_count"] == 1
+        assert "run_count" not in member
+        assert "last_run" not in member
 
 
-class TestManifestEditing:
-    def test_the_manifest_comes_back_as_text(self, client, make_campaign):
+class TestManifestIsReadOnly:
+    def test_the_router_offers_no_way_to_write_one(self, client, make_campaign):
+        # campaign.yaml is edited with an editor and picked up by a rescan, so
+        # nothing here can disagree with the file on disk.
         make_campaign("demo_campaign")
         client.post("/api/campaigns/rescan")
 
-        response = client.get("/api/campaigns/demo_campaign/manifest")
-
-        assert response.status_code == 200
-        assert "key: demo_campaign" in response.json()["body"]
-
-    def test_an_edit_is_saved_and_takes_effect(self, client, make_campaign, make_suite):
-        campaign = make_campaign("demo_campaign")
-        make_suite("beta", root=campaign.suites_dir)
-        client.post("/api/campaigns/rescan")
-
-        edited = yaml.safe_dump(
-            {
-                "apiVersion": 1,
-                "key": "demo_campaign",
-                "title": "Renamed",
-                "suites": "./suites",
-                "members": [{"suite": "beta", "fixture": "9-9"}],
-            },
-            sort_keys=False,
-        )
-        response = client.put("/api/campaigns/demo_campaign/manifest", json={"body": edited})
-
-        assert response.status_code == 200
-        assert response.json()["title"] == "Renamed"
-        assert _members(client)[0]["fixture"] == "9-9"
-
-    def test_an_invalid_edit_is_refused_and_the_file_is_unchanged(self, client, make_campaign):
-        make_campaign("demo_campaign")
-        client.post("/api/campaigns/rescan")
-        before = client.get("/api/campaigns/demo_campaign/manifest").json()["body"]
-
-        response = client.put(
-            "/api/campaigns/demo_campaign/manifest",
-            json={"body": "apiVersion: 1\nkey: demo_campaign\ntitle: X\nschedule: nightly\n"},
-        )
-
-        assert response.status_code == 422
-        assert client.get("/api/campaigns/demo_campaign/manifest").json()["body"] == before
-
-    def test_invalid_yaml_is_refused(self, client, make_campaign):
-        make_campaign("demo_campaign")
-        client.post("/api/campaigns/rescan")
-
-        response = client.put("/api/campaigns/demo_campaign/manifest", json={"body": "key: [unclosed\n"})
-
-        assert response.status_code == 422
-        assert "invalid YAML" in response.json()["detail"]
-
-    def test_renaming_the_key_is_refused(self, client, make_campaign):
-        make_campaign("demo_campaign")
-        client.post("/api/campaigns/rescan")
-
-        response = client.put(
-            "/api/campaigns/demo_campaign/manifest",
-            json={"body": "apiVersion: 1\nkey: renamed\ntitle: X\n"},
-        )
-
-        assert response.status_code == 422
-        assert "must stay" in response.json()["detail"]
+        assert client.get("/api/campaigns/demo_campaign/manifest").status_code == 404
+        assert client.put("/api/campaigns/demo_campaign/manifest", json={"body": ""}).status_code == 405
 
 
 class TestMemberRuns:
@@ -256,3 +187,45 @@ class TestMemberRuns:
         response = client.post("/api/campaigns/demo_campaign/members/missing/run", json={})
 
         assert response.status_code == 422
+
+
+class TestCampaignOnARun:
+    """A run names the campaign that groups its suite."""
+
+    def test_a_run_of_a_campaign_suite_names_it(self, client, make_campaign, make_suite, add_run):
+        campaign = make_campaign("demo_campaign", title="Demo Campaign")
+        make_suite("beta", root=campaign.suites_dir)
+        client.post("/api/campaigns/rescan")
+        add_run("r1", suite="beta")
+
+        row = client.get("/api/runs").json()["runs"][0]
+
+        assert row["campaign"] == {"key": "demo_campaign", "title": "Demo Campaign"}
+
+    def test_a_run_of_a_loose_suite_names_none(self, client, add_run):
+        add_run("r1", suite="alpha")
+
+        assert client.get("/api/runs").json()["runs"][0]["campaign"] is None
+
+    def test_the_run_detail_carries_it_too(self, client, make_campaign, make_suite, add_run):
+        campaign = make_campaign("demo_campaign", title="Demo Campaign")
+        make_suite("beta", root=campaign.suites_dir)
+        client.post("/api/campaigns/rescan")
+        add_run("r1", suite="beta")
+
+        assert client.get("/api/runs/r1").json()["campaign"]["key"] == "demo_campaign"
+
+    def test_it_follows_the_suite_rather_than_being_recorded(
+        self, client, make_campaign, make_suite, add_run, campaign_root
+    ):
+        # The run is indexed before any campaign exists, then the campaign
+        # appears around its suite. Nothing was written to the run, so the
+        # association is simply read afresh.
+        campaign = make_campaign("demo_campaign", title="Demo Campaign")
+        make_suite("beta", root=campaign.suites_dir)
+        add_run("r1", suite="beta")
+        assert client.get("/api/runs/r1").json()["campaign"] is None
+
+        client.post("/api/campaigns/rescan")
+
+        assert client.get("/api/runs/r1").json()["campaign"]["key"] == "demo_campaign"

@@ -10,6 +10,8 @@
 
 import type {
   ArtifactList,
+  Campaign,
+  CampaignList,
   Deleted,
   ForgottenUnit,
   Health,
@@ -239,6 +241,33 @@ export const duplicateProfile = (
 export const verifySuite = (key: string, execute = false): Promise<VerifyReport> =>
   request<VerifyReport>(`/api/suites/${encodeSegment(key)}/verify${query({ execute })}`, {
     method: "POST",
+  });
+
+/* -------------------------------------------------------------------------
+ * Campaigns
+ * ---------------------------------------------------------------------- */
+
+/** `GET /api/campaigns`. Members are not resolved; use {@link getCampaign}. */
+export const listCampaigns = (): Promise<CampaignList> => request<CampaignList>("/api/campaigns");
+
+/** `GET /api/campaigns/{key}`, with every member and its coverage. */
+export const getCampaign = (key: string): Promise<Campaign> =>
+  request<Campaign>(`/api/campaigns/${encodeSegment(key)}`);
+
+/**
+ * `POST /api/campaigns/rescan`. Answers with the catalog the rescan found.
+ *
+ * This rereads the suites a campaign contributes as well, so a suite added to
+ * a campaign directory is picked up by this alone.
+ */
+export const rescanCampaigns = (): Promise<CampaignList> =>
+  request<CampaignList>("/api/campaigns/rescan", { method: "POST" });
+
+/** `POST /api/campaigns/{key}/members/{suite}/run` */
+export const runCampaignMember = (key: string, suite: string): Promise<RunRow> =>
+  request<RunRow>(`/api/campaigns/${encodeSegment(key)}/members/${encodeSegment(suite)}/run`, {
+    method: "POST",
+    body: JSON.stringify({}),
   });
 
 /* -------------------------------------------------------------------------

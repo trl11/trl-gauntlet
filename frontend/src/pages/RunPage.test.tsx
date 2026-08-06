@@ -92,6 +92,36 @@ function renderPage() {
   );
 }
 
+describe("RunPage campaign", () => {
+  beforeEach(() => {
+    vi.mocked(listSuites).mockResolvedValue({ errors: [], suites: [] });
+    vi.mocked(getRunMetrics).mockResolvedValue({ count: 0, records: [], run_id: "run-1" });
+    vi.mocked(getRunVerdict).mockResolvedValue({ passed: true } as never);
+    vi.mocked(getRunManifest).mockResolvedValue({} as never);
+    vi.mocked(listArtifacts).mockResolvedValue({ artifacts: [], run_dir: "", run_id: "run-1" });
+    vi.mocked(listRunNotes).mockResolvedValue({ notes: [] });
+  });
+
+  it("names the campaign that groups the run's suite", async () => {
+    vi.mocked(getRun).mockResolvedValue({
+      ...FINISHED,
+      campaign: { key: "hardware", title: "Hardware Bench" },
+    });
+    renderPage();
+
+    const link = await screen.findByRole("link", { name: "Hardware Bench" });
+    expect(link).toHaveAttribute("href", "/tests?view=campaigns&campaign=hardware");
+  });
+
+  it("shows a dash when the run's suite is in no campaign", async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...FINISHED, campaign: null });
+    renderPage();
+
+    await screen.findByRole("heading", { name: "thermal_cycle" });
+    expect(screen.queryByRole("link", { name: /Bench/ })).not.toBeInTheDocument();
+  });
+});
+
 describe("RunPage", () => {
   beforeEach(() => {
     vi.mocked(getRun).mockResolvedValue(FINISHED);

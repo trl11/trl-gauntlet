@@ -135,3 +135,35 @@ describe("renderCell", () => {
     expect(cell("target", run({ target: null })).container.textContent).toBe("-");
   });
 });
+
+describe("campaign column", () => {
+  it("links a run to the campaign that groups its suite", () => {
+    cell("campaign", run({ campaign: { key: "hardware", title: "Hardware Bench" } }));
+
+    const link = screen.getByRole("link", { name: "Hardware Bench" });
+    expect(link).toHaveAttribute("href", "/tests?view=campaigns&campaign=hardware");
+  });
+
+  it("shows a dash for a run whose suite is in no campaign", () => {
+    cell("campaign", run({ campaign: null }));
+
+    expect(screen.getByText("-")).toBeInTheDocument();
+  });
+
+  it("shows a dash when the API omitted the field", () => {
+    cell("campaign", run());
+
+    expect(screen.getByText("-")).toBeInTheDocument();
+  });
+
+  it("cannot be sorted, having no column in the runs table behind it", () => {
+    expect(COLUMNS.campaign.sortable).toBe(false);
+  });
+
+  it("is searchable by campaign title", () => {
+    expect(matches(run({ campaign: { key: "hardware", title: "Hardware Bench" } }), "bench")).toBe(
+      true
+    );
+    expect(matches(run(), "bench")).toBe(false);
+  });
+});

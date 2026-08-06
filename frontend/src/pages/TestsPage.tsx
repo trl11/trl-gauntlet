@@ -6,8 +6,16 @@ import clsx from "clsx";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 
-import { listInstruments, listSuites, rescanSuites, verifySuite } from "@api/client";
+import {
+  listCampaigns,
+  listInstruments,
+  listSuites,
+  rescanCampaigns,
+  rescanSuites,
+  verifySuite,
+} from "@api/client";
 import type { Instrument, Suite, SuiteList, VerifyReport } from "@api/types";
+import CampaignDetail from "@components/CampaignDetail";
 import EmptyState from "@components/EmptyState";
 import PageHeader from "@components/PageHeader";
 import ProfileEditor from "@components/ProfileEditor";
@@ -15,6 +23,9 @@ import RunStartModal from "@components/RunStartModal";
 import SuiteDetail from "@components/SuiteDetail";
 
 import "./TestsPage.scss";
+
+/** What the rail lists: every suite, or the campaigns that group them. */
+type View = "campaigns" | "suites";
 
 /** Requirements of this suite that no available instrument satisfies. */
 function unmetRequirements(suite: Suite, instruments: Instrument[]): string[] {
@@ -56,7 +67,13 @@ function byCategory(suites: Suite[]): Array<[string, Suite[]]> {
   return grouped;
 }
 
-/** The suite catalog: pick a suite, pick a profile, start a run. */
+/**
+ * The suite catalog, listed on its own or by the campaign that groups it.
+ *
+ * Both views read the same suites: a campaign contributes its suite directory
+ * to discovery, so every member of one is also in the suite list. The choice is
+ * only whether to reach a test through its programme or on its own.
+ */
 export const TestsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -65,51 +82,115 @@ export const TestsPage: React.FC = () => {
   const [starting, setStarting] = useState(false);
   const [reports, setReports] = useState<VerifyReports>({});
 
+  const view: View = searchParams.get("view") === "campaigns" ? "campaigns" : "suites";
+
   const suites = useQuery({ queryKey: ["suites"], queryFn: listSuites });
+  const campaigns = useQuery({
+    queryKey: ["campaigns"],
+    queryFn: listCampaigns,
+    enabled: view === "campaigns",
+  });
   const instruments = useQuery({
     queryKey: ["instruments"],
     queryFn: listInstruments,
     refetchInterval: 15_000,
   });
-  const rescan = useMutation({
+
+  const rescanSuiteCatalog = useMutation({
     mutationFn: rescanAndVerify,
     onSuccess: (result) => {
       queryClient.setQueryData(["suites"], result.catalog);
       setReports(result.reports);
     },
   });
+  // The server does the same work either way; only the answer differs. A
+  // campaign edit can change the suite catalog, so both are seated.
+  const rescanCampaignCatalog = useMutation({
+    mutationFn: rescanCampaigns,
+    onSuccess: (result) => {
+      queryClient.setQueryData(["campaigns"], result);
+      queryClient.invalidateQueries({ queryKey: ["campaign"] });
+      queryClient.invalidateQueries({ queryKey: ["suites"] });
+    },
+  });
+  const rescan = view === "campaigns" ? rescanCampaignCatalog : rescanSuiteCatalog;
 
-  const all = suites.data?.suites ?? [];
-  const requested = searchParams.get("suite") ?? "";
-  const selected = all.find((suite) => suite.key === requested) ?? all[0] ?? null;
+  const allSuites = suites.data?.suites ?? [];
+  const allCampaigns = campaigns.data?.campaigns ?? [];
+
+  const requestedSuite = searchParams.get("suite") ?? "";
+  const selected = allSuites.find((suite) => suite.key === requestedSuite) ?? allSuites[0] ?? null;
+
+  const requestedCampaign = searchParams.get("campaign") ?? "";
+  const selectedCampaign =
+    allCampaigns.find((entry) => entry.key === requestedCampaign)?.key ??
+    allCampaigns[0]?.key ??
+    null;
 
   // The picked profile belongs to one suite; selecting another leaves it
   // behind rather than showing it out of context.
   const selectedProfile = picked !== null && picked.suite === selected?.key ? picked.name : null;
   const report = selected === null ? null : (reports[selected.key] ?? null);
 
-  const select = (key: string) => setSearchParams({ suite: key }, { replace: true });
+  const show = (next: View) => {
+    const params = new URLSearchParams(searchParams);
+    if (next === "suites") params.delete("view");
+    else params.set("view", next);
+    setSearchParams(params, { replace: true });
+  };
+  const select = (key: string) => {
+    const params = new URLSearchParams(searchParams);
+    params.set(view === "campaigns" ? "campaign" : "suite", key);
+    setSearchParams(params, { replace: true });
+  };
+
   const unmet = selected ? unmetRequirements(selected, instruments.data?.instruments ?? []) : [];
+  const listing = view === "campaigns" ? campaigns : suites;
+  const empty = view === "campaigns" ? allCampaigns.length === 0 : allSuites.length === 0;
 
   return (
     <div className="tests-page">
       <PageHeader
         title="Tests"
         actions={
-          <Button onClick={() => rescan.mutate()} disabled={rescan.isPending}>
-            <FontAwesomeIcon icon={faRotate} spin={rescan.isPending} aria-hidden="true" /> Rescan
-          </Button>
+          <>
+            <div className="tests-page__views" role="tablist" aria-label="Group tests by">
+              <Button
+                type="button"
+                role="tab"
+                size="small"
+                color={view === "suites" ? "blue" : "outline"}
+                aria-selected={view === "suites"}
+                onClick={() => show("suites")}
+              >
+                All tests
+              </Button>
+              <Button
+                type="button"
+                role="tab"
+                size="small"
+                color={view === "campaigns" ? "blue" : "outline"}
+                aria-selected={view === "campaigns"}
+                onClick={() => show("campaigns")}
+              >
+                Campaigns
+              </Button>
+            </div>
+            <Button onClick={() => rescan.mutate()} disabled={rescan.isPending}>
+              <FontAwesomeIcon icon={faRotate} spin={rescan.isPending} aria-hidden="true" /> Rescan
+            </Button>
+          </>
         }
       />
 
-      {suites.data?.errors.map((message) => (
+      {listing.data?.errors.map((message) => (
         <p key={message} className="tests-page__blocked" role="alert">
           {message}
         </p>
       ))}
-      {suites.isError && (
+      {listing.isError && (
         <p className="tests-page__blocked" role="alert">
-          {suites.error.message}
+          {listing.error.message}
         </p>
       )}
       {rescan.isError && (
@@ -118,9 +199,9 @@ export const TestsPage: React.FC = () => {
         </p>
       )}
 
-      {suites.isLoading && <Spinner className="tests-page__spinner" />}
+      {listing.isLoading && <Spinner className="tests-page__spinner" />}
 
-      {!suites.isLoading && all.length === 0 && (
+      {!listing.isLoading && empty && view === "suites" && (
         <EmptyState
           title="No suites discovered"
           message="Add a suite.yaml under a configured suite root, then rescan."
@@ -128,10 +209,18 @@ export const TestsPage: React.FC = () => {
         />
       )}
 
-      {all.length > 0 && (
+      {!listing.isLoading && empty && view === "campaigns" && (
+        <EmptyState
+          title="No campaigns discovered"
+          message="Add a campaign.yaml under a configured campaign root, then rescan."
+          action={<Button onClick={() => rescan.mutate()}>Rescan</Button>}
+        />
+      )}
+
+      {view === "suites" && allSuites.length > 0 && (
         <div className="tests-page__panes">
           <aside className="tests-page__rail">
-            {byCategory(all).map(([category, members]) => (
+            {byCategory(allSuites).map(([category, members]) => (
               <div key={category} className="tests-page__group">
                 <p className="tests-page__group-name">{category}</p>
                 {members.map((suite) => (
@@ -163,6 +252,30 @@ export const TestsPage: React.FC = () => {
               verify={report}
             />
           )}
+        </div>
+      )}
+
+      {view === "campaigns" && allCampaigns.length > 0 && (
+        <div className="tests-page__panes">
+          <aside className="tests-page__rail">
+            {allCampaigns.map((entry) => (
+              <button
+                key={entry.key}
+                type="button"
+                className={clsx(
+                  "tests-page__rail-item",
+                  entry.key === selectedCampaign && "tests-page__rail-item--active"
+                )}
+                aria-current={entry.key === selectedCampaign ? "true" : undefined}
+                onClick={() => select(entry.key)}
+              >
+                <span className="tests-page__rail-label">{entry.title}</span>
+                <span className="tests-page__rail-count">{entry.member_count} tests</span>
+              </button>
+            ))}
+          </aside>
+
+          {selectedCampaign && <CampaignDetail campaignKey={selectedCampaign} />}
         </div>
       )}
 

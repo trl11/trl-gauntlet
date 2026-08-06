@@ -160,17 +160,24 @@ and neither is on a package registry.
 - Campaign membership is the campaign's suite directory, never its `members`
   list. A suite dropped into that directory joins with no entry; a declared
   member whose suite is absent is still listed, marked `present: false`.
-- A campaign's coverage is derived from the runs index by suite key, never
-  stored on a run. `RunsIndex.import_tree` rebuilds that table from disk and a
-  suite process does not know its campaign, so a stored column would not
-  survive a reimport.
+- A campaign is a grouping, not a session: no start, no end, no state, and no
+  target. Running a member records nothing about the campaign, and a run
+  reached through one is identical to the same run started from the suite list.
+- A campaign reports what it groups, never what those suites have done. Run
+  history belongs to the run: `GET /api/runs` and `GET /api/runs/{id}` carry a
+  `campaign`, derived by `gauntlet.catalog.campaigns_by_suite` when the run is
+  read and never stored on it. `RunsIndex.import_tree` rebuilds that table from
+  disk and a suite process does not know its campaign, so a stored column would
+  not survive a reimport. It follows that a run names the campaign grouping its
+  suite now, not the one that started it.
 - Campaign roots are read before suite discovery runs, and the configured suite
   roots are searched first, so a suite shipped with Gauntlet wins over a
   campaign shadowing its key. `gauntlet.catalog.scan` is the only place a
   catalog is built; the CLI and the server both go through it, so
   `gauntlet list` and `gauntlet verify` see campaign suites too.
-- `PUT /api/campaigns/{key}/manifest` writes only after the new text validates,
-  and refuses to change `key`. A rejected edit leaves the file as it was.
+- `campaign.yaml` is read, never written. No endpoint edits one, so nothing
+  Gauntlet serves can disagree with the file on disk; a change is made with an
+  editor and picked up by a rescan.
 - Renaming a unit rewrites `unit_serial` on its run rows. `DELETE
   /api/units/{serial}` drops only its metadata and notes, never a run, so a
   unit with runs is derived from them again; `?runs=true` deletes those runs

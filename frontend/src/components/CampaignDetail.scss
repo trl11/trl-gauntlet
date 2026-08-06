@@ -1,0 +1,147 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.campaign-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  padding: 24px;
+  background-color: rgba($trl-dark, 0.6);
+  border: 1px solid $trl-dark-gray;
+
+  &__spinner {
+    align-self: center;
+    font-size: 28px;
+    color: $trl-gray;
+  }
+
+  &__head {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__title {
+    font-size: 24px;
+    font-weight: 500;
+  }
+
+  &__key {
+    font-size: 12px;
+    color: $trl-gray;
+  }
+
+  &__description {
+    max-width: 80ch;
+    font-size: 14px;
+    line-height: 1.6;
+    color: $trl-light-gray;
+  }
+
+  &__blocked {
+    padding: 10px 12px;
+    font-size: 13px;
+    color: $indicator-red;
+    border-left: 2px solid $indicator-red;
+    background-color: rgba($trl-dark, 0.6);
+  }
+
+  &__members {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+
+    th,
+    td {
+      padding: 10px 12px;
+      text-align: left;
+      border-bottom: 1px solid $trl-dark-gray;
+    }
+
+    thead th {
+      font-family: $font-mono;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: $trl-gray;
+    }
+
+    tbody th {
+      font-weight: 400;
+      color: $trl-light-gray;
+      vertical-align: middle;
+    }
+
+    tbody td {
+      color: $trl-light-gray;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+  }
+
+  &__member {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  &__member-title {
+    font-size: 14px;
+  }
+
+  &__member-key {
+    font-size: 11px;
+    color: $trl-gray;
+  }
+
+  &__tag {
+    padding: 2px 6px;
+    font-family: $font-mono;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: $trl-gray;
+    border: 1px solid $trl-dark-gray;
+
+    &--absent {
+      color: $indicator-red;
+      border-color: $indicator-red;
+    }
+  }
+
+  &__row--absent td,
+  &__row--absent th {
+    color: $trl-gray;
+  }
+
+  &__last-run {
+    display: inline-flex;
+  }
+
+  &__muted {
+    color: $trl-gray;
+  }
+
+  &__path {
+    font-size: 12px;
+    color: $trl-gray;
+    word-break: break-all;
+  }
+
+  &__sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 900px) {
+  .campaign-detail__members {
+    display: block;
+    overflow-x: auto;
+  }
+}

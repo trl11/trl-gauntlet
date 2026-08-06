@@ -15,6 +15,7 @@ const out = process.argv[3] ?? "../files/screenshots";
 const ROUTES = [
   ["dashboard", "/"],
   ["tests", "/tests"],
+  ["tests-campaigns", "/tests?view=campaigns"],
   ["history", "/history"],
   ["units", "/units"],
   ["instruments", "/instruments"],

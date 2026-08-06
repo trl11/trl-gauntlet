@@ -167,6 +167,59 @@ export interface ProfileDiff {
 }
 
 /* -------------------------------------------------------------------------
+ * Campaigns
+ * ---------------------------------------------------------------------- */
+
+/**
+ * One suite in a campaign, as the manifest declares it.
+ *
+ * What that suite has done is not here: a run names its campaign instead, so
+ * history is read from the runs index rather than from the campaign.
+ *
+ * Every field is present whether or not the manifest declares this member;
+ * `declared` says which. `present` is false for a member the manifest names but
+ * whose suite is not on disk.
+ */
+export interface CampaignMember {
+  component: string;
+  declared: boolean;
+  fixture: string;
+  host: string;
+  notes: string;
+  overrides: Record<string, unknown>;
+  present: boolean;
+  profile: string;
+  suite: string;
+  target: string;
+  test_vehicle: string;
+  title: string;
+  unit_serial: string;
+}
+
+/**
+ * `GET /api/campaigns/{key}`, and one entry of `GET /api/campaigns`.
+ *
+ * The listing omits `members`; only the detail endpoint resolves them.
+ */
+export interface Campaign {
+  apiVersion: 1;
+  description: string;
+  directory: string;
+  key: string;
+  member_count: number;
+  members?: CampaignMember[];
+  suites: string;
+  suites_dir: string;
+  title: string;
+}
+
+/** `GET /api/campaigns`, and `POST /api/campaigns/rescan`. */
+export interface CampaignList {
+  campaigns: Campaign[];
+  errors: string[];
+}
+
+/* -------------------------------------------------------------------------
  * Conformance
  * ---------------------------------------------------------------------- */
 
@@ -192,9 +245,22 @@ export interface VerifyReport {
  * Runs
  * ---------------------------------------------------------------------- */
 
+/**
+ * The campaign that groups a run's suite.
+ *
+ * Derived from the suite key when the run is read, never recorded on it: it
+ * says which campaign holds that suite now, not that the campaign started the
+ * run.
+ */
+export interface RunCampaign {
+  key: string;
+  title: string;
+}
+
 /** One run, live or from the index. A live run also carries the argv it was spawned with. */
 export interface RunRow {
   argv?: string[];
+  campaign?: RunCampaign | null;
   duration_s: number | null;
   ended_at: string | null;
   fail_reason: string | null;

@@ -12,6 +12,7 @@ import { formatDuration, formatTimestamp } from "../utils/format";
 
 /** Columns {@link RunTable} knows how to render. */
 export type RunTableColumn =
+  | "campaign"
   | "duration_s"
   | "fail_reason"
   | "profile"
@@ -30,6 +31,9 @@ export interface ColumnSpec {
 }
 
 export const COLUMNS: Record<RunTableColumn, ColumnSpec> = {
+  // Not sortable: it is resolved per request from the suite, not a column of
+  // the runs table, so there is nothing for the index to order by.
+  campaign: { header: "Campaign", sortable: false },
   duration_s: { header: "Duration", sortable: true, align: "right" },
   fail_reason: { header: "Reason", sortable: false },
   profile: { header: "Profile", sortable: true },
@@ -74,6 +78,7 @@ export function matches(run: RunRow, needle: string): boolean {
     run.unit_serial,
     run.status,
     run.fail_reason,
+    run.campaign?.title,
   ]
     .filter(Boolean)
     .join(" ")
@@ -92,6 +97,19 @@ export function renderCell(run: RunRow, column: RunTableColumn): React.ReactNode
       return formatTimestamp(run.started_at);
     case "duration_s":
       return formatDuration(run.duration_s);
+    case "campaign":
+      // The row opens the run, so the campaign link must not let that click
+      // through.
+      return run.campaign ? (
+        <Link
+          to={`/tests?view=campaigns&campaign=${encodeURIComponent(run.campaign.key)}`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          {run.campaign.title}
+        </Link>
+      ) : (
+        "-"
+      );
     case "fail_reason":
       return <span className="run-table__reason">{run.fail_reason || "-"}</span>;
     case "unit_serial":

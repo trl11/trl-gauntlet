@@ -77,43 +77,54 @@ or a mounted share. Point a campaign root at it and its suites are picked up.
 
 ## Changing a campaign
 
-The manifest on disk is the source of truth. There are two ways to change it and
-they are the same change:
+`campaign.yaml` is read, never written. Edit it with an editor, or add a suite
+to the campaign's suite directory, then rescan:
 
 ```bash
-# edit it directly, then rescan
 vim campaigns/radiation_tid/campaign.yaml
 curl -X POST localhost:7100/api/campaigns/rescan
 ```
 
-```bash
-# or write it through the API, which validates and rescans for you
-curl -X PUT localhost:7100/api/campaigns/radiation_tid/manifest \
-     -H 'content-type: application/json' -d '{"body": "apiVersion: 1\n..."}'
-```
+Nothing restarts or rebuilds. Adding a suite, editing the manifest, and
+re-running a member are all live against the running process.
 
-`PUT` writes the file only once it parses and validates, so a rejected edit
-leaves the campaign exactly as it was. Renaming `key` is refused: the caller
-addressed the campaign by the old key, and discovery is by directory, so the
-rename would take effect somewhere the caller is not looking. Rename by moving
-the directory and rescanning.
+There is no endpoint that writes a manifest, so nothing Gauntlet serves can
+disagree with the file on disk. Rename a campaign by moving its directory and
+rescanning; the key is where discovery finds it, not something to be patched
+over the wire.
 
-Nothing here restarts or rebuilds anything. Adding a suite, editing the
-manifest, and re-running a member are all live against the running process.
+## A campaign is not a session
 
-## Coverage
+It has no start, no end, and no state. Nothing is written when a member runs,
+and no run records which campaign it was reached through. A run started from a
+campaign is identical to the same run started from the suite list.
 
-A campaign reports what the runs index knows about each member: `run_count`,
-`passed`, `failed` and `last_run`.
+This matters for reading what a campaign reports. It has no target — nothing in
+`campaign.yaml` says what finished looks like — so there is no progress to be
+made against one, and nothing that could be complete.
 
-This is derived from the suite key at request time, not recorded on a run. That
-matters because `RunsIndex.import_tree` rebuilds the runs table from the
-artifacts on disk, and a suite process has no idea what campaign launched it —
-a stored column would be lost on every reimport. Deriving it also means moving a
-suite between campaigns takes its history with it.
+## Which campaign a run belongs to
 
-The cost is that history follows the directory: unmount the campaign and its
-coverage is empty until it is back. The runs themselves are untouched.
+A campaign reports what it groups; it does not report what those suites have
+done. Run history is read from the run instead: `GET /api/runs` and
+`GET /api/runs/{id}` carry a `campaign` of `{key, title}`, or null.
+
+That is derived when the run is read — `gauntlet.catalog.campaigns_by_suite`
+maps each discovered suite to the campaign whose directory holds it — and never
+recorded on the run. `RunsIndex.import_tree` rebuilds the runs table from the
+artifacts on disk and a suite process has no idea what campaign launched it, so
+a stored column would be lost on every reimport.
+
+Two consequences follow, and both are worth knowing:
+
+- It names the campaign that groups that suite **now**, not the one that
+  started the run. A run predating the campaign reports it too, and moving a
+  suite between campaigns moves its whole history with it.
+- It follows the directory. Unmount a campaign and its runs report no campaign
+  until it is back. The runs themselves are untouched.
+
+The UI shows it as a Campaign column on the history table and a row on the run
+detail, both linking back to the campaign in the Tests page.
 
 ## Running a member
 
@@ -132,9 +143,7 @@ again.
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/campaigns` | Every campaign, without members resolved |
-| `GET` | `/api/campaigns/{key}` | One campaign, with members and coverage |
-| `GET` | `/api/campaigns/{key}/manifest` | The `campaign.yaml` as text |
-| `PUT` | `/api/campaigns/{key}/manifest` | Validate, save, rescan |
+| `GET` | `/api/campaigns/{key}` | One campaign, with the members it groups |
 | `POST` | `/api/campaigns/{key}/members/{suite}/run` | Run one member |
 | `POST` | `/api/campaigns/rescan` | Re-read the roots and their suites |
 | `GET` | `/api/campaigns/schema` | JSON Schema for `campaign.yaml` |

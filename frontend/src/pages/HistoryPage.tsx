@@ -23,6 +23,7 @@ const COLUMNS: RunTableColumn[] = [
   "started_at",
   "duration_s",
   "suite",
+  "campaign",
   "profile",
   "unit_serial",
   "status",

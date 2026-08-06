@@ -1,41 +1,30 @@
-"""Campaign catalog, manifest editing, and per-campaign coverage.
+"""Campaign catalog and the runs a campaign's members start.
 
-A campaign groups suites and records how each is meant to be run; it does not
-sequence them. Coverage is derived from the runs index by suite key, so nothing
-is recorded on a run and the association survives rebuilding that index from
-disk.
+A campaign groups suites and records how each is meant to be run. It is not a
+session: it has no start, no end and no state, and running a member records
+nothing about the campaign it was reached through.
 
-The manifest on disk is the source of truth. Editing it through this router
-writes that file and rescans, so the same change can be made with an editor and
-picked up with :func:`rescan_campaigns` instead.
+Which campaign a suite belongs to is derived from where that suite sits on
+disk, never stored. :func:`gauntlet.catalog.campaigns_by_suite` is that lookup,
+and the runs router uses it to name the campaign a run's suite belongs to.
+
+``campaign.yaml`` is read, never written. It is edited with an editor and
+picked up by :func:`rescan_campaigns`, so this router has no way to change one
+and no chance of disagreeing with the file on disk.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-import yaml
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from gauntlet.api.runs import to_row
-from gauntlet.campaigns import CampaignError, json_schema, load_manifest
-from gauntlet.storage.runs import RunFilters
+from gauntlet.campaigns import CampaignMember, json_schema
 from gauntlet.supervisor import RunConflict, RunRejected, RunRequest
 
 router = APIRouter()
-
-
-class CampaignManifestBody(BaseModel):
-    """Request body carrying an edited ``campaign.yaml``.
-
-    The field is named as `GET /campaigns/{key}/manifest` returns it, so
-    reading a manifest, saving it and diffing it all speak of its `body`.
-    """
-
-    model_config = ConfigDict(extra="forbid")
-
-    body: str
 
 
 class MemberRunBody(BaseModel):
@@ -77,33 +66,25 @@ def _member_suites(request: Request, campaign: Any) -> list[str]:
     return declared + sorted(owned - set(declared))
 
 
-def _coverage(request: Request, suite_key: str) -> dict[str, Any]:
-    """What the runs index knows about one member suite."""
-    index = request.app.state.runs_index
-    latest = index.list(RunFilters(suite=suite_key), limit=1)
-    return {
-        "run_count": index.count(RunFilters(suite=suite_key)),
-        "passed": index.count(RunFilters(suite=suite_key, status=("passed",))),
-        "failed": index.count(RunFilters(suite=suite_key, status=("failed",))),
-        "last_run": latest[0].to_dict() if latest else None,
-    }
-
-
 def _member_payload(request: Request, campaign: Any, suite_key: str) -> dict[str, Any]:
-    """One member: what the campaign declares, and what the suite catalog holds."""
+    """One member: what the campaign declares, and what the suite catalog holds.
+
+    A member the manifest does not declare is filled from an empty entry rather
+    than having those keys left out, so every member carries the same fields
+    whether or not anything configured it.
+    """
     suite = request.app.state.catalog().get(suite_key)
-    member = campaign.manifest.member(suite_key)
+    declared = campaign.manifest.member(suite_key)
+    member = declared if declared is not None else CampaignMember(suite=suite_key)
     payload: dict[str, Any] = {
         "suite": suite_key,
         # A declared member whose suite is not on disk. The campaign still
         # lists it, so a missing suite is visible rather than silently absent.
         "present": suite is not None,
         "title": suite.manifest.title if suite is not None else "",
-        "declared": member is not None,
+        "declared": declared is not None,
     }
-    if member is not None:
-        payload.update(member.model_dump(mode="json", exclude={"suite"}))
-    payload.update(_coverage(request, suite_key))
+    payload.update(member.model_dump(mode="json", exclude={"suite"}))
     return payload
 
 
@@ -154,51 +135,7 @@ async def rescan_campaigns(request: Request) -> dict[str, Any]:
 
 @router.get("/campaigns/{key}")
 async def get_campaign(request: Request, key: str) -> dict[str, Any]:
-    """One campaign, with every member suite and its coverage."""
-    return _campaign_payload(request, _campaign_or_404(request, key), members=True)
-
-
-@router.get("/campaigns/{key}/manifest")
-async def get_campaign_manifest(request: Request, key: str) -> dict[str, Any]:
-    """The campaign's ``campaign.yaml`` as text, for editing."""
-    campaign = _campaign_or_404(request, key)
-    try:
-        body = campaign.manifest_path.read_text()
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return {"key": key, "path": str(campaign.manifest_path), "body": body}
-
-
-@router.put("/campaigns/{key}/manifest")
-async def put_campaign_manifest(request: Request, key: str, body: CampaignManifestBody) -> dict[str, Any]:
-    """Validate and save an edited ``campaign.yaml``, then rescan.
-
-    The file is written only once it parses and validates, so a rejected edit
-    leaves the campaign as it was. Renaming the key is refused: the caller
-    addressed this campaign by the old one, and discovery is by directory, so
-    the rename would take effect somewhere the caller is not looking.
-    """
-    campaign = _campaign_or_404(request, key)
-    try:
-        parsed = yaml.safe_load(body.body)
-    except yaml.YAMLError as exc:
-        raise HTTPException(status_code=422, detail=f"invalid YAML: {exc}") from exc
-    if not isinstance(parsed, dict):
-        raise HTTPException(status_code=422, detail="expected a mapping at the top level")
-    if parsed.get("key") != key:
-        raise HTTPException(status_code=422, detail=f"key must stay {key!r}")
-
-    original = campaign.manifest_path.read_text()
-    try:
-        campaign.manifest_path.write_text(body.body)
-        load_manifest(campaign.manifest_path)
-    except CampaignError as exc:
-        campaign.manifest_path.write_text(original)
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    request.app.state.rescan()
+    """One campaign, with every member suite it groups."""
     return _campaign_payload(request, _campaign_or_404(request, key), members=True)
 
 

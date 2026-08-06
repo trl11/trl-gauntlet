@@ -43,6 +43,9 @@
   }
 
   &__rail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     padding: 8px 10px;
     font-family: $font-primary;
     font-size: 14px;
@@ -61,6 +64,31 @@
       border-left-color: $indicator-blue;
       background-color: rgba($trl-dark-gray, 0.4);
     }
+  }
+
+  &__rail-label {
+    font-size: 14px;
+  }
+
+  &__rail-count {
+    font-family: $font-mono;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: $trl-gray;
+  }
+
+  &__views {
+    display: flex;
+    gap: 6px;
+    margin-right: auto;
+  }
+
+  &__blocked {
+    padding: 10px 12px;
+    font-size: 13px;
+    color: $indicator-red;
+    border-left: 2px solid $indicator-red;
+    background-color: rgba($trl-dark, 0.6);
   }
 }
 
