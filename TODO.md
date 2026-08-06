@@ -37,7 +37,7 @@ Dockerfile. The devcontainer gained docker-outside-of-docker, and exports
 resolves a bind mount against the host rather than against the container.
 
 The image is built and exercised, through both `make docker-run` and compose:
-all nine built-in suites pass, history and artifacts survive a restart in the
+all the built-in suites of the time pass, history and artifacts survive a restart in the
 `gauntlet-data` volume, a graceful stop still writes a verdict and an abort is
 recorded as `error`. `docker-run` publishes on `DOCKER_PORT`, which is 7102 in
 the devcontainer, because the socket in there reaches the host that already
@@ -72,7 +72,7 @@ Verifying this needs the build tree gone. An unpacked app tested on the machine
 that built it finds `app/runtime/` still sitting at the shebang's path and
 passes either way. Test by moving `app/runtime` aside and running the extracted
 AppImage, which is how it was verified: the installed app runs its own CPython,
-discovers the nine suites beside it, keeps state in `userData`, passes a shell
+discovers the suites beside it, keeps state in `userData`, passes a shell
 suite and two Python ones — the real test of the `sys.executable` constraint
 above — and takes the backend's process group with it when it quits.
 
@@ -91,6 +91,44 @@ none of which a packaged app runs. Pruning them is most of the AppImage's
 243MB.
 
 Nothing builds either artifact on CI, and both are x86_64 only.
+
+## Campaigns
+
+A campaign is a directory with a `campaign.yaml` that groups the suites of one
+programme and contributes its own suite directory to discovery. It is not a
+session: no start, no end, no state, and running a member records nothing about
+it. Which campaign a suite belongs to is derived from where it sits on disk, so
+a run names the campaign grouping its suite now rather than the one that
+started it. See [`docs/campaigns.md`](docs/campaigns.md).
+
+Two are built in: `hardware`, the six suites that drive real hardware, and
+`radiation_tid`, one suite per component of the TID programme.
+
+**Every TID suite is a placeholder.** All eighteen render from the python
+template: they run, write a verdict and pass without hardware, and measure
+nothing at all. Each `runner.py` opens with the component, test vehicle, host
+and fixture it is for, and the measurements it has to grow into. A green
+`radiation_tid` therefore means only that eighteen scaffolds still execute.
+
+Three of them — `tid_pic18f26k83`, `tid_imx492`, `tid_imx565` — are TBD in the
+test matrix with no test vehicle or approach agreed, and are scaffolded anyway
+so the campaign is the whole programme and the gaps are visible in it. The
+matrix also carries test-plan edits and BOM additions per component, recorded
+in each runner's docstring and not tracked anywhere that would chase them.
+
+### Next
+
+Campaigns group runs; they do not sequence them. There is no way to run a
+campaign, only a member of one, and nothing defines what finished means for a
+programme. Deciding that is what a `target` in the manifest would be for.
+
+`GET /api/runs` takes no campaign filter. The history table shows a campaign
+column and can be searched by title, but the API cannot be asked for one
+campaign's runs, so anything larger than a page has to filter client-side.
+
+Nothing warns that a campaign key or a suite key collides across roots beyond
+the error the catalog collects. Two campaigns shipping the same suite key is
+reported and then the second is ignored.
 
 ## Suites not ported
 
@@ -141,3 +179,11 @@ frontend change.
   mid-command.
 - `_write_scratch_profile` leaves files under `<runs>/_scratch/`. Nothing prunes
   them.
+- A suite that moves has three places to follow it, and each was found only
+  after it broke: `gauntlet.catalog.scan` for what the CLI and server discover,
+  `SUITE_SOURCES` for what the quality targets read, and the packaging in
+  `docker/Dockerfile` and `app/electron-builder.json` for what ships. Nothing
+  ties them together, so a fourth would be missed the same way.
+- The desktop app and the server image are built from the repository, so both
+  carry `campaigns/` and every suite inside it. Neither has been rebuilt since
+  the TID campaign was added, which is 18 more suites in both artifacts.

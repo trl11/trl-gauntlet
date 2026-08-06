@@ -58,10 +58,12 @@ function backendCommand(): { args: string[]; program: string } {
 /**
  * Environment for the backend.
  *
- * Packaged, the suites are read-only beside the runtime and the state lives
- * wherever Electron puts this app's user data. In development nothing is
- * overridden and the working directory is the checkout, so the app reads and
- * writes exactly what `make run` does.
+ * Packaged, the suites and campaigns are read-only beside the runtime and the
+ * state lives wherever Electron puts this app's user data. Campaigns carry
+ * their own suites, so both roots are needed: naming only the suites directory
+ * ships the reference suites and nothing a campaign holds. In development
+ * nothing is overridden and the working directory is the checkout, so the app
+ * reads and writes exactly what `make run` does.
  */
 function backendEnvironment(): NodeJS.ProcessEnv {
   if (!app.isPackaged) return process.env;
@@ -69,6 +71,7 @@ function backendEnvironment(): NodeJS.ProcessEnv {
     ...process.env,
     GAUNTLET_DATA_DIR: app.getPath("userData"),
     GAUNTLET_SUITE_PATH: path.join(process.resourcesPath, "suites"),
+    GAUNTLET_CAMPAIGN_PATH: path.join(process.resourcesPath, "campaigns"),
   };
 }
 

@@ -21,9 +21,12 @@ Test plan edits outstanding:
 
 from __future__ import annotations
 
+from typing import Any
+
 from gauntlet_sdk import (
     IterationContext,
     IterationOutcome,
+    PhaseRecord,
     PhaseTimer,
     RunResult,
     SuiteContext,
@@ -53,7 +56,8 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     values in ``metrics`` are plotted. ``ctx.target`` is the unit under test;
     ``ctx.artifact("frames", "x.jpg")`` resolves a path in the run directory.
     """
-    with PhaseTimer("measure", phases := []) as phase:
+    phases: list[PhaseRecord] = []
+    with PhaseTimer("measure", phases) as phase:
         phase.set_detail(target=ctx.target or "local")
         # TODO: replace with a real measurement.
         value = 1.0
@@ -81,7 +85,7 @@ def _results(
     outcomes: list[IterationOutcome],
     result: RunResult,
     profile: TidAsm330lhbProfile,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Headline figures shown at the top of the run summary."""
     return [
         make_result("samples", "Samples", result.total_iterations, format="int"),

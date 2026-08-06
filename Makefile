@@ -243,7 +243,7 @@ suite-verify-run: ensure-setup
 # Every suite's tests import a package literally named `suite`, so two suites
 # cannot share one pytest process. Each gets its own, rooted at its directory.
 suite-test: ensure-setup
-	@for tests in $(SUITES)/*/tests; do \
+	@for tests in $(SUITES)/*/tests $(CAMPAIGNS)/*/suites/*/tests; do \
 		test -d "$$tests" || continue; \
 		suite=$$(dirname "$$tests"); \
 		echo "==> $$(basename $$suite)"; \
@@ -274,17 +274,17 @@ version-sync:
 test: gauntlet-test suite-test frontend-test test-e2e
 
 format: ensure-setup
-	@$(BIN)/ruff format $(SDK) $(APP) $(SUITES)
-	@$(BIN)/ruff check --fix $(SDK) $(APP) $(SUITES)
+	@$(BIN)/ruff format $(SDK) $(APP) $(SUITE_SOURCES)
+	@$(BIN)/ruff check --fix $(SDK) $(APP) $(SUITE_SOURCES)
 
 format-check: ensure-setup
-	@$(BIN)/ruff format --check $(SDK) $(APP) $(SUITES)
+	@$(BIN)/ruff format --check $(SDK) $(APP) $(SUITE_SOURCES)
 
 lint: ensure-setup
-	@$(BIN)/ruff check $(SDK) $(APP) $(SUITES)
+	@$(BIN)/ruff check $(SDK) $(APP) $(SUITE_SOURCES)
 
 typecheck: ensure-setup
-	@$(BIN)/mypy --config-file $(ROOT)/mypy.ini $(SDK)/src $(APP)/src $(SUITES)
+	@$(BIN)/mypy --config-file $(ROOT)/mypy.ini $(SDK)/src $(APP)/src $(SUITE_SOURCES)
 
 gauntlet-test: ensure-setup
 	@$(BIN)/pytest $(SDK)/tests $(APP)/tests -m "not e2e" \

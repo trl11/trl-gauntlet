@@ -8,7 +8,6 @@ from gauntlet_sdk import make_suite_cli
 
 from suite.runner import SPEC
 
-
 main = make_suite_cli(SPEC, prog="tid_tmp100")
 
 

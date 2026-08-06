@@ -24,6 +24,9 @@ APP          := $(ROOT)/packages/gauntlet
 SDK          := $(ROOT)/packages/gauntlet-sdk
 SUITES       := $(ROOT)/suites
 CAMPAIGNS    := $(ROOT)/campaigns
+# Every suite, wherever it lives. A campaign carries its own, so checking
+# $(SUITES) alone silently skips them.
+SUITE_SOURCES := $(SUITES) $(CAMPAIGNS)
 FRONTEND     := $(ROOT)/frontend
 FRONTEND_OUT := $(APP)/src/gauntlet/web_dist
 # The Electron shell, and the relocatable CPython it ships the backend in.
