@@ -90,7 +90,7 @@ export const Layout: React.FC = () => {
       <nav className="layout__bar" aria-label="Primary">
         <div className="layout__brand-group">
           <Link to="/" className="layout__brand">
-            <img src={logo} alt="" width={26} height={26} />
+            <img className="layout__mark" src={logo} alt="" />
             <span className="layout__wordmark">Gauntlet</span>
           </Link>
           {version.data && <span className="layout__version">{`v${version.data.gauntlet}`}</span>}
