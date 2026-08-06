@@ -28,6 +28,7 @@ curl -X POST localhost:7100/api/campaigns/rescan
 | Campaign | Contents |
 |---|---|
 | `hardware` | The six suites that drive real hardware over a transport: `can_bus`, `ethernet`, `hardware_trigger`, `piezo`, `rs422`, `ssd`. |
+| `radiation_tid` | One suite per component of the TID campaign, eighteen of them. Every one is a placeholder: it runs and passes without hardware, and measures nothing yet. Each suite's `runner.py` opens with the component, test vehicle, host and fixture it is for, and what it has to grow into. |
 
 `suites/` at the repository root keeps what belongs to no programme — the two
 reference suites and `system_stats`.
