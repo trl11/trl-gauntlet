@@ -73,7 +73,7 @@ ci-validate-dist:
 		"dist/99-gauntlet-instruments.rules" \
 	); \
 	for artifact in "$${expected[@]}"; do test -s "$$artifact"; done; \
-	test "$$(find dist -maxdepth 1 -type f | wc -l)" -eq "$${#expected[@]}"; \
+	test "$$(find dist -maxdepth 1 -type f ! -name '.*' | wc -l)" -eq "$${#expected[@]}"; \
 	printf 'Verified release artifacts:\n'; \
 	printf '  %s\n' "$${expected[@]}"
 
