@@ -1,7 +1,20 @@
 pipeline {
-    // Release builds are portable across the Jenkins fleet; do not reserve the
-    // two heavy agents while compatible capacity is available elsewhere.
-    agent any
+    // Every Jenkins worker has the `docker` label. Build the project-specific
+    // CI image there so this release job can use any available worker while
+    // retaining a reproducible toolchain.
+    agent {
+        dockerfile {
+            filename 'ci/Dockerfile'
+            label 'docker'
+            additionalBuildArgs '--build-arg APT_PROXY_URL=http://192.168.11.112:3142'
+            args '''
+                --group-add 999
+                -v /var/run/docker.sock:/var/run/docker.sock
+                -v /usr/bin/docker:/usr/bin/docker
+                -v /usr/libexec/docker:/usr/libexec/docker
+            '''
+        }
+    }
 
     options {
         ansiColor('xterm')
@@ -16,28 +29,22 @@ pipeline {
     stages {
         stage('Setup') {
             steps {
-                sh '''#!/usr/bin/env bash
-                    set -euo pipefail
-                    command -v uv >/dev/null || python3 -m pip install --user --disable-pip-version-check uv
-                '''
                 sshagent(credentials: ['github-ssh']) {
                     sh 'git submodule update --init --recursive'
                 }
-                // `pip install --user` honors HOME, keeping the bootstrap local
-                // to this workspace rather than mutating a Jenkins agent image.
-                sh 'PATH="$HOME/.local/bin:$PATH" make setup'
+                sh 'make setup'
             }
         }
 
         stage('Check') {
             steps {
-                sh 'PATH="$HOME/.local/bin:$PATH" make check'
+                sh 'make check'
             }
         }
 
         stage('Build release artifacts') {
             steps {
-                sh 'PATH="$HOME/.local/bin:$PATH" make build'
+                sh 'make build'
                 sh '''#!/usr/bin/env bash
                     set -euo pipefail
                     version=$(< VERSION)
