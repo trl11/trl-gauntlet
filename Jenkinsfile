@@ -1,5 +1,7 @@
 pipeline {
-    agent { label 'heavy' }
+    // Release builds are portable across the Jenkins fleet; do not reserve the
+    // two heavy agents while compatible capacity is available elsewhere.
+    agent any
 
     options {
         ansiColor('xterm')
