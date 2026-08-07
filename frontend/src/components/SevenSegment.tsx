@@ -1,5 +1,7 @@
 import clsx from "clsx";
 
+import type { ReadingTone } from "../utils/readouts";
+
 import "./SevenSegment.scss";
 
 /** Geometry of one digit cell, in the units of the glyph viewBox. */
@@ -130,7 +132,7 @@ function cellsOf(value: string): Cell[] | null {
 /** Props for {@link SevenSegment}. */
 export interface SevenSegmentProps {
   /** Colour the digits burn. Which reading gets which is the caller's choice. */
-  tone: "amber" | "green" | "red";
+  tone: ReadingTone;
   /** The reading to draw, already rounded and formatted. */
   value: string;
 }

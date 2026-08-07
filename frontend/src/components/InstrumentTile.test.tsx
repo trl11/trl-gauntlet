@@ -25,6 +25,25 @@ function instrument(overrides: Partial<Instrument> = {}): Instrument {
   };
 }
 
+/** An instrument declaring ``count`` headline readings, as a DAQ's channels. */
+function channels(count: number): Instrument {
+  return instrument({
+    readouts: Array.from({ length: count }, (_, at) => ({
+      group: "Analog",
+      key: `channels.${at + 1}.value`,
+      label: `CH ${at + 1}`,
+      precision: 4,
+      role: "headline" as const,
+      unit: "V",
+    })),
+    state: {
+      channels: Object.fromEntries(
+        Array.from({ length: count }, (_, at) => [String(at + 1), { value: at + 1 }])
+      ),
+    },
+  });
+}
+
 function draw(entry: Instrument) {
   return render(
     <MemoryRouter>
@@ -73,6 +92,23 @@ describe("InstrumentTile", () => {
 
     draw(instrument({ kind: "thing" }));
     expect(screen.getAllByText("thing")).toHaveLength(1);
+  });
+
+  it("shows every channel of an eight-channel instrument", () => {
+    draw(channels(8));
+    for (let channel = 1; channel <= 8; channel += 1) {
+      expect(screen.getByText(`CH ${channel}`)).toBeInTheDocument();
+    }
+  });
+
+  it("takes a second column once it holds more readings than fit two-by-two", () => {
+    const { container } = draw(channels(8));
+    expect(container.querySelector(".instrument-tile--wide")).not.toBeNull();
+  });
+
+  it("stays one column wide while its readings fit", () => {
+    const { container } = draw(channels(4));
+    expect(container.querySelector(".instrument-tile--wide")).toBeNull();
   });
 
   it("opens the instruments page, where the instrument can be driven", () => {
