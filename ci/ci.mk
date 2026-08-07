@@ -25,7 +25,7 @@ CI_DOCKER_RUN := docker run --rm \
 	-e HOME=/workspace \
 	$(CI_IMAGE):$(CI_TAG)
 
-.PHONY: ci-image ci-test ci-validate-dist ci-clean
+.PHONY: ci-image ci-submodules ci-test ci-validate-dist ci-clean
 
 ## Build the local image that Jenkins uses for tests and release artifacts.
 ci-image:
@@ -36,8 +36,12 @@ ci-image:
 		$(ROOT)
 	@echo "CI image ready: $(CI_IMAGE):$(CI_TAG)"
 
+## Initialize the Git submodules that the frontend build consumes.
+ci-submodules:
+	@git submodule update --init --recursive
+
 ## Run the full Jenkins workflow locally: setup, checks, release build, and artifact contract.
-ci-test: ci-image
+ci-test: ci-image ci-submodules
 	@$(MAKE) --no-print-directory ci-run-distclean
 	@$(MAKE) --no-print-directory ci-run-setup
 	@$(MAKE) --no-print-directory ci-run-check
