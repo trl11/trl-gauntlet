@@ -13,6 +13,9 @@ CI_USER := $(shell id -u):$(shell id -g)
 # Docker resolves a bind source on the host. Inside Gauntlet's devcontainer,
 # GAUNTLET_HOST_WORKSPACE is that source; elsewhere the checkout path is valid.
 CI_HOST_PATH := $(if $(GAUNTLET_HOST_WORKSPACE),$(GAUNTLET_HOST_WORKSPACE),$(ROOT))
+# Normally this is the same checkout. Keep it overridable for a Docker host
+# whose visible bind source differs from the path inside a devcontainer.
+CI_SUBMODULE_ROOT ?= $(ROOT)
 CI_DOCKER_RUN := docker run --rm \
 	--user $(CI_USER) \
 	--group-add $(CI_DOCKER_GID) \
@@ -38,7 +41,7 @@ ci-image:
 
 ## Initialize the Git submodules that the frontend build consumes.
 ci-submodules:
-	@git submodule update --init --recursive
+	@cd $(CI_SUBMODULE_ROOT) && git submodule update --init --recursive
 
 ## Run the full Jenkins workflow locally: setup, checks, release build, and artifact contract.
 ci-test: ci-image ci-submodules
