@@ -17,7 +17,7 @@ pipeline {
     }
 
     stages {
-        stage('CI') {
+        stage('Setup') {
             steps {
                 script {
                     def socketGid = sh(
@@ -33,16 +33,47 @@ pipeline {
                         '-v /usr/bin/docker:/usr/bin/docker ' +
                         '-v /usr/libexec/docker:/usr/libexec/docker'
                     image.inside(dockerArgs) {
-                        // Start the SSH agent after entering the CI container. Its UNIX
-                        // socket is then local to the container, rather than a socket in
-                        // the outer Jenkins agent namespace that Docker cannot bind here.
+                        // Start the SSH agent inside the CI container so its UNIX socket
+                        // is usable for private submodule cloning.
                         sshagent(credentials: ['github-ssh']) {
                             sh 'git submodule update --init --recursive'
                             sh 'make setup'
-                            sh 'make check'
-                            sh 'make build'
-                            sh 'make ci-validate-dist'
                         }
+                    }
+                }
+            }
+        }
+        stage('Verify') {
+            steps {
+                script {
+                    def socketGid = sh(
+                        script: 'stat -c %g /var/run/docker.sock',
+                        returnStdout: true,
+                    ).trim()
+                    def dockerArgs = "--group-add ${socketGid} " +
+                        '-v /var/run/docker.sock:/var/run/docker.sock ' +
+                        '-v /usr/bin/docker:/usr/bin/docker ' +
+                        '-v /usr/libexec/docker:/usr/libexec/docker'
+                    docker.image("${CI_IMAGE}:${BUILD_NUMBER}").inside(dockerArgs) {
+                        sh 'make check'
+                    }
+                }
+            }
+        }
+        stage('Build') {
+            steps {
+                script {
+                    def socketGid = sh(
+                        script: 'stat -c %g /var/run/docker.sock',
+                        returnStdout: true,
+                    ).trim()
+                    def dockerArgs = "--group-add ${socketGid} " +
+                        '-v /var/run/docker.sock:/var/run/docker.sock ' +
+                        '-v /usr/bin/docker:/usr/bin/docker ' +
+                        '-v /usr/libexec/docker:/usr/libexec/docker'
+                    docker.image("${CI_IMAGE}:${BUILD_NUMBER}").inside(dockerArgs) {
+                        sh 'make build'
+                        sh 'make ci-validate-dist'
                     }
                 }
             }
