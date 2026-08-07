@@ -36,10 +36,15 @@ RUN apt-get update \
     && python3 -m pip install --no-cache-dir --break-system-packages uv \
     && rm -rf /var/lib/apt/lists/* /tmp/dependencies.txt
 
-# Jenkins workspaces are mounted from agents as uid 1000. The node image's
-# `node` user has that uid, so artifacts remain removable by the Jenkins agent.
-# Jenkins supplies the fleet Docker socket group at runtime through --group-add.
-RUN git config --system --add safe.directory '*'
+# The submodule is fetched over SSH during the Pipeline. Seed the GitHub host
+# key in the image so the short-lived CI user's empty home never prompts for
+# interactive host-key acceptance.
+RUN mkdir -p /home/node/.ssh \
+    && ssh-keyscan -H github.com >> /home/node/.ssh/known_hosts \
+    && chown -R node:node /home/node/.ssh \
+    && chmod 700 /home/node/.ssh \
+    && chmod 600 /home/node/.ssh/known_hosts \
+    && git config --system --add safe.directory '*'
 
 USER node
 WORKDIR /workspace
