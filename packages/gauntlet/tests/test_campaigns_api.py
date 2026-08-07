@@ -153,7 +153,8 @@ class TestManifestIsReadOnly:
         client.post("/api/campaigns/rescan")
 
         assert client.get("/api/campaigns/demo_campaign/manifest").status_code == 404
-        assert client.put("/api/campaigns/demo_campaign/manifest", json={"body": ""}).status_code == 405
+        # No route owns this path, so every method is not found.
+        assert client.put("/api/campaigns/demo_campaign/manifest", json={"body": ""}).status_code == 404
 
 
 class TestMemberRuns:
