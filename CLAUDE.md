@@ -100,7 +100,7 @@ behind a toggle below 900px. There is no sidebar.
 | Task | Command |
 |---|---|
 | Setup | `make setup` |
-| Install the instrument udev rules, on the bench host | `make install-udev-rules` |
+| Set the bench host up: udev rules and group, via `system/setup-host.sh` | `make install-udev-rules` |
 | Report whether those rules reached the instruments | `make udev-check` |
 | Devcontainer | `make dev` / `make dev-stop` |
 | Build the frontend and serve, with auto-reload | `make run` |
@@ -139,8 +139,10 @@ delegate, so `make -C app build` and `make app-build` are the same thing.
 `common.mk`, which they all include.
 
 `dist/` holds what someone who does not have this repository needs: the two
-installers, the image as a loadable tarball, and the two wheels. It is
-gitignored, nothing else is written there, and nothing empties it, so an
+installers, the image as a loadable tarball, the two wheels, and the host
+setup a bundle cannot do for itself — `setup-host.sh`, the udev rules it
+installs, and the `README.txt` telling whoever unpacks a release to run it. It
+is gitignored, nothing else is written there, and nothing empties it, so an
 artifact from an earlier version stays until it is removed.
 
 The gauntlet wheel carries `web_dist` as package data, so anything building it

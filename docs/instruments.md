@@ -225,21 +225,36 @@ The kernel's usbserial drivers already create `/dev/ttyUSB*` and `/dev/ttyACM*`
 owned by `dialout`, which is why the PSU needs nothing installed. An instrument
 driven over raw USB is claimed through usbfs, whose nodes default to
 `root:root 0664` — enough to read descriptors, not enough to talk. That is what
-`system/99-gauntlet-instruments.rules` settles, and `make install-udev-rules`
+`system/99-gauntlet-instruments.rules` settles, and `system/setup-host.sh`
 installs it:
 
 ```
-$ make install-udev-rules
-==> installing 99-gauntlet-instruments.rules into /etc/udev/rules.d
-==> instruments the rules cover
-  0683:2008  serial 6A046A27 DI-2008  /dev/bus/usb/003/061  root:dialout 660  OK
+$ sudo ./setup-host.sh
+==> installing udev rules into /etc/udev/rules.d
+    99-gauntlet-instruments.rules
+==> reloading udev
+==> adding dev to dialout
+    dev must log out and back in before this takes effect
+==> instruments these rules cover
+    0683:2008  /dev/bus/usb/003/061  root:dialout 660  6A046A27 DI-2008
 ```
 
-Run it on whichever host the instruments are plugged into. It refuses to run
-anywhere without udev rather than appearing to succeed, because the devcontainer,
-the server image and the desktop app all see what the host's rules decided rather
-than setting it themselves — installing the file inside a container changes
-nothing.
+`make install-udev-rules` runs that same script, so a checkout and a host that
+only has an AppImage set themselves up the same way. It installs every `*.rules`
+file beside it, so a rule added to the release needs no change to the script,
+and it reads the vendor ids back out of those files to report on what it
+covers. It refuses to run anywhere without udev rather than appearing to
+succeed, because the devcontainer, the server image and the desktop app all see
+what the host's rules decided rather than setting it themselves — installing
+the file inside a container changes nothing.
+
+The rules hand the nodes to `dialout`, which does nothing for a user who is not
+in that group, so the script adds the invoking one and says that a session has
+to be restarted before it counts.
+
+`make app-build` copies the script, the rules and a `README.txt` into `dist/`
+beside the installers. An installer cannot do any of this for the host it lands
+on, so whoever unpacks a release has to, and the README is what tells them.
 
 `make udev-check` is the report on its own, and does run in the devcontainer:
 it asks what `/dev` looks like now, not what udev was told. Both read the vendor
