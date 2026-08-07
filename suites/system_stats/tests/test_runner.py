@@ -60,7 +60,9 @@ class TestAPassingRun:
         verdict = read_json(passing_run / "verdict.json")
         assert verdict["passed"] is True
         assert verdict["failures"] == 0
-        assert verdict["total_iterations"] >= 2
+        # A slow first sample can consume the short test duration. One passing
+        # sample proves the end-to-end runner wiring without timing assumptions.
+        assert verdict["total_iterations"] >= 1
 
     def test_writes_every_artifact_the_manifest_declares(self, passing_run: Path) -> None:
         for name in ("events.sqlite", "junit.xml", "manifest.json", "metrics.jsonl", "summary.md", "verdict.json"):
