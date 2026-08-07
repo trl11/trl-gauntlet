@@ -99,8 +99,32 @@ class TestAPassingRun:
         assert manifest["versions"]["python"].count(".") == 2
 
 
+@pytest.fixture
+def failing_sampler(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make failure-path tests independent of the host's instantaneous CPU load."""
+
+    class _FailingSampler:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        def prime(self) -> None:
+            pass
+
+        def sample(self) -> Sample:
+            return Sample(
+                context_switches_per_s=None,
+                cpu=CpuUsage(overall_percent=100.0, per_core_percent={"cpu0": 100.0}),
+                cpu_count=1,
+                disks=(),
+                load=None,
+                memory=None,
+            )
+
+    monkeypatch.setattr("suite.runner.Sampler", _FailingSampler)
+
+
 class TestAFailingRun:
-    def test_an_impossible_ceiling_records_a_failure(self, tmp_path: Path) -> None:
+    def test_an_impossible_ceiling_records_a_failure(self, tmp_path: Path, failing_sampler: None) -> None:
         run_dir = tmp_path / "run"
         profile = write_profile(tmp_path, max_cpu_percent=0.0)
 
@@ -111,7 +135,7 @@ class TestAFailingRun:
         # integration test must not require every sample to fail.
         assert 1 <= verdict["failures"] <= verdict["total_iterations"]
 
-    def test_it_records_an_anomaly_per_failing_check(self, tmp_path: Path) -> None:
+    def test_it_records_an_anomaly_per_failing_check(self, tmp_path: Path, failing_sampler: None) -> None:
         run_dir = tmp_path / "run"
         profile = write_profile(tmp_path, max_cpu_percent=0.0)
         main(["--profile", str(profile), "--run-dir", str(run_dir)])
@@ -123,7 +147,7 @@ class TestAFailingRun:
         assert cpu["outcome"] == "fail"
         assert "above ceiling" in cpu["message"] or "samples failed" in cpu["message"]
 
-    def test_stop_on_failure_stops_after_the_first_failed_sample(self, tmp_path: Path) -> None:
+    def test_stop_on_failure_stops_after_the_first_failed_sample(self, tmp_path: Path, failing_sampler: None) -> None:
         run_dir = tmp_path / "run"
         profile = write_profile(tmp_path, duration_s=5.0, max_cpu_percent=0.0, stop_on_failure=True)
 
