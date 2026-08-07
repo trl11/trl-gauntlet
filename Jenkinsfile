@@ -11,9 +11,6 @@ pipeline {
     environment {
         CI = 'true'
         HOME = "${WORKSPACE}"
-        // `pip install --user` below honors HOME, keeping the bootstrap local
-        // to this workspace rather than mutating a Jenkins agent image.
-        PATH+UV = "${WORKSPACE}/.local/bin"
     }
 
     stages {
@@ -26,19 +23,21 @@ pipeline {
                 sshagent(credentials: ['github-ssh']) {
                     sh 'git submodule update --init --recursive'
                 }
-                sh 'make setup'
+                // `pip install --user` honors HOME, keeping the bootstrap local
+                // to this workspace rather than mutating a Jenkins agent image.
+                sh 'PATH="$HOME/.local/bin:$PATH" make setup'
             }
         }
 
         stage('Check') {
             steps {
-                sh 'make check'
+                sh 'PATH="$HOME/.local/bin:$PATH" make check'
             }
         }
 
         stage('Build release artifacts') {
             steps {
-                sh 'make build'
+                sh 'PATH="$HOME/.local/bin:$PATH" make build'
                 sh '''#!/usr/bin/env bash
                     set -euo pipefail
                     version=$(< VERSION)
