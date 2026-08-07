@@ -11,11 +11,18 @@ pipeline {
     environment {
         CI = 'true'
         HOME = "${WORKSPACE}"
+        // `pip install --user` below honors HOME, keeping the bootstrap local
+        // to this workspace rather than mutating a Jenkins agent image.
+        PATH+UV = "${WORKSPACE}/.local/bin"
     }
 
     stages {
         stage('Setup') {
             steps {
+                sh '''#!/usr/bin/env bash
+                    set -euo pipefail
+                    command -v uv >/dev/null || python3 -m pip install --user --disable-pip-version-check uv
+                '''
                 sshagent(credentials: ['github-ssh']) {
                     sh 'git submodule update --init --recursive'
                 }
