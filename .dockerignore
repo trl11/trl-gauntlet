@@ -13,6 +13,7 @@
 app/
 dist/
 
+.ci-cache/
 .devcontainer/
 .git/
 .github/

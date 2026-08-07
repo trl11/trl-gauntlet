@@ -15,6 +15,7 @@ dist/
 tmp/
 
 # Run artifacts and local settings
+.ci-cache/
 gauntlet-runs/
 output/
 .env

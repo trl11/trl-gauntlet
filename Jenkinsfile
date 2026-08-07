@@ -25,18 +25,22 @@ pipeline {
                         returnStdout: true,
                     ).trim()
                     def image = docker.build(
-                        "${CI_IMAGE}:${BUILD_NUMBER}",
+                        "${CI_IMAGE}:cache",
                         "--build-arg APT_PROXY_URL=${APT_PROXY_URL} --file ci/Dockerfile .",
                     )
+                    // Keep a stable local tag so a worker retains BuildKit layers across
+                    // build numbers; the numbered tag remains the immutable run input.
+                    sh "docker tag ${CI_IMAGE}:cache ${CI_IMAGE}:${BUILD_NUMBER}"
                     def dockerArgs = "--group-add ${socketGid} " +
                         '-v /var/run/docker.sock:/var/run/docker.sock ' +
                         '-v /usr/bin/docker:/usr/bin/docker ' +
                         '-v /usr/libexec/docker:/usr/libexec/docker'
+                    sh 'mkdir -p .ci-cache/{uv,npm,electron,electron-builder}'
                     image.inside(dockerArgs) {
                         // Start the SSH agent inside the CI container so its UNIX socket
                         // is usable for private submodule cloning.
                         sshagent(credentials: ['github-ssh']) {
-                            sh 'git submodule update --init --recursive'
+                            sh 'git submodule update --init --recursive --depth 1'
                             sh 'make setup'
                         }
                     }
@@ -84,7 +88,10 @@ pipeline {
         always {
             archiveArtifacts artifacts: 'dist/*', allowEmptyArchive: true, fingerprint: true
             junit allowEmptyResults: true, testResults: 'build/junit.xml'
-            cleanWs(deleteDirs: true, patterns: [[pattern: '.git/**', type: 'EXCLUDE']])
+            cleanWs(deleteDirs: true, patterns: [
+                [pattern: '.ci-cache/**', type: 'EXCLUDE'],
+                [pattern: '.git/**', type: 'EXCLUDE'],
+            ])
         }
         regression {
             slackSend(

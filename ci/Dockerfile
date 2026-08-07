@@ -39,12 +39,20 @@ RUN apt-get update \
 # The submodule is fetched over SSH during the Pipeline. Seed the GitHub host
 # key in the image so the short-lived CI user's empty home never prompts for
 # interactive host-key acceptance.
-RUN mkdir -p /home/node/.ssh \
+RUN mkdir -p /home/node/.ssh /cache/uv /cache/npm /cache/electron /cache/electron-builder \
     && ssh-keyscan -H github.com >> /home/node/.ssh/known_hosts \
-    && chown -R node:node /home/node/.ssh \
+    && chown -R node:node /home/node/.ssh /cache \
     && chmod 700 /home/node/.ssh \
     && chmod 600 /home/node/.ssh/known_hosts \
     && git config --system --add safe.directory '*'
+
+# CI keeps these download caches in the checkout's ignored .ci-cache directory.
+# Jenkins preserves that directory across workspace cleanup; no source or built
+# artifact is cached.
+ENV UV_CACHE_DIR=/workspace/.ci-cache/uv \
+    NPM_CONFIG_CACHE=/workspace/.ci-cache/npm \
+    ELECTRON_CACHE=/workspace/.ci-cache/electron \
+    ELECTRON_BUILDER_CACHE=/workspace/.ci-cache/electron-builder
 
 USER node
 WORKDIR /workspace
