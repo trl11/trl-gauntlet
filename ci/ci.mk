@@ -6,7 +6,9 @@ CI_DIR := $(ROOT)/ci
 CI_IMAGE := ci-trl-gauntlet
 CI_TAG ?= local
 CI_APT_PROXY_URL ?=
-CI_DOCKER_GID := $(shell stat -c %g /var/run/docker.sock 2>/dev/null || echo 999)
+# The Docker socket is group 999 inside the Docker runtime. This can differ
+# from its GID as observed inside a devcontainer; callers can override it.
+CI_DOCKER_GID ?= 999
 CI_DOCKER_BIN := $(shell command -v docker)
 CI_DOCKER_LIBEXEC := /usr/libexec/docker
 CI_USER := $(shell id -u):$(shell id -g)
