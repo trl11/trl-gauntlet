@@ -100,6 +100,8 @@ behind a toggle below 900px. There is no sidebar.
 | Task | Command |
 |---|---|
 | Setup | `make setup` |
+| Install the instrument udev rules, on the bench host | `make install-udev-rules` |
+| Report whether those rules reached the instruments | `make udev-check` |
 | Devcontainer | `make dev` / `make dev-stop` |
 | Build the frontend and serve, with auto-reload | `make run` |
 | Backend and frontend together, both hot-reloading | `make run-hmr` |

@@ -28,6 +28,10 @@ CAMPAIGNS    := $(ROOT)/campaigns
 # $(SUITES) alone silently skips them.
 SUITE_SOURCES := $(SUITES) $(CAMPAIGNS)
 FRONTEND     := $(ROOT)/frontend
+# Host udev rules for the instruments Gauntlet claims itself, and where the
+# host keeps them. Installed on the bench, not in the devcontainer.
+UDEV_RULES     := $(ROOT)/system/99-gauntlet-instruments.rules
+UDEV_RULES_DIR := /etc/udev/rules.d
 FRONTEND_OUT := $(APP)/src/gauntlet/web_dist
 # The Electron shell, and the relocatable CPython it ships the backend in.
 DESKTOP         := $(ROOT)/app

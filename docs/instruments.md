@@ -176,14 +176,28 @@ the two drivers against fake ports, and `test_instruments_api.py` the endpoints.
 The kernel's usbserial drivers already create `/dev/ttyUSB*` and `/dev/ttyACM*`
 owned by `dialout`, which is why the PSU needs nothing installed. An instrument
 driven over raw USB is claimed through usbfs, whose nodes default to
-`root:root 0664` — enough to read descriptors, not enough to talk. Install the
-rule on whichever host the instruments are plugged into:
+`root:root 0664` — enough to read descriptors, not enough to talk. That is what
+`system/99-gauntlet-instruments.rules` settles, and `make install-udev-rules`
+installs it:
 
-```bash
-sudo cp system/99-gauntlet-instruments.rules /etc/udev/rules.d/
-sudo udevadm control --reload-rules
-sudo udevadm trigger
+```
+$ make install-udev-rules
+==> installing 99-gauntlet-instruments.rules into /etc/udev/rules.d
+==> instruments the rules cover
+  0683:2008  serial 6A046A27 DI-2008  /dev/bus/usb/003/061  root:dialout 660  OK
 ```
 
-The devcontainer, the server image and the desktop app all see what the host's
-rules decided rather than setting it themselves.
+Run it on whichever host the instruments are plugged into. It refuses to run
+anywhere without udev rather than appearing to succeed, because the devcontainer,
+the server image and the desktop app all see what the host's rules decided rather
+than setting it themselves — installing the file inside a container changes
+nothing.
+
+`make udev-check` is the report on its own, and does run in the devcontainer:
+it asks what `/dev` looks like now, not what udev was told. Both read the vendor
+ids out of the rules file rather than repeating them, so a rule added there is
+covered without touching `scripts/udev_check.py`.
+
+Until the rule is installed the node can be opened by hand with
+`sudo chgrp dialout /dev/bus/usb/<bus>/<device> && sudo chmod 660` on the same
+node `udev-check` names, which lasts until the device is replugged.

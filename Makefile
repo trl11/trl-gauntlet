@@ -14,6 +14,8 @@ help:
 	@echo ""
 	@echo "  Setup"
 	@echo "    make setup             create .venv and install both packages (editable)"
+	@echo "    make install-udev-rules  install the instrument udev rules (on the bench host)"
+	@echo "    make udev-check        report whether those rules reached the instruments"
 	@echo "    make clean             remove build artifacts and caches"
 	@echo "    make distclean         also remove .venv and output/"
 	@echo ""
@@ -105,6 +107,31 @@ ensure-setup:
 	@{ test -x $(BIN)/gauntlet && \
 	   test "$$(cat $(VENV_ROOT_STAMP) 2>/dev/null)" = "$(ROOT)"; } \
 		|| $(MAKE) --no-print-directory setup
+
+.PHONY: install-udev-rules udev-check
+
+# Belongs to whichever host the instruments are plugged into, never to the
+# devcontainer or the image: it is the host's rules that decide what a device
+# node is owned by, and everything else only sees the result. So this refuses
+# to run where there is no udev rather than appearing to succeed.
+install-udev-rules:
+	@command -v udevadm >/dev/null 2>&1 || { \
+		echo "no udevadm here. Run this on the host the instruments are plugged into,"; \
+		echo "not in the devcontainer: the host's rules are what own the device node."; \
+		exit 1; \
+	}
+	@echo "==> installing $(notdir $(UDEV_RULES)) into $(UDEV_RULES_DIR)"
+	@sudo install -m 644 $(UDEV_RULES) $(UDEV_RULES_DIR)/
+	@sudo udevadm control --reload-rules
+	@sudo udevadm trigger
+	@$(MAKE) --no-print-directory udev-check
+
+# Reads the rules file for the vendors it claims, so this reports on whatever
+# is declared there. Runs anywhere the devices are visible, devcontainer
+# included, because it asks about /dev rather than about udev.
+udev-check:
+	@echo "==> instruments the rules cover"
+	@python3 $(ROOT)/scripts/udev_check.py
 
 # ---------------------------------------------------------------------------
 # Develop
