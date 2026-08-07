@@ -32,10 +32,11 @@ pipeline {
                         '-v /var/run/docker.sock:/var/run/docker.sock ' +
                         '-v /usr/bin/docker:/usr/bin/docker ' +
                         '-v /usr/libexec/docker:/usr/libexec/docker'
-                    sshagent(credentials: ['github-ssh']) {
-                        def sshAgentArgs = "-v ${env.SSH_AUTH_SOCK}:${env.SSH_AUTH_SOCK} " +
-                            "-e SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"
-                        image.inside("${dockerArgs} ${sshAgentArgs}") {
+                    image.inside(dockerArgs) {
+                        // Start the SSH agent after entering the CI container. Its UNIX
+                        // socket is then local to the container, rather than a socket in
+                        // the outer Jenkins agent namespace that Docker cannot bind here.
+                        sshagent(credentials: ['github-ssh']) {
                             sh 'git submodule update --init --recursive'
                             sh 'make setup'
                             sh 'make check'
