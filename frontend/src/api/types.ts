@@ -542,6 +542,18 @@ export interface InstrumentField {
   unit: string;
 }
 
+/**
+ * One thing a row-wise command settles, and what it is set to now.
+ *
+ * `values` is keyed by field name and is what the row's controls start at, so
+ * the operator edits what is there rather than retyping it.
+ */
+export interface InstrumentCommandRow {
+  key: string;
+  label: string;
+  values: Record<string, unknown>;
+}
+
 /** One command an instrument accepts. */
 export interface InstrumentCommand {
   /** The command energises something, so the button carries a warning tint. */
@@ -549,6 +561,16 @@ export interface InstrumentCommand {
   fields: InstrumentField[];
   label: string;
   name: string;
+  /** Heading for the column naming each row, when the command carries rows. */
+  row_label?: string;
+  /**
+   * One row per thing the command settles, its fields becoming the columns.
+   *
+   * A command that declares these is drawn as a table and sent every row at
+   * once under `rows`, rather than as one control that picks a thing and one
+   * that sets it.
+   */
+  rows?: InstrumentCommandRow[];
 }
 
 /** Whether the display burns a readout large or puts it in the row beneath. */

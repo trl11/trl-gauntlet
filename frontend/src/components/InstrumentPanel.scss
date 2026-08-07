@@ -1,10 +1,11 @@
 @use "@trl11/styles/theme.scss" as *;
 @use "@styles/display";
+@use "@styles/table";
 
 .instrument-panel {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 
   &__head {
     display: flex;
@@ -75,21 +76,29 @@
 
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    padding: 18px 20px;
+    gap: 10px;
+    padding: 12px 14px;
   }
 
   &__readings {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 14px 24px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px 18px;
+
+    // The panel's own size for a reading: large enough to read across the
+    // bench, small enough that eight channels do not fill the screen.
+    .seven-segment {
+      height: 32px;
+      font-size: 19px;
+    }
 
     &--small {
       border-top: 1px solid rgba($trl-dark-gray, 0.7);
-      padding-top: 12px;
+      padding-top: 8px;
 
       .seven-segment {
-        height: 26px;
+        height: 22px;
+        font-size: 14px;
       }
 
       .instrument-panel__unit {
@@ -113,8 +122,8 @@
     align-items: center;
     justify-content: center;
     flex: none;
-    width: 20px;
-    height: 20px;
+    width: 17px;
+    height: 17px;
     border: 1px solid $trl-gray;
     border-radius: 50%;
     font-family: $font-mono;
@@ -135,7 +144,7 @@
   &__deck {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
   }
 
   &__modules {
@@ -148,8 +157,8 @@
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    gap: 14px;
-    padding: 14px;
+    gap: 10px;
+    padding: 10px 12px;
     border: 1px solid $trl-dark-gray;
     background-color: rgba($trl-dark, 0.6);
   }
@@ -173,6 +182,68 @@
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: $trl-gray;
+  }
+
+  // A command that settles several things at once: the things across, its
+  // fields down. It scrolls sideways rather than squeezing its controls,
+  // because a mode nobody can read is worse than a table nobody can see all of.
+  &__rows {
+    overflow-x: auto;
+  }
+
+  &__rows-table {
+    @include table.base;
+
+    font-size: 12px;
+
+    th,
+    td {
+      padding: 4px 6px;
+      vertical-align: middle;
+    }
+
+    // The field names down the left, and the things settled across the top.
+    tbody th {
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: $trl-gray;
+      white-space: nowrap;
+      width: 1%;
+      padding-left: 0;
+    }
+
+    thead th {
+      font-family: $font-mono;
+      font-size: 10px;
+      text-transform: none;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+
+      &:first-child {
+        padding-left: 0;
+      }
+    }
+
+    // Every control fills its column, so a table of them reads as one block
+    // rather than as controls of assorted widths.
+    .instrument-panel__choice,
+    .instrument-panel__entry,
+    input,
+    select {
+      width: 100%;
+    }
+
+    td {
+      min-width: 96px;
+    }
+
+    input,
+    select {
+      padding-top: 4px;
+      padding-bottom: 4px;
+      font-size: 12px;
+    }
   }
 
   &__dial {

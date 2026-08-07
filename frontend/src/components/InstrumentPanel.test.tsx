@@ -439,3 +439,88 @@ describe("InstrumentPanel arranges commands by shape", () => {
     }
   });
 });
+
+describe("InstrumentPanel, a command that settles several things at once", () => {
+  const configure = {
+    name: "configure",
+    label: "Apply",
+    row_label: "Channel",
+    rows: [
+      { key: "1", label: "CH 1", values: { mode: "10v", label: "Rail 3V3" } },
+      { key: "2", label: "CH 2", values: { mode: "5v", label: "" } },
+    ],
+    fields: [
+      {
+        name: "mode",
+        label: "Mode",
+        type: "string" as const,
+        unit: "",
+        min: null,
+        max: null,
+        choices: ["10v", "5v", "tc_k"],
+      },
+      {
+        name: "label",
+        label: "Label",
+        type: "string" as const,
+        unit: "",
+        min: null,
+        max: null,
+        choices: [],
+      },
+    ],
+  };
+
+  const rowwise = (onCommand = vi.fn()) => {
+    render(
+      <InstrumentPanel instrument={instrument({ commands: [configure] })} onCommand={onCommand} />
+    );
+    return onCommand;
+  };
+
+  it("runs the things settled across and the fields down", () => {
+    rowwise();
+    // Eight channels would otherwise be eight rows of controls tall.
+    expect(screen.getByRole("columnheader", { name: "Channel" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "CH 1" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "CH 2" })).toBeInTheDocument();
+    expect(screen.getByRole("rowheader", { name: "Mode" })).toBeInTheDocument();
+    expect(screen.getByRole("rowheader", { name: "Label" })).toBeInTheDocument();
+  });
+
+  it("starts each control at what that row is set to now", () => {
+    rowwise();
+    expect(screen.getByRole("combobox", { name: "CH 1 Mode" })).toHaveValue("10v");
+    expect(screen.getByRole("combobox", { name: "CH 2 Mode" })).toHaveValue("5v");
+    expect(screen.getByRole("textbox", { name: "CH 1 Label" })).toHaveValue("Rail 3V3");
+    expect(screen.getByRole("textbox", { name: "CH 2 Label" })).toHaveValue("");
+  });
+
+  it("sends every row at once, edited and untouched alike", async () => {
+    const onCommand = rowwise();
+
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "CH 2 Mode" }), "tc_k");
+    await userEvent.type(screen.getByRole("textbox", { name: "CH 2 Label" }), "Ambient");
+    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+    expect(onCommand).toHaveBeenCalledWith("configure", {
+      rows: {
+        "1": { mode: "10v", label: "Rail 3V3" },
+        "2": { mode: "tc_k", label: "Ambient" },
+      },
+    });
+  });
+
+  it("keeps a row-wise command off the latching key", async () => {
+    // The key stands for one boolean, and a table has as many as it has rows.
+    const onCommand = vi.fn();
+    render(
+      <InstrumentPanel
+        instrument={instrument({ commands: [configure], primary_command: "configure" })}
+        onCommand={onCommand}
+      />
+    );
+    expect(screen.queryByRole("switch", { name: "Lock" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
+  });
+});
