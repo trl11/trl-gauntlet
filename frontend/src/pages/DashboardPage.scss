@@ -188,6 +188,9 @@
   // out two to a row at this width, and stretching one to fill the row pulls
   // them into a single line with the figures far apart. A bench with one
   // instrument gets the same tile as a bench with eight.
+  // A tile with more readings than that width holds takes two of these tracks
+  // instead of being made a track of its own, so every tile still starts on
+  // the same grid and an eight-channel instrument is the width of two.
   &__tiles {
     display: grid;
     grid-template-columns: repeat(auto-fill, 220px);

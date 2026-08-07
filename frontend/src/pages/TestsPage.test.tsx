@@ -245,6 +245,21 @@ describe("TestsPage", () => {
     expect(await screen.findByLabelText("Profile")).toHaveValue("mock.yaml");
   });
 
+  it("marks the picked profile on the whole row, not just its name", async () => {
+    const user = userEvent.setup();
+    const { container } = renderPage("/tests?suite=thermal_cycle");
+    const pick = await screen.findByRole("button", { name: /mock\.yaml/ });
+    expect(container.querySelector(".suite-detail__profile--active")).toBeNull();
+
+    await user.click(pick);
+
+    // The row carries the tint and the edge; a colour on the name alone is
+    // what this replaced, and was too easy to miss.
+    expect(container.querySelector(".suite-detail__profile--active")).not.toBeNull();
+    expect(pick).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Selected")).toBeInTheDocument();
+  });
+
   it("offers a rescan when nothing was discovered", async () => {
     listSuites.mockResolvedValue({ errors: [], suites: [] });
     renderPage();

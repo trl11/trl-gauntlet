@@ -14,6 +14,8 @@ help:
 	@echo ""
 	@echo "  Setup"
 	@echo "    make setup             create .venv and install both packages (editable)"
+	@echo "    make install-udev-rules  install the instrument udev rules (on the bench host)"
+	@echo "    make udev-check        report whether those rules reached the instruments"
 	@echo "    make clean             remove build artifacts and caches"
 	@echo "    make distclean         also remove .venv and output/"
 	@echo ""
@@ -105,6 +107,25 @@ ensure-setup:
 	@{ test -x $(BIN)/gauntlet && \
 	   test "$$(cat $(VENV_ROOT_STAMP) 2>/dev/null)" = "$(ROOT)"; } \
 		|| $(MAKE) --no-print-directory setup
+
+.PHONY: install-udev-rules udev-check
+
+# Belongs to whichever host the instruments are plugged into, never to the
+# devcontainer or the image: it is the host's rules that decide what a device
+# node is owned by, and everything else only sees the result. So this refuses
+# to run where there is no udev rather than appearing to succeed.
+# Delegates to the same script the release ships, so the checkout and a host
+# that only has an AppImage set themselves up the same way and there is one
+# implementation to keep right.
+install-udev-rules:
+	@sudo $(HOST_SETUP)
+
+# Reads the rules file for the vendors it claims, so this reports on whatever
+# is declared there. Runs anywhere the devices are visible, devcontainer
+# included, because it asks about /dev rather than about udev.
+udev-check:
+	@echo "==> instruments the rules cover"
+	@python3 $(ROOT)/scripts/udev_check.py
 
 # ---------------------------------------------------------------------------
 # Develop

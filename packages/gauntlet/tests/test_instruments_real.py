@@ -7,7 +7,7 @@ hardware attached.
 from __future__ import annotations
 
 import struct
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -91,17 +91,33 @@ class _FakeSupply:
 class _FakeDaq:
     """Enough of a DI-2008 to answer info queries and stream scans."""
 
-    def __init__(self, clock: _Clock, codes: tuple[int, ...] = (), scans: int = 4) -> None:
+    # What a real DI-2008 answers, bar the clock, which follows the scan list.
+    INFO: ClassVar[dict[str, str]] = {"0": "DATAQ", "1": "2008", "2": "76", "6": "6A046A27"}
+
+    def __init__(
+        self,
+        clock: _Clock,
+        codes: tuple[int, ...] = (),
+        scans: int = 8,
+        clock_hz: str = "800",
+        echoes_start: bool = True,
+    ) -> None:
         self.clock = clock
         self.closed = False
         self.commands: list[str] = []
+        self._clock_hz = clock_hz
         self._codes = codes
+        self._echoes_start = echoes_start
         self._pending = b""
         self._scanning = False
         self._scans = scans
 
     def close(self) -> None:
         self.closed = True
+
+    def leave_stray(self, data: bytes) -> None:
+        """Put bytes in the endpoint, as an interrupted scan would."""
+        self._pending += data
 
     def read(self, size: int, timeout_ms: int) -> bytes:
         # Every read costs time, so a capture loop bounded by the clock ends.
@@ -120,12 +136,15 @@ class _FakeDaq:
         self.commands.append(line)
         if line == "start":
             self._scanning = True
-            self._pending += b"start\r"
+            if self._echoes_start:
+                self._pending += b"start\r"
         elif line == "stop":
             self._scanning = False
             self._pending = b""
         elif line.startswith("info "):
-            self._pending += f"{line} {line.split()[1]}00\r".encode("ascii")
+            number = line.split()[1]
+            answer = self._clock_hz if number == "9" else self.INFO.get(number, "")
+            self._pending += f"{line} {answer}\r".encode("ascii")
 
 
 class _StubProvider:
@@ -156,6 +175,11 @@ def _psu(supply: _FakeSupply, clock: _Clock | None = None) -> Hm310tPsu:
 
 def _daq(transport: _FakeDaq, clock: _Clock) -> Di2008Daq:
     return Di2008Daq(clock=clock, open_transport=lambda _: transport)
+
+
+def _readout_label(daq: Di2008Daq, key: str) -> str:
+    """The label the provider declares for one readout, as the UI reads it."""
+    return next(entry["label"] for entry in daq.readouts() if entry["key"] == key)
 
 
 class TestModbusFraming:
@@ -320,8 +344,13 @@ class TestDi2008Protocol:
         assert strip_echo(b"start\r\x01\x02") == b"\x01\x02"
 
     def test_a_capture_with_no_echo_is_left_alone(self) -> None:
-        # 0x0D is a legitimate high byte, so only the first 32 bytes are searched.
         payload = bytes(40) + b"\r"
+        assert strip_echo(payload) == payload
+
+    def test_a_sample_carrying_a_carriage_return_survives(self) -> None:
+        # 0x0D is the low byte of code 13, which is 4 mV on the widest range.
+        # Cutting there would shift every channel onto its neighbour.
+        payload = struct.pack("<3h", 13, 3341, 2)
         assert strip_echo(payload) == payload
 
 
@@ -334,7 +363,7 @@ class TestDi2008Daq:
         assert "slist 0 2048" in transport.commands
         assert "slist 7 2055" in transport.commands
         assert "srate 4" in transport.commands
-        assert "dec 10" in transport.commands
+        assert "dec 1" in transport.commands
         # Without this the device holds samples back until a packet is full.
         assert "ps 0" in transport.commands
 
@@ -358,8 +387,7 @@ class TestDi2008Daq:
         clock = _Clock()
         transport = _FakeDaq(clock, tuple(range(8)))
         daq = _daq(transport, clock)
-        result = daq.command("set_mode", {"channel": "3", "mode": "tc_k"})
-        assert result == {"channel": "3", "mode": "tc_k", "unit": "C"}
+        daq.command("configure", {"rows": {"3": {"mode": "tc_k"}}})
         assert f"slist 2 {slist_word(2, 'tc_k')}" in transport.commands
         assert daq.state()["channels"]["3"]["unit"] == "C"
 
@@ -367,20 +395,145 @@ class TestDi2008Daq:
         clock = _Clock()
         codes = tuple(32 * 250 for _ in range(8))
         daq = _daq(_FakeDaq(clock, codes), clock)
-        daq.command("set_mode", {"channel": "1", "mode": "tc_k"})
+        daq.command("configure", {"rows": {"1": {"mode": "tc_k"}}})
         assert daq.command("sample", {})["channels"]["1"] == 25.0
+
+    def test_every_channel_is_settled_in_one_pass(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock, tuple(range(8)))
+        daq = _daq(transport, clock)
+        assert daq.available()
+        before = transport.commands.count("ps 0")
+        result = daq.command(
+            "configure",
+            {"rows": {str(n): {"label": f"Rail {n}", "mode": "5v"} for n in range(1, 9)}},
+        )
+        assert [entry["mode"] for entry in result["channels"].values()] == ["5v"] * 8
+        assert [entry["label"] for entry in result["channels"].values()] == [f"Rail {n}" for n in range(1, 9)]
+        # Eight channels, one scan list reload, not eight.
+        assert transport.commands.count("ps 0") == before + 1
+
+    def test_a_channel_no_row_names_is_left_alone(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(range(8))), clock)
+        daq.command("configure", {"rows": {"1": {"label": "Rail 5V", "mode": "1v"}}})
+        daq.command("configure", {"rows": {"2": {"mode": "tc_k"}}})
+        assert daq.state()["channels"]["1"]["label"] == "Rail 5V"
+        assert daq.state()["channels"]["1"]["mode"] == "1v"
+
+    def test_a_row_may_carry_either_setting_on_its_own(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(range(8))), clock)
+        daq.command("configure", {"rows": {"1": {"mode": "tc_k"}}})
+        daq.command("configure", {"rows": {"1": {"label": "Ambient"}}})
+        channel = daq.state()["channels"]["1"]
+        assert channel == {"label": "Ambient", "mode": "tc_k", "unit": "C", "value": channel["value"]}
+
+    def test_a_channel_reads_as_its_number_until_it_is_named(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(range(8))), clock)
+        assert daq.state()["channels"]["3"]["label"] == "CH 3"
+        assert _readout_label(daq, "channels.3.value") == "CH 3"
+
+    def test_naming_a_channel_renames_its_reading_everywhere(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(range(8))), clock)
+        daq.command("configure", {"rows": {"3": {"label": "Rail 3V3"}}})
+        assert daq.state()["channels"]["3"]["label"] == "Rail 3V3"
+        # The panel, the dashboard tile and the chart legend all read this one.
+        assert _readout_label(daq, "channels.3.value") == "Rail 3V3"
+
+    def test_naming_a_channel_reconfigures_nothing(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock, tuple(range(8)))
+        daq = _daq(transport, clock)
+        assert daq.available()
+        before = list(transport.commands)
+        daq.command("configure", {"rows": {"1": {"label": "Rail 5V"}}})
+        # A label is what a reading is called, not how it is taken.
+        assert transport.commands == before
+
+    def test_an_empty_label_puts_a_channel_back_to_its_number(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(range(8))), clock)
+        daq.command("configure", {"rows": {"2": {"label": "Shunt"}}})
+        daq.command("configure", {"rows": {"2": {"label": "  "}}})
+        assert daq.state()["channels"]["2"]["label"] == "CH 2"
+        assert _readout_label(daq, "channels.2.value") == "CH 2"
+
+    def test_a_label_is_trimmed_to_one_line_of_ordinary_spacing(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(range(8))), clock)
+        result = daq.command("configure", {"rows": {"1": {"label": "  Rail\n\t3V3  "}}})
+        assert result["channels"]["1"]["label"] == "Rail 3V3"
+
+    def test_a_label_longer_than_a_panel_holds_is_cut(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(range(8))), clock)
+        result = daq.command("configure", {"rows": {"1": {"label": "x" * 80}}})
+        assert len(result["channels"]["1"]["label"]) == 32
+
+    def test_labelling_an_unknown_channel_is_refused(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock), clock)
+        with pytest.raises(CommandRejected):
+            daq.command("configure", {"rows": {"99": {"label": "Rail 3V3"}}})
+
+    def test_the_label_column_takes_free_text_rather_than_a_choice(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock), clock)
+        command = next(entry for entry in daq.commands() if entry["name"] == "configure")
+        label = next(field for field in command["fields"] if field["name"] == "label")
+        assert label["type"] == "string"
+        # No choices is what makes the operator UI draw a text box.
+        assert label["choices"] == []
+
+    def test_a_row_carries_what_its_channel_is_set_to_now(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(range(8))), clock)
+        daq.command("configure", {"rows": {"2": {"label": "Shunt", "mode": "tc_j"}}})
+        command = next(entry for entry in daq.commands() if entry["name"] == "configure")
+        row = next(entry for entry in command["rows"] if entry["key"] == "2")
+        # The row is what the operator's controls start at, so an edit to one
+        # channel does not blank out what the others are set to.
+        assert row == {"key": "2", "label": "CH 2", "values": {"label": "Shunt", "mode": "tc_j"}}
+
+    def test_a_row_offers_an_empty_label_rather_than_the_channel_number(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock), clock)
+        command = next(entry for entry in daq.commands() if entry["name"] == "configure")
+        row = next(entry for entry in command["rows"] if entry["key"] == "1")
+        # Offering "CH 1" would have the operator apply it back as a real label.
+        assert row["values"]["label"] == ""
+
+    def test_a_bad_row_leaves_every_channel_as_it_was(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(range(8))), clock)
+        with pytest.raises(CommandRejected):
+            daq.command(
+                "configure",
+                {"rows": {"1": {"label": "Rail 5V"}, "2": {"mode": "9000v"}}},
+            )
+        # Checked before applied, so nothing is left half configured.
+        assert daq.state()["channels"]["1"]["label"] == "CH 1"
+
+    def test_configuring_nothing_is_refused(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock), clock)
+        with pytest.raises(CommandRejected):
+            daq.command("configure", {"rows": {}})
 
     def test_an_unknown_mode_is_refused(self) -> None:
         clock = _Clock()
         daq = _daq(_FakeDaq(clock), clock)
         with pytest.raises(CommandRejected):
-            daq.command("set_mode", {"channel": "1", "mode": "9000v"})
+            daq.command("configure", {"rows": {"1": {"mode": "9000v"}}})
 
     def test_an_unknown_channel_is_refused(self) -> None:
         clock = _Clock()
         daq = _daq(_FakeDaq(clock), clock)
         with pytest.raises(CommandRejected):
-            daq.command("set_mode", {"channel": "99", "mode": "10v"})
+            daq.command("configure", {"rows": {"99": {"mode": "10v"}}})
 
     def test_state_is_all_none_while_nothing_answers(self) -> None:
         def refuse(_: str) -> Any:
@@ -392,17 +545,49 @@ class TestDi2008Daq:
         assert values == [None] * 8
         assert "no DI-2008" in daq.describe()["unavailable_reason"]
 
-    def test_the_scan_rate_divides_the_base_clock(self) -> None:
+    def test_the_scan_rate_divides_the_clock_the_device_reports(self) -> None:
         clock = _Clock()
-        daq = Di2008Daq(clock=clock, dec=10, srate=4, open_transport=lambda _: _FakeDaq(clock))
-        # 8000 / (4 * 10) across eight channels.
+        transport = _FakeDaq(clock, clock_hz="800")
+        daq = Di2008Daq(clock=clock, dec=10, srate=4, open_transport=lambda _: transport)
+        assert daq.available()
+        # The clock for a list of more than one channel is 800, not the 8000
+        # the base clock alone would suggest: 800 / (4 * 10) across eight.
+        assert daq.scan_rate_hz() == 2.5
+
+    def test_the_clock_is_read_back_after_the_scan_list_is_loaded(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock, clock_hz="8000")
+        daq = Di2008Daq(clock=clock, dec=1, srate=4, open_transport=lambda _: transport)
+        assert daq.available()
+        assert daq.scan_rate_hz() == 250.0
+        assert transport.commands.index("info 9") > transport.commands.index("slist 7 2055")
+
+    def test_a_device_that_will_not_name_a_clock_keeps_the_base_one(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock, clock_hz="")
+        daq = Di2008Daq(clock=clock, dec=10, srate=4, open_transport=lambda _: transport)
+        assert daq.available()
         assert daq.scan_rate_hz() == 25.0
+
+    def test_a_stray_sample_is_drained_before_a_scan(self) -> None:
+        clock = _Clock()
+        codes = tuple(range(0, 8 * 4096, 4096))
+        transport = _FakeDaq(clock, codes, echoes_start=False)
+        daq = _daq(transport, clock)
+        assert daq.available()
+        # Left in the endpoint this would be read as channel one and rotate
+        # every reading onto the channel beside it.
+        transport.leave_stray(struct.pack("<h", 999))
+        channels = daq.command("sample", {})["channels"]
+        assert channels["1"] == 0.0
+        assert channels["2"] == value_from_code(4096, "10v")
 
     def test_identity_comes_from_the_device(self) -> None:
         clock = _Clock()
         daq = _daq(_FakeDaq(clock), clock)
         assert daq.available()
-        assert daq.describe()["serial"] == "600"
+        assert daq.describe()["serial"] == "6A046A27"
+        assert daq.describe()["firmware"] == "76"
         assert "0683:2008" in daq.connection()
 
     def test_closing_stops_the_scan_and_releases_the_device(self) -> None:
@@ -847,24 +1032,24 @@ class TestDi2008Surface:
         daq, _transport, _clock = self._live()
         assert daq.read() == daq.state()
 
-    def test_a_readout_is_declared_per_channel_and_per_mode(self) -> None:
+    def test_a_readout_is_declared_per_channel_and_no_more(self) -> None:
         daq, _transport, _clock = self._live()
         rows = daq.readouts()
         keys = [row["key"] for row in rows]
-        assert "channels.1.value" in keys
-        assert "channels.8.mode" in keys
-        assert len(rows) == 16
+        assert keys == [f"channels.{n}.value" for n in range(1, 9)]
+        # The mode is on the control that sets it, so it is not also a reading.
+        assert not any(key.endswith(".mode") for key in keys)
 
     def test_a_readout_carries_the_unit_its_mode_reads_in(self) -> None:
         daq, _transport, _clock = self._live()
-        daq.command("set_mode", {"channel": "2", "mode": "tc_k"})
+        daq.command("configure", {"rows": {"2": {"mode": "tc_k"}}})
         rows = {row["key"]: row for row in daq.readouts()}
         assert rows["channels.1.value"]["unit"] == "V"
         assert rows["channels.2.value"]["unit"] == "C"
 
     def test_writing_the_capability_runs_the_command_and_answers_with_the_state(self) -> None:
         daq, _transport, _clock = self._live()
-        state = daq.write({"command": "set_mode", "args": {"channel": "3", "mode": "5v"}})
+        state = daq.write({"command": "configure", "args": {"rows": {"3": {"mode": "5v"}}}})
         assert state["channels"]["3"]["mode"] == "5v"
 
     def test_a_scan_list_with_no_channels_decodes_to_nothing(self) -> None:
@@ -1019,7 +1204,16 @@ class TestDetectionChoices:
         assert psu is not None
         assert psu.describe()["driver"] == "hm310t"
 
-    def test_auto_drops_a_daq_that_does_not_answer(self, tmp_path: Any) -> None:
+    def test_auto_drops_a_daq_that_does_not_answer(self, monkeypatch: Any, tmp_path: Any) -> None:
+        from gauntlet.instruments import detect
+
+        def refuse(_: str) -> Any:
+            raise Di2008Error("no DI-2008 on the USB bus")
+
+        # An empty bus, rather than whatever is plugged into the machine
+        # running the tests: probing for real passes only where no DI-2008 is
+        # attached, which is the one bench this suite most needs to pass on.
+        monkeypatch.setattr(detect, "Di2008Daq", lambda **kwargs: Di2008Daq(open_transport=refuse, **kwargs))
         registry = CapabilityRegistry()
         detect_instruments(registry, self._settings(tmp_path, daq_serial="auto"))
         assert registry.provider("daq") is None
@@ -1049,10 +1243,13 @@ class TestDi2008Quiet:
         daq = Di2008Daq(clock=_Clock(), open_transport=lambda _: _FakeDaq(_Clock()))
         commands = {entry["name"]: entry for entry in daq.commands()}
 
-        assert set(commands) == {"sample", "set_mode"}
-        fields = {field["name"]: field for field in commands["set_mode"]["fields"]}
-        assert list(fields["channel"]["choices"]) == [str(n) for n in range(1, 9)]
+        assert set(commands) == {"configure", "sample"}
+        configure = commands["configure"]
+        fields = {field["name"]: field for field in configure["fields"]}
         assert "tc_k" in fields["mode"]["choices"]
+        # One row per channel, rather than a control that picks one.
+        assert [row["key"] for row in configure["rows"]] == [str(n) for n in range(1, 9)]
+        assert configure["row_label"] == "Channel"
 
     def test_acquiring_without_a_transport_answers_the_last_reading(self) -> None:
         daq = Di2008Daq(clock=_Clock(), open_transport=lambda _: _FakeDaq(_Clock()))

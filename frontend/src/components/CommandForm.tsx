@@ -75,6 +75,24 @@ function initialArgs(command: InstrumentCommand): Record<string, unknown> {
   return args;
 }
 
+/**
+ * What each row's controls start at: whatever the instrument is set to now.
+ *
+ * A row that says nothing about a field falls back to that field's own start,
+ * so a provider need only declare the values it actually keeps.
+ */
+function initialRows(command: InstrumentCommand): Record<string, Record<string, unknown>> {
+  const rows: Record<string, Record<string, unknown>> = {};
+  for (const row of command.rows ?? []) {
+    const values: Record<string, unknown> = {};
+    for (const field of command.fields) {
+      values[field.name] = row.values[field.name] ?? initialValue(field);
+    }
+    rows[row.key] = values;
+  }
+  return rows;
+}
+
 /** Coerce the raw control value to the type the field declares. */
 function coerce(field: InstrumentField, value: unknown): unknown {
   if (field.type === "boolean") return value === true;
@@ -92,9 +110,15 @@ const CommandForm: React.FC<CommandFormProps> = ({
 }) => {
   const fieldId = useId();
   const [args, setArgs] = useState<Record<string, unknown>>(() => initialArgs(command));
+  const [rows, setRows] = useState<Record<string, Record<string, unknown>>>(() =>
+    initialRows(command)
+  );
   const [locked, setLocked] = useState(true);
 
-  const latch = primary ? latchField(command) : null;
+  // A command settling several things at once is a table, and never a latching
+  // key: the key stands for one boolean, and there are as many here as rows.
+  const rowwise = (command.rows ?? []).length > 0;
+  const latch = primary && !rowwise ? latchField(command) : null;
   const latched = latch !== null && args[latch.name] === true;
 
   // The lock stays where the operator left it. A run taking the instrument is
@@ -106,6 +130,18 @@ const CommandForm: React.FC<CommandFormProps> = ({
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
+    if (rowwise) {
+      const payload: Record<string, Record<string, unknown>> = {};
+      for (const row of command.rows ?? []) {
+        const values: Record<string, unknown> = {};
+        for (const field of command.fields) {
+          values[field.name] = coerce(field, rows[row.key]?.[field.name]);
+        }
+        payload[row.key] = values;
+      }
+      onSubmit({ rows: payload });
+      return;
+    }
     // A latching key sends the opposite of what it last sent, so the press
     // itself is the setting; every other command sends what its controls say.
     const values = latch === null ? args : { ...args, [latch.name]: !latched };
@@ -118,20 +154,33 @@ const CommandForm: React.FC<CommandFormProps> = ({
   const set = (name: string, value: unknown) =>
     setArgs((current) => ({ ...current, [name]: value }));
 
-  const control = (field: InstrumentField) => {
-    const id = `${fieldId}-${field.name}`;
-    const value = args[field.name];
+  const setRow = (key: string, name: string, value: unknown) =>
+    setRows((current) => ({ ...current, [key]: { ...current[key], [name]: value } }));
 
+  /**
+   * One field's control, wherever it is drawn.
+   *
+   * The value and where an edit goes are passed in rather than read from one
+   * place, so a field laid out on its own and the same field laid out as a
+   * column of a table are the same control.
+   */
+  const control = (
+    field: InstrumentField,
+    value: unknown,
+    onChange: (next: unknown) => void,
+    id: string,
+    name: string
+  ) => {
     if (field.type === "boolean") {
       const on = value === true;
       return (
         <Button
           aria-checked={on}
-          aria-label={fieldLabel(field)}
+          aria-label={name}
           className={clsx("instrument-panel__toggle", on && "instrument-panel__toggle--on")}
           color="transparent"
           disabled={disabled}
-          onClick={() => set(field.name, !on)}
+          onClick={() => onChange(!on)}
           role="switch"
           type="button"
         >
@@ -143,11 +192,11 @@ const CommandForm: React.FC<CommandFormProps> = ({
     if (field.choices.length > 0) {
       return (
         <Select
-          aria-label={fieldLabel(field)}
+          aria-label={name}
           className="instrument-panel__choice"
           disabled={disabled}
           id={id}
-          onChange={(event) => set(field.name, event.target.value)}
+          onChange={(event) => onChange(event.target.value)}
           options={field.choices.map((choice) => ({ value: choice, label: choice }))}
           value={String(value ?? "")}
         />
@@ -157,12 +206,12 @@ const CommandForm: React.FC<CommandFormProps> = ({
     const numeric = field.type === "integer" || field.type === "number";
     const entry = (
       <Input
-        aria-label={fieldLabel(field)}
+        aria-label={name}
         disabled={disabled}
         id={id}
         max={field.max ?? undefined}
         min={field.min ?? undefined}
-        onChange={(event) => set(field.name, event.target.value)}
+        onChange={(event) => onChange(event.target.value)}
         step={field.type === "integer" ? 1 : "any"}
         type={numeric ? "number" : "text"}
         value={String(value ?? "")}
@@ -176,10 +225,10 @@ const CommandForm: React.FC<CommandFormProps> = ({
       <span className="instrument-panel__dial">
         <Knob
           disabled={disabled}
-          label={fieldLabel(field)}
+          label={name}
           max={field.max ?? 0}
           min={field.min ?? 0}
-          onChange={(next) => set(field.name, next)}
+          onChange={(next) => onChange(next)}
           step={stepOf(field)}
           value={Number.isFinite(reading) ? reading : (field.min ?? 0)}
         />
@@ -192,17 +241,63 @@ const CommandForm: React.FC<CommandFormProps> = ({
   // own; whatever else the command takes still does.
   const settings = command.fields.filter((field) => field.name !== latch?.name);
 
+  // The things settled run across and the fields run down, so eight channels
+  // are two rows of controls rather than eight. It reads the way the display
+  // above it does, channel by channel from the left.
+  const table = (
+    <div className="instrument-panel__rows">
+      <table className="instrument-panel__rows-table">
+        <thead>
+          <tr>
+            <th scope="col">{command.row_label ?? ""}</th>
+            {(command.rows ?? []).map((row) => (
+              <th key={row.key} scope="col">
+                {row.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {command.fields.map((field) => (
+            <tr key={field.name}>
+              <th scope="row">{fieldLabel(field)}</th>
+              {(command.rows ?? []).map((row) => (
+                <td key={row.key}>
+                  {control(
+                    field,
+                    rows[row.key]?.[field.name],
+                    (next) => setRow(row.key, field.name, next),
+                    `${fieldId}-${row.key}-${field.name}`,
+                    `${row.label} ${fieldLabel(field)}`
+                  )}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
     <form
       className={clsx("instrument-panel__command", primary && "instrument-panel__command--primary")}
       onSubmit={submit}
     >
-      {settings.length > 0 && (
+      {rowwise && table}
+
+      {!rowwise && settings.length > 0 && (
         <div className="instrument-panel__controls">
           {settings.map((field) => (
             <span className="instrument-panel__control" key={field.name}>
               <span className="instrument-panel__control-label">{fieldLabel(field)}</span>
-              {control(field)}
+              {control(
+                field,
+                args[field.name],
+                (next) => set(field.name, next),
+                `${fieldId}-${field.name}`,
+                fieldLabel(field)
+              )}
             </span>
           ))}
         </div>

@@ -19,6 +19,22 @@
     outline: none;
   }
 
+  // An instrument with more readings than fit two-by-two takes a second
+  // column of the grid on the page that places it, so its readings come four
+  // to a row instead of stacking. The display below is already fluid, so
+  // widening the tile is the whole of it.
+  &--wide {
+    grid-column: span 2;
+  }
+
+  // One column is all there is to take at a width that fits a single tile, so
+  // the span goes back to one rather than overflowing the grid.
+  @media (max-width: 560px) {
+    &--wide {
+      grid-column: span 1;
+    }
+  }
+
   &__head {
     display: flex;
     align-items: center;
@@ -55,8 +71,9 @@
     white-space: nowrap;
   }
 
-  // Readings sit two to a row at the width of a tile, so a display of three
-  // or four of them stands as tall as the figures beside it and no taller.
+  // Readings sit two to a row at the width of one column and four at the
+  // width of two, so a display stands as tall as the figures beside it and no
+  // taller whether it holds three readings or eight.
   &__display {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));

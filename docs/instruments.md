@@ -22,6 +22,27 @@ Beside each is a simulation — `mock_psu.py`, `mock_daq.py`, `mock_chamber.py` 
 which exists for development and for tests, and which reaches an operator only
 when they ask for it.
 
+Its eight channels are settled by one `configure` command carrying a row each,
+rather than a control that picks a channel and a control that sets it. A row
+takes a mode, a label, or both, and a channel no row names is left alone — so
+the panel sends all eight at once and a suite sends the one it cares about,
+through the same command. Every row is checked before any of it is applied,
+and the scan list is reloaded once for the lot rather than once per channel.
+
+A channel is named rather than numbered wherever it is named: its label goes
+into what `readouts()` declares, so the panel, the dashboard tile and the chart
+legend all read "Rail 3V3" in place of "CH 1" without any of them knowing a
+label from a channel number. Labels live in the driver for the session, as
+channel modes do.
+
+The DI-2008 scans at `clock / (srate * dec)` across its whole scan list, and
+the clock is not the fixed 8 kHz the base clock suggests: a list of one channel
+runs at 8000 Hz, and any longer list at 800 Hz. The driver reads `info 9` back
+after loading the list rather than assuming, because that tenfold difference is
+what decides whether a capture window long enough to hold a scan is 0.1 s or a
+second. It also sizes its capture from that rate, so a sample costs what the
+configured rate needs and no longer.
+
 ## What is registered
 
 `instruments/detect.py` decides, at startup and again on every operator scan.
@@ -99,6 +120,31 @@ argument: its type, unit, choices, and its minimum and maximum. `number_arg`
 reads that argument back and rejects what the field ruled out, so the bounds
 are stated once.
 
+A command that settles the same fields for several things at once — the
+channels of an acquisition unit, the rails of a supply — adds `command_row` per
+thing and a `row_label` for the column naming them:
+
+```python
+{
+    "name": "configure",
+    "label": "Apply",
+    "row_label": "Channel",
+    "rows": [command_row(name, f"CH {name}", {"label": ..., "mode": ...}) for name in channels],
+    "fields": [
+        command_field("mode", "Mode", "string", choices=MODES),
+        command_field("label", "Label", "string"),
+    ],
+}
+```
+
+The panel draws that as a table with the fields for columns, each control
+starting at the value its row carries, and sends every row back under `rows`
+keyed by `command_row`'s `key`. The provider decides what a row is worth
+offering: a value it would be wrong to apply back — a label that is really a
+fallback — belongs out of `values`, or the operator applies it as if they had
+typed it. A row-wise command never becomes a latching key, since the key
+stands for one boolean and a table has as many as it has rows.
+
 ## How the panel draws it
 
 `InstrumentPanel` renders every instrument, from the declarations above and
@@ -144,8 +190,10 @@ untouched. The instrument's other commands stay drivable.
 | `POST /api/instruments/{name}/command` | Drive one, as `{"command": ..., "args": {...}}` |
 | `GET|POST /api/capabilities/{name}` | The same providers, for the suite process |
 
-A rejected command is a 422 carrying the provider's own words; an instrument
-that takes no commands at all is a 405.
+A rejected command is a 422 carrying the provider's own words, on both halves:
+a suite that asks for something the instrument does not offer reads why, rather
+than a 500 that would have its run report a server fault. An instrument that
+takes no commands at all is a 405.
 
 There is no `GET /api/capabilities`. A suite is handed the capabilities it was
 granted and discovers nothing else, and the bench an operator sees is
@@ -176,14 +224,43 @@ the two drivers against fake ports, and `test_instruments_api.py` the endpoints.
 The kernel's usbserial drivers already create `/dev/ttyUSB*` and `/dev/ttyACM*`
 owned by `dialout`, which is why the PSU needs nothing installed. An instrument
 driven over raw USB is claimed through usbfs, whose nodes default to
-`root:root 0664` — enough to read descriptors, not enough to talk. Install the
-rule on whichever host the instruments are plugged into:
+`root:root 0664` — enough to read descriptors, not enough to talk. That is what
+`system/99-gauntlet-instruments.rules` settles, and `system/setup-host.sh`
+installs it:
 
-```bash
-sudo cp system/99-gauntlet-instruments.rules /etc/udev/rules.d/
-sudo udevadm control --reload-rules
-sudo udevadm trigger
+```
+$ sudo ./setup-host.sh
+==> installing udev rules into /etc/udev/rules.d
+    99-gauntlet-instruments.rules
+==> reloading udev
+==> adding dev to dialout
+    dev must log out and back in before this takes effect
+==> instruments these rules cover
+    0683:2008  /dev/bus/usb/003/061  root:dialout 660  6A046A27 DI-2008
 ```
 
-The devcontainer, the server image and the desktop app all see what the host's
-rules decided rather than setting it themselves.
+`make install-udev-rules` runs that same script, so a checkout and a host that
+only has an AppImage set themselves up the same way. It installs every `*.rules`
+file beside it, so a rule added to the release needs no change to the script,
+and it reads the vendor ids back out of those files to report on what it
+covers. It refuses to run anywhere without udev rather than appearing to
+succeed, because the devcontainer, the server image and the desktop app all see
+what the host's rules decided rather than setting it themselves — installing
+the file inside a container changes nothing.
+
+The rules hand the nodes to `dialout`, which does nothing for a user who is not
+in that group, so the script adds the invoking one and says that a session has
+to be restarted before it counts.
+
+`make app-build` copies the script, the rules and a `README.txt` into `dist/`
+beside the installers. An installer cannot do any of this for the host it lands
+on, so whoever unpacks a release has to, and the README is what tells them.
+
+`make udev-check` is the report on its own, and does run in the devcontainer:
+it asks what `/dev` looks like now, not what udev was told. Both read the vendor
+ids out of the rules file rather than repeating them, so a rule added there is
+covered without touching `scripts/udev_check.py`.
+
+Until the rule is installed the node can be opened by hand with
+`sudo chgrp dialout /dev/bus/usb/<bus>/<device> && sudo chmod 660` on the same
+node `udev-check` names, which lasts until the device is replugged.

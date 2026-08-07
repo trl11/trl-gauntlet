@@ -36,6 +36,19 @@ def command_field(
     }
 
 
+def command_row(key: str, label: str, values: dict[str, Any]) -> dict[str, Any]:
+    """One thing a command settles, and what it is set to now.
+
+    A command that carries rows settles the same fields for several things at
+    once — the channels of an acquisition unit, the rails of a supply — so the
+    UI draws it as a table with the command's fields for columns rather than as
+    one control that picks a thing and one that sets it. ``values`` is what the
+    row's controls start at, so the operator edits what is there rather than
+    retyping it, and ``key`` is what the provider is sent back under ``rows``.
+    """
+    return {"key": key, "label": label, "values": values}
+
+
 def number_arg(instrument: str, args: dict[str, Any], key: str, minimum: float, maximum: float) -> float:
     """One numeric argument, rejected when it is missing or out of range."""
     value = args.get(key)

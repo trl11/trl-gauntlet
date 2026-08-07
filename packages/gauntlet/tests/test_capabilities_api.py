@@ -15,6 +15,23 @@ class TestCapabilities:
         assert body.status_code == 200
         assert body.json()["channels"]["1"]["voltage_setpoint"] == 9.0
 
+    def test_a_refused_command_is_422_carrying_the_provider_s_words(self, client) -> None:
+        """The same answer /api/instruments gives, since a suite reads this one.
+
+        A 500 would have a run report a server fault where it in fact asked
+        for something the instrument does not offer.
+        """
+        body = client.post(
+            "/api/capabilities/psu",
+            json={"command": "set_voltage", "args": {"channel": "1", "voltage": 9000.0}},
+        )
+        assert body.status_code == 422
+        assert "voltage" in body.json()["detail"]
+
+    def test_an_unknown_command_is_refused_rather_than_raised(self, client) -> None:
+        body = client.post("/api/capabilities/psu", json={"command": "explode", "args": {}})
+        assert body.status_code == 422
+
     def test_this_router_lists_nothing(self, client) -> None:
         """A suite is handed its grants; the bench is listed under /instruments."""
         assert client.get("/api/capabilities").status_code == 404

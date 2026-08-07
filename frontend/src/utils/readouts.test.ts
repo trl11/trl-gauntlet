@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { NO_READING, readingText, readoutGroups, tickDecimals, valueAt } from "./readouts";
+import { NO_READING, readingText, readoutGroups, tickDecimals, toneFor, valueAt } from "./readouts";
 
 const KEY = "channels.1.voltage";
 
@@ -74,5 +74,22 @@ describe("tickDecimals", () => {
 
   it("falls back to one decimal when no sample carries the series", () => {
     expect(tickDecimals([{ other: 1 }], [KEY])).toBe(1);
+  });
+});
+
+describe("toneFor", () => {
+  it("cycles the lamp colours while there are no more readings than colours", () => {
+    expect([0, 1, 2].map((at) => toneFor(at, 3))).toEqual(["green", "red", "amber"]);
+  });
+
+  it("lands a two-reading display on the first two colours", () => {
+    expect([0, 1].map((at) => toneFor(at, 2))).toEqual(["green", "red"]);
+  });
+
+  it("burns a display of more readings than colours uniformly white", () => {
+    // Eight channels of a kind: a repeating cycle would tell none of them
+    // apart, so the colour is dropped rather than repeated.
+    const tones = Array.from({ length: 8 }, (_, at) => toneFor(at, 8));
+    expect(new Set(tones)).toEqual(new Set(["white"]));
   });
 });

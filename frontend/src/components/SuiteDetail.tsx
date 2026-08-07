@@ -84,7 +84,13 @@ const SuiteDetail: React.FC<SuiteDetailProps> = ({
         ) : (
           <ul className="suite-detail__profile-list">
             {profiles.map((entry) => (
-              <li key={entry.name} className="suite-detail__profile">
+              <li
+                key={entry.name}
+                className={clsx(
+                  "suite-detail__profile",
+                  selectedProfile === entry.name && "suite-detail__profile--active"
+                )}
+              >
                 <button
                   type="button"
                   className={clsx(
@@ -99,6 +105,9 @@ const SuiteDetail: React.FC<SuiteDetailProps> = ({
                     <span className="suite-detail__profile-description">{entry.description}</span>
                   )}
                 </button>
+                {selectedProfile === entry.name && (
+                  <span className="suite-detail__profile-mark">Selected</span>
+                )}
                 {entry.user_authored && <Badge color="amber">edited</Badge>}
                 <Button size="small" onClick={() => onEditProfile(entry.name)}>
                   Edit

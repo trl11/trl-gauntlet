@@ -22,6 +22,10 @@
     color: $indicator-red;
   }
 
+  &--white {
+    color: $trl-light-gray;
+  }
+
   &__cell {
     height: 100%;
     width: auto;

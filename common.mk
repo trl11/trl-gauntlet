@@ -28,6 +28,15 @@ CAMPAIGNS    := $(ROOT)/campaigns
 # $(SUITES) alone silently skips them.
 SUITE_SOURCES := $(SUITES) $(CAMPAIGNS)
 FRONTEND     := $(ROOT)/frontend
+# What a host needs before it can drive the instruments: the udev rules for the
+# devices Gauntlet claims itself, the script that installs them, and the note
+# telling whoever unpacks a release to run it. Installed on the bench, not in
+# the devcontainer, so all three ship beside the installers.
+SYSTEM         := $(ROOT)/system
+UDEV_RULES     := $(SYSTEM)/99-gauntlet-instruments.rules
+UDEV_RULES_DIR := /etc/udev/rules.d
+HOST_SETUP     := $(SYSTEM)/setup-host.sh
+HOST_README    := $(SYSTEM)/README.txt
 FRONTEND_OUT := $(APP)/src/gauntlet/web_dist
 # The Electron shell, and the relocatable CPython it ships the backend in.
 DESKTOP         := $(ROOT)/app

@@ -16,7 +16,7 @@ PYTHON_BUILD_VERSION ?= 3.12.13
 PYTHON_BUILD_TARGET  ?= x86_64-unknown-linux-gnu
 PYTHON_BUILD_URL = https://github.com/astral-sh/python-build-standalone/releases/download/$(PYTHON_BUILD_RELEASE)/cpython-$(PYTHON_BUILD_VERSION)+$(PYTHON_BUILD_RELEASE)-$(PYTHON_BUILD_TARGET)-install_only.tar.gz
 
-.PHONY: build check dev help install prune runtime smoke
+.PHONY: build check dev help host-setup install prune runtime smoke
 
 UNPACKED = $(ROOT)/build/app/$(VERSION)/linux-unpacked
 
@@ -85,8 +85,21 @@ build: install runtime
 	@mkdir -p $(DIST)
 	@cp $(ROOT)/build/app/$(VERSION)/gauntlet-$(VERSION).AppImage $(DIST)/
 	@cp $(ROOT)/build/app/$(VERSION)/gauntlet-$(VERSION).deb $(DIST)/
+	@$(MAKE) --no-print-directory host-setup
 	@echo "dist/gauntlet-$(VERSION).AppImage"
 	@echo "dist/gauntlet-$(VERSION).deb"
+
+# An installer alone is not enough to drive the instruments: the udev rules
+# belong to the host, and nothing in a bundle can install them for it. So the
+# script, the rules it installs and the note telling someone to run it ship
+# beside the installers rather than inside them.
+host-setup:
+	@mkdir -p $(DIST)
+	@install -m 755 $(HOST_SETUP) $(DIST)/
+	@install -m 644 $(HOST_README) $(UDEV_RULES) $(DIST)/
+	@echo "dist/$(notdir $(HOST_README))"
+	@echo "dist/$(notdir $(HOST_SETUP))"
+	@echo "dist/$(notdir $(UDEV_RULES))"
 
 # Runs before the installers are copied out, so a bundle that only works on
 # the machine that built it never reaches dist/.

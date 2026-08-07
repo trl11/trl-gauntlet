@@ -6,6 +6,12 @@ import { formatNumber } from "./format";
 /** Stands in for a reading the instrument did not report. */
 export const NO_READING = "—";
 
+/** Lamp colours a display cycles through, in the order readouts arrive. */
+const TONES = ["green", "red", "amber"] as const;
+
+/** A colour a seven-bar display burns a reading in. */
+export type ReadingTone = (typeof TONES)[number] | "white";
+
 /** One section of readouts: what the display burns large, then the row beneath. */
 export interface ReadoutGroup {
   headline: InstrumentReadout[];
@@ -29,6 +35,23 @@ export function readingText(value: unknown, precision: number | null): string {
   if (typeof value === "boolean") return value ? "on" : "off";
   if (typeof value !== "number") return String(value);
   return precision === null ? formatNumber(value) : value.toFixed(precision);
+}
+
+/**
+ * The colour the reading at `index` burns, of `count` on one display.
+ *
+ * Colour is what tells one reading from the next, and it can only do that
+ * while there are no more readings than there are colours: three lands a
+ * supply on green volts, red amps and amber watts without anything knowing it
+ * is a supply. Past that the cycle repeats, so the colour distinguishes
+ * nothing and only reads as decoration — an eight-channel acquisition unit
+ * would light two greens, three reds and three ambers across readings that are
+ * all of a kind. A display holding more than the cycle burns them uniformly
+ * instead, which is also how a multi-channel instrument's own front panel does
+ * it.
+ */
+export function toneFor(index: number, count: number): ReadingTone {
+  return count > TONES.length ? "white" : TONES[index % TONES.length];
 }
 
 /** Readouts split into their groups, in the order the provider declared them. */

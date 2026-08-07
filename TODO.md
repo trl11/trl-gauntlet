@@ -80,15 +80,19 @@ An AppImage needs libfuse2, which the devcontainer does not have and the server
 image has no use for, so neither installs it. Run it with
 `--appimage-extract-and-run` in there.
 
+**The runtime is pruned after it is installed into.** The `install_only`
+tarball is built to develop against, not to ship: `make app-runtime` drops the
+headers, static libraries, `pkgconfig`, the test suite, `idlelib`, `lib2to3`
+and `tkinter`, and strips the debug symbols from `libpython`, which alone were
+five sixths of it. `bin/python3.12` is left unstripped because what comes out
+cannot resolve its own symbols. `make app-smoke` runs the packaged app with
+nothing to fall back on, which is what says a prune went too far. The AppImage
+is 196MB.
+
 ### Next
 
 No icon work beyond `app/icons/icon.png`, rasterised from `favicon.svg` at
 512×512. electron-builder wants a set of sizes for the best result.
-
-`make app-runtime` fetches 402MB of CPython and installs into all of it. The
-`install_only` tarball carries the test suite, static libraries and headers,
-none of which a packaged app runs. Pruning them is most of the AppImage's
-243MB.
 
 Nothing builds either artifact on CI, and both are x86_64 only.
 
@@ -101,7 +105,7 @@ it. Which campaign a suite belongs to is derived from where it sits on disk, so
 a run names the campaign grouping its suite now rather than the one that
 started it. See [`docs/campaigns.md`](docs/campaigns.md).
 
-Two are built in: `hardware`, the six suites that drive real hardware, and
+Two are built in: `hardware`, the seven suites that drive real hardware, and
 `radiation_tid`, one suite per component of the TID programme.
 
 **Every TID suite is a placeholder.** All eighteen render from the python
@@ -151,22 +155,57 @@ The suites still to come carry the same prefix in the source repository.
 
 ## Real instrument drivers
 
-`psu`, `daq` and `chamber` are registered as `MockPsu`, `MockDaq` and
-`MockChamber`, one class per module in `gauntlet/instruments/`, sharing the
-command and argument helpers in `gauntlet/capabilities/declare.py` and the
-noise generator in `instruments/simulation.py`.
+`psu` and `daq` are real drivers — `Hm310tPsu`, Modbus RTU over a USB serial
+bridge, and `Di2008Daq`, the vendor bulk-USB protocol through usbfs — beside
+the mocks in `gauntlet/instruments/`. `detect.py` registers whichever answers
+and drops whichever stops answering, and registers a simulation only when
+`simulated_instruments` names it. `chamber` has no driver for real hardware, so
+it exists only while it is simulated.
 
-Real drivers exist in `trl-xclops/lab/src/xcng_lab/instruments/`: `hm310t.py`,
-`di2008.py`, `can.py`, `rs422.py`. Each belongs beside the mocks in
-`gauntlet/instruments/`. To replace a mock, a driver must satisfy the
-`CapabilityProvider` protocol in `gauntlet/capabilities/registry.py` —
-`available()`, `describe()`, `instance_id()`, plus `read()` and `write()` for
-the HTTP proxy. The operator panel additionally reads the optional `state()`,
-`commands()` and `command()` facets, and shows
-`describe()["unavailable_reason"]` when a driver reports itself unavailable.
+`can.py` and `rs422.py` in the lab checkout have no counterpart here, and do
+not obviously want one: the `can_bus` and `rs422` suites declare `requires: []`
+and drive their own hardware, so neither is an instrument the operator sees.
 
-The panel is generated from those declarations, so a real driver needs no
-frontend change.
+What a driver owes the rest of the system is in
+[`docs/instruments.md`](docs/instruments.md). The panel is generated from a
+provider's declarations, so a real driver needs no frontend change.
+
+### What the bench has actually seen
+
+The PSU on `/dev/ttyUSB0` was driven read-only on 2026-08-04: detection picks
+it over `MockPsu`, `state()` reads its setpoints and display in ~75ms, and a
+scan leaves the live connection alone. **Every PSU write is unverified.**
+`set_voltage`, `set_current_limit` and `set_output` are tested against a fake
+supply and have never been sent to the device, because enabling the output
+energises whatever is wired to it. Ask before the first real write.
+
+A DI-2008 was attached on 2026-08-06 — bus 003, serial `6A046A27`, firmware 76
+— and the driver written blind against the protocol was wrong in three ways a
+fake transport could not have shown. All three are fixed and the unit now reads
+through both the panel and a granted capability URL. What it has not seen is a
+thermocouple against a known junction: the scaling path works and reads a
+sensible magnitude, but only ever from an open input.
+
+Its usbfs node is not writable until the host udev rule is installed, which
+`make install-udev-rules` does and `make udev-check` reports on. **It is
+installed on no machine**: this bench was unblocked by hand, which lasts until
+the DAQ is replugged.
+
+Two things the DAQ driver leaves out: the digital input bank (slist channel 8)
+and the rate/count channels 9–10, only the eight analog inputs being in the
+scan list, and averaging — a sample is the last complete scan in the window
+rather than the mean of it.
+
+Channel labels and modes live in the driver for the session. Nothing writes
+them down, so a restart puts every channel back to `10v` under its number. A
+`daq_capture` run sets both from its profile at setup, so a run configures the
+bench it is about to measure and does not depend on what the last one left.
+
+`daq_capture` is what proved the whole path on hardware: the supervisor grants
+the capability, the suite configures eight channels in one call, scans them for
+the duration, and each scan lands in `metrics.jsonl` under the channel's label,
+so RunPage charts `daq.rail_3v3`. `GET /api/instruments` reports the run in
+`in_use_by` while it is in flight.
 
 ## Known gaps
 
@@ -174,9 +213,12 @@ frontend change.
   serial, CAN and MQTT paths are untested against hardware. `system_stats` is
   the exception: it reads the host it runs on.
 - `ssd` provisioning (`profiles/bare-disk.yaml`) is likewise mock-only.
-- Instrument state comes only from the three mocks, so the Instruments screen
-  has never been driven against a provider that can fail or go offline
-  mid-command.
+- The Instruments screen has been driven against two real providers, the PSU
+  read-only and the DAQ read and write. Nothing has exercised a provider that
+  fails or goes offline mid-command.
+- Only `daq_capture` drives a capability. Every other suite is `requires: []`
+  and reads its own hardware, so an instrument they depend on is neither
+  granted to them nor reported as in use while they run.
 - `_write_scratch_profile` leaves files under `<runs>/_scratch/`. Nothing prunes
   them.
 - A suite that moves has three places to follow it, and each was found only
@@ -184,6 +226,7 @@ frontend change.
   `SUITE_SOURCES` for what the quality targets read, and the packaging in
   `docker/Dockerfile` and `app/electron-builder.json` for what ships. Nothing
   ties them together, so a fourth would be missed the same way.
-- The desktop app and the server image are built from the repository, so both
-  carry `campaigns/` and every suite inside it. Neither has been rebuilt since
-  the TID campaign was added, which is 18 more suites in both artifacts.
+- The desktop app and the server image both name `campaigns/` now, so both
+  carry every suite inside it. Neither has been rebuilt since the TID campaign
+  was added, which is 18 more suites in both artifacts, so what sits in `dist/`
+  is a bench without them.

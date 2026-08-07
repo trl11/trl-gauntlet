@@ -6,20 +6,19 @@ import CommandForm from "@components/CommandForm";
 import InstrumentState from "@components/InstrumentState";
 import ReadoutChart from "@components/ReadoutChart";
 import SevenSegment from "@components/SevenSegment";
-import { readingText, readoutGroups, valueAt, type ReadoutGroup } from "../utils/readouts";
+import {
+  readingText,
+  readoutGroups,
+  toneFor,
+  valueAt,
+  type ReadingTone,
+  type ReadoutGroup,
+} from "../utils/readouts";
 
 import "./InstrumentPanel.scss";
 
 /** How many polls of history the headline chart keeps. */
 const MAX_SAMPLES = 60;
-
-/**
- * Lamp colours the display cycles through, in the order readouts arrive.
- *
- * Which reading burns which colour is a matter of position alone, so a panel
- * for an instrument nobody has seen still lights up like a bench instrument.
- */
-const TONES = ["green", "red", "amber"] as const;
 
 /** Props every instrument panel takes. */
 export interface InstrumentPanelProps {
@@ -42,7 +41,7 @@ export interface InstrumentPanelProps {
 const Reading: React.FC<{
   readout: InstrumentReadout;
   state: Record<string, unknown>;
-  tone: (typeof TONES)[number];
+  tone: ReadingTone;
 }> = ({ readout, state, tone }) => {
   const value = valueAt(state, readout.key);
   return (
@@ -73,7 +72,7 @@ const ReadoutGroupView: React.FC<{
               key={entry.key}
               readout={entry}
               state={state}
-              tone={TONES[index % TONES.length]}
+              tone={toneFor(index, group.headline.length)}
             />
           ))}
         </div>

@@ -88,12 +88,26 @@
     list-style: none;
   }
 
+  // The row carries the selection, not the name inside it. A profile decides
+  // what a run does, so which one is picked has to be legible at a glance from
+  // the whole row: the same tint and edge the iteration table marks a chosen
+  // row with, and the same accent the suite rail beside this list uses.
   &__profile {
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 8px 12px;
     background-color: rgba($trl-dark-gray, 0.3);
+
+    &:hover {
+      background-color: rgba($trl-dark-gray, 0.5);
+    }
+
+    &--active,
+    &--active:hover {
+      background-color: rgba($indicator-blue, 0.14);
+      box-shadow: inset 3px 0 0 $indicator-blue;
+    }
   }
 
   &__profile-pick {
@@ -112,6 +126,17 @@
     &--active {
       color: $indicator-blue;
     }
+  }
+
+  // Names the picked profile for anyone the colour and the edge do not reach,
+  // and says what selecting one is for, which the row alone never did.
+  &__profile-mark {
+    flex: none;
+    font-family: $font-mono;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: $indicator-blue;
   }
 
   &__profile-description {

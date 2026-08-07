@@ -3,20 +3,22 @@ import { Link } from "react-router";
 
 import type { Instrument, InstrumentReadout } from "@api/types";
 import SevenSegment from "@components/SevenSegment";
-import { readingText, valueAt } from "../utils/readouts";
+import { readingText, toneFor, valueAt } from "../utils/readouts";
 
 import "./InstrumentTile.scss";
 
 /** How many readings fit on a tile before it stops being a glance. */
-const MAX_READINGS = 4;
+const MAX_READINGS = 8;
 
 /**
- * Lamp colours the readings cycle through, in the order they are declared.
+ * Readings past which a tile takes two columns of the grid it sits in.
  *
- * The same rule the full panel uses, so an instrument burns the same colours
- * wherever it is drawn.
+ * Readings lay out two to a row at one column's width, so a tile of more than
+ * four would stand three or four rows tall and leave its figures in a narrow
+ * stack. At two columns they come four to a row and it stays two rows, which
+ * is the height the rest of the grid keeps.
  */
-const TONES = ["green", "red", "amber"] as const;
+const WIDE_READINGS = 4;
 
 /** Props for {@link InstrumentTile}. */
 export interface InstrumentTileProps {
@@ -56,15 +58,19 @@ function tileReadouts(instrument: Instrument): InstrumentReadout[] {
  *
  * It knows nothing about which instrument it is drawing: the readings come
  * from what the provider declared, or from its state when it declared
- * nothing. An instrument that is not answering shows why instead of a stale
- * reading.
+ * nothing, and how many of them there are is what decides whether the tile
+ * takes one column of the grid or two. An instrument that is not answering
+ * shows why instead of a stale reading.
  */
 export const InstrumentTile: React.FC<InstrumentTileProps> = ({ instrument }) => {
   const readouts = tileReadouts(instrument);
 
   return (
     <Link
-      className="instrument-tile"
+      className={clsx(
+        "instrument-tile",
+        readouts.length > WIDE_READINGS && "instrument-tile--wide"
+      )}
       to="/instruments"
       aria-label={`${instrument.name}, ${instrument.available ? "available" : "unavailable"}`}
     >
@@ -87,7 +93,7 @@ export const InstrumentTile: React.FC<InstrumentTileProps> = ({ instrument }) =>
           {readouts.map((readout, index) => (
             <div className="instrument-tile__reading" key={readout.key}>
               <SevenSegment
-                tone={TONES[index % TONES.length]}
+                tone={toneFor(index, readouts.length)}
                 value={readingText(valueAt(instrument.state, readout.key), readout.precision)}
               />
               {readout.unit && <span className="instrument-tile__unit">{readout.unit}</span>}
