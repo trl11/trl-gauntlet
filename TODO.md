@@ -105,7 +105,7 @@ it. Which campaign a suite belongs to is derived from where it sits on disk, so
 a run names the campaign grouping its suite now rather than the one that
 started it. See [`docs/campaigns.md`](docs/campaigns.md).
 
-Two are built in: `hardware`, the six suites that drive real hardware, and
+Two are built in: `hardware`, the seven suites that drive real hardware, and
 `radiation_tid`, one suite per component of the TID programme.
 
 **Every TID suite is a placeholder.** All eighteen render from the python
@@ -197,7 +197,15 @@ scan list, and averaging — a sample is the last complete scan in the window
 rather than the mean of it.
 
 Channel labels and modes live in the driver for the session. Nothing writes
-them down, so a restart puts every channel back to `10v` under its number.
+them down, so a restart puts every channel back to `10v` under its number. A
+`daq_capture` run sets both from its profile at setup, so a run configures the
+bench it is about to measure and does not depend on what the last one left.
+
+`daq_capture` is what proved the whole path on hardware: the supervisor grants
+the capability, the suite configures eight channels in one call, scans them for
+the duration, and each scan lands in `metrics.jsonl` under the channel's label,
+so RunPage charts `daq.rail_3v3`. `GET /api/instruments` reports the run in
+`in_use_by` while it is in flight.
 
 ## Known gaps
 
@@ -208,10 +216,9 @@ them down, so a restart puts every channel back to `10v` under its number.
 - The Instruments screen has been driven against two real providers, the PSU
   read-only and the DAQ read and write. Nothing has exercised a provider that
   fails or goes offline mid-command.
-- No suite drives a capability. `requires:` is empty in every suite that ships,
-  so the grant path has been exercised by hand rather than by a run, and no
-  instrument reading reaches `metrics.jsonl`. Bench readings live only in the
-  panel's own two-minute client-side history.
+- Only `daq_capture` drives a capability. Every other suite is `requires: []`
+  and reads its own hardware, so an instrument they depend on is neither
+  granted to them nor reported as in use while they run.
 - `_write_scratch_profile` leaves files under `<runs>/_scratch/`. Nothing prunes
   them.
 - A suite that moves has three places to follow it, and each was found only
