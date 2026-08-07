@@ -144,8 +144,10 @@ untouched. The instrument's other commands stay drivable.
 | `POST /api/instruments/{name}/command` | Drive one, as `{"command": ..., "args": {...}}` |
 | `GET|POST /api/capabilities/{name}` | The same providers, for the suite process |
 
-A rejected command is a 422 carrying the provider's own words; an instrument
-that takes no commands at all is a 405.
+A rejected command is a 422 carrying the provider's own words, on both halves:
+a suite that asks for something the instrument does not offer reads why, rather
+than a 500 that would have its run report a server fault. An instrument that
+takes no commands at all is a 405.
 
 There is no `GET /api/capabilities`. A suite is handed the capabilities it was
 granted and discovers nothing else, and the bench an operator sees is
