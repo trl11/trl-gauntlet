@@ -45,26 +45,7 @@ pipeline {
         stage('Build release artifacts') {
             steps {
                 sh 'make build'
-                sh '''#!/usr/bin/env bash
-                    set -euo pipefail
-                    version=$(< VERSION)
-                    expected=(
-                      "dist/gauntlet-${version}.AppImage"
-                      "dist/gauntlet-${version}.deb"
-                      "dist/gauntlet-${version}-image.tar.gz"
-                      "dist/gauntlet-${version}-py3-none-any.whl"
-                      "dist/gauntlet_sdk-${version}-py3-none-any.whl"
-                      "dist/README.txt"
-                      "dist/setup-host.sh"
-                      "dist/99-gauntlet-instruments.rules"
-                    )
-                    for artifact in "${expected[@]}"; do
-                      test -s "$artifact"
-                    done
-                    test "$(find dist -maxdepth 1 -type f | wc -l)" -eq "${#expected[@]}"
-                    printf 'Verified release artifacts:\n'
-                    printf '  %s\n' "${expected[@]}"
-                '''
+                sh 'make ci-validate-dist'
             }
         }
     }
