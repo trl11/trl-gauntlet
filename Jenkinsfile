@@ -1,20 +1,8 @@
 pipeline {
-    // Every Jenkins worker has the `docker` label. Build the project-specific
-    // CI image there so this release job can use any available worker while
-    // retaining a reproducible toolchain.
-    agent {
-        dockerfile {
-            filename 'ci/Dockerfile'
-            label 'docker'
-            additionalBuildArgs '--build-arg APT_PROXY_URL=http://192.168.11.112:3142'
-            args '''
-                --group-add 999
-                -v /var/run/docker.sock:/var/run/docker.sock
-                -v /usr/bin/docker:/usr/bin/docker
-                -v /usr/libexec/docker:/usr/libexec/docker
-            '''
-        }
-    }
+    // Every Jenkins worker has the `docker` label. The project CI container is
+    // started explicitly because each worker's Docker socket has its own GID.
+    // The host GID is resolved at runtime instead of assuming a fixed group.
+    agent { label 'docker' }
 
     options {
         ansiColor('xterm')
@@ -24,28 +12,36 @@ pipeline {
     environment {
         CI = 'true'
         HOME = "${WORKSPACE}"
+        CI_IMAGE = 'ci-trl-gauntlet'
+        APT_PROXY_URL = 'http://192.168.11.112:3142'
     }
 
     stages {
-        stage('Setup') {
+        stage('CI') {
             steps {
-                sshagent(credentials: ['github-ssh']) {
-                    sh 'git submodule update --init --recursive'
+                script {
+                    def socketGid = sh(
+                        script: 'stat -c %g /var/run/docker.sock',
+                        returnStdout: true,
+                    ).trim()
+                    def image = docker.build(
+                        "${CI_IMAGE}:${BUILD_NUMBER}",
+                        "--build-arg APT_PROXY_URL=${APT_PROXY_URL} --file ci/Dockerfile .",
+                    )
+                    def dockerArgs = "--group-add ${socketGid} " +
+                        '-v /var/run/docker.sock:/var/run/docker.sock ' +
+                        '-v /usr/bin/docker:/usr/bin/docker ' +
+                        '-v /usr/libexec/docker:/usr/libexec/docker'
+                    sshagent(credentials: ['github-ssh']) {
+                        image.inside(dockerArgs) {
+                            sh 'git submodule update --init --recursive'
+                            sh 'make setup'
+                            sh 'make check'
+                            sh 'make build'
+                            sh 'make ci-validate-dist'
+                        }
+                    }
                 }
-                sh 'make setup'
-            }
-        }
-
-        stage('Check') {
-            steps {
-                sh 'make check'
-            }
-        }
-
-        stage('Build release artifacts') {
-            steps {
-                sh 'make build'
-                sh 'make ci-validate-dist'
             }
         }
     }
