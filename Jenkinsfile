@@ -33,7 +33,9 @@ pipeline {
                         '-v /usr/bin/docker:/usr/bin/docker ' +
                         '-v /usr/libexec/docker:/usr/libexec/docker'
                     sshagent(credentials: ['github-ssh']) {
-                        image.inside(dockerArgs) {
+                        def sshAgentArgs = "-v ${env.SSH_AUTH_SOCK}:${env.SSH_AUTH_SOCK} " +
+                            "-e SSH_AUTH_SOCK=${env.SSH_AUTH_SOCK}"
+                        image.inside("${dockerArgs} ${sshAgentArgs}") {
                             sh 'git submodule update --init --recursive'
                             sh 'make setup'
                             sh 'make check'
