@@ -41,8 +41,11 @@ overrides:
     type: number
     label: Sample period
     unit: s
-    minimum: 0.1
-    help: Seconds between scans. Each scan is one metrics record.
+    minimum: 0.25
+    help: >
+      Seconds between scans. Each scan is one metrics record. One scan of the
+      unit costs about 0.18s, so a shorter period is refused rather than
+      quietly delivering a slower rate than it asked for.
   - name: driver
     flag: --driver
     type: string

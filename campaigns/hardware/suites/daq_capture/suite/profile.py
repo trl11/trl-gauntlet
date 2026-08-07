@@ -16,6 +16,13 @@ MODES = VOLTAGE_MODES + THERMOCOUPLE_MODES
 
 _SLUG = re.compile(r"[^a-z0-9]+")
 
+# The shortest sample period worth asking for. One scan of the unit costs about
+# 0.18s — it halts the scan list, captures, and stops again — so a shorter
+# period would not be refused by the sample loop, which simply runs the next
+# iteration late. Asking for 10Hz and silently getting 5 is worse than being
+# told the rate is not available, so it is refused here instead.
+MIN_SAMPLE_PERIOD_S = 0.25
+
 
 def metric_key(label: str, channel: str) -> str:
     """The name a channel's readings are recorded under.
@@ -73,7 +80,11 @@ class DaqCaptureProfile(BaseModel):
         description="`mock` synthesises readings and contacts no instrument.",
     )
     duration_s: float = Field(default=60.0, gt=0, description="How long to keep capturing.")
-    sample_period_s: float = Field(default=1.0, gt=0, description="Seconds between samples.")
+    sample_period_s: float = Field(
+        default=1.0,
+        ge=MIN_SAMPLE_PERIOD_S,
+        description=f"Seconds between scans. The unit cannot scan faster than {MIN_SAMPLE_PERIOD_S}s.",
+    )
     channels: list[Channel] = Field(
         default_factory=lambda: [Channel(channel="1", label="CH 1")],
         min_length=1,
