@@ -114,7 +114,14 @@ BACKEND=$(pgrep -f "resources/runtime/bin/python3 .*-m gauntlet" | head -1 || tr
 [ -n "$BACKEND" ] || fail "no backend process to check the teardown against"
 MAIN=$(ps -o ppid= -p "$BACKEND" | tr -d ' ')
 kill -TERM "$MAIN"
-sleep 5
+# Electron must relay shutdown through its main process before the packaged
+# backend exits. Under a loaded CI worker that relay can exceed a fixed short
+# sleep, so poll the observed backend process instead of treating timing as a
+# product failure.
+for _ in $(seq 1 30); do
+    kill -0 "$BACKEND" 2>/dev/null || break
+    sleep 1
+done
 if kill -0 "$BACKEND" 2>/dev/null; then
     fail "the backend outlived the app"
 fi
