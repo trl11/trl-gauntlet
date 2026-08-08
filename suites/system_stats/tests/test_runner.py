@@ -167,7 +167,7 @@ class TestTheCommandLine:
         main(["--profile", str(profile), "--run-dir", str(run_dir), "--duration-s", "0.3"])
         assert read_json(run_dir / "verdict.json")["duration_s"] < 5.0
 
-    def test_a_threshold_flag_overrides_the_profile(self, tmp_path: Path) -> None:
+    def test_a_threshold_flag_overrides_the_profile(self, tmp_path: Path, failing_sampler: None) -> None:
         run_dir = tmp_path / "run"
         profile = write_profile(tmp_path)
 
