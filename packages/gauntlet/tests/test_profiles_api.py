@@ -68,7 +68,8 @@ class TestProfileBodies:
     def test_saving_to_a_path_is_422(self, client) -> None:
         # A forward slash never reaches the handler: it does not match `{name}`.
         assert client.put("/api/suites/alpha/profiles/..%5Cescape", json={"body": ""}).status_code == 422
-        assert client.put("/api/suites/alpha/profiles/sub/mine", json={"body": ""}).status_code == 405
+        # A forward slash never reaches the `{name}` handler, so the path is absent.
+        assert client.put("/api/suites/alpha/profiles/sub/mine", json={"body": ""}).status_code == 404
 
     def test_saving_to_a_dotfile_is_422(self, client) -> None:
         assert client.put("/api/suites/alpha/profiles/.hidden", json={"body": ""}).status_code == 422

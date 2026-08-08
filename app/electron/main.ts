@@ -242,4 +242,13 @@ app.whenReady().then(start);
 // Linux only, so there is no window-less application to keep alive.
 app.on("window-all-closed", () => app.quit());
 
+// A CI smoke run (and a service manager) stops the shell with SIGTERM. Calling
+// `app.quit()` alone is not reliable during Linux signal teardown: Electron can
+// leave before it emits `will-quit`. Stop the backend group synchronously, then
+// exit the shell so neither process survives its owner.
+process.once("SIGTERM", () => {
+  stopBackend();
+  app.exit(0);
+});
+
 app.on("will-quit", stopBackend);

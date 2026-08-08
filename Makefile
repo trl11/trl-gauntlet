@@ -6,6 +6,7 @@
 
 include $(CURDIR)/common.mk
 include $(ROOT)/.devcontainer/devcontainer.mk
+include $(ROOT)/ci/ci.mk
 
 
 .PHONY: help
@@ -23,6 +24,11 @@ help:
 	@echo "    make dev               start the devcontainer and open a shell"
 	@echo "    make dev-stop          stop and remove the devcontainer"
 	@echo "    make dev-status        show whether the devcontainer is running"
+	@echo ""
+	@echo "  CI"
+	@echo "    make ci-image          build the Jenkins CI image locally"
+	@echo "    make ci-test           run the full Jenkins workflow locally"
+	@echo "    make ci-run-TARGET     run one Make target in the CI image"
 	@echo ""
 	@echo "  Develop"
 	@echo "    make run               build the frontend and serve, with auto-reload (port $(APP_PORT))"

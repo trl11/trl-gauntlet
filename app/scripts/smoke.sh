@@ -114,8 +114,24 @@ BACKEND=$(pgrep -f "resources/runtime/bin/python3 .*-m gauntlet" | head -1 || tr
 [ -n "$BACKEND" ] || fail "no backend process to check the teardown against"
 MAIN=$(ps -o ppid= -p "$BACKEND" | tr -d ' ')
 kill -TERM "$MAIN"
-sleep 5
-if kill -0 "$BACKEND" 2>/dev/null; then
+# Electron must relay shutdown through its main process before the packaged
+# backend exits. Under Jenkins' persistent `docker exec` container, the
+# terminated detached backend can remain a zombie until PID 1 reaps it. A
+# zombie has no running backend even though `kill -0` still succeeds, so poll
+# for a non-zombie process rather than treating that container-reaping detail
+# as a product failure.
+backend_running() {
+    kill -0 "$BACKEND" 2>/dev/null || return 1
+    case $(ps -o stat= -p "$BACKEND" 2>/dev/null | tr -d ' ') in
+        Z* | "") return 1 ;;
+        *) return 0 ;;
+    esac
+}
+for _ in $(seq 1 30); do
+    backend_running || break
+    sleep 1
+done
+if backend_running; then
     fail "the backend outlived the app"
 fi
 echo "==> the backend went with the app"
