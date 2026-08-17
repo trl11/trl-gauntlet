@@ -13,6 +13,17 @@ lsof
 # ssd, ethernet, hardware_trigger reach a unit over SSH.
 openssh-client
 
+# Reaching a unit on the bench by hand, before any suite is pointed at it. The
+# base image does not ship it, so a container without it cannot answer whether
+# the bench is even routable.
+iputils-ping
+
+# tid_lan7430 runs the iperf3 client lab-side against a server on the unit, so
+# the measurement needs this on the machine running Gauntlet as well as on the
+# unit. ethtool reads link state, driver counters and the controller's OTP.
+ethtool
+iperf3
+
 # can_bus. python-can drives SocketCAN through the kernel directly; these
 # bring an interface up and watch frames by hand.
 can-utils

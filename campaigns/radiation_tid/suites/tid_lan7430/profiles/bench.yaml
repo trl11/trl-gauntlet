@@ -1,0 +1,27 @@
+description: >
+  Two minutes against the real part, to prove the bench is wired the way the
+  measurement assumes before the beam is on. Run this first: it is the cheapest
+  way to catch a link that came up at 100 Mbps, an OTP that cannot be read
+  without sudo, or traffic taking a route around the controller.
+driver: real
+duration_s: 120.0
+sample_period_s: 15.0
+
+# The login on the unit. The key is the engineering key carried in the
+# extras/trl-engineering-keys submodule, so nothing has to be exported or
+# copied into ~/.ssh; set ssh_key_path only on a bench using a different one.
+ssh_user: trl
+
+interface:
+  name: eth1
+  expected_speed_mbps: 1000
+
+iperf:
+  stream_s: 5.0
+  udp_enabled: true
+
+# Nothing is gated on this run. It is here to be read, not to pass or fail.
+pass_criteria:
+  min_avg_tx_mbps: 1.0
+  min_avg_rx_mbps: 1.0
+  require_measurement: true

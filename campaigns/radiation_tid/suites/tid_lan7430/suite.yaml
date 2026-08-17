@@ -5,8 +5,12 @@ title: LAN7430 Ethernet Controller
 category: radiation
 description: >
   Total ionising dose characterisation of the LAN7430-I/Y9X on EVB-LAN7430.
-  Throughput-based Ethernet speed test. Cyclical integrity checks on the OTP
-  memory. Placeholder: the measurement is not implemented yet.
+  Each tick measures throughput across the controller with iperf3, then reads
+  everything dose can move: link state and negotiated speed, driver and kernel
+  error counters, PCIe link width and AER counters, the OTP image and the
+  register dump, temperature, and the bench supply current when there is one.
+  The session never aborts, so a part that degrades, dies or recovers is
+  recorded rather than lost.
 
 exec:
   command: ["python", "-m", "suite.cli"]
@@ -21,6 +25,10 @@ profiles: ./profiles
 conformance_profile: quick.yaml
 
 produces: [events, junit, manifest, metrics, summary, verdict]
+
+# The bench supply is read, never commanded, and never reserved: the operator
+# keeps control of the rail while the beam is on. A bench without one runs
+# this suite unchanged.
 requires: []
 
 supports:
@@ -38,3 +46,16 @@ overrides:
     type: number
     label: Sample period
     unit: s
+  - name: driver
+    flag: --driver
+    type: string
+    label: Driver
+    choices: [real, mock]
+  - name: ssh_user
+    flag: --ssh-user
+    type: string
+    label: SSH user
+  - name: ssh_key_path
+    flag: --ssh-key-path
+    type: string
+    label: SSH key
