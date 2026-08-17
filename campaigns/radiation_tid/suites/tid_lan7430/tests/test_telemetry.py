@@ -154,6 +154,31 @@ def test_a_changed_mac_is_recorded_because_it_comes_from_the_otp(
     _analyse(flipped, state, profile, anomalies)
 
     assert "link/mac_changed" in sink.kinds()
+    assert state.mac_changes == 1
+    assert state.golden_mac == mock.BASELINE_MAC
+    assert state.mac == "00:80:0f:1a:2b:3d"
+
+
+def test_the_mac_the_part_reports_is_carried_in_every_tick(
+    baseline_sample: dict[str, Any],
+    state: TelemetryState,
+    profile: TidLan7430Profile,
+    anomalies: AnomalyLog,
+) -> None:
+    metrics = _analyse(baseline_sample, state, profile, anomalies)
+
+    assert metrics["link"]["address"] == mock.BASELINE_MAC
+
+
+def test_the_baseline_records_the_mac_and_the_otp_image_it_was_taken_from(
+    baseline_sample: dict[str, Any],
+) -> None:
+    fresh = TelemetryState()
+
+    establish_baseline(baseline_sample, fresh)
+
+    assert fresh.mac == fresh.golden_mac == mock.BASELINE_MAC
+    assert fresh.otp_sha == fresh.golden_otp_sha == baseline_sample["otp"]["sha256"]
 
 
 def test_a_changed_otp_image_is_recorded_and_counted(
@@ -170,6 +195,7 @@ def test_a_changed_otp_image_is_recorded_and_counted(
 
     assert "otp/changed" in sink.kinds()
     assert state.otp_changes == 1
+    assert state.otp_sha == "0" * 64
     assert metrics["otp_matches_baseline"] == 0
 
 

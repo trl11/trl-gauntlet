@@ -52,7 +52,10 @@ class TelemetryState:
     golden_mac: str = ""
     golden_otp_sha: str = ""
     golden_registers_sha: str = ""
+    mac: str = ""
+    mac_changes: int = 0
     otp_changes: int = 0
+    otp_sha: str = ""
     previous_aer: dict[str, int] = field(default_factory=dict)
     previous_ethtool: dict[str, int] = field(default_factory=dict)
     previous_statistics: dict[str, int] = field(default_factory=dict)
@@ -160,14 +163,18 @@ def _analyse_link(
     if address and not state.golden_mac:
         state.golden_mac = address
     elif address and address != state.golden_mac:
-        # The MAC is loaded from the controller's OTP at probe, so a changed
-        # one means the image behind it moved.
+        # The controller loads its MAC from the OTP into its address registers
+        # at reset and the driver reads it from there, so a changed one means
+        # the image behind it moved and the part has reloaded since.
+        state.mac_changes += 1
         anomalies.record(
             "link",
             "mac_changed",
             iteration=iteration,
             detail={"baseline": state.golden_mac, "observed": address},
         )
+    if address:
+        state.mac = address
     return link
 
 
@@ -266,6 +273,7 @@ def _analyse_images(
     otp = dict(sample.get("otp") or {})
     if otp and not otp.get("error"):
         digest = str(otp.get("sha256") or "")
+        state.otp_sha = digest
         if not state.golden_otp_sha:
             state.golden_otp_sha = digest
         elif digest and digest != state.golden_otp_sha:
@@ -357,6 +365,7 @@ def analyse(
         "present": 1,
         "kernel_lines": kernel_lines,
         "link": {
+            "address": link.get("address"),
             "carrier_changes": link.get("carrier_changes"),
             "mtu": link.get("mtu"),
             "speed_mbps": link.get("speed_mbps"),
@@ -382,6 +391,7 @@ def establish_baseline(sample: dict[str, Any], state: TelemetryState) -> None:
     """
     state.seen_first_sample = True
     state.golden_mac = str((sample.get("link") or {}).get("address") or "")
+    state.mac = state.golden_mac
     state.previous_statistics = {k: int(v) for k, v in (sample.get("statistics") or {}).items() if isinstance(v, int)}
     state.previous_ethtool = {k: int(v) for k, v in (sample.get("ethtool_stats") or {}).items() if isinstance(v, int)}
     state.previous_aer = {
@@ -391,6 +401,7 @@ def establish_baseline(sample: dict[str, Any], state: TelemetryState) -> None:
     otp = dict(sample.get("otp") or {})
     if not otp.get("error"):
         state.golden_otp_sha = str(otp.get("sha256") or "")
+        state.otp_sha = state.golden_otp_sha
     registers = dict(sample.get("registers") or {})
     if not registers.get("error"):
         state.golden_registers_sha = str(registers.get("sha256") or "")

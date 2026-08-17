@@ -146,6 +146,12 @@ unrecoverable and would destroy the part it is meant to characterise.
   it never failed.
 - `otp_changes` / `register_changes` — how many ticks read back an image
   different from the pre-exposure one.
+- `mac_address` and `otp_sha256` — what the part read as before exposure, with
+  `mac_address_at_end` and `otp_sha256_at_end` beside them, highlighted when
+  they differ. The hash is the direct check, because `ethtool -e` re-reads the
+  image every tick. The MAC is the slower one: the controller loads it from
+  the OTP into its address registers at reset, so a flip behind it shows up
+  only once the part has reset and reloaded.
 - the `anomalies.*` rows — one per probe, so link, counters, PCIe, OTP and
   kernel problems are separable at a glance.
 - `lan7430-baseline.json` in the run directory — the full pre-exposure state,

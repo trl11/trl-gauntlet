@@ -605,6 +605,25 @@ def _results(
             precision=3,
             highlight=udp_loss > criteria.max_udp_loss_pct,
         ),
+        make_result("mac_address", "MAC address", state.telemetry.golden_mac or "unknown"),
+        make_result(
+            "mac_address_at_end",
+            "MAC address at end",
+            state.telemetry.mac or "unknown",
+            highlight=state.telemetry.mac_changes > 0,
+        ),
+        make_result(
+            "otp_sha256",
+            "OTP image (sha256)",
+            state.telemetry.golden_otp_sha or "unreadable",
+            highlight=not state.telemetry.golden_otp_sha,
+        ),
+        make_result(
+            "otp_sha256_at_end",
+            "OTP image at end (sha256)",
+            state.telemetry.otp_sha or "unreadable",
+            highlight=state.telemetry.otp_sha != state.telemetry.golden_otp_sha,
+        ),
         make_result(
             "otp_changes",
             "OTP image changed",
@@ -687,6 +706,9 @@ def _summary(_ctx: SuiteContext, profile: TidLan7430Profile) -> dict[str, str]:
 def _hardware(ctx: SuiteContext, profile: TidLan7430Profile) -> dict[str, dict[str, str]]:
     state = ctx.extras.get("state")
     address = state.address if isinstance(state, _State) else ""
+    # The MAC is the part's own identity rather than the bench's, so it is the
+    # one field here that says which controller a run was taken on.
+    mac = state.telemetry.golden_mac if isinstance(state, _State) else ""
     return {
         "uut": {
             "component": "LAN7430-I/Y9X",
@@ -694,6 +716,7 @@ def _hardware(ctx: SuiteContext, profile: TidLan7430Profile) -> dict[str, dict[s
             "host": ctx.target or "",
             "interface": profile.interface.name,
             "interface_address": address,
+            "mac_address": mac,
         }
     }
 
