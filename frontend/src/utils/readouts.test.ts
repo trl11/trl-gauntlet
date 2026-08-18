@@ -36,6 +36,12 @@ describe("readingText", () => {
   it("passes anything else through as text", () => {
     expect(readingText("open", null)).toBe("open");
   });
+
+  it("never groups, because the display draws a separator as the decimal dot", () => {
+    expect(readingText(3840, null)).toBe("3840");
+    expect(readingText(16588800, null)).toBe("16588800");
+    expect(readingText(3840, 0)).toBe("3840");
+  });
 });
 
 describe("readoutGroups", () => {

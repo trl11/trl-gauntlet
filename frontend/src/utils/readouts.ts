@@ -1,7 +1,6 @@
 /** Reading a provider's declared readouts against the state it reported. */
 
 import type { InstrumentReadout } from "@api/types";
-import { formatNumber } from "./format";
 
 /** Stands in for a reading the instrument did not report. */
 export const NO_READING = "—";
@@ -29,12 +28,18 @@ export function valueAt(state: Record<string, unknown>, key: string): unknown {
   return current;
 }
 
-/** One reading as text, rounded to the precision the provider asked for. */
+/**
+ * One reading as text, rounded to the precision the provider asked for.
+ *
+ * Never grouped. The reading is drawn on a seven segment display, which has
+ * no separator glyph and turns one into the decimal dot, so a grouped 3840
+ * would read as 3.840.
+ */
 export function readingText(value: unknown, precision: number | null): string {
   if (value === null || value === undefined) return NO_READING;
   if (typeof value === "boolean") return value ? "on" : "off";
   if (typeof value !== "number") return String(value);
-  return precision === null ? formatNumber(value) : value.toFixed(precision);
+  return precision === null ? String(Number(value.toFixed(3))) : value.toFixed(precision);
 }
 
 /**
