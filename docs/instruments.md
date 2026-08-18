@@ -69,6 +69,36 @@ Two different permission failures are told apart, because the fix differs:
 that is plainly there is a container's device cgroup lacking a rule for char
 major 81.
 
+### What the link reports, behind a GMSL adapter
+
+A GMSL camera reaches the host through a serializer in the head and a
+deserializer in the adapter, and Leopard Imaging's adapters tunnel I2C over a
+vendor extension unit on the same connection that carries video. So the chips
+can be read with nothing wired to the board. `instruments/gmsl.py` does that,
+and the camera picks it up on connection: a webcam finds no chips and simply
+carries on, so the telemetry is an extra rather than a requirement.
+
+The `link_status` command reports every chip's device id, revision, lock state
+and error counters, and it appears on the panel only when chips answered.
+**The chips' counters clear when they are read**, so a reading is the errors
+since the previous one and whoever reads them consumes them. `UvcCamera` is
+the only reader and keeps the running totals, which is what stops a panel
+refresh and a suite's sample stealing counts from each other.
+
+Nothing reads a register with the write bit set. A write can take the link
+down, and a link that drops part-way through an irradiation looks exactly like
+a radiation effect, which costs a run its meaning rather than just its data.
+
+`stream_stats` measures what the link is carrying: it reads frames back to
+back for a short burst and reports frame rate, data rate, frames dropped and
+frames the driver flagged as corrupt. It is separate from `snapshot` because
+the two cannot be measured together. The driver fills a buffer only while one
+is free, so a caller taking a frame every second measures its own sampling
+rate; the queue sits full in between and the frames arriving then are never
+counted. The burst drains that backlog before it starts timing, or the
+sequence gap left by the caller's own pause would be reported as dropped
+frames.
+
 ## What is registered
 
 `instruments/detect.py` decides, at startup and again on every operator scan.
@@ -80,6 +110,7 @@ it.
 |---|---|
 | `psu_port`, `daq_serial` | `"auto"` probes, `""` does not look at all, anything else is the serial port or USB serial number to use |
 | `camera_device` | `"auto"` tries each `/dev/video*` in turn and takes the first that streams a format the encoder can write, `""` does not look at all, anything else is the node to open |
+| `camera_format` | `"auto"` reads a frame to decide what it really carries, or name `yuyv` or `raw10_rggb` to state it. A GMSL adapter reports YUYV over UVC while sending raw sensor data, and the UVC format code cannot tell them apart |
 | `simulated_instruments` | Names the instruments to simulate instead of probing for. Empty by default |
 
 An explicitly named device stays registered even when it goes quiet, reporting
