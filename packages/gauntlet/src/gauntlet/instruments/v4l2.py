@@ -34,6 +34,10 @@ CAP_VIDEO_CAPTURE = 0x00000001
 CAP_STREAMING = 0x04000000
 MEMORY_MMAP = 1
 
+# Long enough to see a buffer that is already waiting, short enough not to wait
+# for the next frame to be captured.
+_BACKLOG_POLL_S = 0.002
+
 # The formats this module can turn into a file. YUYV is packed luma and
 # chroma that has to be converted; MJPEG is already a JPEG and is written out
 # untouched.
@@ -355,8 +359,14 @@ class V4l2Camera:
 
             buffer = self._buffer()
             self._ioctl(VIDIOC_DQBUF, buffer)
+            # Read out of the structure before requeueing it. VIDIOC_QBUF
+            # writes back into the same structure, so anything taken from it
+            # afterwards describes the empty buffer just queued rather than
+            # the frame that was dequeued.
+            flags = buffer.flags
+            sequence = buffer.sequence
             try:
-                if buffer.flags & BUF_FLAG_ERROR:
+                if flags & BUF_FLAG_ERROR:
                     continue
                 data = bytes(self._maps[buffer.index][: buffer.bytesused])
             finally:
@@ -366,9 +376,109 @@ class V4l2Camera:
                     data=data,
                     height=int(self._format.get("height", 0)),
                     pixelformat=int(self._format.get("pixelformat", 0)),
-                    sequence=buffer.sequence,
+                    sequence=sequence,
                     width=int(self._format.get("width", 0)),
                 )
+
+    def measure_stream(self, *, frames: int = 10, timeout_s: float = 5.0) -> dict[str, float]:
+        """Drain the queue for a burst and report what the link sustained.
+
+        The driver fills a buffer only while one is free, so a caller taking a
+        frame every second measures its own sampling rate rather than the
+        link's: the queue sits full in between and the frames arriving then are
+        dropped without ever being counted. Reading back to back for a short
+        burst is what makes the frame rate, the data rate and the dropped
+        count mean anything.
+
+        Two things are cleared before the timing starts. The queue holds frames
+        captured before the call, which come back as fast as they can be handed
+        over and would read as an impossibly high rate. And a stream that has
+        just started flushes an error frame per buffer, all carrying sequence
+        zero, which would put the sequence span far above the frames counted.
+
+        Frames the driver flagged as errors are counted rather than skipped:
+        on a radiation bench a corrupt frame is the measurement. Gaps in the
+        sequence numbers are frames that never arrived at all, which is a
+        different fault and counted separately.
+        """
+        if not self._streaming:
+            raise V4l2Error(f"{self._path}: not streaming")
+        if frames < 2:
+            raise V4l2Error("a burst needs at least two frames to time")
+        fd = self._require_fd()
+        deadline = time.monotonic() + timeout_s
+
+        # Drain whatever is already waiting rather than a fixed number of
+        # buffers. Between calls the queue sits full and the driver keeps
+        # counting the frames it cannot store, so the backlog carries a
+        # sequence gap that belongs to the caller's pause, not to the link.
+        # Draining until nothing is immediately ready leaves only live frames.
+        while self._ready(fd, _BACKLOG_POLL_S):
+            if self._recycle(fd, deadline) is None:
+                break
+
+        corrupt = 0
+        counted = 0
+        total_bytes = 0
+        first_sequence = -1
+        last_sequence = -1
+        started = 0.0
+
+        while counted < frames:
+            recycled = self._recycle(fd, deadline)
+            if recycled is None:
+                break
+            flags, sequence, bytesused = recycled
+            if flags & BUF_FLAG_ERROR or not bytesused:
+                corrupt += 1
+                continue
+            if not started:
+                # Timing opens on the first good frame, so the wait for the
+                # queue to come round is not charged to the link.
+                started = time.monotonic()
+                first_sequence = sequence
+                counted = 1
+                continue
+            counted += 1
+            last_sequence = sequence
+            total_bytes += bytesused
+
+        elapsed = time.monotonic() - started if started else 0.0
+        intervals = max(0, counted - 1)
+        span = last_sequence - first_sequence if last_sequence >= 0 else 0
+        return {
+            "bytes": float(total_bytes),
+            "corrupt": float(corrupt),
+            "dropped": float(max(0, span - intervals)),
+            "elapsed_s": round(elapsed, 4),
+            "fps": round(intervals / elapsed, 2) if elapsed > 0 else 0.0,
+            "frames": float(counted),
+            "mbps": round(total_bytes * 8 / elapsed / 1_000_000, 2) if elapsed > 0 else 0.0,
+        }
+
+    def _ready(self, fd: int, timeout_s: float) -> bool:
+        """Is a buffer waiting right now."""
+        ready, _, _ = select.select([fd], [], [], timeout_s)
+        return bool(ready)
+
+    def _recycle(self, fd: int, deadline: float) -> tuple[int, int, int] | None:
+        """Dequeue one buffer and hand it straight back, reporting what it said.
+
+        Everything needed is read before the requeue: VIDIOC_QBUF writes into
+        the same structure, so a field read afterwards describes the empty
+        buffer just queued rather than the frame that came out of it.
+        """
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None
+        ready, _, _ = select.select([fd], [], [], remaining)
+        if not ready:
+            return None
+        buffer = self._buffer()
+        self._ioctl(VIDIOC_DQBUF, buffer)
+        flags, sequence, bytesused = buffer.flags, buffer.sequence, buffer.bytesused
+        self._ioctl(VIDIOC_QBUF, buffer)
+        return flags, sequence, bytesused
 
     def _buffer(self, *, index: int = 0) -> _Buffer:
         buffer = _Buffer()

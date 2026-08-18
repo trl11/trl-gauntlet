@@ -7,6 +7,7 @@ a camera attached.
 from __future__ import annotations
 
 import base64
+import ctypes
 import struct
 import zlib
 from pathlib import Path
@@ -16,7 +17,7 @@ import pytest
 
 from gauntlet.capabilities import CapabilityRegistry, CommandRejected
 from gauntlet.config import Settings
-from gauntlet.instruments import MockCamera, detect_instruments, imaging, is_simulated, v4l2
+from gauntlet.instruments import MockCamera, detect_instruments, gmsl, imaging, is_simulated, v4l2
 from gauntlet.instruments.imaging import ImageError, encode_frame, encode_png, image_suffix, measure, yuyv_to_rgb
 from gauntlet.instruments.uvc_camera import UvcCamera
 from gauntlet.instruments.v4l2 import PIXELFORMAT_MJPG, PIXELFORMAT_YUYV, Frame, V4l2Error, fourcc
@@ -627,3 +628,105 @@ class TestEncodeRaw10Frame:
         )
         _, measured = imaging.encode_frame(frame, max_width=16)
         assert measured["encoding"] == imaging.ENCODING_YUYV
+
+
+class _FakeXu:
+    """A stand-in extension unit holding one register map per I2C address."""
+
+    def __init__(self, devices: dict[int, dict[int, int]], identity: bytes = b"") -> None:
+        self.devices = devices
+        self.identity = identity
+        self.writes = 0
+        self._pending: tuple[int, int] | None = None
+
+    def ioctl(self, fd: int, request: int, query: Any) -> None:
+        length = query.size
+        data = ctypes.cast(query.data, ctypes.POINTER(ctypes.c_uint8 * length)).contents
+        if query.selector == gmsl.XU_UUID_HWFW_REV:
+            for index, value in enumerate(self.identity[:length]):
+                data[index] = value
+            return
+        address = (data[2] << 8) | data[3]
+        register = (data[4] << 8) | data[5]
+        if data[0] & 0x80:
+            self.writes += 1
+            return
+        if query.query == 0x01:
+            self._pending = (address, register)
+            return
+        found = self.devices.get(address, {})
+        if register not in found:
+            raise OSError(6, "No such device or address")
+        data[6] = found[register]
+
+
+def gmsl_link(monkeypatch: pytest.MonkeyPatch, fake: _FakeXu) -> gmsl.GmslLink:
+    """A link whose transfers land on the fake rather than on a device."""
+    link = gmsl.GmslLink(Path("/dev/video0"))
+    link._fd = 7
+    monkeypatch.setattr(gmsl.fcntl, "ioctl", fake.ioctl)
+    return link
+
+
+def chip(dev_id: int, *, locked: bool = True, decode_a: int = 0, decode_b: int = 0, idle: int = 0) -> dict[int, int]:
+    """One chip's registers, as the scan and the status read them."""
+    return {
+        gmsl.REG_ADDRESS: 0,
+        gmsl.REG_DEV_ID: dev_id,
+        gmsl.REG_DEV_REV: 0x06,
+        gmsl.REG_CTRL3: 0x08 if locked else 0x00,
+        gmsl.REG_DECODE_ERRORS_A: decode_a,
+        gmsl.REG_DECODE_ERRORS_B: decode_b,
+        gmsl.REG_IDLE_ERRORS: idle,
+    }
+
+
+class TestGmslLink:
+    """The chips behind the camera, read over the extension unit."""
+
+    def test_a_chip_is_found_by_its_own_address(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        registers = chip(0xB7)
+        registers[gmsl.REG_ADDRESS] = 0x84
+        link = gmsl_link(monkeypatch, _FakeXu({0x84: registers}))
+        assert link.scan() == [0x84]
+
+    def test_a_register_reading_back_something_else_is_not_a_chip(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        registers = chip(0xB7)
+        registers[gmsl.REG_ADDRESS] = 0x00
+        link = gmsl_link(monkeypatch, _FakeXu({0x84: registers}))
+        assert link.scan() == []
+
+    def test_status_reports_lock_and_counters(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        link = gmsl_link(monkeypatch, _FakeXu({0x84: chip(0xB7, decode_a=3, idle=1)}))
+        status = link.status(0x84)
+        assert status.locked
+        assert status.decode_errors_a == 3
+        assert status.total_errors == 4
+
+    def test_an_unlocked_chip_says_so(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        link = gmsl_link(monkeypatch, _FakeXu({0x84: chip(0xB7, locked=False)}))
+        assert not link.status(0x84).locked
+
+    def test_a_counter_at_its_ceiling_is_saturated(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        link = gmsl_link(monkeypatch, _FakeXu({0x84: chip(0xB7, decode_a=0xFF)}))
+        assert link.status(0x84).saturated
+
+    def test_reading_never_writes(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A write can drop the link, which mid-irradiation reads as a result."""
+        fake = _FakeXu({0x84: chip(0xB7)})
+        link = gmsl_link(monkeypatch, fake)
+        link.scan()
+        link.status(0x84)
+        assert fake.writes == 0
+
+    def test_identity_is_split_into_its_fields(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        raw = bytes([0x02, 0x21, 0x78, 0x08]) + b"8a06621b-9041-4ff1-afcc-9f9ea482b59f-20260803"
+        link = gmsl_link(monkeypatch, _FakeXu({}, identity=raw))
+        identity = link.identity()
+        assert identity["hardware_revision"] == "258"
+        assert identity["firmware_revision"] == "2168"
+        assert identity["uuid"].startswith("8a06621b-9041-4ff1")
+
+    def test_a_closed_link_is_refused(self) -> None:
+        with pytest.raises(gmsl.GmslError, match="not open"):
+            gmsl.GmslLink(Path("/dev/video0")).read_register(0x84, 0x00)
