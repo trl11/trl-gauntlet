@@ -4,10 +4,11 @@ key: tid_max96792
 title: MAX96792 GMSL3 Deserializer
 category: radiation
 description: >
-  Total ionising dose characterisation of the MAX96792AGTM/VY+ on LI-
-  GMSL3-USB3.2. Execute a continuous capture loop monitoring image reception
-  status (success/fail), dropped frame count, corruption count, and data
-  rate in Mbps. Placeholder: the measurement is not implemented yet.
+  Total ionising dose characterisation of the MAX96792AGTM/VY+ on LI-GMSL3-USB3.2.
+  Runs a continuous capture loop, reporting image reception status, dropped
+  frame count, link error counts read from the chip itself, and the data rate
+  in Mbps. Both ends of the link are recorded; the deserializer is the part under
+  the beam.
 
 exec:
   command: ["python", "-m", "suite.cli"]
@@ -21,8 +22,8 @@ exec:
 profiles: ./profiles
 conformance_profile: quick.yaml
 
-produces: [events, junit, manifest, metrics, summary, verdict]
-requires: []
+produces: [events, frames, junit, manifest, metrics, summary, verdict]
+requires: [camera]
 
 supports:
   target: true
@@ -34,8 +35,44 @@ overrides:
     type: number
     label: Duration
     unit: s
+    minimum: 1
+    help: How long to watch the link.
   - name: sample_period_s
     flag: --sample-period-s
     type: number
     label: Sample period
     unit: s
+    minimum: 0.5
+    help: >
+      Seconds between samples. Reading both chips and converting a snapshot
+      costs about a second, so a real run is refused below 1s rather than
+      quietly delivering a slower rate than it asked for.
+  - name: max_width
+    flag: --max-width
+    type: number
+    label: Snapshot width
+    unit: px
+    minimum: 16
+    maximum: 3840
+    help: Width to scale each kept frame to.
+  - name: part_address
+    flag: --part-address
+    type: string
+    label: Part I2C address
+    help: >
+      The chip under the beam, as a hexadecimal byte. Both ends are recorded
+      either way; this is the one the verdict is about.
+  - name: max_errors_per_sample
+    flag: --max-errors-per-sample
+    type: number
+    label: Max errors per sample
+    minimum: 0
+    help: >
+      Link errors in one sample before that sample fails. The chip's counters
+      clear when read, so this is a rate rather than a total.
+  - name: snapshot_every
+    flag: --snapshot-every
+    type: number
+    label: Keep every Nth frame
+    minimum: 0
+    help: Keep one snapshot every N samples, or 0 to keep none.
