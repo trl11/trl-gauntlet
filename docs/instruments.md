@@ -16,11 +16,12 @@ declares about itself; naming an instrument anywhere else is a defect.
 |---|---|---|
 | `psu` | Hanmatek HM310T, `instruments/hm310t_psu.py` | Modbus RTU on a USB serial port, 9600 8N1, slave 1 |
 | `daq` | DATAQ DI-2008, `instruments/di2008_daq.py` | vendor bulk-USB protocol, claimed through usbfs |
+| `camera` | any UVC camera, `instruments/uvc_camera.py` | V4L2 ioctls on a `/dev/video*` node, memory-mapped capture |
 | `chamber` | nothing | simulation only |
 
-Beside each is a simulation — `mock_psu.py`, `mock_daq.py`, `mock_chamber.py` —
-which exists for development and for tests, and which reaches an operator only
-when they ask for it.
+Beside each is a simulation — `mock_psu.py`, `mock_daq.py`, `mock_camera.py`,
+`mock_chamber.py` — which exists for development and for tests, and which
+reaches an operator only when they ask for it.
 
 Its eight channels are settled by one `configure` command carrying a row each,
 rather than a control that picks a channel and a control that sets it. A row
@@ -43,6 +44,31 @@ what decides whether a capture window long enough to hold a scan is 0.1 s or a
 second. It also sizes its capture from that rate, so a sample costs what the
 configured rate needs and no longer.
 
+The camera is driven through V4L2 ioctls against structures laid out to match
+`videodev2.h`, and its frames are converted and written by `instruments/
+imaging.py`, so nothing is installed to read a camera. A GMSL sensor behind a
+GMSL-to-USB adapter arrives as an ordinary capture device, and the driver never
+learns it was anything else.
+
+Its node is held open and left streaming for as long as the instrument is
+registered. A capture device is exclusive, so holding it is what stops another
+process taking the camera part-way through a run, and starting a 4K stream
+costs far more than keeping one running between snapshots. A `snapshot`
+discards whatever the driver had already queued and reports the frame after it,
+because a queue that has been sitting still holds the picture from whenever it
+was last looked at.
+
+YUYV is converted and scaled in one pass and written as a PNG; MJPEG is already
+a JPEG and is written out byte for byte. Every snapshot is measured for mean
+brightness and an edge score, which is what lets a suite tell a picture from a
+lens cap without decoding anything itself. A camera offering neither format is
+reported as unavailable rather than registered.
+
+Two different permission failures are told apart, because the fix differs:
+`EACCES` is the account not being in the `video` group, and `EPERM` on a node
+that is plainly there is a container's device cgroup lacking a rule for char
+major 81.
+
 ## What is registered
 
 `instruments/detect.py` decides, at startup and again on every operator scan.
@@ -53,6 +79,7 @@ it.
 | Setting | Meaning |
 |---|---|
 | `psu_port`, `daq_serial` | `"auto"` probes, `""` does not look at all, anything else is the serial port or USB serial number to use |
+| `camera_device` | `"auto"` tries each `/dev/video*` in turn and takes the first that streams a format the encoder can write, `""` does not look at all, anything else is the node to open |
 | `simulated_instruments` | Names the instruments to simulate instead of probing for. Empty by default |
 
 An explicitly named device stays registered even when it goes quiet, reporting
