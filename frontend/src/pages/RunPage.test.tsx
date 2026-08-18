@@ -223,4 +223,58 @@ describe("RunPage", () => {
     renderPage();
     expect(await screen.findByText("Run not found")).toBeInTheDocument();
   });
+
+  it("offers no snapshots tab for a run that recorded no images", async () => {
+    renderPage();
+    await screen.findByRole("tablist");
+    expect(screen.queryByRole("tab", { name: /snapshots/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("RunPage snapshots", () => {
+  beforeEach(() => {
+    vi.mocked(getRun).mockResolvedValue(FINISHED);
+    vi.mocked(listSuites).mockResolvedValue({ errors: [], suites: [] });
+    vi.mocked(getRunVerdict).mockResolvedValue({ passed: true } as never);
+    vi.mocked(getRunManifest).mockResolvedValue({} as never);
+    vi.mocked(listArtifacts).mockResolvedValue({ artifacts: [], run_dir: "", run_id: "run-1" });
+    vi.mocked(listRunNotes).mockResolvedValue({ notes: [] });
+    vi.mocked(getRunMetrics).mockResolvedValue({
+      count: 2,
+      records: [
+        {
+          elapsed_run_s: 1,
+          iteration: 1,
+          kind: "iteration",
+          metrics: { camera: { mean_luma: 120 }, images: ["frames/snapshot_0001.png"] },
+          success: true,
+          timestamp: 1767225600,
+        },
+        {
+          elapsed_run_s: 2,
+          iteration: 2,
+          kind: "iteration",
+          metrics: { camera: { mean_luma: 118 }, images: ["frames/snapshot_0002.png"] },
+          success: true,
+          timestamp: 1767225601,
+        },
+      ] as never,
+      run_id: "run-1",
+    });
+  });
+
+  it("offers a snapshots tab counting the images the run recorded", async () => {
+    renderPage();
+    const tab = await screen.findByRole("tab", { name: /snapshots/ });
+    expect(tab).toHaveTextContent("2");
+  });
+
+  it("draws every recorded image once the tab is opened", async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole("tab", { name: /snapshots/ }));
+
+    const images = screen.getAllByRole("img");
+    expect(images).toHaveLength(2);
+    expect(images[0]).toHaveAttribute("src", "/api/runs/run-1/artifacts/frames/snapshot_0001.png");
+  });
 });

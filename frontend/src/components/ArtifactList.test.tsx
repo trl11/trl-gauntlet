@@ -15,11 +15,11 @@ vi.mock("@api/client", () => ({
 const listed = vi.mocked(listArtifacts);
 const text = vi.mocked(getArtifactText);
 
-function renderList() {
+function renderList(snapshots?: string[]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ArtifactList runId="run-1" />
+      <ArtifactList runId="run-1" snapshots={snapshots} />
     </QueryClientProvider>
   );
 }
@@ -79,6 +79,14 @@ describe("ArtifactList", () => {
     listed.mockResolvedValue({ run_id: "run-1", run_dir: "/runs/run-1", artifacts: [] });
     renderList();
     expect(await screen.findByText("No artifacts")).toBeInTheDocument();
+  });
+
+  it("folds the gallery's images into one row so they cannot bury the rest", async () => {
+    renderList(["frames/001.png"]);
+    expect(await screen.findByText("verdict.json")).toBeInTheDocument();
+    expect(screen.queryByText("frames/001.png")).not.toBeInTheDocument();
+    expect(screen.getByText("frames/")).toBeInTheDocument();
+    expect(screen.getByText("1 in the Snapshots tab")).toBeInTheDocument();
   });
 
   it("reports a failure to list the directory", async () => {

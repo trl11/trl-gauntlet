@@ -22,6 +22,14 @@ export interface ArtifactListProps {
   live?: boolean;
   /** Run whose directory is listed. */
   runId: string;
+  /**
+   * Artifact paths the snapshot gallery already shows, folded into one row.
+   *
+   * A run samples for as long as it is asked to, so an image per sample runs
+   * to hundreds of files. Listing them individually would bury the handful of
+   * artifacts an operator comes to this tab for.
+   */
+  snapshots?: string[];
 }
 
 function extensionOf(path: string): string {
@@ -41,7 +49,11 @@ function prettify(path: string, text: string): string {
 }
 
 /** Every file a run wrote, with an inline preview for the text ones. */
-export const ArtifactList: React.FC<ArtifactListProps> = ({ live = false, runId }) => {
+export const ArtifactList: React.FC<ArtifactListProps> = ({
+  live = false,
+  runId,
+  snapshots = [],
+}) => {
   const [preview, setPreview] = useState<string | null>(null);
 
   const artifacts = useQuery({
@@ -67,10 +79,17 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({ live = false, runId 
     );
   }
 
-  const files = artifacts.data.artifacts;
-  if (files.length === 0) {
+  const gallery = new Set(snapshots);
+  const files = artifacts.data.artifacts.filter((file) => !gallery.has(file.path));
+  const folded = artifacts.data.artifacts.filter((file) => gallery.has(file.path));
+  if (files.length === 0 && folded.length === 0) {
     return <EmptyState title="No artifacts" message="This run has not written any files yet." />;
   }
+
+  const foldedBytes = folded.reduce((total, file) => total + file.size, 0);
+  // The directory they share, so the row names a real place on disk.
+  const foldedDir =
+    folded.length > 0 ? folded[0].path.slice(0, folded[0].path.indexOf("/") + 1) : "";
 
   const tooLarge = previewSize > MAX_PREVIEW_BYTES;
 
@@ -87,6 +106,14 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({ live = false, runId 
             </tr>
           </thead>
           <tbody>
+            {folded.length > 0 && (
+              <tr className="artifact-list__folded">
+                <td className="artifact-list__path">{foldedDir || "snapshots"}</td>
+                <td className="artifact-list__mono">images</td>
+                <td className="artifact-list__mono">{formatBytes(foldedBytes)}</td>
+                <td className="artifact-list__actions">{folded.length} in the Snapshots tab</td>
+              </tr>
+            )}
             {files.map((file) => (
               <tr key={file.path}>
                 <td className="artifact-list__path">{file.path}</td>

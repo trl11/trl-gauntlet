@@ -10,6 +10,10 @@
     color: $indicator-red;
   }
 
+  &__folded {
+    color: $trl-gray;
+  }
+
   &__scroll {
     overflow-x: auto;
     border: 1px solid $trl-dark-gray;
