@@ -1,35 +1,37 @@
 # Python
 __pycache__/
-*.py[cod]
 *.egg-info/
+*.py[cod]
 .venv/
+
+# Tool caches and test reports
+.coverage
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
-.coverage
 coverage.xml
 
-# Build output
+# Node. Unanchored, so frontend/ and app/ need no entry of their own.
+node_modules/
+
+# Generated, never source: the wheels, installers and image in dist/, the
+# frontend bundle vite writes into the gauntlet package, and the Electron
+# runtime the shell downloads.
+app/runtime/
 build/
 dist/
-tmp/
-
-# Run artifacts and local settings
-.ci-cache/
-gauntlet-runs/
-output/
-.env
-
-# Temporary project runtime files
-files/
-
-# Frontend
-node_modules/
-frontend/node_modules/
-frontend/dist/
 web_dist/
 
-# Desktop app
-app/dist/
-app/node_modules/
-app/runtime/
+# Where runs land. output/ is the default data directory, so it carries the
+# config, databases and logs too; gauntlet-runs/ is what the SDK falls back to
+# when a suite is run on its own without GAUNTLET_RUN_DIR.
+gauntlet-runs/
+output/
+
+# Local to one checkout: CI's dependency caches, the screenshot renders, scratch
+# notes and working trees, and environment overrides.
+.ci-cache/
+.env
+.plan/
+files/
+tmp/

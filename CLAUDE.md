@@ -72,6 +72,7 @@ docker/                    the server image: the other target
 docs/                      contract specification and guides
 dist/                      finished artifacts from either (gitignored)
 extras/trl-ui-kit/         shared component library (submodule)
+extras/trl-engineering-keys/  bench SSH and signing keys (submodule, dev)
 frontend/                  React frontend, built into gauntlet/web_dist
 packages/gauntlet/         application: discovery, supervisor, API, UI
 packages/gauntlet-sdk/     library suite authors install
