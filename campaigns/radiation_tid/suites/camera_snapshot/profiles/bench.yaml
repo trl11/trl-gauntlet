@@ -1,0 +1,13 @@
+description: >
+  Half a minute of stills from the real camera, one every two seconds, scaled
+  to 960px wide. The starting point for a bench: the brightness window and the
+  sharpness floor are set wide enough to pass any lit scene, so narrow them
+  once the camera is pointed at whatever the run is really watching.
+driver: real
+duration_s: 30
+sample_period_s: 2
+max_width: 960
+min_mean_luma: 4
+max_mean_luma: 250
+min_sharpness: 0.5
+max_identical_frames: 3
