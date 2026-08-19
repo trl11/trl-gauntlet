@@ -32,7 +32,7 @@ class TidMax96792Profile(BaseModel):
         ),
     )
     part_address: str = Field(
-        default="0x84",
+        default="0x50",
         pattern="^0x[0-9a-fA-F]{2}$",
         description=(
             "I2C address of the MAX96792AGTM/VY+, the part under the beam. Both ends are "

@@ -93,8 +93,9 @@ def _setup(ctx: SuiteContext) -> None:
     if profile.part_address not in reading.chips:
         warn(
             f"the part under test at {profile.part_address} did not answer; "
-            f"chips found: {', '.join(sorted(reading.chips))}"
+            f"chips found: {', '.join(sorted(reading.chips)) or 'none'}"
         )
+        warn("the camera head may not be powered")
     # The first read clears whatever accumulated before the run, so the counts
     # from here on belong to this run.
     info("baseline read taken — the chips' counters start from zero for this run")
@@ -231,7 +232,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     if images:
         metrics["images"] = images
 
-    reason = _fault(part, stream, shot, snapshot_error, repeats, profile)
+    reason = _fault(part, far, stream, shot, snapshot_error, repeats, profile)
     return IterationOutcome(
         success=not reason,
         reason=reason,
@@ -287,6 +288,7 @@ def _mock_stream(ctx: SuiteContext) -> dict[str, float]:
 
 def _fault(
     part: dict[str, Any],
+    far: dict[str, dict[str, Any]],
     stream: dict[str, float],
     shot: Snapshot | None,
     snapshot_error: str,
@@ -295,9 +297,23 @@ def _fault(
 ) -> str:
     """Why this sample is bad, or an empty string when it is fine."""
     if not part:
-        return f"the part at {profile.part_address} did not answer"
+        # Naming what did answer separates a wrong address from an unreachable
+        # part: the adapter's own chip answers whether or not the link is up, so
+        # a bus holding only that one places the fault across the link.
+        if not far:
+            return (
+                f"no chip answered at {profile.part_address}, and no other chip answered either: "
+                "the adapter's I2C tunnel is not responding"
+            )
+        return (
+            f"no chip answered at {profile.part_address}; the bus holds {', '.join(sorted(far))}. "
+            "The camera head is probably not powered: its supply is separate from the USB lead, "
+            "and without it the adapter's own chip still answers while the part across the link "
+            "stays silent. Check the head's power first, then that the profile names the right "
+            "address for this part"
+        )
     if not part.get("locked"):
-        return "the part reports its GMSL link is down"
+        return f"the part at {profile.part_address} reports its GMSL link is down"
     errors = int(part.get("total_errors") or 0)
     if errors > profile.max_errors_per_sample:
         return f"{errors} link errors in one sample, above {profile.max_errors_per_sample}"

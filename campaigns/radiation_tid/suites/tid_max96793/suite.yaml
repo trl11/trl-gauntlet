@@ -15,7 +15,6 @@ exec:
   args:
     profile: --profile
     run_dir: --run-dir
-    target: --target
     unit_serial: --unit-serial
   profile_schema_command: ["python", "-m", "suite.cli", "--print-profile-schema"]
 
@@ -26,7 +25,7 @@ produces: [events, frames, junit, manifest, metrics, summary, verdict]
 requires: [camera]
 
 supports:
-  target: true
+  target: false
   unit_serial: true
 
 overrides:
@@ -49,7 +48,7 @@ overrides:
       quietly delivering a slower rate than it asked for.
   - name: max_width
     flag: --max-width
-    type: number
+    type: integer
     label: Snapshot width
     unit: px
     minimum: 16
@@ -64,7 +63,7 @@ overrides:
       either way; this is the one the verdict is about.
   - name: max_errors_per_sample
     flag: --max-errors-per-sample
-    type: number
+    type: integer
     label: Max errors per sample
     minimum: 0
     help: >
@@ -72,7 +71,7 @@ overrides:
       clear when read, so this is a rate rather than a total.
   - name: snapshot_every
     flag: --snapshot-every
-    type: number
+    type: integer
     label: Keep every Nth frame
     minimum: 0
     help: Keep one snapshot every N samples, or 0 to keep none.
