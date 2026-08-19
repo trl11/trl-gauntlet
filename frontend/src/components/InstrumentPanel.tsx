@@ -1,15 +1,18 @@
+import { faRotate, faXmark } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { Button, Select } from "@trl11/components/ui";
 import clsx from "clsx";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import type { Instrument, InstrumentReadout } from "@api/types";
 import CommandForm from "@components/CommandForm";
 import InstrumentState from "@components/InstrumentState";
-import ReadoutChart from "@components/ReadoutChart";
 import SevenSegment from "@components/SevenSegment";
+import Sparkline from "@components/Sparkline";
 import {
   readingText,
   readoutGroups,
-  toneFor,
+  toneOf,
   valueAt,
   type ReadingTone,
   type ReadoutGroup,
@@ -17,8 +20,19 @@ import {
 
 import "./InstrumentPanel.scss";
 
-/** How many polls of history the headline chart keeps. */
+/** How many polls of history a reading's sparkline keeps. */
 const MAX_SAMPLES = 60;
+
+/**
+ * The image a command answered with, and what to send for another like it.
+ *
+ * Any command whose result carries an image gets one of these, so nothing here
+ * knows which instrument takes pictures or what its command is called.
+ */
+export interface InstrumentPreview {
+  /** The image itself, as a data URL. */
+  src: string;
+}
 
 /** Props every instrument panel takes. */
 export interface InstrumentPanelProps {
@@ -30,6 +44,10 @@ export interface InstrumentPanelProps {
   instrument: Instrument;
   /** Sends one command to this instrument. */
   onCommand: (command: string, args: Record<string, unknown>) => void | Promise<unknown>;
+  /** Takes the last image off the panel. */
+  onDismiss?: () => void;
+  /** The last image this instrument answered with, if it has answered with one. */
+  preview?: InstrumentPreview | null;
 }
 
 /**
@@ -39,11 +57,15 @@ export interface InstrumentPanelProps {
  * because that is what an indicator lamp does.
  */
 const Reading: React.FC<{
+  history: Array<Record<string, number>>;
   readout: InstrumentReadout;
   state: Record<string, unknown>;
   tone: ReadingTone;
-}> = ({ readout, state, tone }) => {
+}> = ({ history, readout, state, tone }) => {
   const value = valueAt(state, readout.key);
+  const trend = history
+    .map((sample) => sample[readout.key])
+    .filter((sample): sample is number => typeof sample === "number");
   return (
     <div className="instrument-panel__reading">
       <SevenSegment
@@ -51,28 +73,49 @@ const Reading: React.FC<{
         value={readingText(value, readout.precision)}
       />
       {readout.unit && <span className="instrument-panel__unit">{readout.unit}</span>}
+      <Sparkline values={trend} />
       <span className="instrument-panel__reading-label">{readout.label}</span>
     </div>
   );
 };
 
-/** One group of readouts: the lit display, then its chart. */
+/** One group of readouts, each reading carrying its own recent history. */
 const ReadoutGroupView: React.FC<{
+  busy: boolean;
   group: ReadoutGroup;
   history: Array<Record<string, number>>;
+  onRefresh?: () => void;
   state: Record<string, unknown>;
-}> = ({ group, history, state }) => (
+}> = ({ busy, group, history, onRefresh, state }) => (
   <section className="instrument-panel__group">
-    {group.name && <h3 className="instrument-panel__group-name">{group.name}</h3>}
+    {(group.name || onRefresh) && (
+      <h3 className="instrument-panel__group-name">
+        {group.name}
+        {onRefresh && (
+          <Button
+            aria-label={`Refresh ${group.name}`}
+            className="instrument-panel__refresh"
+            color="transparent"
+            disabled={busy}
+            onClick={onRefresh}
+            size="small"
+            type="button"
+          >
+            <FontAwesomeIcon icon={faRotate} spin={busy} />
+          </Button>
+        )}
+      </h3>
+    )}
     <div className="instrument-panel__display">
       {group.headline.length > 0 && (
         <div className="instrument-panel__readings">
           {group.headline.map((entry, index) => (
             <Reading
+              history={history}
               key={entry.key}
               readout={entry}
               state={state}
-              tone={toneFor(index, group.headline.length)}
+              tone={toneOf(entry, index, group.headline.length)}
             />
           ))}
         </div>
@@ -80,26 +123,27 @@ const ReadoutGroupView: React.FC<{
       {group.summary.length > 0 && (
         <div className="instrument-panel__readings instrument-panel__readings--small">
           {group.summary.map((entry) => (
-            <Reading key={entry.key} readout={entry} state={state} tone="amber" />
+            <Reading
+              history={history}
+              key={entry.key}
+              readout={entry}
+              state={state}
+              tone={toneOf(entry, 2, 3)}
+            />
           ))}
         </div>
       )}
     </div>
-    <ReadoutChart
-      history={history}
-      series={group.headline
-        .filter((entry) => typeof valueAt(state, entry.key) === "number")
-        .map((entry) => ({ key: entry.key, label: entry.label }))}
-    />
   </section>
 );
 
 /**
  * Draws any instrument from its reported state and its declared commands.
  *
- * A provider that declares `readouts` gets tiles, a rolling chart and a
- * compact strip laid out the way it asked for; one that declares none gets
- * every state value listed as a key and a value. Nothing here knows which
+ * A provider that declares `readouts` gets tiles, each with a sparkline of
+ * where the reading has been, and a compact strip laid out the way it asked
+ * for; one that declares none gets every state value listed as a key and a
+ * value. Nothing here knows which
  * instrument it is looking at, so a provider that registers with Gauntlet gets
  * a working panel with no frontend change.
  */
@@ -108,8 +152,23 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
   error,
   instrument,
   onCommand,
+  onDismiss,
+  preview = null,
 }) => {
+  const fieldId = useId();
   const [history, setHistory] = useState<Array<Record<string, number>>>([]);
+  const [continuous, setContinuous] = useState(false);
+  const [live, setLive] = useState(false);
+  // What the viewer's own controls are set to. A field the provider declared
+  // with choices is a preset, and starts on the first of them.
+  const [settings, setSettings] = useState<Record<string, string>>({});
+
+  // Read through a ref so that a page re-rendering on its poll does not count
+  // as a reason to ask for another image.
+  const send = useRef(onCommand);
+  useEffect(() => {
+    send.current = onCommand;
+  });
 
   useEffect(() => {
     const sample: Record<string, number> = {};
@@ -122,11 +181,52 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
   }, [instrument]);
 
   const disabled = busy || !instrument.available;
+  // The command that answers with a picture, which the viewer takes over from
+  // the deck so its button can say what pressing it will do.
+  const viewer = instrument.commands.find((command) => command.returns === "image") ?? null;
+  const presets = (viewer?.fields ?? []).filter((field) => field.choices.length > 0);
+  // Readings the provider pinned to the viewer, which sit with its controls
+  // rather than on a display of their own.
+  const pinned = (instrument.readouts ?? []).filter((entry) => entry.role === "viewer");
+
+  useEffect(() => {
+    setSettings(Object.fromEntries(presets.map((field) => [field.name, field.choices[0]])));
+    // Only the shape of what is on offer decides where the controls start.
+  }, [presets.map((field) => `${field.name}:${field.choices.join()}`).join("|")]);
+
+  // A command that failed stops the loop rather than being retried forever.
+  useEffect(() => {
+    if (error) setLive(false);
+  }, [error]);
+
+  // The next image is asked for once the last one has arrived, so a camera
+  // slower than any interval sets its own pace instead of queueing commands.
+  useEffect(() => {
+    if (!live || busy || disabled || viewer === null) return;
+    // `live` tells the provider the picture is being refreshed rather than
+    // kept, so it may answer with something cheaper to send.
+    void send.current(viewer.name, { ...settings, live: true });
+  }, [busy, disabled, live, preview, settings, viewer]);
+
+  const inUse = Boolean(instrument.in_use_by);
   const groups = readoutGroups(instrument.readouts ?? []);
-  const rest = instrument.commands.filter((command) => command.name !== instrument.primary_command);
-  const primary = instrument.commands.find(
-    (command) => command.name === instrument.primary_command
+  // A group with nothing to burn large is describing how the instrument is
+  // configured rather than reporting what it is doing, so it belongs with the
+  // rest of the identifying detail rather than taking a display of its own.
+  const specs = groups.filter((group) => group.headline.length === 0);
+  const displays = groups.filter((group) => group.headline.length > 0);
+  // A command that only brings a group up to date is drawn in that group's
+  // heading, so it is where the readings it refreshes are.
+  const refreshers = new Map(
+    instrument.commands
+      .filter((command) => command.refreshes !== undefined && command.fields.length === 0)
+      .map((command) => [command.refreshes as string, command])
   );
+  const others = instrument.commands.filter(
+    (command) => command !== viewer && !refreshers.has(command.refreshes ?? "")
+  );
+  const rest = others.filter((command) => command.name !== instrument.primary_command);
+  const primary = others.find((command) => command.name === instrument.primary_command);
   const footer = rest.filter((command) => command.fields.length === 0);
   const rows = rest.filter((command) => command.fields.length > 0);
   const subtitle = [instrument.instance_id, instrument.connection].filter(Boolean).join(" · ");
@@ -137,16 +237,37 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
         <div className="instrument-panel__titles">
           <h2 className="instrument-panel__name">{instrument.name}</h2>
           <p className="instrument-panel__sub">{subtitle}</p>
+          {specs.length > 0 && (
+            <dl className="instrument-panel__spec">
+              {specs
+                .flatMap((group) => group.summary)
+                .map((entry) => (
+                  <div className="instrument-panel__spec-item" key={entry.key}>
+                    <dt>{entry.label}</dt>
+                    <dd>
+                      {readingText(valueAt(instrument.state, entry.key), entry.precision)}
+                      {entry.unit && ` ${entry.unit}`}
+                    </dd>
+                  </div>
+                ))}
+            </dl>
+          )}
         </div>
         <span
           aria-live="polite"
           className={clsx(
             "instrument-panel__chip",
-            instrument.available && "instrument-panel__chip--on"
+            !inUse && instrument.available && "instrument-panel__chip--on",
+            inUse && "instrument-panel__chip--busy"
           )}
+          title={
+            inUse
+              ? `run ${instrument.in_use_by} is driving this instrument; its key stays locked until the run ends`
+              : undefined
+          }
         >
           <span className="instrument-panel__dot" aria-hidden="true" />
-          {instrument.available ? "AVAILABLE" : "UNAVAILABLE"}
+          {!instrument.available ? "UNAVAILABLE" : inUse ? "IN USE" : "AVAILABLE"}
         </span>
       </header>
 
@@ -154,17 +275,24 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
         <p className="instrument-panel__description">{instrument.description}</p>
       )}
 
-      {groups.length === 0 ? (
-        <InstrumentState state={instrument.state} />
-      ) : (
-        groups.map((group) => (
-          <ReadoutGroupView
-            group={group}
-            history={history}
-            key={group.name}
-            state={instrument.state}
-          />
-        ))
+      {groups.length === 0 && <InstrumentState state={instrument.state} />}
+
+      {displays.length > 0 && (
+        <div className="instrument-panel__groups">
+          {displays.map((group) => {
+            const refresher = refreshers.get(group.name);
+            return (
+              <ReadoutGroupView
+                busy={busy}
+                group={group}
+                history={history}
+                key={group.name}
+                onRefresh={refresher && !disabled ? () => onCommand(refresher.name, {}) : undefined}
+                state={instrument.state}
+              />
+            );
+          })}
+        </div>
       )}
 
       {!instrument.available && (
@@ -216,11 +344,96 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
         )}
       </div>
 
-      {instrument.in_use_by && (
-        <p className="instrument-panel__held">
-          run {instrument.in_use_by} is driving this instrument; its key stays locked until the run
-          ends
-        </p>
+      {viewer !== null && (
+        <section className="instrument-panel__view">
+          <div className="instrument-panel__modes">
+            <Button
+              aria-pressed={!continuous}
+              className={clsx(
+                "instrument-panel__mode",
+                !continuous && "instrument-panel__mode--on"
+              )}
+              color="transparent"
+              onClick={() => {
+                setContinuous(false);
+                setLive(false);
+              }}
+              size="small"
+              type="button"
+            >
+              Snapshot
+            </Button>
+            <Button
+              aria-pressed={continuous}
+              className={clsx("instrument-panel__mode", continuous && "instrument-panel__mode--on")}
+              color="transparent"
+              onClick={() => setContinuous(true)}
+              size="small"
+              type="button"
+            >
+              Continuous
+            </Button>
+            {presets.map((field) => (
+              <Select
+                aria-label={field.unit ? `${field.label} (${field.unit})` : field.label}
+                className="instrument-panel__preset"
+                id={`${fieldId}-${field.name}`}
+                key={field.name}
+                onChange={(event) =>
+                  setSettings((current) => ({ ...current, [field.name]: event.target.value }))
+                }
+                options={field.choices.map((choice) => ({ value: choice, label: choice }))}
+                value={settings[field.name] ?? field.choices[0]}
+              />
+            ))}
+            {pinned.map((entry) => (
+              <span className="instrument-panel__pinned" key={entry.key}>
+                <span className="instrument-panel__pinned-label">{entry.label}</span>
+                {readingText(valueAt(instrument.state, entry.key), entry.precision)}
+                {entry.unit && ` ${entry.unit}`}
+              </span>
+            ))}
+          </div>
+
+          <Button
+            className={clsx("instrument-panel__go", live && "instrument-panel__go--on")}
+            color="transparent"
+            disabled={!instrument.available || (busy && !live)}
+            onClick={() => {
+              if (!continuous) void send.current(viewer.name, settings);
+              else setLive((running) => !running);
+            }}
+            size="small"
+            type="button"
+          >
+            {!continuous ? "Capture" : live ? "Stop" : "Start"}
+          </Button>
+
+          {preview !== null && (
+            <div className="instrument-panel__shot">
+              <img
+                alt={`the last image ${instrument.name} answered with`}
+                className="instrument-panel__frame"
+                src={preview.src}
+              />
+              {onDismiss !== undefined && (
+                <Button
+                  aria-label="Hide"
+                  className="instrument-panel__close"
+                  color="transparent"
+                  onClick={() => {
+                    setLive(false);
+                    onDismiss();
+                  }}
+                  size="small"
+                  type="button"
+                >
+                  <FontAwesomeIcon icon={faXmark} />
+                </Button>
+              )}
+            </div>
+          )}
+        </section>
       )}
 
       {error && (
