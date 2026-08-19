@@ -66,11 +66,19 @@ def readout(
     group: str = "",
     precision: int | None = None,
     role: str = "headline",
+    tone: str = "",
     unit: str = "",
 ) -> dict[str, Any]:
     """One state value the operator UI draws, described for it.
 
     ``key`` is a dotted path into the provider's ``state()``.
+
+    ``role`` places the reading: ``headline`` is burned large, ``summary`` goes
+    in the strip beneath, and ``viewer`` sits with the controls of a command
+    that answers with a picture.
+
+    ``tone`` overrides the colour the reading's position would give it, for a
+    figure whose colour would say something its value does not.
     """
     return {
         "group": group,
@@ -78,5 +86,6 @@ def readout(
         "label": label,
         "precision": precision,
         "role": role,
+        "tone": tone,
         "unit": unit,
     }

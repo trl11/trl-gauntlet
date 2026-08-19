@@ -6,15 +6,20 @@ can open, and reads only the pixels that survive the scaling rather than all
 of them.
 
 PNG is written with `zlib` and `struct` for the same reason the capture layer
-uses ioctls: an encoder is a dependency, and the format is four chunks. An
-MJPEG frame is already a JPEG and is written out byte for byte.
+uses ioctls: the format is four chunks, and an artifact kept for a run is
+worth keeping losslessly. JPEG is Pillow's, because a panel refreshing
+continuously wants a tenth of the bytes and does not need every one of them
+back. An MJPEG frame is already a JPEG and is written out byte for byte.
 """
 
 from __future__ import annotations
 
+import io
 import struct
 import zlib
 from typing import Any
+
+from PIL import Image
 
 from gauntlet.instruments.v4l2 import PIXELFORMAT_MJPG, PIXELFORMAT_YUYV, Frame, fourcc
 
@@ -48,8 +53,13 @@ def encode_frame(
     *,
     max_width: int = 960,
     encoding: str = ENCODING_AUTO,
+    lossy: bool = False,
 ) -> tuple[bytes, dict[str, Any]]:
     """One frame as file bytes, with what could be measured from it.
+
+    `lossy` writes JPEG instead of PNG, for a viewer that wants the bytes
+    rather than every pixel. What is measured is measured before either, so a
+    reading does not depend on which was written.
 
     MJPEG is passed through, so nothing is measured from it: decoding a JPEG to
     read its luma would cost more than the measurement is worth here.
@@ -75,6 +85,8 @@ def encode_frame(
     # Widened because the encoding is named alongside the numbers measured.
     measured: dict[str, Any] = dict(measure(pixels, width, height))
     measured.update({"encoding": resolved, "height": height, "scale": step, "width": width})
+    if lossy:
+        return encode_jpeg(pixels, width, height), measured
     return encode_png(pixels, width, height), measured
 
 
@@ -243,6 +255,19 @@ def measure(pixels: bytearray, width: int, height: int) -> dict[str, float]:
         "mean_luma": round(total / samples, 2),
         "sharpness": round(edges / samples, 3),
     }
+
+
+def encode_jpeg(pixels: bytearray, width: int, height: int, *, quality: int = 80) -> bytes:
+    """RGB bytes as a JPEG.
+
+    For a view being refreshed rather than kept: a frame lands in roughly a
+    tenth of the bytes a PNG of it takes, which is the difference between a
+    panel that keeps up and one that waits on the wire.
+    """
+    image = Image.frombytes("RGB", (width, height), bytes(pixels))
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG", quality=quality)
+    return buffer.getvalue()
 
 
 def encode_png(pixels: bytearray, width: int, height: int, *, level: int = 6) -> bytes:

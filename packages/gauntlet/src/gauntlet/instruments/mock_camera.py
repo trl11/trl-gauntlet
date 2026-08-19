@@ -17,7 +17,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from gauntlet.capabilities.declare import command_field, readout
+from gauntlet.capabilities.declare import readout
 from gauntlet.capabilities.registry import CommandRejected
 from gauntlet.instruments.imaging import encode_frame, image_suffix
 from gauntlet.instruments.v4l2 import PIXELFORMAT_YUYV, Frame, fourcc
@@ -80,7 +80,8 @@ class MockCamera:
             {
                 "name": "snapshot",
                 "label": "Take Snapshot",
-                "fields": [command_field("max_width", "Width", unit="px", minimum=16, maximum=_WIDTH)],
+                "fields": [],
+                "returns": "image",
             }
         ]
 
@@ -143,7 +144,8 @@ class MockCamera:
     def _snapshot(self, args: dict[str, Any]) -> dict[str, Any]:
         """One synthesised still, encoded the way a real frame would be."""
         max_width = args.get("max_width")
-        width = int(max_width) if isinstance(max_width, (int, float)) and not isinstance(max_width, bool) else 320
+        # Absent means the frame's own width, which is what the panel asks for.
+        width = int(max_width) if isinstance(max_width, (int, float)) and not isinstance(max_width, bool) else _WIDTH
         if not 16 <= width <= _WIDTH:
             raise CommandRejected(f"camera: 'max_width' must be between 16 and {_WIDTH}")
 

@@ -33,7 +33,14 @@ from gauntlet.instruments.v4l2 import SUPPORTED_FORMATS, V4l2Camera, V4l2Error, 
 
 log = logging.getLogger("gauntlet.instruments.uvc_camera")
 
-_DEFAULT_MAX_WIDTH = 960
+# No limit, so a frame is encoded at its own width. `_step_for` reads anything
+# below one as "do not scale", which is what the panel takes a picture at.
+_FULL_RES = 0
+_FULL_RES_CHOICE = "Full"
+
+# The widths the panel offers, widest first so the viewer opens on the whole
+# frame. They are a cap on the output: a Bayer frame halves before this applies.
+_WIDTH_CHOICES = (_FULL_RES_CHOICE, "1920", "960", "480")
 _MAX_WIDTH_LIMIT = 3840
 _WARMUP_LIMIT = 8
 _DEFAULT_BURST_FRAMES = 8
@@ -113,33 +120,34 @@ class UvcCamera:
 
         `link_status` appears only behind a GMSL adapter, because a webcam has
         no link to report on and an empty panel control is worse than none.
+
+        `stream_stats` is not among them. A suite measures the link with it,
+        but a burst of frames answers with numbers an operator cannot act on,
+        and taking one costs the panel a second of capture.
         """
         rows: list[dict[str, Any]] = []
         if self._link is not None:
-            rows.append({"name": "link_status", "label": "Read Link Status", "fields": []})
-        rows.append(
-            {
-                "name": "stream_stats",
-                "label": "Measure Stream",
-                "fields": [
-                    command_field("frames", "Frames", minimum=2, maximum=_MAX_BURST_FRAMES),
-                ],
-            }
-        )
+            rows.append(
+                {
+                    "name": "link_status",
+                    "label": "Read Link Status",
+                    "fields": [],
+                    # Its whole effect is to bring this group's readings up to
+                    # date, so the panel draws it as that group's refresh.
+                    "refreshes": "GMSL link",
+                }
+            )
         return [
             *rows,
             {
                 "name": "snapshot",
                 "label": "Take Snapshot",
                 "fields": [
-                    command_field(
-                        "max_width",
-                        "Width",
-                        unit="px",
-                        minimum=16,
-                        maximum=_MAX_WIDTH_LIMIT,
-                    ),
+                    command_field("max_width", "Resolution", kind="string", choices=_WIDTH_CHOICES, unit="px"),
                 ],
+                # The result is a picture, so the panel draws it rather than
+                # listing what came back.
+                "returns": "image",
             },
         ]
 
@@ -174,18 +182,26 @@ class UvcCamera:
         return self.state()
 
     def readouts(self) -> list[dict[str, Any]]:
-        """What the camera is set to, and what the last snapshot looked like."""
+        """What the camera is set to, and what the last snapshot looked like.
+
+        The link reports what it counted since it was last read, alongside the
+        running total. The total is the one a suite plots over an irradiation;
+        it climbs and never falls, so on a panel it is the smaller figure.
+        """
         return [
             readout("format.width", "Width", group="Format", role="summary", unit="px"),
             readout("format.height", "Height", group="Format", role="summary", unit="px"),
             readout("format.fourcc", "Pixel format", group="Format", role="summary"),
             readout("last_frame.mean_luma", "Brightness", group="Last snapshot", precision=1),
             readout("last_frame.sharpness", "Sharpness", group="Last snapshot", precision=2),
-            readout("snapshots", "Snapshots", group="Last snapshot", role="summary"),
+            readout("snapshots", "Snapshots", role="viewer"),
             *(
                 [
+                    readout("link.errors", "Link error rate", group="GMSL link"),
+                    # White, because a total that only ever climbs is a record
+                    # of the run rather than something to act on.
+                    readout("link.total_errors", "Errors total", group="GMSL link", tone="white"),
                     readout("link.locked", "Link locked", group="GMSL link", role="summary"),
-                    readout("link.total_errors", "Link errors", group="GMSL link"),
                 ]
                 if self._link is not None
                 else []
@@ -340,6 +356,10 @@ class UvcCamera:
             # One figure the panel can show without knowing how many chips
             # there are: the link is up only while every chip says so.
             "locked": bool(chips) and all(chip["locked"] for chip in chips.values()),
+            # What the chips counted since they were last read, which is what
+            # says whether the link is erroring now. The running total only
+            # ever climbs, so on its own it reads as constant errors.
+            "errors": sum(int(chip["total_errors"]) for chip in chips.values()),
             "total_errors": sum(int(chip["errors_total"]) for chip in chips.values()),
         }
         self._link_read_at = now
@@ -400,7 +420,10 @@ class UvcCamera:
 
     def _snapshot(self, args: dict[str, Any]) -> dict[str, Any]:
         """One still image, encoded and measured, with the stream left running."""
-        max_width = _int_arg(args, "max_width", _DEFAULT_MAX_WIDTH, 16, _MAX_WIDTH_LIMIT)
+        max_width = _width_arg(args)
+        # A view being refreshed wants the bytes over the pixels; one kept as an
+        # artifact is worth writing losslessly.
+        lossy = bool(args.get("live"))
         warmup = _int_arg(args, "warmup", self._warmup_frames, 0, _WARMUP_LIMIT)
         camera = self._camera
         if camera is None:
@@ -412,7 +435,7 @@ class UvcCamera:
             # it is thrown away and the frame after it is the one reported.
             for _ in range(warmup):
                 frame = camera.grab()
-            payload, measured = encode_frame(frame, max_width=max_width, encoding=self._frame_format)
+            payload, measured = encode_frame(frame, max_width=max_width, encoding=self._frame_format, lossy=lossy)
         except (ImageError, V4l2Error) as exc:
             # A camera that has been unplugged answers every grab the same way,
             # so the device is dropped and the next command re-probes for it.
@@ -427,10 +450,26 @@ class UvcCamera:
         }
         return {
             "image_base64": base64.b64encode(payload).decode(),
-            "suffix": image_suffix(frame.pixelformat),
+            "suffix": ".jpg" if lossy else image_suffix(frame.pixelformat),
             "source": {"width": frame.width, "height": frame.height, "fourcc": fourcc(frame.pixelformat)},
             **self._last_frame,
         }
+
+
+def _width_arg(args: dict[str, Any]) -> int:
+    """The width to cap the output at, from a preset name or a number.
+
+    The panel sends the name of a preset and a suite sends a number, so both
+    reach the same setting. Absent, or the widest preset, means no cap at all.
+    """
+    value = args.get("max_width")
+    if value == _FULL_RES_CHOICE:
+        return _FULL_RES
+    if isinstance(value, str) and value != "":
+        if not value.isdigit():
+            raise CommandRejected(f"camera: 'max_width' must be a number or one of {', '.join(_WIDTH_CHOICES)}")
+        value = int(value)
+    return _int_arg({"max_width": value}, "max_width", _FULL_RES, 16, _MAX_WIDTH_LIMIT)
 
 
 def _int_arg(args: dict[str, Any], key: str, fallback: int, minimum: int, maximum: int) -> int:
