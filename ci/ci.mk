@@ -47,10 +47,17 @@ ci-cache-init: ci-image
 	@mkdir -p $(ROOT)/.ci-cache/{uv,npm,electron,electron-builder}
 
 ## Initialize the Git submodules that the frontend build consumes.
+# Jenkins clones them inside the container under an ssh-agent it holds the
+# credentials for. There is no agent to forward here, so this runs on the host
+# and the checkout the container sees through the bind mount is the result.
 ci-submodules:
 	@cd $(CI_SUBMODULE_ROOT) && git submodule update --init --recursive
 
 ## Run the full Jenkins workflow locally: setup, checks, release build, and artifact contract.
+# Jenkins builds each run in a workspace `cleanWs` has emptied, so `check` runs
+# against a tree with no frontend bundle and `ci-validate-dist` counts only the
+# artifacts this run produced. `distclean` is what makes a local pass mean the
+# same thing.
 ci-test: ci-cache-init ci-submodules
 	@$(MAKE) --no-print-directory ci-run-distclean
 	@$(MAKE) --no-print-directory ci-run-setup

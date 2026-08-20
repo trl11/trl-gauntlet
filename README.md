@@ -228,6 +228,6 @@ confusing `bad interpreter`.
 | `make test` | Every test: gauntlet, suites, frontend, end to end |
 | `make gauntlet-test` / `make suite-test` | Python tests, then each suite's own tests |
 | `make schemas` / `make api-spec` | Print contract schema names; write `build/openapi.json` |
-| `make clean` / `make distclean` | Remove build output; also remove `.venv` and `output/` |
+| `make clean` / `make distclean` | Remove build output; also remove `dist/`, `.venv` and `output/` |
 
 `make help` lists them with descriptions. `gauntlet --help` lists the full CLI.

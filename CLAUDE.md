@@ -143,8 +143,8 @@ delegate, so `make -C app build` and `make app-build` are the same thing.
 installers, the image as a loadable tarball, the two wheels, and the host
 setup a bundle cannot do for itself — `setup-host.sh`, the udev rules it
 installs, and the `README.txt` telling whoever unpacks a release to run it. It
-is gitignored, nothing else is written there, and nothing empties it, so an
-artifact from an earlier version stays until it is removed.
+is gitignored, nothing else is written there, and only `make distclean`
+empties it, so an artifact from an earlier version stays until then.
 
 The gauntlet wheel carries `web_dist` as package data, so anything building it
 builds the frontend first. A wheel built without it serves the placeholder in

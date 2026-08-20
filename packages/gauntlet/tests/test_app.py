@@ -7,18 +7,8 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from gauntlet import app as app_module
 from gauntlet.app import create_app
 from gauntlet.storage import RunRow, RunsIndex
-
-
-@pytest.fixture
-def web_dist(tmp_path, monkeypatch):
-    """Stand in for the built frontend, which may or may not exist in the tree."""
-    directory = tmp_path / "web_dist"
-    directory.mkdir()
-    monkeypatch.setattr(app_module, "_web_dist", lambda: directory)
-    return directory
 
 
 def _bundle(directory) -> None:
@@ -73,24 +63,24 @@ class TestStartupRecovery:
 
 
 class TestWithoutABundle:
-    def test_the_root_explains_how_to_build_one(self, client, web_dist):
-        with TestClient(create_app(client.app.state.settings)) as fresh:
+    def test_the_root_explains_how_to_build_one(self, settings, web_dist):
+        with TestClient(create_app(settings)) as fresh:
             response = fresh.get("/")
 
         assert response.status_code == 200
         assert "make frontend" in response.text
         assert "/docs" in response.text
 
-    def test_the_api_still_answers(self, client, web_dist):
-        with TestClient(create_app(client.app.state.settings)) as fresh:
+    def test_the_api_still_answers(self, settings, web_dist):
+        with TestClient(create_app(settings)) as fresh:
             assert fresh.get("/api/health").status_code == 200
 
 
 class TestWithABundle:
     @pytest.fixture
-    def served(self, client, web_dist):
+    def served(self, settings, web_dist):
         _bundle(web_dist)
-        with TestClient(create_app(client.app.state.settings)) as fresh:
+        with TestClient(create_app(settings)) as fresh:
             yield fresh
 
     def test_the_root_serves_the_index(self, served):

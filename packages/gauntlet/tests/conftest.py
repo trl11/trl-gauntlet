@@ -14,6 +14,7 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
+from gauntlet import app as app_module
 from gauntlet.app import create_app
 from gauntlet.campaigns import load_campaign
 from gauntlet.config import Settings
@@ -62,9 +63,23 @@ def settings(campaign_root: Path, suite_root: Path, tmp_path: Path) -> Settings:
 
 
 @pytest.fixture
-def client(make_suite, settings: Settings):
-    """An app serving one suite, ``alpha``."""
+def web_dist(monkeypatch, tmp_path: Path) -> Path:
+    """Stand in for the built frontend, which may or may not exist in the tree."""
+    directory = tmp_path / "web_dist"
+    directory.mkdir()
+    monkeypatch.setattr(app_module, "_web_dist", lambda: directory)
+    return directory
+
+
+@pytest.fixture
+def client(make_suite, settings: Settings, web_dist: Path):
+    """An app serving one suite, ``alpha``, and a stand-in for the bundle.
+
+    A wheel ships the bundle, so the app under test mounts the SPA routes
+    whether or not this checkout has built the frontend.
+    """
     make_suite("alpha")
+    (web_dist / "index.html").write_text("<!doctype html><title>Gauntlet</title><div id='root'></div>")
     with TestClient(create_app(settings)) as test_client:
         yield test_client
 
