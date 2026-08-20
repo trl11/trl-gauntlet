@@ -18,7 +18,7 @@ help:
 	@echo "    make install-udev-rules  install the instrument udev rules (on the bench host)"
 	@echo "    make udev-check        report whether those rules reached the instruments"
 	@echo "    make clean             remove build artifacts and caches"
-	@echo "    make distclean         also remove .venv and output/"
+	@echo "    make distclean         also remove dist/, .venv and output/"
 	@echo ""
 	@echo "  Devcontainer"
 	@echo "    make dev               start the devcontainer and open a shell"
@@ -354,4 +354,4 @@ clean:
 	@rm -rf $(ROOT)/.pytest_cache $(ROOT)/.ruff_cache $(ROOT)/.mypy_cache $(ROOT)/.coverage
 
 distclean: clean
-	@rm -rf $(VENV) $(ROOT)/output
+	@rm -rf $(DIST) $(VENV) $(ROOT)/output

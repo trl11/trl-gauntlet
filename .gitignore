@@ -35,3 +35,10 @@ output/
 .plan/
 files/
 tmp/
+
+# `make ci-test` runs the image with HOME=/workspace, as Jenkins sets
+# HOME=WORKSPACE, so the tools it runs write their dotdirs into the checkout.
+# Jenkins drops them with the workspace; here they would stay.
+.cache/
+.docker/
+.local/
