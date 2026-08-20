@@ -1,7 +1,22 @@
+// The project CI container is started explicitly rather than through
+// `agent { docker }` because each worker's Docker socket has its own GID, which
+// is resolved at runtime instead of assumed.
+def dockerArgs() {
+    def socketGid = sh(script: 'stat -c %g /var/run/docker.sock', returnStdout: true).trim()
+    return "--group-add ${socketGid} " +
+        '-v /var/run/docker.sock:/var/run/docker.sock ' +
+        '-v /usr/bin/docker:/usr/bin/docker ' +
+        '-v /usr/libexec/docker:/usr/libexec/docker'
+}
+
+// Run a block inside this build's image. The numbered tag is the immutable run
+// input, so every stage after Setup sees the same image.
+def inCiImage(Closure body) {
+    docker.image("${env.CI_IMAGE}:${env.BUILD_NUMBER}").inside(dockerArgs(), body)
+}
+
 pipeline {
-    // Every Jenkins worker has the `docker` label. The project CI container is
-    // started explicitly because each worker's Docker socket has its own GID.
-    // The host GID is resolved at runtime instead of assuming a fixed group.
+    // Every Jenkins worker has the `docker` label.
     agent { label 'docker' }
 
     options {
@@ -20,23 +35,15 @@ pipeline {
         stage('Setup') {
             steps {
                 script {
-                    def socketGid = sh(
-                        script: 'stat -c %g /var/run/docker.sock',
-                        returnStdout: true,
-                    ).trim()
-                    def image = docker.build(
+                    docker.build(
                         "${CI_IMAGE}:cache",
                         "--build-arg APT_PROXY_URL=${APT_PROXY_URL} --file ci/Dockerfile .",
                     )
                     // Keep a stable local tag so a worker retains BuildKit layers across
                     // build numbers; the numbered tag remains the immutable run input.
                     sh "docker tag ${CI_IMAGE}:cache ${CI_IMAGE}:${BUILD_NUMBER}"
-                    def dockerArgs = "--group-add ${socketGid} " +
-                        '-v /var/run/docker.sock:/var/run/docker.sock ' +
-                        '-v /usr/bin/docker:/usr/bin/docker ' +
-                        '-v /usr/libexec/docker:/usr/libexec/docker'
                     sh 'mkdir -p .ci-cache/{uv,npm,electron,electron-builder}'
-                    image.inside(dockerArgs) {
+                    inCiImage {
                         // Start the SSH agent inside the CI container so its UNIX socket
                         // is usable for private submodule cloning.
                         sshagent(credentials: ['github-ssh']) {
@@ -50,15 +57,7 @@ pipeline {
         stage('Verify') {
             steps {
                 script {
-                    def socketGid = sh(
-                        script: 'stat -c %g /var/run/docker.sock',
-                        returnStdout: true,
-                    ).trim()
-                    def dockerArgs = "--group-add ${socketGid} " +
-                        '-v /var/run/docker.sock:/var/run/docker.sock ' +
-                        '-v /usr/bin/docker:/usr/bin/docker ' +
-                        '-v /usr/libexec/docker:/usr/libexec/docker'
-                    docker.image("${CI_IMAGE}:${BUILD_NUMBER}").inside(dockerArgs) {
+                    inCiImage {
                         sh 'make check'
                     }
                 }
@@ -67,15 +66,7 @@ pipeline {
         stage('Build') {
             steps {
                 script {
-                    def socketGid = sh(
-                        script: 'stat -c %g /var/run/docker.sock',
-                        returnStdout: true,
-                    ).trim()
-                    def dockerArgs = "--group-add ${socketGid} " +
-                        '-v /var/run/docker.sock:/var/run/docker.sock ' +
-                        '-v /usr/bin/docker:/usr/bin/docker ' +
-                        '-v /usr/libexec/docker:/usr/libexec/docker'
-                    docker.image("${CI_IMAGE}:${BUILD_NUMBER}").inside(dockerArgs) {
+                    inCiImage {
                         sh 'make build'
                         sh 'make ci-validate-dist'
                     }
@@ -92,20 +83,6 @@ pipeline {
                 [pattern: '.ci-cache/**', type: 'EXCLUDE'],
                 [pattern: '.git/**', type: 'EXCLUDE'],
             ])
-        }
-        regression {
-            slackSend(
-                color: 'danger',
-                message: ":red_circle: *${env.JOB_NAME}* #${env.BUILD_NUMBER} - FAILURE\n<${env.BUILD_URL}|View Build>",
-                notifyCommitters: true
-            )
-        }
-        fixed {
-            slackSend(
-                color: 'good',
-                message: ":large_green_circle: *${env.JOB_NAME}* #${env.BUILD_NUMBER} - FIXED\n<${env.BUILD_URL}|View Build>",
-                notifyCommitters: true
-            )
         }
     }
 }
