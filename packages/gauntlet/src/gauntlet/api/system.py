@@ -1,4 +1,4 @@
-"""Health, settings, versions, and host telemetry.
+"""Health, settings, versions, contract schemas, and host telemetry.
 
 The telemetry endpoints report what :mod:`gauntlet.api.host_stats` reads from
 the host. ``cpu_percent`` is the one reading a single sample cannot give, so
@@ -10,8 +10,8 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from fastapi import APIRouter, Request
-from gauntlet_sdk.contract import CONTRACT_VERSION
+from fastapi import APIRouter, HTTPException, Request
+from gauntlet_sdk.contract import CONTRACT_MODELS, CONTRACT_VERSION, json_schema
 
 from gauntlet.api import host_stats
 
@@ -28,6 +28,21 @@ async def health() -> dict[str, str]:
 async def get_settings(request: Request) -> dict[str, Any]:
     """Current settings."""
     return request.app.state.settings.to_dict()
+
+
+@router.get("/schemas")
+async def get_schemas() -> dict[str, Any]:
+    """Names of the contract schemas available."""
+    return {"schemas": sorted(CONTRACT_MODELS)}
+
+
+@router.get("/schemas/{name}")
+async def get_schema(name: str) -> dict[str, Any]:
+    """JSON Schema for one contract model, generated from the pydantic source."""
+    try:
+        return json_schema(name)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/system/info")

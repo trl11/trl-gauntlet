@@ -33,7 +33,7 @@ flowchart LR
 | `gauntlet.instruments` | The providers themselves. Ships `MockChamber`, `MockDaq` and `MockPsu`; a real driver belongs beside them. |
 | `gauntlet.conformance` | Checks a suite against the contract. |
 | `gauntlet.storage` | SQLite behind `RunsIndex` (run history), `NotesIndex` (operator notes on runs and units), and `UnitsIndex` (units, aggregated from the runs table). One database file. |
-| `gauntlet.api` | REST routers, one module per resource: `system`, `suites`, `runs`, `artifacts`, `units`, `instruments`, `capabilities`. `notes` is shared plumbing rather than a router; `host_stats` reads the host. |
+| `gauntlet.api` | REST routers, one module per resource: `system`, `suites`, `runs`, `artifacts`, `units`, `instruments`, `capabilities`. `notes` is shared plumbing rather than a router; `host_stats` reads the host. The documentation tags are coarser than the modules: `artifacts` is served under `runs`, and `capabilities` under `system`. |
 | `gauntlet.app` | Wires all of it onto `app.state`, mounts the routers under `/api`, and serves `web_dist` at `/`. |
 
 `gauntlet.api.host_stats` reads `/proc`, `/sys`, `os` and `shutil` only. It adds
