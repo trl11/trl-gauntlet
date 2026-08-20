@@ -1,4 +1,4 @@
-"""Suite catalog, profiles, schemas, and conformance endpoints."""
+"""Suite catalog, profiles, and conformance endpoints."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
-from gauntlet_sdk.contract import CONTRACT_MODELS, json_schema
 from pydantic import BaseModel, ConfigDict
 
 from gauntlet.conformance import verify_suite
@@ -229,18 +228,3 @@ async def post_verify(request: Request, key: str, execute: bool = False) -> dict
     """Run the conformance checks against a suite."""
     suite = _suite_or_404(request, key)
     return verify_suite(suite.directory, execute=execute).to_dict()
-
-
-@router.get("/schemas")
-async def get_schemas() -> dict[str, Any]:
-    """Names of the contract schemas available."""
-    return {"schemas": sorted(CONTRACT_MODELS)}
-
-
-@router.get("/schemas/{name}")
-async def get_schema(name: str) -> dict[str, Any]:
-    """JSON Schema for one contract model, generated from the pydantic source."""
-    try:
-        return json_schema(name)
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc

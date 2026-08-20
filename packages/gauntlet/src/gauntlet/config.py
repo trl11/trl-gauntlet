@@ -70,6 +70,15 @@ class Settings:
     # simulated reaches the operator unless it is named below.
     psu_port: str = "auto"
     daq_serial: str = "auto"
+    # The camera is a /dev/video* node rather than a serial port, so "auto"
+    # tries each capture node in turn and takes the first that streams a
+    # format the encoder can write.
+    camera_device: str = "auto"
+    # What the camera's frames really carry. A GMSL adapter reports YUYV over
+    # UVC while sending raw sensor data, and the UVC format code cannot tell
+    # the two apart, so "auto" settles it by looking at a frame. Name a format
+    # here when a camera should never be guessed at.
+    camera_format: str = "auto"
     # Instruments to simulate instead of probing for, by name. Empty, so the
     # UI shows only hardware that is really attached; naming one here is for
     # development and tests.

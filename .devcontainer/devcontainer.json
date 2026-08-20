@@ -51,13 +51,17 @@
   // appears after the container started is covered by the rule already in
   // place:
   //
+  //    81  video*   V4L2 capture, which the UVC camera is streamed from
   //   166  ttyACM*  USB CDC-ACM serial
   //   188  ttyUSB*  USB serial bridges, the PSU's CH340 among them
   //   189  bus/usb  raw USB, which the DATAQ DAQ is driven over
   //
   // Without these the nodes mounted above are visible and every open on one
-  // fails with EPERM.
+  // fails with EPERM. Being in the owning group is the other half: the rule
+  // says the container may open the major, the group says the account may
+  // open the file, and the camera needs both.
   "runArgs": [
+    "--device-cgroup-rule=c 81:* rmw",
     "--device-cgroup-rule=c 166:* rmw",
     "--device-cgroup-rule=c 188:* rmw",
     "--device-cgroup-rule=c 189:* rmw"

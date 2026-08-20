@@ -16,11 +16,12 @@ declares about itself; naming an instrument anywhere else is a defect.
 |---|---|---|
 | `psu` | Hanmatek HM310T, `instruments/hm310t_psu.py` | Modbus RTU on a USB serial port, 9600 8N1, slave 1 |
 | `daq` | DATAQ DI-2008, `instruments/di2008_daq.py` | vendor bulk-USB protocol, claimed through usbfs |
+| `camera` | any UVC camera, `instruments/uvc_camera.py` | V4L2 ioctls on a `/dev/video*` node, memory-mapped capture |
 | `chamber` | nothing | simulation only |
 
-Beside each is a simulation — `mock_psu.py`, `mock_daq.py`, `mock_chamber.py` —
-which exists for development and for tests, and which reaches an operator only
-when they ask for it.
+Beside each is a simulation — `mock_psu.py`, `mock_daq.py`, `mock_camera.py`,
+`mock_chamber.py` — which exists for development and for tests, and which
+reaches an operator only when they ask for it.
 
 Its eight channels are settled by one `configure` command carrying a row each,
 rather than a control that picks a channel and a control that sets it. A row
@@ -43,6 +44,61 @@ what decides whether a capture window long enough to hold a scan is 0.1 s or a
 second. It also sizes its capture from that rate, so a sample costs what the
 configured rate needs and no longer.
 
+The camera is driven through V4L2 ioctls against structures laid out to match
+`videodev2.h`, and its frames are converted and written by `instruments/
+imaging.py`, so nothing is installed to read a camera. A GMSL sensor behind a
+GMSL-to-USB adapter arrives as an ordinary capture device, and the driver never
+learns it was anything else.
+
+Its node is held open and left streaming for as long as the instrument is
+registered. A capture device is exclusive, so holding it is what stops another
+process taking the camera part-way through a run, and starting a 4K stream
+costs far more than keeping one running between snapshots. A `snapshot`
+discards whatever the driver had already queued and reports the frame after it,
+because a queue that has been sitting still holds the picture from whenever it
+was last looked at.
+
+YUYV is converted and scaled in one pass and written as a PNG; MJPEG is already
+a JPEG and is written out byte for byte. Every snapshot is measured for mean
+brightness and an edge score, which is what lets a suite tell a picture from a
+lens cap without decoding anything itself. A camera offering neither format is
+reported as unavailable rather than registered.
+
+Two different permission failures are told apart, because the fix differs:
+`EACCES` is the account not being in the `video` group, and `EPERM` on a node
+that is plainly there is a container's device cgroup lacking a rule for char
+major 81.
+
+### What the link reports, behind a GMSL adapter
+
+A GMSL camera reaches the host through a serializer in the head and a
+deserializer in the adapter, and Leopard Imaging's adapters tunnel I2C over a
+vendor extension unit on the same connection that carries video. So the chips
+can be read with nothing wired to the board. `instruments/gmsl.py` does that,
+and the camera picks it up on connection: a webcam finds no chips and simply
+carries on, so the telemetry is an extra rather than a requirement.
+
+The `link_status` command reports every chip's device id, revision, lock state
+and error counters, and it appears on the panel only when chips answered.
+**The chips' counters clear when they are read**, so a reading is the errors
+since the previous one and whoever reads them consumes them. `UvcCamera` is
+the only reader and keeps the running totals, which is what stops a panel
+refresh and a suite's sample stealing counts from each other.
+
+Nothing reads a register with the write bit set. A write can take the link
+down, and a link that drops part-way through an irradiation looks exactly like
+a radiation effect, which costs a run its meaning rather than just its data.
+
+`stream_stats` measures what the link is carrying: it reads frames back to
+back for a short burst and reports frame rate, data rate, frames dropped and
+frames the driver flagged as corrupt. It is separate from `snapshot` because
+the two cannot be measured together. The driver fills a buffer only while one
+is free, so a caller taking a frame every second measures its own sampling
+rate; the queue sits full in between and the frames arriving then are never
+counted. The burst drains that backlog before it starts timing, or the
+sequence gap left by the caller's own pause would be reported as dropped
+frames.
+
 ## What is registered
 
 `instruments/detect.py` decides, at startup and again on every operator scan.
@@ -53,6 +109,8 @@ it.
 | Setting | Meaning |
 |---|---|
 | `psu_port`, `daq_serial` | `"auto"` probes, `""` does not look at all, anything else is the serial port or USB serial number to use |
+| `camera_device` | `"auto"` tries each `/dev/video*` in turn and takes the first that streams a format the encoder can write, `""` does not look at all, anything else is the node to open |
+| `camera_format` | `"auto"` reads a frame to decide what it really carries, or name `yuyv` or `raw10_rggb` to state it. A GMSL adapter reports YUYV over UVC while sending raw sensor data, and the UVC format code cannot tell them apart |
 | `simulated_instruments` | Names the instruments to simulate instead of probing for. Empty by default |
 
 An explicitly named device stays registered even when it goes quiet, reporting

@@ -68,10 +68,14 @@ RUN set -eux; \
 
 # The instruments' device nodes are the host's, and a bind-mounted node carries
 # the host's numeric gid rather than a name. Debian and Ubuntu both number
-# dialout 20 and plugdev 46, and this image is bookworm, so joining them by
-# name here joins the groups the host's nodes are owned by. A host numbering
-# them differently needs its own gid passed as `--group-add` instead.
-RUN usermod -aG dialout,plugdev ${USERNAME}
+# dialout 20, plugdev 46 and video 44, and this image is bookworm, so joining
+# them by name here joins the groups the host's nodes are owned by. A host
+# numbering them differently needs its own gid passed as `--group-add` instead.
+#
+# video is for the camera: the kernel's uvcvideo driver owns /dev/video* and
+# leaves it root:video 0660, so unlike a serial port there is no udev rule to
+# install, only this group to be in.
+RUN usermod -aG dialout,plugdev,video ${USERNAME}
 
 # Coding agents. The npm prefix belongs to dev rather than root so both can
 # apply their own updates without sudo. Versions default to the current

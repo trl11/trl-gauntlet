@@ -134,14 +134,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         on_run_completed=on_run_completed,
     )
 
+    # Tags group the API documentation by what a caller is working with, which
+    # is coarser than the module split: a run's artifacts are read through the
+    # run that wrote them, and the capability endpoints a suite drives are part
+    # of the installation rather than a resource of their own.
     app.include_router(system.router, prefix="/api", tags=["system"])
     app.include_router(suites.router, prefix="/api", tags=["suites"])
     app.include_router(campaigns.router, prefix="/api", tags=["campaigns"])
     app.include_router(runs.router, prefix="/api", tags=["runs"])
-    app.include_router(artifacts.router, prefix="/api", tags=["artifacts"])
+    app.include_router(artifacts.router, prefix="/api", tags=["runs"])
     app.include_router(units.router, prefix="/api", tags=["units"])
     app.include_router(instruments.router, prefix="/api", tags=["instruments"])
-    app.include_router(capabilities.router, prefix="/api", tags=["capabilities"])
+    app.include_router(capabilities.router, prefix="/api", tags=["system"])
 
     _mount_frontend(app)
     return app

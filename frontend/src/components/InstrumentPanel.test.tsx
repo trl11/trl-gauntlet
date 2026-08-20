@@ -158,6 +158,267 @@ const UNSEEN: Instrument = {
   state: { lid: { latched: true }, rpm: 0, vacuum_mbar: 1013.25 },
 };
 
+describe("InstrumentPanel shows an image a command answered with", () => {
+  const shot = { src: "data:image/png;base64,AAA" };
+
+  function camera(overrides: Partial<Instrument> = {}): Instrument {
+    return instrument({
+      commands: [
+        {
+          name: "snapshot",
+          label: "Take Snapshot",
+          fields: [
+            {
+              name: "max_width",
+              label: "Resolution",
+              type: "string",
+              unit: "px",
+              min: null,
+              max: null,
+              choices: ["Full", "960"],
+            },
+          ],
+          returns: "image",
+        },
+      ],
+      primary_command: "snapshot",
+      ...overrides,
+    });
+  }
+
+  const mode = (name: string) => screen.getByRole("button", { name });
+
+  it("offers the viewer from the declaration, before any image has arrived", () => {
+    render(<InstrumentPanel instrument={camera()} onCommand={vi.fn()} />);
+
+    expect(mode("Capture")).toBeInTheDocument();
+    expect(mode("Continuous")).toBeInTheDocument();
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("takes the command out of the deck, so its button is not drawn twice", () => {
+    render(<InstrumentPanel instrument={camera()} onCommand={vi.fn()} />);
+
+    expect(screen.queryByRole("button", { name: "Take Snapshot" })).not.toBeInTheDocument();
+  });
+
+  it("captures once a press in snapshot mode, and draws what came back", async () => {
+    const onCommand = vi.fn();
+    const { rerender } = render(<InstrumentPanel instrument={camera()} onCommand={onCommand} />);
+
+    await userEvent.click(mode("Capture"));
+    expect(onCommand).toHaveBeenCalledWith("snapshot", { max_width: "Full" });
+
+    rerender(<InstrumentPanel instrument={camera()} onCommand={onCommand} preview={shot} />);
+    expect(screen.getByRole("img")).toHaveAttribute("src", shot.src);
+    expect(onCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it("names the button for what pressing it does in each mode", async () => {
+    render(<InstrumentPanel instrument={camera()} onCommand={vi.fn()} preview={shot} />);
+
+    expect(mode("Capture")).toBeInTheDocument();
+
+    await userEvent.click(mode("Continuous"));
+    expect(mode("Start")).toBeInTheDocument();
+
+    await userEvent.click(mode("Start"));
+    expect(mode("Stop")).toBeInTheDocument();
+  });
+
+  it("asks for the next image only once the last one has arrived", async () => {
+    const onCommand = vi.fn();
+    const { rerender } = render(
+      <InstrumentPanel instrument={camera()} onCommand={onCommand} preview={shot} />
+    );
+
+    await userEvent.click(mode("Continuous"));
+    await userEvent.click(mode("Start"));
+    expect(onCommand).toHaveBeenCalledTimes(1);
+
+    rerender(<InstrumentPanel busy instrument={camera()} onCommand={onCommand} preview={shot} />);
+    expect(onCommand).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <InstrumentPanel
+        instrument={camera()}
+        onCommand={onCommand}
+        preview={{ src: "data:image/png;base64,BBB" }}
+      />
+    );
+    expect(onCommand).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops when the operator says so", async () => {
+    const onCommand = vi.fn();
+    const { rerender } = render(
+      <InstrumentPanel instrument={camera()} onCommand={onCommand} preview={shot} />
+    );
+
+    await userEvent.click(mode("Continuous"));
+    await userEvent.click(mode("Start"));
+    await userEvent.click(mode("Stop"));
+
+    rerender(
+      <InstrumentPanel
+        instrument={camera()}
+        onCommand={onCommand}
+        preview={{ src: "data:image/png;base64,BBB" }}
+      />
+    );
+    expect(onCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops the loop when a command fails", async () => {
+    const onCommand = vi.fn();
+    const { rerender } = render(
+      <InstrumentPanel instrument={camera()} onCommand={onCommand} preview={shot} />
+    );
+
+    await userEvent.click(mode("Continuous"));
+    await userEvent.click(mode("Start"));
+
+    rerender(
+      <InstrumentPanel
+        error="camera: no frame within 5s"
+        instrument={camera()}
+        onCommand={onCommand}
+        preview={shot}
+      />
+    );
+
+    expect(mode("Start")).toBeInTheDocument();
+  });
+
+  it("sends the preset the operator picked", async () => {
+    const onCommand = vi.fn();
+    render(<InstrumentPanel instrument={camera()} onCommand={onCommand} />);
+
+    await userEvent.selectOptions(screen.getByLabelText("Resolution (px)"), "960");
+    await userEvent.click(mode("Capture"));
+
+    expect(onCommand).toHaveBeenCalledWith("snapshot", { max_width: "960" });
+  });
+
+  it("tells the provider the picture is being refreshed, not kept", async () => {
+    const onCommand = vi.fn();
+    render(<InstrumentPanel instrument={camera()} onCommand={onCommand} preview={shot} />);
+
+    await userEvent.click(mode("Continuous"));
+    await userEvent.click(mode("Start"));
+
+    expect(onCommand).toHaveBeenCalledWith("snapshot", { live: true, max_width: "Full" });
+  });
+
+  it("takes the image off the panel when it is hidden", async () => {
+    const onDismiss = vi.fn();
+    render(
+      <InstrumentPanel
+        instrument={camera()}
+        onCommand={vi.fn()}
+        onDismiss={onDismiss}
+        preview={shot}
+      />
+    );
+
+    await userEvent.click(mode("Hide"));
+
+    expect(onDismiss).toHaveBeenCalled();
+  });
+
+  it("offers nothing to hide until there is an image", () => {
+    render(<InstrumentPanel instrument={camera()} onCommand={vi.fn()} onDismiss={vi.fn()} />);
+
+    expect(screen.queryByRole("button", { name: "Hide" })).not.toBeInTheDocument();
+  });
+});
+
+describe("InstrumentPanel draws a group's refresh in its heading", () => {
+  function withRefresh(): Instrument {
+    return instrument({
+      commands: [{ name: "link_status", label: "Read Link Status", fields: [], refreshes: "Link" }],
+      readouts: [
+        {
+          group: "Link",
+          key: "link.errors",
+          label: "Link errors",
+          precision: null,
+          role: "headline",
+          unit: "",
+        },
+      ],
+      state: { link: { errors: 0 } },
+    });
+  }
+
+  it("sends the command from the heading rather than from a button of its own", async () => {
+    const onCommand = vi.fn();
+    render(<InstrumentPanel instrument={withRefresh()} onCommand={onCommand} />);
+
+    expect(screen.queryByRole("button", { name: "Read Link Status" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Refresh Link" }));
+
+    expect(onCommand).toHaveBeenCalledWith("link_status", {});
+  });
+
+  it("keeps a command that takes arguments in the deck", () => {
+    render(
+      <InstrumentPanel
+        instrument={instrument({
+          commands: [
+            {
+              name: "sample",
+              label: "Sample",
+              refreshes: "Link",
+              fields: [
+                {
+                  name: "count",
+                  label: "Count",
+                  type: "integer",
+                  unit: "",
+                  min: 1,
+                  max: 9,
+                  choices: [],
+                },
+              ],
+            },
+          ],
+        })}
+        onCommand={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Sample" })).toBeInTheDocument();
+  });
+});
+
+describe("InstrumentPanel reports what is holding the instrument", () => {
+  it("reads as available when nothing is driving it", () => {
+    render(<InstrumentPanel instrument={instrument()} onCommand={vi.fn()} />);
+
+    expect(screen.getByText("AVAILABLE")).toBeInTheDocument();
+  });
+
+  it("reads as in use while a run is driving it, and says which run", () => {
+    render(<InstrumentPanel instrument={instrument({ in_use_by: "run-7" })} onCommand={vi.fn()} />);
+
+    expect(screen.queryByText("AVAILABLE")).not.toBeInTheDocument();
+    expect(screen.getByText("IN USE")).toHaveAttribute("title", expect.stringContaining("run-7"));
+  });
+
+  it("reports hardware that has gone as unavailable, whatever holds it", () => {
+    render(
+      <InstrumentPanel
+        instrument={instrument({ available: false, in_use_by: "run-7" })}
+        onCommand={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("UNAVAILABLE")).toBeInTheDocument();
+    expect(screen.queryByText("IN USE")).not.toBeInTheDocument();
+  });
+});
+
 describe("InstrumentPanel draws an instrument it has never seen", () => {
   it("renders its state, whatever the keys are called", () => {
     render(<InstrumentPanel instrument={UNSEEN} onCommand={vi.fn()} />);
@@ -234,6 +495,40 @@ describe("InstrumentPanel lays out declared readouts", () => {
 
     expect(screen.getByText("Current")).toBeInTheDocument();
     expect(screen.getByText("0.125")).toBeInTheDocument();
+  });
+
+  it("lifts a group with nothing to burn large into the identifying detail", () => {
+    render(
+      <InstrumentPanel
+        instrument={withReadouts({
+          readouts: [
+            {
+              group: "Format",
+              key: "format.width",
+              label: "Width",
+              precision: null,
+              role: "summary",
+              unit: "px",
+            },
+            {
+              group: "Channel A",
+              key: "rails.main",
+              label: "Main rail",
+              precision: 2,
+              role: "headline",
+              unit: "V",
+            },
+          ],
+          state: { format: { width: 3840 }, rails: { main: 4.987 } },
+        })}
+        onCommand={vi.fn()}
+      />
+    );
+
+    // The spec strip carries it as text, so no display of its own is drawn.
+    expect(screen.getByText("3840 px")).toBeInTheDocument();
+    expect(screen.queryByText("Format")).not.toBeInTheDocument();
+    expect(screen.getByText("Channel A")).toBeInTheDocument();
   });
 
   it("names the group it declared", () => {
@@ -379,7 +674,6 @@ describe("InstrumentPanel latches a primary command that settles one boolean", (
 
     expect(lock()).toBeDisabled();
     expect(key()).toBeDisabled();
-    expect(screen.getByText(/run run-7 is driving this instrument/)).toBeInTheDocument();
   });
 
   it("leaves the key locked behind a run that took the instrument", async () => {

@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { listInstruments, rescanInstruments, sendInstrumentCommand } from "@api/client";
 import EmptyState from "@components/EmptyState";
-import InstrumentPanel from "@components/InstrumentPanel";
+import InstrumentPanel, { type InstrumentPreview } from "@components/InstrumentPanel";
 import PageHeader from "@components/PageHeader";
 
 import "./InstrumentsPage.scss";
@@ -14,10 +14,25 @@ import "./InstrumentsPage.scss";
 /** How often the instrument snapshot is re-read. */
 const POLL_MS = 2000;
 
+/**
+ * The image a command answered with, as a data URL, or null when it sent none.
+ *
+ * An instrument that answers with `image_base64` is showing the operator a
+ * picture, whatever the command was called and whatever the instrument is.
+ */
+function imageFrom(result: Record<string, unknown>): string | null {
+  const encoded = result.image_base64;
+  if (typeof encoded !== "string" || encoded === "") return null;
+  return `data:${result.suffix === ".jpg" ? "image/jpeg" : "image/png"};base64,${encoded}`;
+}
+
 /** Instrument availability and manual control. */
 export const InstrumentsPage: React.FC = () => {
   const client = useQueryClient();
   const [failure, setFailure] = useState<{ message: string; name: string } | null>(null);
+  // Kept apart from the mutation's own result so that running some other
+  // command does not take the picture off the panel.
+  const [shot, setShot] = useState<(InstrumentPreview & { name: string }) | null>(null);
 
   const instruments = useQuery({
     queryKey: ["instruments"],
@@ -33,8 +48,10 @@ export const InstrumentsPage: React.FC = () => {
   const send = useMutation({
     mutationFn: (input: { args: Record<string, unknown>; command: string; name: string }) =>
       sendInstrumentCommand(input.name, input.command, input.args),
-    onSuccess: () => {
+    onSuccess: (result, input) => {
       setFailure(null);
+      const src = imageFrom(result.result);
+      if (src !== null) setShot({ name: input.name, src });
       client.invalidateQueries({ queryKey: ["instruments"] });
     },
     onError: (error, input) => setFailure({ message: error.message, name: input.name }),
@@ -79,6 +96,8 @@ export const InstrumentsPage: React.FC = () => {
               error={failure?.name === instrument.name ? failure.message : null}
               instrument={instrument}
               onCommand={(command, args) => send.mutate({ args, command, name: instrument.name })}
+              onDismiss={() => setShot(null)}
+              preview={shot?.name === instrument.name ? shot : null}
             />
           </section>
         ))}

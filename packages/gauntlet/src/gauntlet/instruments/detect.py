@@ -23,9 +23,11 @@ from gauntlet.capabilities.registry import CapabilityProvider, CapabilityRegistr
 from gauntlet.config import Settings
 from gauntlet.instruments.di2008_daq import Di2008Daq
 from gauntlet.instruments.hm310t_psu import Hm310tPsu, candidate_ports
+from gauntlet.instruments.mock_camera import MockCamera
 from gauntlet.instruments.mock_chamber import MockChamber
 from gauntlet.instruments.mock_daq import MockDaq
 from gauntlet.instruments.mock_psu import MockPsu
+from gauntlet.instruments.uvc_camera import UvcCamera
 
 log = logging.getLogger("gauntlet.instruments.detect")
 
@@ -33,6 +35,11 @@ log = logging.getLogger("gauntlet.instruments.detect")
 def detect_instruments(registry: CapabilityRegistry, settings: Settings) -> None:
     """Register every instrument that answers, and drop every one that does not."""
     simulated = set(settings.simulated_instruments)
+    _settle(
+        registry,
+        "camera",
+        MockCamera if "camera" in simulated else lambda: _camera(settings.camera_device, settings.camera_format),
+    )
     # The chamber has no driver for real hardware, so it exists only while it
     # is being simulated.
     _settle(registry, "chamber", MockChamber if "chamber" in simulated else _absent)
@@ -59,6 +66,22 @@ def _close(provider: CapabilityProvider) -> None:
     release = getattr(provider, "close", None)
     if callable(release):
         release()
+
+
+def _camera(device: str, frame_format: str = "auto") -> CapabilityProvider | None:
+    """The camera, if one is asked for and one answers.
+
+    Unlike a serial instrument there is nothing to enumerate before opening:
+    the driver walks the capture nodes itself, so "auto" is passed through as
+    an empty device rather than probed for here.
+    """
+    if not device:
+        return None
+    camera = UvcCamera(device="" if device == "auto" else device, frame_format=frame_format)
+    if camera.available():
+        return camera
+    _close(camera)
+    return None
 
 
 def _daq(serial: str) -> CapabilityProvider | None:

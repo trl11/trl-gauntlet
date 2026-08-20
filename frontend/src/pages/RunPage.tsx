@@ -27,6 +27,7 @@ import LogStream from "@components/LogStream";
 import MetricsChart from "@components/MetricsChart";
 import NotesPanel from "@components/NotesPanel";
 import PageHeader from "@components/PageHeader";
+import SnapshotGallery from "@components/SnapshotGallery";
 import VerdictBanner from "@components/VerdictBanner";
 import VerdictSummary from "@components/VerdictSummary";
 import useEventStream from "@hooks/useEventStream";
@@ -42,7 +43,15 @@ const LIVE_POLL_MS = 2000;
 const MAX_LOG_LINES = 50_000;
 const MAX_METRIC_SAMPLES = 20_000;
 
-const TABS = ["overview", "log", "metrics", "iterations", "artifacts", "notes"] as const;
+const TABS = [
+  "overview",
+  "log",
+  "metrics",
+  "iterations",
+  "snapshots",
+  "artifacts",
+  "notes",
+] as const;
 
 type Tab = (typeof TABS)[number];
 
@@ -152,6 +161,13 @@ export const RunPage: React.FC = () => {
   const anomalies: AnomalyRow[] =
     replayed.anomalies.length > 0 ? replayed.anomalies : stream.anomalies;
   const outcome = verdict.data ?? stream.verdict?.summary ?? null;
+  // Every image the run named in `metrics.images`, flattened in the order the
+  // iterations recorded them.
+  const snapshots = useMemo(
+    () =>
+      iterations.flatMap((row) => row.images.map((path) => ({ iteration: row.iteration, path }))),
+    [iterations]
+  );
 
   if (run.isPending) return <Spinner className="run-page__spinner" />;
 
@@ -168,12 +184,23 @@ export const RunPage: React.FC = () => {
   const reconnecting = live && !stream.connected && !stream.ended;
 
   // So an operator can tell a tab holds something new without opening it.
+  // The gallery's images are one folded row in the artifact list, so the badge
+  // counts them once rather than reporting hundreds of files.
+  const snapshotPaths = new Set(snapshots.map((shot) => shot.path));
+  const listedFiles = files.filter((file) => !snapshotPaths.has(file.path));
   const tabCounts: Partial<Record<Tab, number>> = {
-    artifacts: files.length,
+    artifacts: listedFiles.length + (listedFiles.length < files.length ? 1 : 0),
     iterations: iterations.length,
     log: logs.length,
     notes: notes.data?.notes.length ?? 0,
+    snapshots: snapshots.length,
   };
+
+  // Snapshots are offered only by a run that recorded some, which is what
+  // keeps the tab out of the way of every run that records none. Nothing here
+  // asks which suite ran: the images decide.
+  const visibleTabs = TABS.filter((name) => name !== "snapshots" || snapshots.length > 0);
+  const active = visibleTabs.includes(tab) ? tab : "overview";
 
   return (
     <div className="run-page">
@@ -256,12 +283,12 @@ export const RunPage: React.FC = () => {
       )}
 
       <div className="run-page__tabs" role="tablist" aria-label="Run views">
-        {TABS.map((name) => {
+        {visibleTabs.map((name) => {
           const count = tabCounts[name];
           return (
             <button
-              aria-selected={tab === name}
-              className={clsx("run-page__tab", tab === name && "run-page__tab--active")}
+              aria-selected={active === name}
+              className={clsx("run-page__tab", active === name && "run-page__tab--active")}
               key={name}
               onClick={() => setTab(name)}
               role="tab"
@@ -278,8 +305,8 @@ export const RunPage: React.FC = () => {
         })}
       </div>
 
-      <div className="run-page__panel" role="tabpanel" aria-label={tab}>
-        {tab === "overview" && (
+      <div className="run-page__panel" role="tabpanel" aria-label={active}>
+        {active === "overview" && (
           <div className="run-page__overview">
             <VerdictSummary verdict={outcome} summaryText={summaryFile.data ?? null}>
               <h2 className="run-page__section">Test Session</h2>
@@ -308,8 +335,8 @@ export const RunPage: React.FC = () => {
           </div>
         )}
 
-        {tab === "log" && <LogStream lines={logs} />}
-        {tab === "metrics" && (
+        {active === "log" && <LogStream lines={logs} />}
+        {active === "metrics" && (
           <MetricsChart
             key={runId}
             runId={runId}
@@ -317,7 +344,7 @@ export const RunPage: React.FC = () => {
             defaultMetrics={defaultMetrics}
           />
         )}
-        {tab === "iterations" && (
+        {active === "iterations" && (
           <IterationTable
             key={runId}
             runId={runId}
@@ -327,8 +354,11 @@ export const RunPage: React.FC = () => {
             defaultMetrics={defaultMetrics}
           />
         )}
-        {tab === "artifacts" && <ArtifactList runId={runId} live={live} />}
-        {tab === "notes" && (
+        {active === "snapshots" && <SnapshotGallery runId={runId} snapshots={snapshots} />}
+        {active === "artifacts" && (
+          <ArtifactList runId={runId} live={live} snapshots={snapshots.map((shot) => shot.path)} />
+        )}
+        {active === "notes" && (
           <NotesPanel
             busy={addNote.isPending || removeNote.isPending || notes.isPending}
             notes={notes.data?.notes ?? []}

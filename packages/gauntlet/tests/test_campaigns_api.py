@@ -153,8 +153,9 @@ class TestManifestIsReadOnly:
         client.post("/api/campaigns/rescan")
 
         assert client.get("/api/campaigns/demo_campaign/manifest").status_code == 404
-        # No route owns this path, so every method is not found.
-        assert client.put("/api/campaigns/demo_campaign/manifest", json={"body": ""}).status_code == 404
+        # The SPA catch-all claims every path for GET alone, so another method is
+        # refused before any handler sees it.
+        assert client.put("/api/campaigns/demo_campaign/manifest", json={"body": ""}).status_code == 405
 
 
 class TestMemberRuns:

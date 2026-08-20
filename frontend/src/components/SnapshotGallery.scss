@@ -1,0 +1,102 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.snapshot-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    list-style: none;
+  }
+
+  &__item {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid $trl-dark-gray;
+    background-color: $trl-dark;
+  }
+
+  &__thumb {
+    display: block;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    line-height: 0;
+
+    img {
+      width: 100%;
+      // A tall frame and a wide one sit in the same grid without either
+      // stretching, which is what keeps a row of thumbnails level.
+      height: 150px;
+      object-fit: contain;
+      background-color: $trl-background;
+    }
+
+    &:hover img {
+      filter: brightness(1.15);
+    }
+  }
+
+  &__caption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px;
+    border-top: 1px solid $trl-dark-gray;
+  }
+
+  &__iteration {
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__download {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    color: $trl-gray;
+    text-decoration: none;
+
+    &:hover {
+      color: $trl-light-gray;
+    }
+  }
+
+  &__viewer {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+
+    img {
+      max-width: 100%;
+      max-height: 70vh;
+      object-fit: contain;
+      background-color: $trl-background;
+    }
+  }
+
+  &__controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  &__position {
+    font-family: $font-mono;
+    font-size: 12px;
+    color: $trl-gray;
+  }
+}

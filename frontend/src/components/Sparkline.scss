@@ -1,0 +1,16 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.sparkline {
+  flex: none;
+  width: 64px;
+  height: 18px;
+  color: currentcolor;
+
+  &__line {
+    fill: none;
+    stroke: currentcolor;
+    stroke-width: 1;
+    stroke-linejoin: round;
+    opacity: 0.65;
+  }
+}

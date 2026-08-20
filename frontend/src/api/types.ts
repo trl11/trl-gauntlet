@@ -561,6 +561,18 @@ export interface InstrumentCommand {
   fields: InstrumentField[];
   label: string;
   name: string;
+  /**
+   * The readout group this command brings up to date, when that is all it
+   * does. Such a command is drawn as that group's refresh rather than as a
+   * button of its own.
+   */
+  refreshes?: string;
+  /**
+   * What the command answers with, when it is something the panel draws rather
+   * than lists. `"image"` gives the instrument a viewer and takes over its
+   * button, so no page needs to know which instruments take pictures.
+   */
+  returns?: string;
   /** Heading for the column naming each row, when the command carries rows. */
   row_label?: string;
   /**
@@ -574,7 +586,7 @@ export interface InstrumentCommand {
 }
 
 /** Whether the display burns a readout large or puts it in the row beneath. */
-export type ReadoutRole = "headline" | "summary";
+export type ReadoutRole = "headline" | "summary" | "viewer";
 
 /**
  * One state value a provider asks the panel to draw, and how.
@@ -591,6 +603,11 @@ export interface InstrumentReadout {
   /** Decimal places for a numeric reading. Null leaves the number as it came. */
   precision: number | null;
   role: ReadoutRole;
+  /**
+   * Colour to burn the reading in, overriding the one its position would give
+   * it. Empty leaves the display to choose.
+   */
+  tone?: string;
   unit: string;
 }
 

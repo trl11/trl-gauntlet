@@ -53,7 +53,16 @@ async function capture(name, route) {
 /** Each tab of the run view, which routing alone does not reach. */
 async function captureRunTabs(runId) {
   await capture("run", `/runs/${encodeURIComponent(runId)}`);
-  for (const tab of ["Overview", "Log", "Metrics", "Iterations", "Artifacts", "Notes"]) {
+  // Snapshots appears only on a run that wrote images, hence the count check below.
+  for (const tab of [
+    "Overview",
+    "Log",
+    "Metrics",
+    "Iterations",
+    "Snapshots",
+    "Artifacts",
+    "Notes",
+  ]) {
     const control = page.getByRole("tab", { name: tab });
     if ((await control.count()) === 0) continue;
     await control.first().click();

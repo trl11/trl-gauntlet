@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { NO_READING, readingText, readoutGroups, tickDecimals, toneFor, valueAt } from "./readouts";
+import { NO_READING, readingText, readoutGroups, toneFor, toneOf, valueAt } from "./readouts";
 
 const KEY = "channels.1.voltage";
-
-function history(...values: number[]): Array<Record<string, number>> {
-  return values.map((value) => ({ [KEY]: value }));
-}
 
 describe("valueAt", () => {
   it("follows a dotted path into the state", () => {
@@ -36,6 +32,51 @@ describe("readingText", () => {
   it("passes anything else through as text", () => {
     expect(readingText("open", null)).toBe("open");
   });
+
+  it("never groups, because the display draws a separator as the decimal dot", () => {
+    expect(readingText(3840, null)).toBe("3840");
+    expect(readingText(16588800, null)).toBe("16588800");
+    expect(readingText(3840, 0)).toBe("3840");
+  });
+});
+
+describe("readoutGroups leaves a viewer's own readings out", () => {
+  it("skips a reading pinned to a viewer", () => {
+    const groups = readoutGroups([
+      { group: "A", key: "x", label: "X", precision: null, role: "headline", unit: "" },
+      { group: "A", key: "n", label: "N", precision: null, role: "viewer", unit: "" },
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].headline.map((entry) => entry.key)).toEqual(["x"]);
+    expect(groups[0].summary).toHaveLength(0);
+  });
+});
+
+describe("toneOf", () => {
+  const entry = (tone?: string) => ({
+    group: "",
+    key: "a",
+    label: "A",
+    precision: null,
+    role: "headline" as const,
+    tone,
+    unit: "",
+  });
+
+  it("burns the colour the reading declared", () => {
+    expect(toneOf(entry("white"), 0, 3)).toBe("white");
+    expect(toneOf(entry("amber"), 0, 3)).toBe("amber");
+  });
+
+  it("falls back to the colour the position gives it", () => {
+    expect(toneOf(entry(), 0, 3)).toBe("green");
+    expect(toneOf(entry(""), 1, 3)).toBe("red");
+  });
+
+  it("ignores a colour the display does not have", () => {
+    expect(toneOf(entry("chartreuse"), 0, 3)).toBe("green");
+  });
 });
 
 describe("readoutGroups", () => {
@@ -48,32 +89,6 @@ describe("readoutGroups", () => {
     expect(groups.map((group) => group.name)).toEqual(["Channel 1", "Channel 2"]);
     expect(groups[0].headline.map((entry) => entry.key)).toEqual(["a"]);
     expect(groups[0].summary.map((entry) => entry.key)).toEqual(["b"]);
-  });
-});
-
-describe("tickDecimals", () => {
-  it("gives a chamber holding a fraction of a degree enough decimals", () => {
-    expect(tickDecimals(history(50.01, 50.05), [KEY])).toBe(3);
-  });
-
-  it("uses two decimals over a range of a few tenths", () => {
-    expect(tickDecimals(history(0.2, 0.9), [KEY])).toBe(2);
-  });
-
-  it("keeps one decimal over a range of a few units", () => {
-    expect(tickDecimals(history(1, 4.5), [KEY])).toBe(1);
-  });
-
-  it("drops the decimals on a wide range", () => {
-    expect(tickDecimals(history(0, 12, 24), [KEY])).toBe(0);
-  });
-
-  it("falls back to one decimal for a reading that has not moved", () => {
-    expect(tickDecimals(history(0, 0, 0), [KEY])).toBe(1);
-  });
-
-  it("falls back to one decimal when no sample carries the series", () => {
-    expect(tickDecimals([{ other: 1 }], [KEY])).toBe(1);
   });
 });
 

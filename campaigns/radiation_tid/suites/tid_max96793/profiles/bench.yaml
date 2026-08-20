@@ -1,0 +1,15 @@
+description: >
+  Half a minute on the real link, one sample a second, for checking the bench
+  before a beam-line session. The error ceiling is set high enough to pass a
+  healthy link and should be narrowed to whatever this part shows with the beam
+  off.
+driver: real
+duration_s: 30
+sample_period_s: 2
+max_width: 960
+max_errors_per_sample: 200
+max_total_errors: 100000
+max_dropped_frames: 8
+max_corrupt_frames: 0
+max_unlocks: 0
+snapshot_every: 1
