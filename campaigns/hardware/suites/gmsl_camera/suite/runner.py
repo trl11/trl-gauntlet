@@ -231,7 +231,7 @@ def _profile_summary(ctx: SuiteContext, profile: CameraSnapshotProfile) -> dict[
 
 
 SPEC = SuiteSpec(
-    name="camera_snapshot",
+    name="gmsl_camera",
     profile_model=CameraSnapshotProfile,
     setup=_setup,
     iterate=_iterate,

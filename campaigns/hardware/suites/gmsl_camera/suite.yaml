@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
 apiVersion: 1
-key: camera_snapshot
-title: Camera Snapshot
-category: radiation
+key: gmsl_camera
+title: GMSL Camera
+category: hardware
 description: >
   Take a still from the camera on a fixed period and keep every one as an
   artifact. Each snapshot is measured for brightness and edge detail and

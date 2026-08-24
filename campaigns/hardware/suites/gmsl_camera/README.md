@@ -1,4 +1,4 @@
-# camera_snapshot — bench setup
+# gmsl_camera — bench setup
 
 What the suite measures and how it decides is in the module docstrings, chiefly
 [`suite/runner.py`](suite/runner.py). This file is the part that lives on the

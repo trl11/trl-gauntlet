@@ -3,9 +3,9 @@ apiVersion: 1
 key: radiation_tid
 title: Radiation TID
 description: 'Total ionising dose characterisation of the flight component set, one suite
-  per component. The LAN7430, the GMSL camera chain and both ends of its link measure;
-  the four remaining suites are placeholders that run and pass without hardware, so the
-  campaign has a green baseline to fill in.'
+  per component. The LAN7430 and both ends of the GMSL link measure; the four remaining
+  suites are placeholders that run and pass without hardware, so the campaign has a
+  green baseline to fill in.'
 suites: ./suites
 members:
 - suite: tid_lan7430
@@ -29,15 +29,6 @@ members:
   fixture: 1-1
   profile: standard.yaml
   notes: Waiting on PRE-10161. A thermocouple is to be added to the BOM.
-- suite: camera_snapshot
-  component: LI-IMX728
-  test_vehicle: LI-IMX728-GMSL3-070H
-  host: JM201
-  fixture: 2-1
-  profile: bench.yaml
-  notes: Watches the whole camera chain rather than one part of it. Narrow the
-    brightness window and the sharpness floor on bench.yaml once the camera is
-    pointed at what the run is really watching.
 - suite: tid_max96793
   component: MAX96793GTJ/VY+
   test_vehicle: LI-IMX728-GMSL3-070H
