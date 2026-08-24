@@ -24,7 +24,7 @@ pytestmark = pytest.mark.e2e
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 SUITE = "system_stats"
-PROFILE = "quick.yaml"
+PROFILE = "smoke.yaml"
 UNIT = "SN-E2E-001"
 
 
@@ -108,7 +108,7 @@ class TestTheVerdict:
         assert e2e_run["run"]["verdict"] == "PASS"
 
     def test_it_samples_more_than_once(self, e2e_run) -> None:
-        # quick.yaml runs for 3s at a 0.25s period.
+        # smoke.yaml runs for 3s at a 0.25s period.
         assert e2e_run["verdict"]["total_iterations"] >= 2
 
     def test_every_check_is_reported_as_a_test_row(self, e2e_run) -> None:

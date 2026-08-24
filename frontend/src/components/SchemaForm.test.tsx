@@ -87,7 +87,8 @@ describe("SchemaForm", () => {
       },
     };
     render(<Harness schema={schema} />);
-    expect(screen.getByRole("group", { name: "Limits" })).toBeInTheDocument();
+    // The block renders behind its own disclosure, which is what collapses it.
+    expect(screen.getByRole("button", { name: "Limits" })).toBeInTheDocument();
     expect(screen.getByLabelText("max_c")).toBeInTheDocument();
   });
 

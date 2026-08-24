@@ -20,7 +20,7 @@ suites/thermal_cycle/
 │   ├── cli.py              entry point
 │   └── runner.py           profile model, iterate, pass criteria
 └── profiles/
-    ├── quick.yaml          conformance profile; runs without hardware
+    ├── smoke.yaml          conformance profile; runs without hardware
     └── standard.yaml       bench profile
 ```
 
@@ -133,7 +133,7 @@ conformance_profile: mock.yaml
 
 Built-in suites use a `driver: real | mock` field for this, where `mock`
 synthesises results without contacting a unit. `suites/system_stats/` needs no
-such field: it measures the host it runs on, so its `quick.yaml` is both the
+such field: it measures the host it runs on, so its `smoke.yaml` is both the
 conformance profile and a real measurement.
 
 ## Overrides

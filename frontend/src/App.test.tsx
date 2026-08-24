@@ -34,7 +34,7 @@ const JSON_BODIES: Record<string, unknown> = {
   "/api/suites": fixtures.suites,
   "/api/suites/system_stats": fixtures.suite,
   "/api/suites/system_stats/profile-schema": fixtures.profileSchema,
-  "/api/suites/system_stats/profiles/quick.yaml": fixtures.profile,
+  "/api/suites/system_stats/profiles/smoke.yaml": fixtures.profile,
   "/api/system/data": fixtures.systemData,
   "/api/system/info": fixtures.systemInfo,
   "/api/units": fixtures.units,
@@ -106,7 +106,7 @@ describe("every route renders", () => {
     expect(await screen.findByRole("heading", { name: "Tests" })).toBeInTheDocument();
     const detail = await screen.findByRole("region", { name: "System — Linux Stats" });
     expect(within(detail).getByText("system_stats")).toBeInTheDocument();
-    expect(within(detail).getByText("quick.yaml")).toBeInTheDocument();
+    expect(within(detail).getByText("Smoke")).toBeInTheDocument();
   });
 
   it("run view shows the verdict and the run's own figures", async () => {

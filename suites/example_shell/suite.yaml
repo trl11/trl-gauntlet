@@ -18,7 +18,7 @@ exec:
   graceful_stop_signal: NONE
 
 profiles: ./profiles
-conformance_profile: quick.yaml
+conformance_profile: smoke.yaml
 
 produces: [metrics, verdict]
 requires: []

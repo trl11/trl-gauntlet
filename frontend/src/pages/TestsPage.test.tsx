@@ -63,7 +63,13 @@ const THERMAL = suite({
   key: "thermal_cycle",
   produces: ["metrics", "verdict"],
   profiles_available: [
-    { description: "quick", name: "mock.yaml", path: "/p/mock.yaml", user_authored: false },
+    {
+      description: "quick",
+      label: "Mock",
+      name: "mock.yaml",
+      path: "/p/mock.yaml",
+      user_authored: false,
+    },
   ],
   requires: ["chamber"],
   title: "Thermal Cycle",
@@ -240,7 +246,7 @@ describe("TestsPage", () => {
   it("carries the picked profile into the run dialog", async () => {
     const user = userEvent.setup();
     renderPage("/tests?suite=thermal_cycle");
-    await user.click(await screen.findByRole("button", { name: /mock\.yaml/ }));
+    await user.click(await screen.findByRole("button", { name: /Mock/ }));
     await user.click(screen.getByRole("button", { name: "Start run" }));
     expect(await screen.findByLabelText("Profile")).toHaveValue("mock.yaml");
   });
@@ -248,7 +254,7 @@ describe("TestsPage", () => {
   it("marks the picked profile on the whole row, not just its name", async () => {
     const user = userEvent.setup();
     const { container } = renderPage("/tests?suite=thermal_cycle");
-    const pick = await screen.findByRole("button", { name: /mock\.yaml/ });
+    const pick = await screen.findByRole("button", { name: /Mock/ });
     expect(container.querySelector(".suite-detail__profile--active")).toBeNull();
 
     await user.click(pick);

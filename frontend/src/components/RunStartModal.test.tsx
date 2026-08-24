@@ -95,8 +95,20 @@ function suite(partial: Partial<Suite> = {}): Suite {
     produces: ["metrics", "verdict"],
     profiles: "./profiles",
     profiles_available: [
-      { description: "", name: "mock.yaml", path: "/p/mock.yaml", user_authored: false },
-      { description: "", name: "long.yaml", path: "/p/long.yaml", user_authored: true },
+      {
+        description: "",
+        label: "Mock",
+        name: "mock.yaml",
+        path: "/p/mock.yaml",
+        user_authored: false,
+      },
+      {
+        description: "",
+        label: "Long",
+        name: "long.yaml",
+        path: "/p/long.yaml",
+        user_authored: true,
+      },
     ],
     requires: [],
     supports: { target: true, unit_serial: false },

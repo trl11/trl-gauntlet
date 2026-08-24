@@ -118,7 +118,7 @@ class TestMembership:
     def test_declared_configuration_reaches_the_member(self, client, make_campaign, make_suite):
         campaign = make_campaign(
             "demo_campaign",
-            members=[{"suite": "beta", "component": "LAN7430-I/Y9X", "fixture": "1-1", "profile": "quick.yaml"}],
+            members=[{"suite": "beta", "component": "LAN7430-I/Y9X", "fixture": "1-1", "profile": "smoke.yaml"}],
         )
         make_suite("beta", root=campaign.suites_dir)
 
@@ -127,7 +127,7 @@ class TestMembership:
         member = _members(client)[0]
         assert member["component"] == "LAN7430-I/Y9X"
         assert member["fixture"] == "1-1"
-        assert member["profile"] == "quick.yaml"
+        assert member["profile"] == "smoke.yaml"
 
 
 class TestMemberPayload:
@@ -162,7 +162,7 @@ class TestMemberRuns:
     def test_a_member_run_uses_the_declared_profile(self, client, make_campaign, make_suite):
         campaign = make_campaign(
             "demo_campaign",
-            members=[{"suite": "beta", "profile": "quick.yaml"}],
+            members=[{"suite": "beta", "profile": "smoke.yaml"}],
         )
         make_suite("beta", root=campaign.suites_dir)
         client.post("/api/campaigns/rescan")
@@ -171,7 +171,7 @@ class TestMemberRuns:
 
         assert response.status_code == 201
         assert response.json()["suite"] == "beta"
-        assert response.json()["profile"] == "quick.yaml"
+        assert response.json()["profile"] == "smoke.yaml"
 
     def test_a_non_member_suite_is_a_404(self, client, make_campaign, make_suite):
         make_campaign("demo_campaign")

@@ -1,4 +1,4 @@
-import { Input, Select } from "@trl11/components/ui";
+import { Accordion, Input, Select } from "@trl11/components/ui";
 import { useId } from "react";
 
 import type { JsonSchema } from "@api/types";
@@ -113,9 +113,13 @@ const Field: React.FC<FieldProps> = ({
   const hint = typeof node.description === "string" ? node.description : undefined;
 
   if (kind === "object" && depth < MAX_DEPTH) {
+    // Collapsed, because a nested block holds the settings a profile rarely
+    // changes and an expanded one buries the fields that are edited most.
     return (
-      <fieldset className="schema-form__group">
-        <legend className="schema-form__legend">{label}</legend>
+      <Accordion
+        className="schema-form__group"
+        title={<span className="schema-form__group-title">{label}</span>}
+      >
         {hint && <p className="schema-form__hint">{hint}</p>}
         <ObjectFields
           depth={depth + 1}
@@ -126,7 +130,7 @@ const Field: React.FC<FieldProps> = ({
           root={root}
           value={asRecord(value)}
         />
-      </fieldset>
+      </Accordion>
     );
   }
 

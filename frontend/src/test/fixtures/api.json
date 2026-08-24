@@ -386,8 +386,8 @@
   },
   "profile_quick": {
     "body": "description: Three-second smoke run. Used by `gauntlet verify --run`; needs no hardware.\nduration_s: 3.0\nsample_period_s: 0.25\nmax_cpu_percent: 100.0\nmin_available_memory_percent: 1.0\nmin_free_disk_percent: 1.0\nmax_load_per_core: 32.0\nmax_temperature_c: 105.0\nmax_new_interface_errors: 1000\nstop_on_failure: false\n",
-    "name": "quick.yaml",
-    "path": "/workspaces/gauntlet/suites/system_stats/profiles/quick.yaml"
+    "name": "smoke.yaml",
+    "path": "/workspaces/gauntlet/suites/system_stats/profiles/smoke.yaml"
   },
   "profile_schema": {
     "additionalProperties": false,
@@ -471,7 +471,7 @@
     "duration_s": 3.823,
     "ended_at": "2026-08-03T06:23:19Z",
     "fail_reason": null,
-    "profile": "quick.yaml",
+    "profile": "smoke.yaml",
     "run_dir": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs/system_stats/RUN-0001",
     "run_id": "RUN-0001",
     "started_at": "2026-08-03T06:23:16Z",
@@ -531,7 +531,7 @@
     "command_line": [
       "/workspaces/gauntlet/suites/system_stats/suite/cli.py",
       "--profile",
-      "/workspaces/gauntlet/suites/system_stats/profiles/quick.yaml",
+      "/workspaces/gauntlet/suites/system_stats/profiles/smoke.yaml",
       "--run-dir",
       "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs/system_stats/RUN-0001",
       "--unit-serial",
@@ -546,7 +546,7 @@
       "GAUNTLET_API": "http://127.0.0.1:7180/api",
       "GAUNTLET_DATA_DIR": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data",
       "GAUNTLET_DEVCONTAINER": "true",
-      "GAUNTLET_PROFILE": "/workspaces/gauntlet/suites/system_stats/profiles/quick.yaml",
+      "GAUNTLET_PROFILE": "/workspaces/gauntlet/suites/system_stats/profiles/smoke.yaml",
       "GAUNTLET_RUN_DIR": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs/system_stats/RUN-0001",
       "GAUNTLET_RUN_ID": "RUN-0001",
       "GAUNTLET_SUITE": "system_stats",
@@ -566,7 +566,7 @@
     },
     "hostname": "bde7fd7761aa",
     "platform": "Linux-6.8.0-117-generic-x86_64-with-glibc2.36",
-    "profile_path": "/workspaces/gauntlet/suites/system_stats/profiles/quick.yaml",
+    "profile_path": "/workspaces/gauntlet/suites/system_stats/profiles/smoke.yaml",
     "profile_summary": {
       "description": "Three-second smoke run. Used by `gauntlet verify --run`; needs no hardware.",
       "duration_s": "3.0",
@@ -1226,7 +1226,7 @@
         "duration_s": 3.823,
         "ended_at": "2026-08-03T06:23:19Z",
         "fail_reason": null,
-        "profile": "quick.yaml",
+        "profile": "smoke.yaml",
         "run_dir": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs/system_stats/RUN-0001",
         "run_id": "RUN-0001",
         "started_at": "2026-08-03T06:23:16Z",
@@ -1240,7 +1240,7 @@
         "duration_s": 5.312,
         "ended_at": "2026-08-03T06:20:35Z",
         "fail_reason": null,
-        "profile": "quick.yaml",
+        "profile": "smoke.yaml",
         "run_dir": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs/system_stats/20260803T062030Z-4355",
         "run_id": "20260803T062030Z-4355",
         "started_at": "2026-08-03T06:20:30Z",
@@ -1273,7 +1273,7 @@
   "suite_system_stats": {
     "apiVersion": 1,
     "category": "examples",
-    "conformance_profile": "quick.yaml",
+    "conformance_profile": "smoke.yaml",
     "default_metrics": [
       "cpu.percent",
       "memory.used_percent",
@@ -1410,28 +1410,32 @@
     "profiles": "./profiles",
     "profiles_available": [
       {
+        "description": "Three-second smoke run. Used by `gauntlet verify --run`; needs no hardware.",
+        "name": "smoke.yaml",
+        "path": "/workspaces/gauntlet/suites/system_stats/profiles/smoke.yaml",
+        "user_authored": false,
+        "label": "Smoke"
+      },
+      {
         "description": "Bench profile",
         "name": "bench.yaml",
         "path": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/profiles/system_stats/bench.yaml",
-        "user_authored": true
-      },
-      {
-        "description": "Three-second smoke run. Used by `gauntlet verify --run`; needs no hardware.",
-        "name": "quick.yaml",
-        "path": "/workspaces/gauntlet/suites/system_stats/profiles/quick.yaml",
-        "user_authored": false
+        "user_authored": true,
+        "label": "Bench"
       },
       {
         "description": "Five-minute health watch at 1 Hz, with limits a busy workstation still meets.",
         "name": "standard.yaml",
         "path": "/workspaces/gauntlet/suites/system_stats/profiles/standard.yaml",
-        "user_authored": false
+        "user_authored": false,
+        "label": "Standard"
       },
       {
         "description": "Tight limits for a host that is expected to be idle and cool. Exercises the failure path on anything under real load.",
         "name": "strict.yaml",
         "path": "/workspaces/gauntlet/suites/system_stats/profiles/strict.yaml",
-        "user_authored": false
+        "user_authored": false,
+        "label": "Strict"
       }
     ],
     "requires": [],
@@ -1507,22 +1511,25 @@
         "profiles": "./profiles",
         "profiles_available": [
           {
+            "description": "One minute at 100 Hz on can0 at 500 kbit/s.",
+            "name": "smoke.yaml",
+            "path": "/workspaces/gauntlet/suites/can_bus/profiles/smoke.yaml",
+            "user_authored": false,
+            "label": "Smoke"
+          },
+          {
             "description": "Four-hour bus session with a small loss budget.",
             "name": "endurance.yaml",
             "path": "/workspaces/gauntlet/suites/can_bus/profiles/endurance.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Endurance"
           },
           {
             "description": "No bus required. What `gauntlet verify --run` executes.",
             "name": "mock.yaml",
             "path": "/workspaces/gauntlet/suites/can_bus/profiles/mock.yaml",
-            "user_authored": false
-          },
-          {
-            "description": "One minute at 100 Hz on can0 at 500 kbit/s.",
-            "name": "smoke.yaml",
-            "path": "/workspaces/gauntlet/suites/can_bus/profiles/smoke.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Mock"
           }
         ],
         "requires": [],
@@ -1595,22 +1602,25 @@
         "profiles": "./profiles",
         "profiles_available": [
           {
+            "description": "Two-minute check over a gigabit link.",
+            "name": "smoke.yaml",
+            "path": "/workspaces/gauntlet/suites/ethernet/profiles/smoke.yaml",
+            "user_authored": false,
+            "label": "Smoke"
+          },
+          {
             "description": "Eight-hour session with per-tick floors and a session-average gate.",
             "name": "endurance.yaml",
             "path": "/workspaces/gauntlet/suites/ethernet/profiles/endurance.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Endurance"
           },
           {
             "description": "No unit required. What `gauntlet verify --run` executes.",
             "name": "mock.yaml",
             "path": "/workspaces/gauntlet/suites/ethernet/profiles/mock.yaml",
-            "user_authored": false
-          },
-          {
-            "description": "Two-minute check over a gigabit link.",
-            "name": "smoke.yaml",
-            "path": "/workspaces/gauntlet/suites/ethernet/profiles/smoke.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Mock"
           }
         ],
         "requires": [],
@@ -1623,7 +1633,7 @@
       {
         "apiVersion": 1,
         "category": "examples",
-        "conformance_profile": "quick.yaml",
+        "conformance_profile": "smoke.yaml",
         "default_metrics": [],
         "description": "A worked example of the common shape: sample something on a fixed cadence, fail iterations that breach a threshold, and roll the run up into a verdict. Copy this directory as the starting point for a Python suite.\n",
         "directory": "/workspaces/gauntlet/suites/example_sampled",
@@ -1684,21 +1694,24 @@
         "profiles_available": [
           {
             "description": "Two-second smoke run. Used by `gauntlet verify --run`; needs no hardware.",
-            "name": "quick.yaml",
-            "path": "/workspaces/gauntlet/suites/example_sampled/profiles/quick.yaml",
-            "user_authored": false
+            "name": "smoke.yaml",
+            "path": "/workspaces/gauntlet/suites/example_sampled/profiles/smoke.yaml",
+            "user_authored": false,
+            "label": "Smoke"
           },
           {
             "description": "Five-minute sampled run at 1 Hz.",
             "name": "standard.yaml",
             "path": "/workspaces/gauntlet/suites/example_sampled/profiles/standard.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Standard"
           },
           {
             "description": "Deliberately low limit, so the run fails. Useful for exercising the failure path.",
             "name": "strict.yaml",
             "path": "/workspaces/gauntlet/suites/example_sampled/profiles/strict.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Strict"
           }
         ],
         "requires": [],
@@ -1711,7 +1724,7 @@
       {
         "apiVersion": 1,
         "category": "examples",
-        "conformance_profile": "quick.yaml",
+        "conformance_profile": "smoke.yaml",
         "default_metrics": [],
         "description": "The same contract satisfied by a bash script with no Gauntlet library at all. Proof that conforming means writing the right files, not importing anything. Start here for a suite in a language other than Python.\n",
         "directory": "/workspaces/gauntlet/suites/example_shell",
@@ -1746,22 +1759,25 @@
         "profiles": "./profiles",
         "profiles_available": [
           {
+            "description": "Three fast iterations. Used by `gauntlet verify --run`.",
+            "name": "smoke.yaml",
+            "path": "/workspaces/gauntlet/suites/example_shell/profiles/smoke.yaml",
+            "user_authored": false,
+            "label": "Smoke"
+          },
+          {
             "description": "Fails on iteration 3, to exercise the failure path end to end.",
             "name": "failing.yaml",
             "path": "/workspaces/gauntlet/suites/example_shell/profiles/failing.yaml",
-            "user_authored": false
-          },
-          {
-            "description": "Three fast iterations. Used by `gauntlet verify --run`.",
-            "name": "quick.yaml",
-            "path": "/workspaces/gauntlet/suites/example_shell/profiles/quick.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Failing"
           },
           {
             "description": "Twenty iterations at 1 Hz.",
             "name": "standard.yaml",
             "path": "/workspaces/gauntlet/suites/example_shell/profiles/standard.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Standard"
           }
         ],
         "requires": [],
@@ -1834,22 +1850,25 @@
         "profiles": "./profiles",
         "profiles_available": [
           {
+            "description": "Five pulses against a real unit. Quick check that the line responds.",
+            "name": "smoke.yaml",
+            "path": "/workspaces/gauntlet/suites/hardware_trigger/profiles/smoke.yaml",
+            "user_authored": false,
+            "label": "Smoke"
+          },
+          {
             "description": "Long session \u2014 3600 pulses with a one-second gap, ~2 hours.",
             "name": "endurance.yaml",
             "path": "/workspaces/gauntlet/suites/hardware_trigger/profiles/endurance.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Endurance"
           },
           {
             "description": "No unit required. What `gauntlet verify --run` executes.",
             "name": "mock.yaml",
             "path": "/workspaces/gauntlet/suites/hardware_trigger/profiles/mock.yaml",
-            "user_authored": false
-          },
-          {
-            "description": "Five pulses against a real unit. Quick check that the line responds.",
-            "name": "smoke.yaml",
-            "path": "/workspaces/gauntlet/suites/hardware_trigger/profiles/smoke.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Mock"
           }
         ],
         "requires": [],
@@ -1922,22 +1941,25 @@
         "profiles": "./profiles",
         "profiles_available": [
           {
+            "description": "Ten cycles on one axis. Quick check that motion and telemetry work.",
+            "name": "smoke.yaml",
+            "path": "/workspaces/gauntlet/suites/piezo/profiles/smoke.yaml",
+            "user_authored": false,
+            "label": "Smoke"
+          },
+          {
             "description": "Two thousand cycles with a temperature ceiling.",
             "name": "endurance.yaml",
             "path": "/workspaces/gauntlet/suites/piezo/profiles/endurance.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Endurance"
           },
           {
             "description": "No controller required. What `gauntlet verify --run` executes.",
             "name": "mock.yaml",
             "path": "/workspaces/gauntlet/suites/piezo/profiles/mock.yaml",
-            "user_authored": false
-          },
-          {
-            "description": "Ten cycles on one axis. Quick check that motion and telemetry work.",
-            "name": "smoke.yaml",
-            "path": "/workspaces/gauntlet/suites/piezo/profiles/smoke.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Mock"
           }
         ],
         "requires": [],
@@ -2010,22 +2032,25 @@
         "profiles": "./profiles",
         "profiles_available": [
           {
+            "description": "One minute at 100 Hz over an auto-detected FTDI adapter.",
+            "name": "smoke.yaml",
+            "path": "/workspaces/gauntlet/suites/rs422/profiles/smoke.yaml",
+            "user_authored": false,
+            "label": "Smoke"
+          },
+          {
             "description": "Four-hour link session. Allows a small loss budget.",
             "name": "endurance.yaml",
             "path": "/workspaces/gauntlet/suites/rs422/profiles/endurance.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Endurance"
           },
           {
             "description": "No serial hardware required. What `gauntlet verify --run` executes.",
             "name": "mock.yaml",
             "path": "/workspaces/gauntlet/suites/rs422/profiles/mock.yaml",
-            "user_authored": false
-          },
-          {
-            "description": "One minute at 100 Hz over an auto-detected FTDI adapter.",
-            "name": "smoke.yaml",
-            "path": "/workspaces/gauntlet/suites/rs422/profiles/smoke.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Mock"
           }
         ],
         "requires": [],
@@ -2098,40 +2123,46 @@
         "profiles": "./profiles",
         "profiles_available": [
           {
+            "description": "Two-minute check against a mounted NVMe disk.",
+            "name": "smoke.yaml",
+            "path": "/workspaces/gauntlet/suites/ssd/profiles/smoke.yaml",
+            "user_authored": false,
+            "label": "Smoke"
+          },
+          {
             "description": "For a unit with an unmounted disk. Formats and mounts it first, then installs the probe. Formatting destroys the contents of `provision.device`.",
             "name": "bare-disk.yaml",
             "path": "/workspaces/gauntlet/suites/ssd/profiles/bare-disk.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Bare Disk"
           },
           {
             "description": "Eight-hour session at 30-second ticks with bandwidth floors.",
             "name": "endurance.yaml",
             "path": "/workspaces/gauntlet/suites/ssd/profiles/endurance.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Endurance"
           },
           {
             "description": "No unit required. What `gauntlet verify --run` executes.",
             "name": "mock.yaml",
             "path": "/workspaces/gauntlet/suites/ssd/profiles/mock.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Mock"
           },
           {
             "description": "Three synthetic units. Exercises the concurrent fan-out with no hardware.",
             "name": "multi-unit-mock.yaml",
             "path": "/workspaces/gauntlet/suites/ssd/profiles/multi-unit-mock.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Multi Unit Mock"
           },
           {
             "description": "Four units probed concurrently, eight hours. Every unit must pass.",
             "name": "multi-unit.yaml",
             "path": "/workspaces/gauntlet/suites/ssd/profiles/multi-unit.yaml",
-            "user_authored": false
-          },
-          {
-            "description": "Two-minute check against a mounted NVMe disk.",
-            "name": "smoke.yaml",
-            "path": "/workspaces/gauntlet/suites/ssd/profiles/smoke.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Multi Unit"
           }
         ],
         "requires": [],
@@ -2144,7 +2175,7 @@
       {
         "apiVersion": 1,
         "category": "examples",
-        "conformance_profile": "quick.yaml",
+        "conformance_profile": "smoke.yaml",
         "default_metrics": [
           "cpu.percent",
           "memory.used_percent",
@@ -2281,28 +2312,32 @@
         "profiles": "./profiles",
         "profiles_available": [
           {
+            "description": "Three-second smoke run. Used by `gauntlet verify --run`; needs no hardware.",
+            "name": "smoke.yaml",
+            "path": "/workspaces/gauntlet/suites/system_stats/profiles/smoke.yaml",
+            "user_authored": false,
+            "label": "Smoke"
+          },
+          {
             "description": "Bench profile",
             "name": "bench.yaml",
             "path": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/profiles/system_stats/bench.yaml",
-            "user_authored": true
-          },
-          {
-            "description": "Three-second smoke run. Used by `gauntlet verify --run`; needs no hardware.",
-            "name": "quick.yaml",
-            "path": "/workspaces/gauntlet/suites/system_stats/profiles/quick.yaml",
-            "user_authored": false
+            "user_authored": true,
+            "label": "Bench"
           },
           {
             "description": "Five-minute health watch at 1 Hz, with limits a busy workstation still meets.",
             "name": "standard.yaml",
             "path": "/workspaces/gauntlet/suites/system_stats/profiles/standard.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Standard"
           },
           {
             "description": "Tight limits for a host that is expected to be idle and cool. Exercises the failure path on anything under real load.",
             "name": "strict.yaml",
             "path": "/workspaces/gauntlet/suites/system_stats/profiles/strict.yaml",
-            "user_authored": false
+            "user_authored": false,
+            "label": "Strict"
           }
         ],
         "requires": [],
@@ -2437,7 +2472,7 @@
         "duration_s": 3.823,
         "ended_at": "2026-08-03T06:23:19Z",
         "fail_reason": null,
-        "profile": "quick.yaml",
+        "profile": "smoke.yaml",
         "run_dir": "/tmp/claude-1000/-workspaces-gauntlet/a428d259-e098-4719-bdc8-12981e828207/scratchpad/data/runs/system_stats/RUN-0001",
         "run_id": "RUN-0001",
         "started_at": "2026-08-03T06:23:16Z",

@@ -195,7 +195,7 @@ class TestInlineProfiles:
         assert "profile.yaml" in {entry["path"] for entry in listed}
 
     def test_the_named_profile_is_copied_into_the_run(self, client) -> None:
-        run_id = client.post("/api/runs", json={"suite": "alpha", "profile": "quick.yaml"}).json()["run_id"]
+        run_id = client.post("/api/runs", json={"suite": "alpha", "profile": "smoke.yaml"}).json()["run_id"]
         wait_for_status(client, run_id, {"passed", "failed", "error", "aborted"})
         assert "description: fast" in client.get(f"/api/runs/{run_id}/artifacts/profile.yaml").text
 

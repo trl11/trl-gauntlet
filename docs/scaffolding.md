@@ -44,7 +44,7 @@ Executable bits are preserved. Files with a binary suffix are copied verbatim.
 ## Adding a template
 
 Create `templates/<name>/` containing a `suite.yaml`, a `profiles/` directory
-with a `quick.yaml`, and whatever the suite runs. Use the placeholders above.
+with a `smoke.yaml`, and whatever the suite runs. Use the placeholders above.
 Put any code under `suite/`, so every suite has the same layout.
 
 `packages/gauntlet/tests/test_scaffold.py` parametrizes over `available_templates()`, so a new

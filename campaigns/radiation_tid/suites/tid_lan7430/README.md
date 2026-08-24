@@ -153,7 +153,7 @@ update --init` is what puts it there.
 
 | Profile | What it is for |
 |---|---|
-| `quick.yaml` | mock, no hardware. What `gauntlet verify --run` executes |
+| `smoke.yaml` | mock, no hardware. What `gauntlet verify --run` executes |
 | `bench.yaml` | two minutes against the real part, to prove the bench is wired right |
 | `standard.yaml` | the beam run: eight hours at one tick every thirty seconds |
 

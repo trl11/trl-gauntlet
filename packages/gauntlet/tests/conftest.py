@@ -160,12 +160,12 @@ def make_suite(suite_root: Path):
             "title": key.replace("_", " ").title(),
             "exec": {"command": ["./run.sh"], "args": {"run_dir": "--run-dir", "profile": "--profile"}},
             "profiles": "./profiles",
-            "conformance_profile": "quick.yaml",
+            "conformance_profile": "smoke.yaml",
             "produces": ["metrics", "verdict"],
         }
         manifest.update(manifest_overrides)
         (directory / "suite.yaml").write_text(yaml.safe_dump(manifest, sort_keys=False))
-        (directory / "profiles" / "quick.yaml").write_text("description: fast\niterations: 2\n")
+        (directory / "profiles" / "smoke.yaml").write_text("description: fast\niterations: 2\n")
 
         run_sh = directory / "run.sh"
         run_sh.write_text(script or _DEFAULT_SCRIPT)

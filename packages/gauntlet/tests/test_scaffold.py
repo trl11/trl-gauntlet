@@ -71,7 +71,7 @@ class TestRender:
     def test_layout_is_identical_across_templates(self, template, tmp_path):
         destination = render("my_probe", tmp_path, template=template)
         assert (destination / "suite.yaml").is_file()
-        assert (destination / "profiles" / "quick.yaml").is_file()
+        assert (destination / "profiles" / "smoke.yaml").is_file()
 
     def test_shell_template_script_is_executable(self, tmp_path):
         import os

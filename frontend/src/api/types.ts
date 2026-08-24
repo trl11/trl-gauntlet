@@ -117,6 +117,8 @@ export interface SuiteSupports {
 /** One profile file offered for a suite. */
 export interface SuiteProfile {
   description: string;
+  /** The filename as something to show an operator: `smoke.yaml` is `Smoke`. */
+  label: string;
   name: string;
   path: string;
   user_authored: boolean;
