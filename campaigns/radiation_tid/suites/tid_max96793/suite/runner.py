@@ -37,6 +37,12 @@ from gauntlet_sdk import (
 from suite.link import Camera, LinkError, Reading, Snapshot
 from suite.profile import TidMax96793Profile
 
+# The metric group each end of the link reports under. The part under the
+# beam and its reference are named for what they are, so a chart says which
+# end moved without anyone having to remember an I2C address.
+PART_ROLE = "serializer"
+FAR_ROLE = "deserializer"
+
 _CAMERA = "camera"
 _FRAME_BYTES = "frame_bytes"
 _PREVIOUS_IMAGE = "previous_image"
@@ -178,7 +184,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
         return IterationOutcome(
             success=False,
             reason=f"link stopped answering: {reading.error}",
-            metrics={"link": {"answered": 0, "locked": 0}},
+            metrics={PART_ROLE: {"answered": 0, "locked": 0}},
             phase_records=phases,
             summary="link gone",
         )
@@ -220,11 +226,14 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     ctx.extras[_REPEATS] = repeats
 
     metrics: dict[str, Any] = {
-        "link": _link_metrics(part, repeats),
+        PART_ROLE: _link_metrics(part, repeats),
         "video": video,
     }
     for address, chip in sorted(far.items()):
-        metrics[f"far_{address}"] = {
+        # One chip answers at the far end of a GMSL link, so it reports under
+        # its role. The address only joins the name if the bus holds more.
+        name = FAR_ROLE if len(far) == 1 else f"{FAR_ROLE}_{address}"
+        metrics[name] = {
             "errors": int(chip.get("total_errors") or 0),
             "errors_total": int(chip.get("errors_total") or 0),
             "locked": 1 if chip.get("locked") else 0,
@@ -358,11 +367,11 @@ def _evaluate(outcomes: list[IterationOutcome], profile: TidMax96793Profile) -> 
     if not outcomes:
         return False, "no samples taken"
 
-    unlocked = sum(1 for value in _series(outcomes, "link", "locked") if value == 0)
+    unlocked = sum(1 for value in _series(outcomes, PART_ROLE, "locked") if value == 0)
     if unlocked > profile.max_unlocks:
         return False, f"the GMSL link was down for {unlocked} of {len(outcomes)} samples"
 
-    totals = _series(outcomes, "link", "errors_total")
+    totals = _series(outcomes, PART_ROLE, "errors_total")
     if totals and totals[-1] > profile.max_total_errors:
         return False, f"{int(totals[-1])} link errors over the run, above {profile.max_total_errors}"
 
@@ -370,7 +379,7 @@ def _evaluate(outcomes: list[IterationOutcome], profile: TidMax96793Profile) -> 
     if missed > profile.max_missed_snapshots:
         return False, f"{missed} of {len(outcomes)} samples produced no frame"
 
-    silent = sum(1 for value in _series(outcomes, "link", "answered") if value == 0)
+    silent = sum(1 for value in _series(outcomes, PART_ROLE, "answered") if value == 0)
     if silent:
         return False, f"the part stopped answering on {silent} of {len(outcomes)} samples"
     return None
@@ -383,8 +392,8 @@ def _results(
     profile: TidMax96793Profile,
 ) -> list[dict[str, object]]:
     """What the link did, as the numbers this test exists to report."""
-    totals = _series(outcomes, "link", "errors_total")
-    locked = _series(outcomes, "link", "locked")
+    totals = _series(outcomes, PART_ROLE, "errors_total")
+    locked = _series(outcomes, PART_ROLE, "locked")
     corrupt = _series(outcomes, "video", "corrupt")
     dropped = _series(outcomes, "video", "dropped")
     fps = _series(outcomes, "video", "fps")
@@ -427,7 +436,7 @@ def _results(
             )
         )
         rows.append(make_result("data_rate_span", "Data rate min to max", f"{min(mbps):.0f} to {max(mbps):.0f} Mbps"))
-    saturations = _series(outcomes, "link", "saturated")
+    saturations = _series(outcomes, PART_ROLE, "saturated")
     if any(saturations):
         rows.append(
             make_result(
