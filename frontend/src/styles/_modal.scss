@@ -1,0 +1,27 @@
+@use "@trl11/styles/theme.scss" as *;
+
+// The kit's modal container has no height bound, and the fixed backdrop it
+// sits in does not scroll. A dialog taller than the viewport therefore runs
+// off the bottom of the screen with no way to reach what is down there — the
+// LAN7430 profile form is long enough to do it. The kit is a submodule, so
+// the bound is applied here instead: `bounded` on the element the Modal's
+// `className` reaches, and `scrolls` on the one child that should take the
+// overflow, which keeps the dialog's header and footer in place while its
+// body moves.
+//
+// 80vh matches the container's own `margin: 10vh auto`, so a full-height
+// dialog sits in the gap the kit already leaves it.
+
+@mixin bounded {
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+}
+
+// A flex child only scrolls once it is allowed to be shorter than its
+// content, which is what `min-height: 0` does; without it the child grows and
+// the overflow never engages.
+@mixin scrolls {
+  min-height: 0;
+  overflow-y: auto;
+}

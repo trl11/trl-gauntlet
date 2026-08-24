@@ -1,13 +1,16 @@
 @use "@trl11/styles/theme.scss" as *;
+@use "@styles/modal";
 
 .shortcuts-help {
   width: min(460px, 92vw);
+  @include modal.bounded;
 
   &__list {
     display: flex;
     flex-direction: column;
     gap: 10px;
     padding: 20px;
+    @include modal.scrolls;
   }
 
   &__row {

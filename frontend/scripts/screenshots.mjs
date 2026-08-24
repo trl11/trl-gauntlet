@@ -67,6 +67,67 @@ async function capture(name, route) {
   console.log(`${name}.png`);
 }
 
+/**
+ * The profile editor, which is the tallest dialog the app opens.
+ *
+ * A modal that outgrows the viewport has nowhere to scroll — the backdrop is
+ * fixed and the container is not bounded — so the settings below the fold
+ * cannot be reached at all. Routing never reaches this, and jsdom cannot see
+ * it, so it is opened and measured here.
+ */
+async function captureProfileEditor() {
+  // `view` is asked for explicitly: the Tests page remembers the last one and
+  // writes it back into the URL, so arriving without it lands on whichever
+  // view the campaigns capture above left behind.
+  await page.goto(`${base}/#/tests?view=suites`, { waitUntil: "networkidle", timeout: 30000 });
+  await page.waitForTimeout(2000);
+  // A suite has to be picked before its profiles, and so the Edit buttons,
+  // are on the page at all. Any suite will do; the dialog is the same shape.
+  const suite = page.locator(".tests-page__rail-item").first();
+  if ((await suite.count()) > 0) {
+    await suite.click();
+    await page.waitForTimeout(1500);
+  }
+  const edit = page.getByRole("button", { name: "Edit" }).first();
+  if ((await edit.count()) === 0) {
+    problems.push("no profile Edit control to open the tallest dialog with");
+    return;
+  }
+  await edit.click();
+  await page.waitForTimeout(2500);
+
+  await page.screenshot({ path: `${out}/profile-editor.png`, fullPage: false });
+
+  // Whether this particular suite's form is tall enough to overflow depends on
+  // which suite sorts first, so the dialog is given content that certainly is
+  // and then measured. A bounded dialog stays on screen and scrolls its body;
+  // an unbounded one grows past the viewport, where the fixed backdrop leaves
+  // no way to reach what is below the fold.
+  const fit = await page.evaluate(() => {
+    const dialog = document.querySelector(".profile-editor");
+    const body = document.querySelector(".profile-editor__body");
+    if (!dialog || !body) return null;
+    const spacer = document.createElement("div");
+    spacer.style.height = "4000px";
+    spacer.style.flex = "0 0 auto";
+    body.append(spacer);
+    const box = dialog.getBoundingClientRect();
+    const measured = {
+      overflows: box.bottom > window.innerHeight || box.top < 0,
+      scrolls: body.scrollHeight > body.clientHeight,
+    };
+    spacer.remove();
+    return measured;
+  });
+  if (fit === null) {
+    problems.push("profile editor did not open");
+    return;
+  }
+  if (fit.overflows) problems.push("profile editor runs past the viewport when its form is tall");
+  if (!fit.scrolls) problems.push("profile editor does not scroll a form taller than itself");
+  console.log("profile-editor.png");
+}
+
 /** Each tab of the run view, which routing alone does not reach. */
 async function captureRunTabs(runId) {
   await capture("run", `/runs/${encodeURIComponent(runId)}`);
@@ -90,6 +151,7 @@ async function captureRunTabs(runId) {
 }
 
 for (const [name, route] of ROUTES) await capture(name, route);
+await captureProfileEditor();
 if (process.env.RUN_ID) await captureRunTabs(process.env.RUN_ID);
 
 await browser.close();

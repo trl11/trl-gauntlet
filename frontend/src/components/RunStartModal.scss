@@ -1,14 +1,16 @@
 @use "@trl11/styles/theme.scss" as *;
+@use "@styles/modal";
 
 .run-start-modal {
   width: min(760px, 92vw);
+  @include modal.bounded;
 
   &__body {
     display: flex;
     flex-direction: column;
     gap: 20px;
     padding: 20px;
-    overflow-y: auto;
+    @include modal.scrolls;
   }
 
   &__description {
