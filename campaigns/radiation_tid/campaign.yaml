@@ -3,8 +3,9 @@ apiVersion: 1
 key: radiation_tid
 title: Radiation TID
 description: 'Total ionising dose characterisation of the flight component set, one suite
-  per component. tid_lan7430 measures; the rest are still placeholders that run and pass
-  without hardware, so the campaign has a green baseline to fill in.'
+  per component. The LAN7430, the GMSL camera chain and both ends of its link measure;
+  the four remaining suites are placeholders that run and pass without hardware, so the
+  campaign has a green baseline to fill in.'
 suites: ./suites
 members:
 - suite: tid_lan7430
@@ -28,6 +29,15 @@ members:
   fixture: 1-1
   profile: standard.yaml
   notes: Waiting on PRE-10161. A thermocouple is to be added to the BOM.
+- suite: camera_snapshot
+  component: LI-IMX728
+  test_vehicle: LI-IMX728-GMSL3-070H
+  host: JM201
+  fixture: 2-1
+  profile: bench.yaml
+  notes: Watches the whole camera chain rather than one part of it. Narrow the
+    brightness window and the sharpness floor on bench.yaml once the camera is
+    pointed at what the run is really watching.
 - suite: tid_max96793
   component: MAX96793GTJ/VY+
   test_vehicle: LI-IMX728-GMSL3-070H
@@ -49,87 +59,10 @@ members:
   fixture: 4-1
   profile: standard.yaml
   notes: Waiting on STEVAL-MKI244A.
-- suite: tid_cdcv304
-  component: CDCV304TPWREP
-  test_vehicle: PRE-10163
-  host: Signal generator
-  fixture: 4-1
-  profile: standard.yaml
-  notes: Frequency and voltage to drive CLKIN.
-- suite: tid_tle9250
-  component: TLE9250VLEXUMA1
-  test_vehicle: PRE-10165
-  host: Signal generator
-  fixture: 5-1
-  profile: standard.yaml
-  notes: Frequency and voltage to drive CLKIN.
-- suite: tid_ap7387q
-  component: AP7387Q-50Y-13
-  test_vehicle: PRE-10165
-  host: Power supply
-  fixture: 5-1
-  profile: standard.yaml
-  notes: A load is needed.
-- suite: tid_mcp9509
-  component: MCP9509CT-E/OT
-  test_vehicle: PRE-10167
-  host: AP7387Q-50Y-13
-  fixture: 6-1
-  profile: standard.yaml
-  notes: Set temperature and measure voltage.
-- suite: tid_interpolator
-  component: Interpolator
-  test_vehicle: Interpolator
-  host: PMD401
-  fixture: Standalone-Interpolator
-  profile: standard.yaml
-  notes: Need to check whether we have a setup.
-- suite: tid_pmd401
-  component: PMD401
-  test_vehicle: PMD401
-  host: Linux laptop / Windows
-  fixture: Standalone-PMD401
-  profile: standard.yaml
-  notes: Need to check whether we have a setup.
-- suite: tid_sn65hvd76
-  component: SN65HVD76D
-  test_vehicle: PRE-10173
-  host: Signal generator
-  fixture: 7-1
-  profile: standard.yaml
-  notes: Frequency and voltage to drive CLKIN.
-- suite: tid_ntb0104
-  component: NTB0104GU12,115
-  test_vehicle: PRE-10169
-  host: Signal generator
-  fixture: 8-1
-  profile: standard.yaml
-  notes: Frequency and voltage to drive CLKIN.
-- suite: tid_bts70502
-  component: BTS70502EPLXUMA1
-  test_vehicle: PRE-10169
-  host: Power supply
-  fixture: 8-1
-  profile: standard.yaml
-  notes: Frequency and voltage to drive CLKIN.
 - suite: tid_pic18f26k83
   component: PIC18F26K83-E/SS
   test_vehicle: TBD
   host: Jetson or Linux laptop
   fixture: 9-1
-  profile: standard.yaml
-  notes: TBD - test vehicle, host and software approach are not yet defined.
-- suite: tid_imx492
-  component: IMX492
-  test_vehicle: TBD
-  host: TBD
-  fixture: TBD
-  profile: standard.yaml
-  notes: TBD - test vehicle, host and software approach are not yet defined.
-- suite: tid_imx565
-  component: IMX565
-  test_vehicle: TBD
-  host: TBD
-  fixture: TBD
   profile: standard.yaml
   notes: TBD - test vehicle, host and software approach are not yet defined.

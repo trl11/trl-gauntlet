@@ -28,7 +28,7 @@ curl -X POST localhost:7100/api/campaigns/rescan
 | Campaign | Contents |
 |---|---|
 | `hardware` | The seven suites that drive real hardware: `can_bus`, `daq_capture`, `ethernet`, `hardware_trigger`, `piezo`, `rs422`, `ssd`. `daq_capture` is the one that drives it through an instrument Gauntlet lends it rather than a transport of its own. |
-| `radiation_tid` | One suite per component of the TID campaign, eighteen of them. Every one is a placeholder: it runs and passes without hardware, and measures nothing yet. Each suite's `runner.py` opens with the component, test vehicle, host and fixture it is for, and what it has to grow into. |
+| `radiation_tid` | One suite per component of the TID campaign, eight of them. `tid_lan7430`, `camera_snapshot`, `tid_max96793` and `tid_max96792` measure; the other four are placeholders that run and pass without hardware and measure nothing yet. Each placeholder's `runner.py` opens with the component, test vehicle, host and fixture it is for, and what it has to grow into. |
 
 `suites/` at the repository root keeps what belongs to no programme — the two
 reference suites and `system_stats`.
