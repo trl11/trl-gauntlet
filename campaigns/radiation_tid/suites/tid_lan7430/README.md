@@ -28,6 +28,33 @@ throughput is not a measurement of the LAN7430. Pin iperf.lab_address and
 check the unit routes the lab subnet over eth1
 ```
 
+## Two interfaces on one subnet, and what the suite does about it
+
+The failure this catches most often is not routing but ARP. A unit whose
+built-in interface and the LAN7430 sit on the same subnet answers ARP for
+either address out of either interface, so the switch learns the part's address
+against the built-in NIC. Traffic for the part then arrives there, Linux
+accepts it, and replies still leave over the part because its route wins. The
+result is a run whose transmit half is the LAN7430 and whose receive half is
+the other NIC, at a healthy symmetric gigabit that looks like nothing is wrong.
+
+Setup checks for this and corrects it before anything is measured, setting
+`arp_ignore=1` and `arp_announce=2` on the unit and flushing the neighbour
+table. It says which it did:
+
+```
+the unit already answers ARP only for the interface that owns the address (arp_announce=2, arp_ignore=1)
+set the unit to answer ARP only for the interface that owns the address, arp_announce=0, arp_ignore=0 -> arp_announce=2, arp_ignore=1, so both directions cross eth1
+```
+
+The change does not persist. It is reapplied every run, so a unit that reboots
+into the permissive defaults is corrected on the next one rather than quietly
+measuring the wrong part; `sudo sysctl -p` from a file in `/etc/sysctl.d/`
+makes it survive a reboot if you want it true between runs as well. Set
+`interface.strict_arp: false` on a bench that manages this itself. A unit that
+refuses the change still runs — the tick-by-tick byte-counter comparison
+catches the same fault, and a session that records it beats no session.
+
 Run `profiles/bench.yaml` once before a beam run. It is two minutes and exists
 to catch exactly this, along with a link that came up at 100 Mbps and an OTP
 that cannot be read.

@@ -62,7 +62,7 @@ from gauntlet_sdk import (
 )
 from gauntlet_sdk.remote import RemoteError, capture_host_facts, connect, is_alive, run, shell_quote
 
-from suite import iperf, mock, telemetry
+from suite import arp, iperf, mock, telemetry
 from suite.anomaly import flag
 from suite.profile import TidLan7430Profile
 from suite.psu import PsuReader
@@ -209,6 +209,9 @@ def _setup(ctx: SuiteContext) -> None:
         # dies with it, taking the measurement of its own failure with it.
         warn(f"the run target and {profile.interface.name} are both {address}: control traffic shares the part")
 
+    if profile.interface.strict_arp:
+        _enforce_strict_arp(client, profile)
+
     collector_path = telemetry.install_collector(
         client, profile.install_dir, COLLECTOR_SOURCE.read_text(), timeout=profile.ssh_timeout_s
     )
@@ -241,6 +244,42 @@ def _setup(ctx: SuiteContext) -> None:
         server=server,
         target=target,
         telemetry=telemetry_state,
+    )
+
+
+def _enforce_strict_arp(client: Any, profile: TidLan7430Profile) -> None:
+    """Keep the unit's other interfaces from answering for the part's address.
+
+    Run before anything is measured, because a bench that lets another
+    interface answer produces a healthy-looking gigabit whose receive half was
+    carried by different hardware. Correcting it is cheap and the run is only
+    worth having once it is true, so it is done rather than reported.
+
+    A unit that will not allow it still runs: the tick-by-tick comparison of
+    the interface's byte counters against iperf3 catches the same fault, and a
+    session that records the fault is better than no session.
+    """
+    before = arp.read(client, timeout=profile.ssh_timeout_s)
+    if arp.is_strict(before):
+        info(f"the unit already answers ARP only for the interface that owns the address ({arp.describe(before)})")
+        return
+    try:
+        after = arp.enforce(client, timeout=profile.ssh_timeout_s)
+    except (RemoteError, TimeoutError, OSError) as exc:
+        warn(
+            f"could not set strict ARP on the unit ({arp.describe(before)}), so traffic for "
+            f"{profile.interface.name} may arrive on another interface and be measured there: {str(exc)[:200]}"
+        )
+        return
+    if not arp.is_strict(after):
+        warn(
+            f"strict ARP did not take on the unit ({arp.describe(after)}), so traffic for "
+            f"{profile.interface.name} may arrive on another interface and be measured there"
+        )
+        return
+    info(
+        f"set the unit to answer ARP only for the interface that owns the address, "
+        f"{arp.describe(before)} -> {arp.describe(after)}, so both directions cross {profile.interface.name}"
     )
 
 

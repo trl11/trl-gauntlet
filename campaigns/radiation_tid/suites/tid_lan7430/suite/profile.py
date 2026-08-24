@@ -22,6 +22,13 @@ class InterfaceBlock(BaseModel):
         description="Address on the unit the lab connects to. Empty reads it from the unit's interface.",
     )
     expected_speed_mbps: int = Field(default=1000, gt=0, description="Link speed a healthy part negotiates.")
+    strict_arp: bool = Field(
+        default=True,
+        description=(
+            "Before measuring, make the unit answer ARP only on the interface holding the address, "
+            "so traffic for the part cannot arrive on another one."
+        ),
+    )
     pci_slot: str = Field(
         default="",
         description="PCI slot of the controller, e.g. 0000:01:00.0. Empty derives it from the interface.",
