@@ -26,6 +26,12 @@ conformance_profile: quick.yaml
 
 produces: [events, junit, manifest, metrics, summary, verdict]
 
+# Charted on the Metrics tab and columned on the Iterations tab before the
+# operator picks their own. The two rates and the retransmit count are what
+# moves first as a part degrades; UDP loss is what it looks like once the
+# link is still up but no longer carrying.
+default_metrics: [throughput.retransmits, throughput.rx_mbps, throughput.tx_mbps, udp.loss_pct]
+
 # The bench supply is read, never commanded, and never reserved: the operator
 # keeps control of the rail while the beam is on. A bench without one runs
 # this suite unchanged.
