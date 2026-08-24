@@ -115,7 +115,7 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
                   { value: "", label: "(no profile)" },
                   ...profiles.map((entry) => ({
                     value: entry.name,
-                    label: entry.user_authored ? `${entry.name} (edited)` : entry.name,
+                    label: entry.user_authored ? `${entry.label} (edited)` : entry.label,
                   })),
                 ]}
                 value={profile}

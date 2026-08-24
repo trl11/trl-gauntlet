@@ -17,7 +17,7 @@ import random
 from typing import Any
 
 # Ticks of exposure before each symptom appears. Well beyond a conformance
-# run, so `quick.yaml` never trips one.
+# run, so `smoke.yaml` never trips one.
 THROUGHPUT_ONSET = 40
 COUNTER_ONSET = 80
 OTP_ONSET = 160

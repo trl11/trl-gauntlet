@@ -3,8 +3,9 @@ apiVersion: 1
 key: hardware
 title: Hardware Bench
 description: >
-  The suites that drive real hardware over a transport. Each declares the
-  transport it needs as an extra of gauntlet-sdk, and each ships a mock profile
+  The suites that drive real hardware. Most reach it over a transport they
+  declare as an extra of gauntlet-sdk; daq_capture and gmsl_camera are driven
+  through an instrument Gauntlet lends them instead. Each ships a mock profile
   that runs without any of it. Membership is ./suites: a suite added there joins
   this campaign on the next rescan, with or without an entry below.
 
@@ -29,3 +30,8 @@ members:
   - suite: piezo
     profile: smoke.yaml
     notes: Extend-and-return motion cycles, over MQTT.
+  - suite: gmsl_camera
+    profile: bench.yaml
+    notes: Stills from the bench camera on a fixed period, over UVC. The bench one
+      is a GMSL sensor behind a GMSL-to-USB adapter, which arrives as an ordinary
+      capture device.

@@ -19,6 +19,11 @@ from gauntlet.suites.manifest import LoadedSuite, ManifestError, load_suite
 log = logging.getLogger("gauntlet.suites")
 
 _PROFILE_SUFFIXES = (".yaml", ".yml")
+
+# The profile offered first, whatever it sorts as. It is the one that runs
+# without hardware and proves the suite executes, so it is what an operator
+# reaches for before anything else.
+_FIRST_PROFILE = "smoke"
 _MAX_DEPTH = 3
 
 
@@ -31,11 +36,22 @@ class ProfileInfo:
     description: str = ""
     user_authored: bool = False
 
+    @property
+    def label(self) -> str:
+        """The filename as something to show an operator.
+
+        Derived rather than declared, so every profile has one and a suite
+        cannot ship a name the UI has to fall back from.
+        """
+        stem = Path(self.name).stem.replace("_", " ").replace("-", " ")
+        return " ".join(word[:1].upper() + word[1:] for word in stem.split())
+
     def to_dict(self) -> dict[str, Any]:
         return {
+            "description": self.description,
+            "label": self.label,
             "name": self.name,
             "path": str(self.path),
-            "description": self.description,
             "user_authored": self.user_authored,
         }
 
@@ -135,7 +151,12 @@ def list_profiles(suite: LoadedSuite, user_profiles_dir: Path | None = None) -> 
                 description=_describe(path),
                 user_authored=True,
             )
-    return [by_name[name] for name in sorted(by_name)]
+    return [by_name[name] for name in sorted(by_name, key=_profile_order)]
+
+
+def _profile_order(name: str) -> tuple[int, str]:
+    """Sort key putting the smoke profile first and the rest alphabetically."""
+    return (0 if Path(name).stem == _FIRST_PROFILE else 1, name)
 
 
 def resolve_profile(suite: LoadedSuite, name: str, user_profiles_dir: Path | None = None) -> Path | None:

@@ -209,6 +209,10 @@ and neither is on a package registry.
   declares that capability in `requires`. It is read from the manifest, never
   from an instrument name, and while it is set the panel keeps that
   instrument's latching key locked and will not let the operator release it.
+- Profiles are offered `smoke` first and the rest alphabetically, and each
+  carries a `label` derived from its filename — `smoke.yaml` shows as "Smoke".
+  The label is computed, never declared, so no suite can ship a profile the UI
+  has to fall back from.
 - `vite build` writes into `packages/gauntlet/src/gauntlet/web_dist/`. The app
   serves it at `/`, falls back to a placeholder when it is absent, and still
   answers unknown `/api/...` paths with a JSON 404 rather than the SPA shell.

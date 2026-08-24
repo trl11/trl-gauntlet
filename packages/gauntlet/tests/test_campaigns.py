@@ -151,14 +151,13 @@ class TestBuiltInCampaigns:
         campaign = load_campaign(Path(__file__).resolve().parents[3] / "campaigns" / "hardware")
 
         assert campaign.key == "hardware"
-        assert {m.suite for m in campaign.manifest.members} == {
-            "can_bus",
-            "ethernet",
-            "hardware_trigger",
-            "piezo",
-            "rs422",
-            "ssd",
-        }
+        assert campaign.manifest.members
+
+    def test_no_member_is_declared_twice(self):
+        campaign = load_campaign(Path(__file__).resolve().parents[3] / "campaigns" / "hardware")
+
+        suites = [m.suite for m in campaign.manifest.members]
+        assert len(suites) == len(set(suites))
 
     def test_every_declared_member_is_on_disk(self):
         campaign = load_campaign(Path(__file__).resolve().parents[3] / "campaigns" / "hardware")

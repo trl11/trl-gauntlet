@@ -18,7 +18,42 @@ produce a healthy-looking gigabit number measured entirely on the wrong part.
 So every tick also compares the interface's own byte counters against what
 iperf3 reported moving, and records `topology/traffic_bypassed_interface` when
 they disagree by more than half. **If you see that anomaly, the numbers in the
-run are not about the LAN7430.**
+run are not about the LAN7430.** The run log carries the same finding in
+words, with the two totals and the percentage in it:
+
+```
+warn: iperf3 moved 1511 MB this tick but eth1 only carried 738 MB of it (49%):
+most of the traffic took a route around the controller, so this tick's
+throughput is not a measurement of the LAN7430. Pin iperf.lab_address and
+check the unit routes the lab subnet over eth1
+```
+
+## Two interfaces on one subnet, and what the suite does about it
+
+The failure this catches most often is not routing but ARP. A unit whose
+built-in interface and the LAN7430 sit on the same subnet answers ARP for
+either address out of either interface, so the switch learns the part's address
+against the built-in NIC. Traffic for the part then arrives there, Linux
+accepts it, and replies still leave over the part because its route wins. The
+result is a run whose transmit half is the LAN7430 and whose receive half is
+the other NIC, at a healthy symmetric gigabit that looks like nothing is wrong.
+
+Setup checks for this and corrects it before anything is measured, setting
+`arp_ignore=1` and `arp_announce=2` on the unit and flushing the neighbour
+table. It says which it did:
+
+```
+the unit already answers ARP only for the interface that owns the address (arp_announce=2, arp_ignore=1)
+set the unit to answer ARP only for the interface that owns the address, arp_announce=0, arp_ignore=0 -> arp_announce=2, arp_ignore=1, so both directions cross eth1
+```
+
+The change does not persist. It is reapplied every run, so a unit that reboots
+into the permissive defaults is corrected on the next one rather than quietly
+measuring the wrong part; `sudo sysctl -p` from a file in `/etc/sysctl.d/`
+makes it survive a reboot if you want it true between runs as well. Set
+`interface.strict_arp: false` on a bench that manages this itself. A unit that
+refuses the change still runs — the tick-by-tick byte-counter comparison
+catches the same fault, and a session that records it beats no session.
 
 Run `profiles/bench.yaml` once before a beam run. It is two minutes and exists
 to catch exactly this, along with a link that came up at 100 Mbps and an OTP
@@ -118,7 +153,7 @@ update --init` is what puts it there.
 
 | Profile | What it is for |
 |---|---|
-| `quick.yaml` | mock, no hardware. What `gauntlet verify --run` executes |
+| `smoke.yaml` | mock, no hardware. What `gauntlet verify --run` executes |
 | `bench.yaml` | two minutes against the real part, to prove the bench is wired right |
 | `standard.yaml` | the beam run: eight hours at one tick every thirty seconds |
 
@@ -153,7 +188,9 @@ unrecoverable and would destroy the part it is meant to characterise.
   the OTP into its address registers at reset, so a flip behind it shows up
   only once the part has reset and reloaded.
 - the `anomalies.*` rows — one per probe, so link, counters, PCIe, OTP and
-  kernel problems are separable at a glance.
+  kernel problems are separable at a glance. Every one of them is also a
+  `warn:` line in the run log saying what went wrong and what it costs the
+  measurement, so a session can be followed live without reading the events.
 - `lan7430-baseline.json` in the run directory — the full pre-exposure state,
   including the OTP hex, so a changed image can be diffed byte by byte.
 

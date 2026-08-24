@@ -100,7 +100,7 @@ const SuiteDetail: React.FC<SuiteDetailProps> = ({
                   aria-pressed={selectedProfile === entry.name}
                   onClick={() => onSelectProfile(entry.name)}
                 >
-                  <span className="mono">{entry.name}</span>
+                  <span className="suite-detail__profile-name">{entry.label}</span>
                   {entry.description && (
                     <span className="suite-detail__profile-description">{entry.description}</span>
                   )}

@@ -19,9 +19,19 @@ exec:
   profile_schema_command: ["python", "-m", "suite.cli", "--print-profile-schema"]
 
 profiles: ./profiles
-conformance_profile: quick.yaml
+conformance_profile: smoke.yaml
 
 produces: [events, frames, junit, manifest, metrics, summary, verdict]
+
+# Charted on the Metrics tab and columned on the Iterations tab before the
+# operator picks their own. The running error total is the dose response, and
+# its slope is what changes first; the per-sample count is sawtoothed by the
+# sample period, because the chip's counters clear when they are read. The two
+# video series say whether the link is still carrying what it carried.
+#
+# locked, unlocks and link_error are deliberately absent. They hold a constant
+# until the part is gone, so they make poor charts and belong in the verdict.
+default_metrics: [serializer.decode_errors_a, serializer.errors_total, video.dropped, video.mbps]
 requires: [camera]
 
 supports:

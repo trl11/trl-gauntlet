@@ -47,20 +47,20 @@ class TestSuites:
     def test_lists_discovered_suites(self, client):
         body = client.get("/api/suites").json()
         assert [s["key"] for s in body["suites"]] == ["alpha"]
-        assert body["suites"][0]["profiles_available"][0]["name"] == "quick.yaml"
+        assert body["suites"][0]["profiles_available"][0]["name"] == "smoke.yaml"
 
     def test_unknown_suite_is_404(self, client):
         assert client.get("/api/suites/nope").status_code == 404
 
     def test_profile_body_is_readable(self, client):
-        body = client.get("/api/suites/alpha/profiles/quick.yaml").json()
+        body = client.get("/api/suites/alpha/profiles/smoke.yaml").json()
         assert "description: fast" in body["body"]
 
     def test_saving_a_profile_does_not_touch_the_suite(self, client):
         response = client.put("/api/suites/alpha/profiles/mine", json={"body": "description: mine\n"})
         assert response.status_code == 200
         assert response.json()["user_authored"] is True
-        assert "quick.yaml" not in response.json()["path"]
+        assert "smoke.yaml" not in response.json()["path"]
 
     def test_profile_schema_absent_is_404(self, client):
         assert client.get("/api/suites/alpha/profile-schema").status_code == 404
@@ -73,7 +73,7 @@ class TestSuites:
 
 class TestRuns:
     def test_start_and_finish(self, client):
-        started = client.post("/api/runs", json={"suite": "alpha", "profile": "quick.yaml"})
+        started = client.post("/api/runs", json={"suite": "alpha", "profile": "smoke.yaml"})
         assert started.status_code == 201
         run_id = started.json()["run_id"]
 

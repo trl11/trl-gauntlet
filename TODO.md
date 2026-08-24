@@ -105,18 +105,19 @@ it. Which campaign a suite belongs to is derived from where it sits on disk, so
 a run names the campaign grouping its suite now rather than the one that
 started it. See [`docs/campaigns.md`](docs/campaigns.md).
 
-Two are built in: `hardware`, the seven suites that drive real hardware, and
+Two are built in: `hardware`, the suites that drive real hardware, and
 `radiation_tid`, one suite per component of the TID programme.
 
-**Every TID suite is a placeholder.** All eighteen render from the python
-template: they run, write a verdict and pass without hardware, and measure
-nothing at all. Each `runner.py` opens with the component, test vehicle, host
-and fixture it is for, and the measurements it has to grow into. A green
-`radiation_tid` therefore means only that eighteen scaffolds still execute.
+**Some TID suites are still placeholders.** `tid_lan7430`, `tid_max96793` and
+`tid_max96792` measure. The rest — `tid_ads7138`, `tid_asm330lhb`, `tid_tmp100`
+and `tid_pic18f26k83` — render from the python template: they run, write a
+verdict and pass without hardware, and measure nothing at all. Each `runner.py`
+opens with the component, test vehicle, host and fixture it is for, and the
+measurements it has to grow into, so a green `radiation_tid` says only that
+those scaffolds still execute.
 
-Three of them — `tid_pic18f26k83`, `tid_imx492`, `tid_imx565` — are TBD in the
-test matrix with no test vehicle or approach agreed, and are scaffolded anyway
-so the campaign is the whole programme and the gaps are visible in it. The
+`tid_pic18f26k83` is TBD in the test matrix with no test vehicle or approach
+agreed, and is scaffolded anyway so the gap is visible in the campaign. The
 matrix also carries test-plan edits and BOM additions per component, recorded
 in each runner's docstring and not tracked anywhere that would chase them.
 

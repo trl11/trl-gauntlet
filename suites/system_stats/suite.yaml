@@ -18,7 +18,7 @@ exec:
   profile_schema_command: ["python", "-m", "suite.cli", "--print-profile-schema"]
 
 profiles: ./profiles
-conformance_profile: quick.yaml
+conformance_profile: smoke.yaml
 
 produces: [events, junit, manifest, metrics, summary, verdict]
 requires: []

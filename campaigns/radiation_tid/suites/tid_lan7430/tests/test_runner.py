@@ -280,3 +280,17 @@ def test_the_hardware_summary_names_the_part_by_its_mac(ctx: SuiteContext) -> No
     hardware = runner._hardware(ctx, ctx.profile)
 
     assert hardware["uut"]["mac_address"] == BASELINE_MAC
+
+
+def test_traffic_that_did_not_cross_the_interface_says_so_in_the_log(
+    anomalies: AnomalyLog, sink: RecordingSink, capsys: pytest.CaptureFixture[str]
+) -> None:
+    profile = TidLan7430Profile()
+    measurements = {"tcp_tx": {"mbps": 900.0}, "tcp_rx": {"mbps": 900.0}, "udp": {"mbps": 0.0}}
+
+    runner._check_traffic_crossed_part(_state(anomalies), measurements, {"bytes_step": 1_000}, profile, iteration=3)
+
+    logged = capsys.readouterr().out
+    assert "warn:" in logged
+    assert "not a measurement of the LAN7430" in logged
+    assert profile.interface.name in logged

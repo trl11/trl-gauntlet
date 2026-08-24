@@ -20,6 +20,7 @@ from typing import Any
 from gauntlet_sdk import AnomalyLog
 from gauntlet_sdk.remote import RemoteError, run, shell_quote
 
+from suite.anomaly import flag
 from suite.profile import TidLan7430Profile
 
 BYTE_COUNTER_MODULUS = 2**32
@@ -150,12 +151,28 @@ def _analyse_link(
     speed = link.get("speed_mbps")
 
     if operstate != "up":
-        anomalies.record("link", "down", iteration=iteration, detail={"operstate": operstate})
+        flag(
+            anomalies,
+            "link",
+            "down",
+            iteration=iteration,
+            message=(
+                f"{profile.interface.name} is down (operstate {operstate}): the part is no longer "
+                "presenting a link, and this tick measured nothing"
+            ),
+            detail={"operstate": operstate},
+        )
     elif isinstance(speed, (int, float)) and speed < profile.interface.expected_speed_mbps:
-        anomalies.record(
+        flag(
+            anomalies,
             "link",
             "speed_degraded",
             iteration=iteration,
+            message=(
+                f"{profile.interface.name} negotiated {speed} Mbps where "
+                f"{profile.interface.expected_speed_mbps} Mbps was expected: the link came up degraded, "
+                "so every throughput number this tick is capped by the link and not by the part"
+            ),
             detail={"expected_mbps": profile.interface.expected_speed_mbps, "observed_mbps": speed},
         )
 
@@ -167,10 +184,15 @@ def _analyse_link(
         # at reset and the driver reads it from there, so a changed one means
         # the image behind it moved and the part has reloaded since.
         state.mac_changes += 1
-        anomalies.record(
+        flag(
+            anomalies,
             "link",
             "mac_changed",
             iteration=iteration,
+            message=(
+                f"the MAC on {profile.interface.name} changed from {state.golden_mac} to {address}: "
+                "the part is reading a different address out of its OTP than it did at setup"
+            ),
             detail={"baseline": state.golden_mac, "observed": address},
         )
     if address:
@@ -197,10 +219,15 @@ def _analyse_counters(
     for name in JUDGED_COUNTERS:
         step = steps.get(name)
         if step:
-            anomalies.record(
+            flag(
+                anomalies,
                 "counters",
                 name,
                 iteration=iteration,
+                message=(
+                    f"{name} rose by {step} this tick, {statistics.get(name)} in the session: the part is "
+                    "making errors it was not making before"
+                ),
                 detail={"since_last_tick": step, "total": statistics.get(name)},
             )
 
@@ -229,7 +256,17 @@ def _analyse_pcie(
     if not pcie:
         return {}
     if pcie.get("present") is False:
-        anomalies.record("pcie", "device_missing", iteration=iteration, detail={"slot": pcie.get("slot")})
+        flag(
+            anomalies,
+            "pcie",
+            "device_missing",
+            iteration=iteration,
+            message=(
+                f"the controller is gone from PCIe slot {pcie.get('slot')}: the part has dropped off the "
+                "bus entirely, so nothing else this tick could be read"
+            ),
+            detail={"slot": pcie.get("slot")},
+        )
         return {"present": 0}
 
     aer = {k: int(v) for k, v in (pcie.get("aer") or {}).items() if isinstance(v, int)}
@@ -237,20 +274,30 @@ def _analyse_pcie(
     state.previous_aer = aer
     for name, step in sorted(steps.items()):
         severity = name.split(".", 1)[0]
-        anomalies.record(
+        flag(
+            anomalies,
             "pcie",
             f"aer_{severity}",
             iteration=iteration,
+            message=(
+                f"PCIe logged {step} more {name} this tick, {aer.get(name)} in the session: the bus link to "
+                "the part is taking errors"
+            ),
             detail={"counter": name, "since_last_tick": step, "total": aer.get(name)},
         )
 
     width = pcie.get("current_link_width")
     max_width = pcie.get("max_link_width")
     if isinstance(width, int) and isinstance(max_width, int) and 0 < width < max_width:
-        anomalies.record(
+        flag(
+            anomalies,
             "pcie",
             "link_degraded",
             iteration=iteration,
+            message=(
+                f"PCIe renegotiated to x{width} from x{max_width}: the part has narrowed its own bus link, "
+                "which caps throughput before the ethernet side is reached"
+            ),
             detail={"max_width": max_width, "width": width},
         )
 
@@ -278,15 +325,27 @@ def _analyse_images(
             state.golden_otp_sha = digest
         elif digest and digest != state.golden_otp_sha:
             state.otp_changes += 1
-            anomalies.record(
+            flag(
+                anomalies,
                 "otp",
                 "changed",
                 iteration=iteration,
+                message=(
+                    "the OTP image no longer matches the one read at setup: a bit in the part's stored "
+                    "configuration has flipped"
+                ),
                 detail={"baseline_sha256": state.golden_otp_sha, "observed_sha256": digest},
             )
         metrics["otp_matches_baseline"] = int(digest == state.golden_otp_sha)
     elif otp.get("error"):
-        anomalies.record("otp", "unreadable", iteration=iteration, detail={"error": str(otp["error"])[:300]})
+        flag(
+            anomalies,
+            "otp",
+            "unreadable",
+            iteration=iteration,
+            message=(f"the OTP could not be read this tick, so a change in it would go unseen: {otp['error']}"),
+            detail={"error": str(otp["error"])[:300]},
+        )
         metrics["otp_matches_baseline"] = 0
 
     registers = dict(sample.get("registers") or {})
@@ -296,10 +355,15 @@ def _analyse_images(
             state.golden_registers_sha = digest
         elif digest and digest != state.golden_registers_sha:
             state.register_changes += 1
-            anomalies.record(
+            flag(
+                anomalies,
                 "registers",
                 "changed",
                 iteration=iteration,
+                message=(
+                    "the register dump no longer matches the one read at setup: the part's live "
+                    "configuration has moved under it"
+                ),
                 detail={"baseline_sha256": state.golden_registers_sha, "observed_sha256": digest},
             )
         metrics["registers_match_baseline"] = int(digest == state.golden_registers_sha)
@@ -317,10 +381,12 @@ def _analyse_kernel(sample: dict[str, Any], state: TelemetryState, iteration: in
         state.dmesg_cursor = float(cursor)
     lines = list(dmesg.get("lines") or [])
     for line in lines:
-        anomalies.record(
+        flag(
+            anomalies,
             "kernel",
             "message",
             iteration=iteration,
+            message=f"the driver logged a new kernel message: {str(line.get('text'))[:200]}",
             detail={"at_s": line.get("at_s"), "text": str(line.get("text"))[:400]},
         )
     return len(lines)
@@ -339,21 +405,33 @@ def analyse(
     high before the session started does not read as damage done during it.
     """
     if sample.get("present") is False:
-        anomalies.record(
+        flag(
+            anomalies,
             "link",
             "interface_missing",
             iteration=iteration,
+            message=(
+                f"{sample.get('interface')} is not on the unit at all: the driver has lost the part, so "
+                "this tick has no telemetry"
+            ),
             detail={"interface": sample.get("interface")},
         )
         return {"present": 0}
 
-    for probe, message in (sample.get("errors") or {}).items():
+    for probe, error in (sample.get("errors") or {}).items():
         # The OTP reports its own failure below, with the consequence for the
         # baseline comparison attached. Recording it here as well would count
         # one unreadable image twice against the anomaly budget.
         if probe == "otp":
             continue
-        anomalies.record("collector", str(probe), iteration=iteration, detail={"error": str(message)[:300]})
+        flag(
+            anomalies,
+            "collector",
+            str(probe),
+            iteration=iteration,
+            message=f"the {probe} probe failed on the unit, so this tick is missing it: {str(error)[:200]}",
+            detail={"error": str(error)[:300]},
+        )
 
     link = _analyse_link(sample, state, profile, iteration, anomalies)
     counters = _analyse_counters(sample, state, iteration, anomalies)

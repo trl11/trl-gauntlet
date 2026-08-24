@@ -13,7 +13,7 @@ class Axis(BaseModel):
     and accepts commands on the ``update`` sibling.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Axis")
 
     name: str = Field(description="Label used in metric keys and anomaly details.")
     serial: str = Field(description="Controller serial in the MQTT topic.")
@@ -34,7 +34,7 @@ class MotionBlock(BaseModel):
     dwells, then returns home.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Motion")
 
     axes: list[Axis] = Field(default_factory=_default_axes)
     extended_dwell_s: float = Field(default=1.0, ge=0, description="Seconds held at the extended position.")
@@ -46,7 +46,7 @@ class MotionBlock(BaseModel):
 class MqttBlock(BaseModel):
     """Connection to the broker carrying the controller's telemetry."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="MQTT")
 
     port: int = Field(default=1883, ge=1, le=65535)
     keepalive_s: int = Field(default=30, gt=0)
@@ -56,7 +56,7 @@ class MqttBlock(BaseModel):
 class PassCriteria(BaseModel):
     """Session budgets."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Pass criteria")
 
     max_anomalies: int = Field(default=100, ge=0)
     max_missed_targets: int = Field(default=0, ge=0, description="Moves allowed to not reach their target.")

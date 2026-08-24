@@ -145,48 +145,48 @@ export const ProfileEditor: React.FC<ProfileEditorProps> = ({
 
   return (
     <Modal title={`Profile ${name}`} onClose={requestClose} className="profile-editor">
-      <div className="profile-editor__body">
-        <div className="profile-editor__toolbar">
-          <div className="profile-editor__modes" role="tablist" aria-label="Editor mode">
-            <Button
-              type="button"
-              role="tab"
-              size="small"
-              color={mode === "form" ? "blue" : "outline"}
-              aria-selected={mode === "form"}
-              disabled={!formAvailable}
-              onClick={() => setMode("form")}
-            >
-              Form
-            </Button>
-            <Button
-              type="button"
-              role="tab"
-              size="small"
-              color={mode === "yaml" ? "blue" : "outline"}
-              aria-selected={mode === "yaml"}
-              onClick={() => setMode("yaml")}
-            >
-              YAML
-            </Button>
-          </div>
-          <Button color="blue" disabled={!dirty || busy} onClick={() => save.mutate()}>
-            {save.isPending ? <Spinner /> : "Save"}
+      <div className="profile-editor__toolbar">
+        <div className="profile-editor__modes" role="tablist" aria-label="Editor mode">
+          <Button
+            type="button"
+            role="tab"
+            size="small"
+            color={mode === "form" ? "blue" : "outline"}
+            aria-selected={mode === "form"}
+            disabled={!formAvailable}
+            onClick={() => setMode("form")}
+          >
+            Form
           </Button>
           <Button
-            disabled={!profile.data || showDiff.isPending}
-            onClick={() => (diff === null ? showDiff.mutate() : setDiff(null))}
+            type="button"
+            role="tab"
+            size="small"
+            color={mode === "yaml" ? "blue" : "outline"}
+            aria-selected={mode === "yaml"}
+            onClick={() => setMode("yaml")}
           >
-            {diff === null ? "Show diff" : "Hide diff"}
-          </Button>
-          <Button disabled={busy} onClick={() => setCopyName(`copy-of-${name}`)}>
-            Duplicate
-          </Button>
-          <Button color="red" disabled={busy} onClick={() => setConfirming("delete")}>
-            Delete
+            YAML
           </Button>
         </div>
+        <Button color="blue" disabled={!dirty || busy} onClick={() => save.mutate()}>
+          {save.isPending ? <Spinner /> : "Save"}
+        </Button>
+        <Button
+          disabled={!profile.data || showDiff.isPending}
+          onClick={() => (diff === null ? showDiff.mutate() : setDiff(null))}
+        >
+          {diff === null ? "Show diff" : "Hide diff"}
+        </Button>
+        <Button disabled={busy} onClick={() => setCopyName(`copy-of-${name}`)}>
+          Duplicate
+        </Button>
+        <Button color="red" disabled={busy} onClick={() => setConfirming("delete")}>
+          Delete
+        </Button>
+      </div>
 
+      <div className="profile-editor__body">
         {profile.isLoading && <Spinner className="profile-editor__spinner" />}
         {profile.isError && (
           <p className="profile-editor__error" role="alert">

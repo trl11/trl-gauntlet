@@ -143,14 +143,33 @@ class TestProfiles:
     def test_lists_suite_profiles(self, make_suite):
         suite = make_suite("alpha")
         profiles = list_profiles(suite)
-        assert [p.name for p in profiles] == ["quick.yaml"]
+        assert [p.name for p in profiles] == ["smoke.yaml"]
         assert profiles[0].description == "fast"
+
+    def test_the_smoke_profile_is_offered_first(self, make_suite):
+        suite = make_suite("alpha")
+        for name in ("bench.yaml", "aardvark.yaml", "standard.yaml"):
+            (suite.profiles_dir / name).write_text("description: x\n")
+
+        assert [p.name for p in list_profiles(suite)] == [
+            "smoke.yaml",
+            "aardvark.yaml",
+            "bench.yaml",
+            "standard.yaml",
+        ]
+
+    def test_a_profile_carries_a_label_to_show_an_operator(self, make_suite):
+        suite = make_suite("alpha")
+        (suite.profiles_dir / "long_soak.yaml").write_text("description: x\n")
+
+        labels = {p.name: p.label for p in list_profiles(suite)}
+        assert labels == {"smoke.yaml": "Smoke", "long_soak.yaml": "Long Soak"}
 
     def test_user_profile_shadows_the_shipped_one(self, make_suite, tmp_path):
         suite = make_suite("alpha")
         user_dir = tmp_path / "user"
         (user_dir / "alpha").mkdir(parents=True)
-        (user_dir / "alpha" / "quick.yaml").write_text("description: mine\n")
+        (user_dir / "alpha" / "smoke.yaml").write_text("description: mine\n")
 
         profiles = list_profiles(suite, user_dir)
         assert len(profiles) == 1
@@ -159,8 +178,8 @@ class TestProfiles:
 
     def test_resolves_with_or_without_the_extension(self, make_suite):
         suite = make_suite("alpha")
-        assert resolve_profile(suite, "quick.yaml") is not None
-        assert resolve_profile(suite, "quick") is not None
+        assert resolve_profile(suite, "smoke.yaml") is not None
+        assert resolve_profile(suite, "smoke") is not None
 
     def test_rejects_a_traversal_attempt(self, make_suite):
         suite = make_suite("alpha")

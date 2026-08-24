@@ -1,8 +1,9 @@
-import { Input, Select } from "@trl11/components/ui";
 import { useId } from "react";
 
 import type { SuiteOverride } from "@api/types";
 import FieldCheckbox from "@components/FieldCheckbox";
+import FieldInput from "@components/FieldInput";
+import FieldSelect from "@components/FieldSelect";
 import { isNumeric, type OverrideValues } from "../utils/overrides";
 
 import "./OverrideForm.scss";
@@ -71,7 +72,7 @@ export const OverrideForm: React.FC<OverrideFormProps> = ({
 
         if (override.choices.length > 0) {
           return (
-            <Select
+            <FieldSelect
               key={override.name}
               id={id}
               label={label}
@@ -89,7 +90,7 @@ export const OverrideForm: React.FC<OverrideFormProps> = ({
         }
 
         return (
-          <Input
+          <FieldInput
             key={override.name}
             id={id}
             label={label}

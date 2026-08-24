@@ -17,7 +17,7 @@ here — `gauntlet list` shows all of them together.
 What is left in this directory is what belongs to no programme: the two
 reference suites, and one that samples the host it runs on.
 
-Every suite ships a `mock.yaml` or `quick.yaml` profile that runs without
+Every suite ships a `mock.yaml` or `smoke.yaml` profile that runs without
 hardware and serves as its `conformance_profile`.
 
 ## Layout

@@ -53,7 +53,7 @@ class TestRescan:
         body = client.post("/api/suites/rescan").json()
 
         assert body == client.get("/api/suites").json()
-        assert [p["name"] for p in body["suites"][0]["profiles_available"]] == ["quick.yaml"]
+        assert [p["name"] for p in body["suites"][0]["profiles_available"]] == ["smoke.yaml"]
 
     def test_a_suite_removed_after_startup_is_dropped(self, client, suite_root):
         (suite_root / "alpha" / "suite.yaml").unlink()
@@ -77,14 +77,14 @@ class TestSuiteDetail:
         body = client.get("/api/suites/alpha").json()
 
         assert body["key"] == "alpha"
-        assert [p["name"] for p in body["profiles_available"]] == ["quick.yaml"]
+        assert [p["name"] for p in body["profiles_available"]] == ["smoke.yaml"]
 
     def test_an_operator_profile_is_listed_alongside_the_shipped_one(self, client):
         client.put("/api/suites/alpha/profiles/mine", json={"body": "iterations: 1\n"})
 
         names = [p["name"] for p in client.get("/api/suites/alpha").json()["profiles_available"]]
 
-        assert sorted(names) == ["mine.yaml", "quick.yaml"]
+        assert sorted(names) == ["mine.yaml", "smoke.yaml"]
 
     def test_one_suite_matches_its_entry_in_the_catalog(self, client):
         listed = client.get("/api/suites").json()["suites"][0]
@@ -176,30 +176,30 @@ class TestUnreadableFiles:
     """Filesystem failures answer 500 rather than propagating."""
 
     def test_reading_a_profile_that_cannot_be_opened_is_500(self, client, suite_root):
-        (suite_root / "alpha" / "profiles" / "quick.yaml").chmod(0o000)
+        (suite_root / "alpha" / "profiles" / "smoke.yaml").chmod(0o000)
 
         try:
-            assert client.get("/api/suites/alpha/profiles/quick.yaml").status_code == 500
+            assert client.get("/api/suites/alpha/profiles/smoke.yaml").status_code == 500
         finally:
-            (suite_root / "alpha" / "profiles" / "quick.yaml").chmod(0o644)
+            (suite_root / "alpha" / "profiles" / "smoke.yaml").chmod(0o644)
 
     def test_diffing_a_profile_that_cannot_be_opened_is_500(self, client, suite_root):
-        (suite_root / "alpha" / "profiles" / "quick.yaml").chmod(0o000)
+        (suite_root / "alpha" / "profiles" / "smoke.yaml").chmod(0o000)
 
         try:
-            response = client.post("/api/suites/alpha/profiles/quick.yaml/diff", json={"body": ""})
+            response = client.post("/api/suites/alpha/profiles/smoke.yaml/diff", json={"body": ""})
             assert response.status_code == 500
         finally:
-            (suite_root / "alpha" / "profiles" / "quick.yaml").chmod(0o644)
+            (suite_root / "alpha" / "profiles" / "smoke.yaml").chmod(0o644)
 
     def test_duplicating_a_profile_that_cannot_be_opened_is_500(self, client, suite_root):
-        (suite_root / "alpha" / "profiles" / "quick.yaml").chmod(0o000)
+        (suite_root / "alpha" / "profiles" / "smoke.yaml").chmod(0o000)
 
         try:
-            response = client.post("/api/suites/alpha/profiles/quick.yaml/duplicate", json={"name": "copy"})
+            response = client.post("/api/suites/alpha/profiles/smoke.yaml/duplicate", json={"name": "copy"})
             assert response.status_code == 500
         finally:
-            (suite_root / "alpha" / "profiles" / "quick.yaml").chmod(0o644)
+            (suite_root / "alpha" / "profiles" / "smoke.yaml").chmod(0o644)
 
     def test_saving_into_a_directory_that_cannot_be_written_is_500(self, client, settings):
         directory = settings.profiles_dir / "alpha"
