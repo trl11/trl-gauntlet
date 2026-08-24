@@ -40,7 +40,7 @@ def metric_key(label: str, channel: str) -> str:
 class Channel(BaseModel):
     """One analog input: what it is wired to, and how to read it."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Channel")
 
     channel: str = Field(pattern=r"^[1-8]$", description="Analog input number, 1 to 8.")
     mode: str = Field(default="10v", description=f"One of: {', '.join(MODES)}.")

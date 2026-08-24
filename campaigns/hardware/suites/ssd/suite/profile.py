@@ -12,7 +12,7 @@ class Device(BaseModel):
     writes. Both must resolve to the same underlying storage.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Device")
 
     name: str = Field(description="Label used in metric keys and anomaly details.")
     device: str = Field(description="Block device, e.g. /dev/nvme0n1.")
@@ -26,7 +26,7 @@ def _default_devices() -> list[Device]:
 class Unit(BaseModel):
     """One unit under test."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Unit")
 
     name: str = Field(description="Label keying this unit's metrics, verdict rows and anomalies.")
     host: str = Field(description="Address to connect to.")
@@ -35,7 +35,7 @@ class Unit(BaseModel):
 class ProbeBlock(BaseModel):
     """What the per-tick probe does."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Probe")
 
     devices: list[Device] = Field(default_factory=_default_devices)
     test_size_mb: int = Field(default=64, ge=1, description="MiB written and read each tick.")
@@ -52,7 +52,7 @@ class ProvisionBlock(BaseModel):
     the probe before the first tick.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Provision")
 
     enabled: bool = False
     device: str = Field(default="/dev/nvme0n1", description="Disk to prepare. Formatting destroys its contents.")
@@ -66,7 +66,7 @@ class ProvisionBlock(BaseModel):
 class PassCriteria(BaseModel):
     """Session budgets."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Pass criteria")
 
     max_anomalies: int = Field(default=100, ge=0, description="Anomalies tolerated per unit.")
     max_verify_failures: int = Field(default=0, ge=0, description="Data miscompares tolerated per unit.")
@@ -76,7 +76,7 @@ class PassCriteria(BaseModel):
 class MonitorBlock(BaseModel):
     """Background sampling of the unit while the session runs."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Monitor")
 
     enabled: bool = True
     sample_period_s: float = Field(default=10.0, gt=0)

@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class ProbeBlock(BaseModel):
     """The per-tick speed test."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Probe")
 
     transfer_mb: int = Field(default=64, ge=1, description="MiB pushed in each direction per tick.")
     server_port: int = Field(default=5301, ge=1, le=65535, description="Port the lab-side server listens on.")
@@ -26,7 +26,7 @@ class ProbeBlock(BaseModel):
 class PassCriteria(BaseModel):
     """Session budgets. The headline gate is average throughput."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Pass criteria")
 
     min_avg_tx_mbps: float = Field(default=100.0, ge=0, description="Session-average unit-to-lab floor.")
     min_avg_rx_mbps: float = Field(default=100.0, ge=0, description="Session-average lab-to-unit floor.")
@@ -37,7 +37,7 @@ class PassCriteria(BaseModel):
 class MonitorBlock(BaseModel):
     """Background sampling of the unit while the session runs."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Monitor")
 
     enabled: bool = True
     sample_period_s: float = Field(default=10.0, gt=0)

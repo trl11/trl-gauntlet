@@ -12,7 +12,7 @@ class LinkBlock(BaseModel):
     which avoids depending on ``/dev/ttyUSBn`` enumeration order.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Link")
 
     device: str = Field(default="auto", description="Serial device, or `auto` to resolve an FTDI adapter.")
     baud: int = Field(default=115200, gt=0, description="Must match the unit's console baud.")
@@ -25,7 +25,7 @@ class LinkBlock(BaseModel):
 class PassCriteria(BaseModel):
     """Session budgets."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Pass criteria")
 
     max_missing: int = Field(default=0, ge=0, description="Counter values allowed to go missing.")
     max_anomalies: int = Field(default=10, ge=0, description="Non-counter anomalies tolerated.")

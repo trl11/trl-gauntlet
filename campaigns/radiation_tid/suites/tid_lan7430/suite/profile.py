@@ -14,7 +14,7 @@ class InterfaceBlock(BaseModel):
     ``iperf.lab_address``.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Interface")
 
     name: str = Field(default="eth1", description="Interface the LAN7430 presents on the host.")
     address: str = Field(
@@ -43,7 +43,7 @@ class IperfBlock(BaseModel):
     interface.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="iperf3")
 
     lab_address: str = Field(
         default="",
@@ -73,7 +73,7 @@ class OtpBlock(BaseModel):
     it; the check is a read compared against the image captured at setup.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="OTP")
 
     enabled: bool = Field(default=True, description="Read and compare the OTP every tick.")
     length: int = Field(default=512, ge=1, le=65536, description="Bytes to read from the start of the OTP.")
@@ -83,7 +83,7 @@ class OtpBlock(BaseModel):
 class DmesgBlock(BaseModel):
     """Kernel messages the controller and its PCIe link produce."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Kernel messages")
 
     enabled: bool = Field(default=True, description="Collect new kernel messages each tick.")
     patterns: list[str] = Field(
@@ -102,7 +102,7 @@ class PsuBlock(BaseModel):
     operator keeps control of the rail during a beam run.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Bench supply")
 
     enabled: bool = Field(default=True, description="Log supply readings when Gauntlet offers a `psu` capability.")
     capability: str = Field(default="psu", description="Capability name to read.")
@@ -117,7 +117,7 @@ class PassCriteria(BaseModel):
     only encode a guess. Tighten them once a baseline run exists.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Pass criteria")
 
     min_avg_tx_mbps: float = Field(default=1.0, ge=0, description="Session-average unit-to-lab floor.")
     min_avg_rx_mbps: float = Field(default=1.0, ge=0, description="Session-average lab-to-unit floor.")

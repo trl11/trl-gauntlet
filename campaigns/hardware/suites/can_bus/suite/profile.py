@@ -12,7 +12,7 @@ class LinkBlock(BaseModel):
     from the socketcan interface ``lab_iface``.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Link")
 
     unit_iface: str = Field(default="can0", description="CAN interface on the unit under test.")
     lab_iface: str = Field(default="can0", description="socketcan interface on the lab host.")
@@ -29,7 +29,7 @@ class LinkBlock(BaseModel):
 class PassCriteria(BaseModel):
     """Session budgets."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Pass criteria")
 
     max_missing: int = Field(default=0, ge=0, description="Counter values allowed to go missing.")
     max_anomalies: int = Field(default=10, ge=0, description="Non-counter anomalies tolerated.")

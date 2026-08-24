@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class TriggerBlock(BaseModel):
     """The GPIO pulse to emit each iteration."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Trigger")
 
     chip: str = Field(default="gpiochip0", description="GPIO chip device name on the unit.")
     line: int = Field(default=43, ge=0, description="GPIO line number to drive.")
@@ -27,7 +27,7 @@ class TriggerBlock(BaseModel):
 class PassCriteria(BaseModel):
     """Session budgets."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Pass criteria")
 
     max_failures: int = Field(default=0, ge=0, description="Failed pulses tolerated.")
     max_anomalies: int = Field(default=10, ge=0, description="Anomalies tolerated.")
@@ -40,7 +40,7 @@ class PassCriteria(BaseModel):
 class MonitorBlock(BaseModel):
     """Background sampling of the unit while the session runs."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", title="Monitor")
 
     enabled: bool = Field(default=True, description="Sample load, memory and disk between pulses.")
     sample_period_s: float = Field(default=5.0, gt=0, description="Seconds between samples.")

@@ -9,6 +9,10 @@
 import { mkdir } from "node:fs/promises";
 import { chromium } from "playwright-core";
 
+// Enough to tell a rendered page from a blank one. A page with nothing to
+// show still renders its header and an EmptyState, which clears this easily.
+const MIN_TEXT = 60;
+
 const base = process.argv[2] ?? "http://127.0.0.1:7100";
 const out = process.argv[3] ?? "../files/screenshots";
 
@@ -45,8 +49,21 @@ async function capture(name, route) {
   await page.goto(`${base}/#${route}`, { waitUntil: "networkidle", timeout: 30000 });
   await page.waitForTimeout(3000);
   await page.screenshot({ path: `${out}/${name}.png`, fullPage: true });
-  const text = await page.evaluate(() => document.getElementById("root")?.innerText ?? "");
-  if (text.length < 200) problems.push(`${route} rendered only ${text.length} characters`);
+  // A page paints its own `h1` through PageHeader, and only through it: the
+  // error boundary renders an `h2`, and a view that painted nothing renders
+  // neither. Counting characters instead would fail a page whose data is
+  // legitimately empty, which is what an EmptyState is for.
+  const painted = await page.evaluate(() => {
+    const root = document.getElementById("root");
+    return {
+      heading: root?.querySelector("h1")?.textContent?.trim() ?? "",
+      length: root?.innerText.length ?? 0,
+    };
+  });
+  if (!painted.heading) problems.push(`${route} painted no page heading`);
+  if (painted.length < MIN_TEXT) {
+    problems.push(`${route} rendered only ${painted.length} characters`);
+  }
   console.log(`${name}.png`);
 }
 
