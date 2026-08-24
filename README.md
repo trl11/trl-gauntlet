@@ -82,7 +82,7 @@ one key jumps between pages.
 | `example_sampled` | Reference Python suite using `SuiteSpec` and the iteration loop. |
 | `example_shell` | Reference bash suite with no Gauntlet dependency. |
 
-Each ships a `mock.yaml` or `quick.yaml` profile that runs without hardware.
+Each ships a `mock.yaml` or `smoke.yaml` profile that runs without hardware.
 Every suite has the same layout: `suite.yaml`, a `suite/` package, `profiles/`.
 
 ## Creating a suite

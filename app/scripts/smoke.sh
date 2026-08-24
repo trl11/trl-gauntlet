@@ -18,7 +18,7 @@ RUNTIME=$ROOT/app/runtime
 PARKED=$ROOT/app/runtime.parked-by-smoke
 WORK=$(mktemp -d)
 SUITE=example_sampled
-PROFILE=quick.yaml
+PROFILE=smoke.yaml
 
 # The runtime goes back whatever happens, including an interrupt: leaving it
 # parked would break every later build in a way that looks unrelated.
@@ -87,9 +87,15 @@ echo "==> $SUITES suites discovered"
 # A Python suite, because it is a separate process that has to import
 # gauntlet_sdk from the packaged runtime rather than from anything installed
 # on this machine.
-RUN=$(curl -fsS -X POST "$BASE/api/runs" -H 'Content-Type: application/json' \
-    -d "{\"suite\":\"$SUITE\",\"profile\":\"$PROFILE\",\"unit_serial\":\"SMOKE\"}" |
-    python3 -c "import json,sys; print(json.load(sys.stdin)['run_id'])")
+# The body is kept and the status read separately, because a refusal says in
+# the body which part of the request it would not honour, and that is the one
+# thing worth reading when this fails.
+START=$WORK/start.json
+CODE=$(curl -sS -X POST "$BASE/api/runs" -H 'Content-Type: application/json' \
+    -d "{\"suite\":\"$SUITE\",\"profile\":\"$PROFILE\",\"unit_serial\":\"SMOKE\"}" \
+    -o "$START" -w '%{http_code}')
+[ "$CODE" = 201 ] || fail "starting $SUITE with $PROFILE answered $CODE: $(cat "$START")"
+RUN=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['run_id'])" "$START")
 echo "==> started $RUN"
 
 STATUS=
