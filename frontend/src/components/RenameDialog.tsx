@@ -1,5 +1,7 @@
-import { Button, Input, Modal } from "@trl11/components/ui";
+import { Button, Modal } from "@trl11/components/ui";
 import { useId, useState } from "react";
+
+import FieldInput from "@components/FieldInput";
 
 import "./RenameDialog.scss";
 
@@ -31,7 +33,7 @@ const RenameDialog: React.FC<RenameDialogProps> = ({ busy, error, onCancel, onRe
           if (!invalid && trimmed !== "" && trimmed !== serial) onRename(trimmed);
         }}
       >
-        <Input
+        <FieldInput
           id={`${fieldId}-serial`}
           label="New serial"
           value={value}
