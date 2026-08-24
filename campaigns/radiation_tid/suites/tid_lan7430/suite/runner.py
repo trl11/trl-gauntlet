@@ -22,13 +22,20 @@ lost link, a collapsed measurement or a changed OTP image is recorded against
 the tick it appeared at and the session carries on — a part that recovers as
 it anneals is as much of a result as one that dies.
 
+Every anomaly is raised through :func:`suite.anomaly.flag`, which records it
+in ``events.jsonl`` and warns in the run log what it means. The event carries
+the numbers the check compared; the log line says what has gone wrong and what
+it costs the measurement, because the log is what an operator watches while
+the beam is on.
+
 Anomaly kinds: ``collector/*``, ``counters/*``, ``iperf/measurement_failed``,
-``kernel/message``, ``link/down``, ``link/interface_missing``,
-``link/mac_changed``, ``link/speed_degraded``, ``otp/changed``,
-``otp/unreadable``, ``pcie/aer_correctable``, ``pcie/aer_fatal``,
-``pcie/aer_nonfatal``, ``pcie/device_missing``, ``pcie/link_degraded``,
-``psu/unreadable``, ``registers/changed``, ``ssh/unreachable``,
-``topology/traffic_bypassed_interface``.
+``iperf/server_restarted``, ``kernel/message``, ``link/down``,
+``link/interface_missing``, ``link/mac_changed``, ``link/speed_degraded``,
+``otp/changed``, ``otp/unreadable``, ``pcie/aer_correctable``,
+``pcie/aer_fatal``, ``pcie/aer_nonfatal``, ``pcie/device_missing``,
+``pcie/link_degraded``, ``registers/changed``, ``ssh/unreachable``,
+``bandwidth/rx_below_floor``, ``bandwidth/tx_below_floor``,
+``bandwidth/udp_loss_above_ceiling``, ``topology/traffic_bypassed_interface``.
 """
 
 from __future__ import annotations
@@ -56,6 +63,7 @@ from gauntlet_sdk import (
 from gauntlet_sdk.remote import RemoteError, capture_host_facts, connect, is_alive, run, shell_quote
 
 from suite import iperf, mock, telemetry
+from suite.anomaly import flag
 from suite.profile import TidLan7430Profile
 from suite.psu import PsuReader
 
@@ -294,7 +302,17 @@ def _ensure_server(state: _State, profile: TidLan7430Profile, iteration: int) ->
         return
     if iperf.server_alive(state.client, state.server, timeout=profile.ssh_timeout_s):
         return
-    state.anomalies.record("iperf", "server_restarted", iteration=iteration, detail={"address": state.address})
+    flag(
+        state.anomalies,
+        "iperf",
+        "server_restarted",
+        iteration=iteration,
+        message=(
+            f"the iperf3 server on {state.address} had stopped answering and was restarted: this tick's "
+            "throughput is short by whatever it missed"
+        ),
+        detail={"address": state.address},
+    )
     with contextlib.suppress(iperf.IperfError, RemoteError, TimeoutError, OSError):
         state.server = iperf.start_server(state.client, profile, state.address)
 
@@ -320,10 +338,15 @@ def _measure(state: _State, profile: TidLan7430Profile, iteration: int) -> dict[
             measurements[name] = attempt()
         except iperf.IperfError as exc:
             state.measurement_failures += 1
-            state.anomalies.record(
+            flag(
+                state.anomalies,
                 "iperf",
                 "measurement_failed",
                 iteration=iteration,
+                message=(
+                    f"the {name} measurement failed, so this tick has no {name} number and the session "
+                    f"average skips it: {str(exc)[:200]}"
+                ),
                 detail={"direction": name, "error": str(exc)[:300]},
             )
     return measurements
@@ -358,10 +381,18 @@ def _check_traffic_crossed_part(
     if expected_bytes <= 0:
         return
     if moved < expected_bytes * TRAFFIC_MATCH_FLOOR:
-        state.anomalies.record(
+        flag(
+            state.anomalies,
             "topology",
             "traffic_bypassed_interface",
             iteration=iteration,
+            message=(
+                f"iperf3 moved {expected_bytes / 1e6:.0f} MB this tick but {profile.interface.name} only "
+                f"carried {moved / 1e6:.0f} MB of it ({moved / expected_bytes:.0%}): most of the traffic "
+                "took a route around the controller, so this tick's throughput is not a measurement of "
+                "the LAN7430. Pin iperf.lab_address and check the unit routes the lab subnet over "
+                f"{profile.interface.name}"
+            ),
             detail={
                 "interface": profile.interface.name,
                 "interface_bytes": moved,
@@ -380,7 +411,14 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
         sample = mock.sample(ictx.iteration, profile.interface.name)
     else:
         if state.client is None and not _reconnect(state, profile):
-            state.anomalies.record("ssh", "unreachable", iteration=ictx.iteration, detail={})
+            flag(
+                state.anomalies,
+                "ssh",
+                "unreachable",
+                iteration=ictx.iteration,
+                message="the unit is not reachable over ssh, so this tick measured nothing",
+                detail={},
+            )
             return IterationOutcome(
                 success=False,
                 reason="unit unreachable over ssh",
@@ -412,7 +450,17 @@ def _read_telemetry(state: _State, profile: TidLan7430Profile, iteration: int) -
             timeout=profile.ssh_timeout_s,
         )
     except (RemoteError, TimeoutError, OSError) as exc:
-        state.anomalies.record("ssh", "unreachable", iteration=iteration, detail={"error": str(exc)[:300]})
+        flag(
+            state.anomalies,
+            "ssh",
+            "unreachable",
+            iteration=iteration,
+            message=(
+                "the unit stopped answering over ssh part way through the tick, so its telemetry is "
+                f"missing and the next tick opens a fresh session: {str(exc)[:200]}"
+            ),
+            detail={"error": str(exc)[:300]},
+        )
         # The session is suspect once a command fails on it, so the next tick
         # opens a fresh one rather than reusing this.
         with contextlib.suppress(Exception):
@@ -440,20 +488,30 @@ def _check_floors(
         (rx, profile.iperf.rx_floor_mbps, "rx_below_floor"),
     ):
         if floor is not None and isinstance(value, (int, float)) and value < floor:
-            state.anomalies.record(
+            flag(
+                state.anomalies,
                 "bandwidth",
                 kind,
                 iteration=iteration,
+                message=(
+                    f"{kind.split('_')[0]} fell to {value:.0f} Mbps, under the {floor:.0f} Mbps floor: the "
+                    "part is moving less than this bench expects of it"
+                ),
                 detail={"floor_mbps": floor, "observed_mbps": value},
             )
 
     ceiling = profile.iperf.udp_loss_ceiling_pct
     loss = udp.get("loss_pct")
     if ceiling is not None and isinstance(loss, (int, float)) and loss > ceiling:
-        state.anomalies.record(
+        flag(
+            state.anomalies,
             "bandwidth",
             "udp_loss_above_ceiling",
             iteration=iteration,
+            message=(
+                f"UDP loss reached {loss:.1f}%, over the {ceiling:.1f}% ceiling: the part is dropping "
+                "datagrams it should be carrying"
+            ),
             detail={"ceiling_pct": ceiling, "observed_pct": loss},
         )
 

@@ -18,7 +18,15 @@ produce a healthy-looking gigabit number measured entirely on the wrong part.
 So every tick also compares the interface's own byte counters against what
 iperf3 reported moving, and records `topology/traffic_bypassed_interface` when
 they disagree by more than half. **If you see that anomaly, the numbers in the
-run are not about the LAN7430.**
+run are not about the LAN7430.** The run log carries the same finding in
+words, with the two totals and the percentage in it:
+
+```
+warn: iperf3 moved 1511 MB this tick but eth1 only carried 738 MB of it (49%):
+most of the traffic took a route around the controller, so this tick's
+throughput is not a measurement of the LAN7430. Pin iperf.lab_address and
+check the unit routes the lab subnet over eth1
+```
 
 Run `profiles/bench.yaml` once before a beam run. It is two minutes and exists
 to catch exactly this, along with a link that came up at 100 Mbps and an OTP
@@ -153,7 +161,9 @@ unrecoverable and would destroy the part it is meant to characterise.
   the OTP into its address registers at reset, so a flip behind it shows up
   only once the part has reset and reloaded.
 - the `anomalies.*` rows — one per probe, so link, counters, PCIe, OTP and
-  kernel problems are separable at a glance.
+  kernel problems are separable at a glance. Every one of them is also a
+  `warn:` line in the run log saying what went wrong and what it costs the
+  measurement, so a session can be followed live without reading the events.
 - `lan7430-baseline.json` in the run directory — the full pre-exposure state,
   including the OTP hex, so a changed image can be diffed byte by byte.
 
