@@ -57,8 +57,9 @@ def settings(campaign_root: Path, suite_root: Path, tmp_path: Path) -> Settings:
         campaign_roots=[campaign_root],
         data_dir=tmp_path / "data",
         daq_serial="",
+        i2c_serial="",
         psu_port="",
-        simulated_instruments=["chamber", "daq", "psu"],
+        simulated_instruments=["chamber", "daq", "i2c", "psu"],
     )
 
 

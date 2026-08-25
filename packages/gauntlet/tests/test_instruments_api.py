@@ -28,7 +28,7 @@ def _wait_until_idle(client, timeout_s=20.0) -> None:
 class TestInstrumentsApi:
     def test_lists_every_registered_instrument(self, client) -> None:
         instruments = client.get("/api/instruments").json()["instruments"]
-        assert [i["name"] for i in instruments] == ["chamber", "daq", "psu"]
+        assert [i["name"] for i in instruments] == ["chamber", "daq", "i2c", "psu"]
         for instrument in instruments:
             assert instrument["available"] is True
             assert instrument["instance_id"]
@@ -152,7 +152,7 @@ class TestInstrumentsInUse:
         run_id = client.post("/api/runs", json={"suite": "busy"}).json()["run_id"]
         try:
             held = {i["name"]: i["in_use_by"] for i in client.get("/api/instruments").json()["instruments"]}
-            assert held == {"chamber": "", "daq": "", "psu": run_id}
+            assert held == {"chamber": "", "daq": "", "i2c": "", "psu": run_id}
         finally:
             client.post(f"/api/runs/{run_id}/abort")
         _wait_until_idle(client)

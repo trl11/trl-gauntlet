@@ -17,11 +17,12 @@ declares about itself; naming an instrument anywhere else is a defect.
 | `psu` | Hanmatek HM310T, `instruments/hm310t_psu.py` | Modbus RTU on a USB serial port, 9600 8N1, slave 1 |
 | `daq` | DATAQ DI-2008, `instruments/di2008_daq.py` | vendor bulk-USB protocol, claimed through usbfs |
 | `camera` | any UVC camera, `instruments/uvc_camera.py` | V4L2 ioctls on a `/dev/video*` node, memory-mapped capture |
+| `i2c` | Silicon Labs CP2112, `instruments/cp2112_i2c.py` | `I2C_RDWR` on the `i2c-dev` node the kernel's own `hid-cp2112` driver adapts it to |
 | `chamber` | nothing | simulation only |
 
 Beside each is a simulation — `mock_psu.py`, `mock_daq.py`, `mock_camera.py`,
-`mock_chamber.py` — which exists for development and for tests, and which
-reaches an operator only when they ask for it.
+`mock_i2c.py`, `mock_chamber.py` — which exists for development and for
+tests, and which reaches an operator only when they ask for it.
 
 Its eight channels are settled by one `configure` command carrying a row each,
 rather than a control that picks a channel and a control that sets it. A row
@@ -99,6 +100,17 @@ counted. The burst drains that backlog before it starts timing, or the
 sequence gap left by the caller's own pause would be reported as dropped
 frames.
 
+The CP2112 is a HID device, but the kernel's `hid-cp2112` driver already
+speaks its report protocol and adapts it to an ordinary `i2c-dev` node — one
+named `"CP2112 SMBus Bridge on hidrawN"`, which is how `candidate_adapters()`
+tells it apart from whatever other I2C adapters the host exposes. The driver
+never touches a HID report itself; it opens that node and issues `I2C_RDWR`,
+which is also what lets `write_read` hold the bus for a register's address
+and its reply with no stop between them, the way a device that needs a
+repeated start requires. There is no fixed device on the other end of the
+bus: a suite names the address and the bytes itself, through `write`, `read`
+and `write_read`, the way it would with any I2C bridge.
+
 ## What is registered
 
 `instruments/detect.py` decides, at startup and again on every operator scan.
@@ -108,7 +120,7 @@ it.
 
 | Setting | Meaning |
 |---|---|
-| `psu_port`, `daq_serial` | `"auto"` probes, `""` does not look at all, anything else is the serial port or USB serial number to use |
+| `psu_port`, `daq_serial`, `i2c_serial` | `"auto"` probes, `""` does not look at all, anything else is the serial port or USB serial number to use |
 | `camera_device` | `"auto"` tries each `/dev/video*` in turn and takes the first that streams a format the encoder can write, `""` does not look at all, anything else is the node to open |
 | `camera_format` | `"auto"` reads a frame to decide what it really carries, or name `yuyv` or `raw10_rggb` to state it. A GMSL adapter reports YUYV over UVC while sending raw sensor data, and the UVC format code cannot tell them apart |
 | `simulated_instruments` | Names the instruments to simulate instead of probing for. Empty by default |

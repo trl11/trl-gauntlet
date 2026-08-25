@@ -20,3 +20,9 @@
 
 # DATAQ Instruments USB DAQs (DI-1100, DI-2008, DI-4108, DI-4208, ...).
 SUBSYSTEM=="usb", ATTRS{idVendor}=="0683", MODE="0660", GROUP="dialout"
+
+# Silicon Labs CP2112 USB-to-I2C/SMBus bridge. The kernel's own hid-cp2112
+# driver claims the HID device and adapts it to an ordinary i2c-dev node,
+# whose default permissions are the same root:root 0664 as any other usbfs
+# node, so it needs a rule here too.
+SUBSYSTEM=="i2c-dev", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea90", MODE="0660", GROUP="dialout"
