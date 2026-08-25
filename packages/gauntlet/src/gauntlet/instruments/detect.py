@@ -72,18 +72,17 @@ def _close(provider: CapabilityProvider) -> None:
 
 
 def _camera(device: str, frame_format: str = "auto") -> CapabilityProvider | None:
-    """The camera, if one is asked for and one answers.
+    """The camera, if one is asked for and a candidate node is present.
 
-    Unlike a serial instrument there is nothing to enumerate before opening:
-    the driver walks the capture nodes itself, so "auto" is passed through as
-    an empty device rather than probed for here.
+    Registering it never opens it: `available()` only checks the filesystem,
+    so "auto" is passed through as an empty device rather than probed for
+    here, and nothing owns the node until an operator or a run does.
     """
     if not device:
         return None
     camera = UvcCamera(device="" if device == "auto" else device, frame_format=frame_format)
     if camera.available():
         return camera
-    _close(camera)
     return None
 
 

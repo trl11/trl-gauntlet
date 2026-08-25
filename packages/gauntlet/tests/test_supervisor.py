@@ -101,6 +101,57 @@ def app_with(make_suite, settings):
     return _build
 
 
+class _OwnableStub:
+    """The smallest thing satisfying :class:`OwnableCapability`, for a run."""
+
+    name = "camera"
+
+    def __init__(self) -> None:
+        self._owned = False
+
+    def available(self) -> bool:
+        return True
+
+    def describe(self) -> dict[str, str]:
+        return {"driver": "test"}
+
+    def instance_id(self) -> str:
+        return "camera0"
+
+    def owned(self) -> bool:
+        return self._owned
+
+    def own(self) -> bool:
+        self._owned = True
+        return True
+
+    def disown(self) -> None:
+        self._owned = False
+
+
+class TestCapabilityOwnership:
+    def test_a_run_owns_and_releases_a_capability_it_did_not_find_owned(self, make_suite, settings) -> None:
+        make_suite("busy", requires=["camera"], script=_GRACEFUL)
+        with TestClient(create_app(settings)) as client:
+            camera = _OwnableStub()
+            client.app.state.capabilities.register(camera)
+            run_id = start(client, "busy")
+            assert camera.owned() is True
+            client.post(f"/api/runs/{run_id}/stop")
+            wait_for_status(client, run_id, {"passed", "failed", "error", "aborted"})
+            assert camera.owned() is False
+
+    def test_a_run_leaves_a_capability_it_found_already_owned(self, make_suite, settings) -> None:
+        make_suite("brief", requires=["camera"])
+        with TestClient(create_app(settings)) as client:
+            camera = _OwnableStub()
+            camera.own()
+            client.app.state.capabilities.register(camera)
+            run_id = start(client, "brief")
+            wait_for_status(client, run_id, {"passed", "failed", "error", "aborted"})
+            assert camera.owned() is True
+
+
 class TestStop:
     def test_a_stopped_run_still_writes_its_verdict(self, app_with) -> None:
         with app_with(slow=_GRACEFUL) as client:

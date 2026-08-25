@@ -721,7 +721,10 @@ class TestCp2112I2c:
 class TestDetection:
     def _settings(self, tmp_path: Any, **overrides: Any) -> Settings:
         """Settings that look for nothing, bar what a test asks for."""
-        return Settings(data_dir=tmp_path / "data", **{"daq_serial": "", "i2c_serial": "", "psu_port": "", **overrides})
+        return Settings(
+            data_dir=tmp_path / "data",
+            **{"camera_device": "", "daq_serial": "", "i2c_serial": "", "psu_port": "", **overrides},
+        )
 
     def test_nothing_answering_registers_nothing(self, tmp_path: Any) -> None:
         registry = CapabilityRegistry()

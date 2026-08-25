@@ -56,6 +56,7 @@ def settings(campaign_root: Path, suite_root: Path, tmp_path: Path) -> Settings:
         suite_roots=[suite_root],
         campaign_roots=[campaign_root],
         data_dir=tmp_path / "data",
+        camera_device="",
         daq_serial="",
         i2c_serial="",
         psu_port="",
