@@ -27,6 +27,26 @@ class _Provider:
         return f"{self.name}0"
 
 
+class _Ownable(_Provider):
+    """An ownable provider whose `own()` the test can make fail."""
+
+    def __init__(self, name: str, *, opens: bool = True) -> None:
+        super().__init__(name)
+        self._opens = opens
+        self._owned = False
+
+    def owned(self) -> bool:
+        return self._owned
+
+    def own(self) -> bool:
+        if self._opens:
+            self._owned = True
+        return self._owned
+
+    def disown(self) -> None:
+        self._owned = False
+
+
 class TestGrant:
     def test_flattens_into_environment_variables(self) -> None:
         grant = Grant(name="psu", instance_id="psu0", url=f"{_BASE}/capabilities/psu")
@@ -124,3 +144,60 @@ class TestRegistry:
                 "driver": "test",
             }
         ]
+
+
+class TestClaimForRun:
+    def test_owns_an_unowned_capability(self) -> None:
+        registry = CapabilityRegistry()
+        camera = _Ownable("camera")
+        registry.register(camera)
+        registry.claim_for_run(["camera"])
+        assert camera.owned() is True
+
+    def test_releasing_disowns_only_what_it_claimed(self) -> None:
+        registry = CapabilityRegistry()
+        camera = _Ownable("camera")
+        registry.register(camera)
+        release = registry.claim_for_run(["camera"])
+        release()
+        assert camera.owned() is False
+
+    def test_a_capability_already_owned_is_left_owned_after_release(self) -> None:
+        registry = CapabilityRegistry()
+        camera = _Ownable("camera")
+        camera.own()
+        registry.register(camera)
+        release = registry.claim_for_run(["camera"])
+        release()
+        assert camera.owned() is True
+
+    def test_a_plain_capability_is_left_alone(self) -> None:
+        registry = CapabilityRegistry()
+        registry.register(_Provider("psu"))
+        release = registry.claim_for_run(["psu"])
+        release()  # does not raise: nothing to own or disown
+
+    def test_a_capability_that_will_not_open_fails_the_claim(self) -> None:
+        registry = CapabilityRegistry()
+        registry.register(_Ownable("camera", opens=False))
+        with pytest.raises(CapabilityError, match="camera could not be opened"):
+            registry.claim_for_run(["camera"])
+
+    def test_a_failed_claim_releases_what_it_already_owned(self) -> None:
+        registry = CapabilityRegistry()
+        first = _Ownable("chamber")
+        second = _Ownable("camera", opens=False)
+        registry.register(first)
+        registry.register(second)
+        with pytest.raises(CapabilityError):
+            registry.claim_for_run(["chamber", "camera"])
+        assert first.owned() is False
+
+    def test_release_is_idempotent(self) -> None:
+        registry = CapabilityRegistry()
+        camera = _Ownable("camera")
+        registry.register(camera)
+        release = registry.claim_for_run(["camera"])
+        release()
+        release()  # does not raise, and does not re-disown anything meaningful
+        assert camera.owned() is False

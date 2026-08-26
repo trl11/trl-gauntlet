@@ -106,9 +106,14 @@ class _FakeCamera:
         )
 
 
-def camera_with(fake: _FakeCamera, **kwargs: Any) -> UvcCamera:
-    """A driver wired to one stand-in device."""
-    return UvcCamera(device="/dev/video0", open_camera=lambda path: fake, **kwargs)
+def camera_with(fake: _FakeCamera, *, present: bool = True, **kwargs: Any) -> UvcCamera:
+    """A driver wired to one stand-in device, presumed present unless said otherwise."""
+    return UvcCamera(
+        device="/dev/video0",
+        open_camera=lambda path: fake,
+        presence=lambda device: present,
+        **kwargs,
+    )
 
 
 class TestPngEncoding:
@@ -195,32 +200,42 @@ class TestEncodeFrame:
 
 
 class TestUvcCamera:
-    def test_available_once_the_device_opens(self) -> None:
-        camera = camera_with(_FakeCamera(Path("/dev/video0")))
-        assert camera.available() is True
-        assert camera.describe()["unavailable_reason"] == ""
-
-    def test_opening_starts_the_stream(self) -> None:
+    def test_available_reports_presence_without_opening(self) -> None:
         fake = _FakeCamera(Path("/dev/video0"))
         camera = camera_with(fake)
-        camera.available()
-        assert fake.started is True
+        assert camera.available() is True
+        assert fake.started is False
 
-    def test_a_device_that_will_not_open_is_unavailable(self) -> None:
+    def test_unavailable_when_no_candidate_is_present(self) -> None:
+        camera = camera_with(_FakeCamera(Path("/dev/video0")), present=False)
+        assert camera.available() is False
+        assert "not present" in camera.describe()["unavailable_reason"]
+
+    def test_owning_opens_and_starts_the_stream(self) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera = camera_with(fake)
+        assert camera.owned() is False
+        assert camera.own() is True
+        assert fake.started is True
+        assert camera.owned() is True
+        assert camera.describe()["unavailable_reason"] == ""
+
+    def test_a_device_that_will_not_open_cannot_be_owned(self) -> None:
         fake = _FakeCamera(Path("/dev/video0"))
         fake.open_error = V4l2Error("/dev/video0: device busy")
         camera = camera_with(fake)
-        assert camera.available() is False
+        assert camera.own() is False
+        assert camera.owned() is False
         assert "device busy" in camera.describe()["unavailable_reason"]
 
     def test_a_format_the_encoder_cannot_write_is_refused(self) -> None:
         fake = _FakeCamera(Path("/dev/video0"))
         fake.pixelformat = 0x3231564E
         camera = camera_with(fake)
-        assert camera.available() is False
+        assert camera.own() is False
         assert "not supported" in camera.describe()["unavailable_reason"]
 
-    def test_a_failed_probe_is_not_retried_until_the_interval_passes(self) -> None:
+    def test_a_failed_own_is_not_retried_until_the_interval_passes(self) -> None:
         clock = _Clock()
         fake = _FakeCamera(Path("/dev/video0"))
         fake.open_error = V4l2Error("/dev/video0: device has gone")
@@ -231,15 +246,15 @@ class TestUvcCamera:
             return fake
 
         camera = UvcCamera(clock=clock, device="/dev/video0", open_camera=build, probe_interval_s=3.0)
-        assert camera.available() is False
-        assert camera.available() is False
+        assert camera.own() is False
+        assert camera.own() is False
         assert len(opened) == 1
 
         clock.advance(3.0)
-        assert camera.available() is False
+        assert camera.own() is False
         assert len(opened) == 2
 
-    def test_an_open_device_is_not_reprobed(self) -> None:
+    def test_an_owned_device_is_not_reopened(self) -> None:
         fake = _FakeCamera(Path("/dev/video0"))
         opened: list[int] = []
 
@@ -248,12 +263,18 @@ class TestUvcCamera:
             return fake
 
         camera = UvcCamera(device="/dev/video0", open_camera=build)
-        assert camera.available() is True
-        assert camera.available() is True
+        assert camera.own() is True
+        assert camera.own() is True
         assert len(opened) == 1
+
+    def test_snapshot_requires_ownership(self) -> None:
+        camera = camera_with(_FakeCamera(Path("/dev/video0")))
+        with pytest.raises(CommandRejected, match="not owned"):
+            camera.command("snapshot", {})
 
     def test_snapshot_returns_an_encoded_image(self) -> None:
         camera = camera_with(_FakeCamera(Path("/dev/video0")), warmup_frames=0)
+        camera.own()
         result = camera.command("snapshot", {})
         assert base64.b64decode(result["image_base64"]).startswith(_PNG_SIGNATURE)
         assert result["suffix"] == ".png"
@@ -262,6 +283,7 @@ class TestUvcCamera:
     def test_snapshot_discards_the_frames_already_queued(self) -> None:
         fake = _FakeCamera(Path("/dev/video0"))
         camera = camera_with(fake, warmup_frames=2)
+        camera.own()
         result = camera.command("snapshot", {})
         # Three grabbed, and the last is the one reported.
         assert fake.frames_grabbed == 3
@@ -270,6 +292,7 @@ class TestUvcCamera:
     def test_state_counts_snapshots_without_taking_one(self) -> None:
         fake = _FakeCamera(Path("/dev/video0"))
         camera = camera_with(fake, warmup_frames=0)
+        camera.own()
         camera.command("snapshot", {})
         grabbed = fake.frames_grabbed
         state = camera.state()
@@ -280,42 +303,73 @@ class TestUvcCamera:
     def test_a_camera_that_stops_answering_is_dropped(self) -> None:
         fake = _FakeCamera(Path("/dev/video0"))
         camera = camera_with(fake, warmup_frames=0)
-        camera.available()
+        camera.own()
         fake.grab_error = V4l2Error("/dev/video0: device has gone")
         with pytest.raises(CommandRejected, match="device has gone"):
             camera.command("snapshot", {})
         assert fake.closed is True
+        assert camera.owned() is False
 
     def test_an_unknown_command_is_rejected(self) -> None:
         camera = camera_with(_FakeCamera(Path("/dev/video0")))
+        camera.own()
         with pytest.raises(CommandRejected, match="no command"):
             camera.command("record", {})
 
     def test_a_width_out_of_range_is_rejected(self) -> None:
         camera = camera_with(_FakeCamera(Path("/dev/video0")))
+        camera.own()
         with pytest.raises(CommandRejected, match="between"):
             camera.command("snapshot", {"max_width": 4})
 
     def test_a_width_that_is_not_a_number_is_rejected(self) -> None:
         camera = camera_with(_FakeCamera(Path("/dev/video0")))
+        camera.own()
         with pytest.raises(CommandRejected, match="must be a number"):
             camera.command("snapshot", {"max_width": "wide"})
 
     def test_a_missing_width_takes_the_default(self) -> None:
         camera = camera_with(_FakeCamera(Path("/dev/video0")), warmup_frames=0)
+        camera.own()
         assert camera.command("snapshot", {})["width"] == 8
 
     def test_write_runs_a_command_and_returns_the_image(self) -> None:
         camera = camera_with(_FakeCamera(Path("/dev/video0")), warmup_frames=0)
+        camera.own()
         result = camera.write({"command": "snapshot", "args": {}})
         assert "image_base64" in result
 
     def test_close_releases_the_device(self) -> None:
         fake = _FakeCamera(Path("/dev/video0"))
         camera = camera_with(fake)
-        camera.available()
+        camera.own()
         camera.close()
         assert fake.closed is True
+        assert camera.owned() is False
+
+    def test_set_owned_command_toggles_ownership(self) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera = camera_with(fake)
+        assert camera.command("set_owned", {"owned": True}) == {"owned": True}
+        assert camera.owned() is True
+        assert camera.command("set_owned", {"owned": False}) == {"owned": False}
+        assert camera.owned() is False
+        assert fake.closed is True
+
+    def test_set_owned_requires_a_boolean(self) -> None:
+        camera = camera_with(_FakeCamera(Path("/dev/video0")))
+        with pytest.raises(CommandRejected, match="must be true or false"):
+            camera.command("set_owned", {"owned": "yes"})
+
+    def test_primary_command_is_set_owned(self) -> None:
+        camera = camera_with(_FakeCamera(Path("/dev/video0")))
+        assert camera.primary_command() == "set_owned"
+
+    def test_commands_only_offer_snapshot_once_owned(self) -> None:
+        camera = camera_with(_FakeCamera(Path("/dev/video0")))
+        assert [c["name"] for c in camera.commands()] == ["set_owned"]
+        camera.own()
+        assert "snapshot" in [c["name"] for c in camera.commands()]
 
 
 class TestMockCamera:

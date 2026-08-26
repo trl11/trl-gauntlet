@@ -7,6 +7,7 @@ HTTP endpoint the suite drives in place of the device.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
@@ -128,6 +129,27 @@ class PresentableCapability(Protocol):
         """
 
 
+@runtime_checkable
+class OwnableCapability(Protocol):
+    """A provider whose device is claimed only while something owns it.
+
+    A camera answering ``available()`` does not mean its capture node is
+    open: neither an operator's panel poll nor a suite reading what it was
+    granted touches hardware on its own. Something has to own it first — the
+    panel's latching key, or, for exactly the run's duration,
+    :meth:`CapabilityRegistry.claim_for_run`.
+    """
+
+    def owned(self) -> bool:
+        """Is the device open right now."""
+
+    def own(self) -> bool:
+        """Open the device unless it already is, and report whether it now is."""
+
+    def disown(self) -> None:
+        """Close the device."""
+
+
 class CapabilityRegistry:
     """Tracks providers and issues grants for a run."""
 
@@ -181,6 +203,31 @@ class CapabilityRegistry:
             )
             for name in required
         ]
+
+    def claim_for_run(self, required: list[str]) -> Callable[[], None]:
+        """Own every ownable requirement not already owned, for the run's duration.
+
+        A capability an operator already has open by hand is left exactly as
+        found — a run never disowns what it did not own itself — so the
+        release this returns closes only what it opened, and calling it
+        leaves the bench exactly as it was before the run started.
+        """
+        claimed: list[OwnableCapability] = []
+        for name in required:
+            provider = self._providers.get(name)
+            if not isinstance(provider, OwnableCapability) or provider.owned():
+                continue
+            if not provider.own():
+                for owned in reversed(claimed):
+                    owned.disown()
+                raise CapabilityError(f"cannot start: {name} could not be opened")
+            claimed.append(provider)
+
+        def _release() -> None:
+            while claimed:
+                claimed.pop().disown()
+
+        return _release
 
     def environment(self, required: list[str]) -> dict[str, str]:
         """Grant every requirement and flatten the result into environment variables."""

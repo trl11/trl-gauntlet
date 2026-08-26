@@ -3,7 +3,8 @@
 One run at a time. The lifecycle is:
 
 1. :meth:`RunSupervisor.start` resolves the suite and profile, checks required
-   capabilities, creates the run directory, and spawns the process.
+   capabilities, claims ownership of whichever of them are not already owned,
+   creates the run directory, and spawns the process.
 2. Two reader threads publish stdout and ``metrics.jsonl`` to the run's bus.
 3. :meth:`stop` requests a graceful stop; :meth:`abort` terminates.
 4. On exit, ``verdict.json`` determines the outcome and the run moves to
@@ -67,6 +68,10 @@ class RunHandle:
     argv: list[str] = field(default_factory=list)
     bus: EventBus | None = None
     process: subprocess.Popen[str] | None = None
+    # Closes whatever capability this run itself claimed ownership of — a
+    # camera the operator already had open is left as it was found. Not
+    # serialized: it is machinery, not something a caller reads.
+    release_capabilities: Callable[[], None] | None = field(default=None, repr=False)
 
     @property
     def finished(self) -> bool:
@@ -149,6 +154,7 @@ class RunSupervisor:
             profile_path = self._resolve_profile(suite, request)
             try:
                 capability_env = self._capabilities.environment(suite.manifest.requires)
+                release_capabilities = self._capabilities.claim_for_run(suite.manifest.requires)
             except CapabilityError as exc:
                 raise RunRejected(str(exc)) from exc
 
@@ -166,6 +172,7 @@ class RunSupervisor:
                     capability_env=capability_env,
                 )
             except LaunchError as exc:
+                release_capabilities()
                 raise RunRejected(str(exc)) from exc
 
             if profile_path is not None:
@@ -182,6 +189,7 @@ class RunSupervisor:
                 unit_serial=request.unit_serial,
                 argv=list(launch.argv),
                 bus=EventBus(),
+                release_capabilities=release_capabilities,
             )
             self._runs[run_id] = handle
             self._evict_old()
@@ -350,6 +358,8 @@ class RunSupervisor:
         _schedule(loop, self._close_and_notify(handle))
 
     async def _close_and_notify(self, handle: RunHandle) -> None:
+        if handle.release_capabilities is not None:
+            handle.release_capabilities()
         if handle.bus is not None:
             await handle.bus.close()
         if self._on_completed is not None:
@@ -357,6 +367,8 @@ class RunSupervisor:
                 await self._on_completed(handle)
 
     async def _fail_to_start(self, handle: RunHandle, reason: str) -> None:
+        if handle.release_capabilities is not None:
+            handle.release_capabilities()
         handle.status = "error"
         handle.ended_at = _utc_iso()
         handle.verdict = "ERROR"

@@ -17,11 +17,12 @@ declares about itself; naming an instrument anywhere else is a defect.
 | `psu` | Hanmatek HM310T, `instruments/hm310t_psu.py` | Modbus RTU on a USB serial port, 9600 8N1, slave 1 |
 | `daq` | DATAQ DI-2008, `instruments/di2008_daq.py` | vendor bulk-USB protocol, claimed through usbfs |
 | `camera` | any UVC camera, `instruments/uvc_camera.py` | V4L2 ioctls on a `/dev/video*` node, memory-mapped capture |
+| `i2c` | Silicon Labs CP2112, `instruments/cp2112_i2c.py` | `I2C_RDWR` on the `i2c-dev` node the kernel's own `hid-cp2112` driver adapts it to |
 | `chamber` | nothing | simulation only |
 
 Beside each is a simulation — `mock_psu.py`, `mock_daq.py`, `mock_camera.py`,
-`mock_chamber.py` — which exists for development and for tests, and which
-reaches an operator only when they ask for it.
+`mock_i2c.py`, `mock_chamber.py` — which exists for development and for
+tests, and which reaches an operator only when they ask for it.
 
 Its eight channels are settled by one `configure` command carrying a row each,
 rather than a control that picks a channel and a control that sets it. A row
@@ -50,13 +51,14 @@ imaging.py`, so nothing is installed to read a camera. A GMSL sensor behind a
 GMSL-to-USB adapter arrives as an ordinary capture device, and the driver never
 learns it was anything else.
 
-Its node is held open and left streaming for as long as the instrument is
-registered. A capture device is exclusive, so holding it is what stops another
-process taking the camera part-way through a run, and starting a 4K stream
-costs far more than keeping one running between snapshots. A `snapshot`
-discards whatever the driver had already queued and reports the frame after it,
-because a queue that has been sitting still holds the picture from whenever it
-was last looked at.
+Its node is held open and left streaming for as long as something *owns* it,
+not merely for as long as the instrument is registered — see
+[Owning a device](#owning-a-device) below. A capture device is exclusive, so
+holding it is what stops another process taking the camera part-way through a
+run, and starting a 4K stream costs far more than keeping one running between
+snapshots. A `snapshot` discards whatever the driver had already queued and
+reports the frame after it, because a queue that has been sitting still holds
+the picture from whenever it was last looked at.
 
 YUYV is converted and scaled in one pass and written as a PNG; MJPEG is already
 a JPEG and is written out byte for byte. Every snapshot is measured for mean
@@ -99,6 +101,17 @@ counted. The burst drains that backlog before it starts timing, or the
 sequence gap left by the caller's own pause would be reported as dropped
 frames.
 
+The CP2112 is a HID device, but the kernel's `hid-cp2112` driver already
+speaks its report protocol and adapts it to an ordinary `i2c-dev` node — one
+named `"CP2112 SMBus Bridge on hidrawN"`, which is how `candidate_adapters()`
+tells it apart from whatever other I2C adapters the host exposes. The driver
+never touches a HID report itself; it opens that node and issues `I2C_RDWR`,
+which is also what lets `write_read` hold the bus for a register's address
+and its reply with no stop between them, the way a device that needs a
+repeated start requires. There is no fixed device on the other end of the
+bus: a suite names the address and the bytes itself, through `write`, `read`
+and `write_read`, the way it would with any I2C bridge.
+
 ## What is registered
 
 `instruments/detect.py` decides, at startup and again on every operator scan.
@@ -108,8 +121,8 @@ it.
 
 | Setting | Meaning |
 |---|---|
-| `psu_port`, `daq_serial` | `"auto"` probes, `""` does not look at all, anything else is the serial port or USB serial number to use |
-| `camera_device` | `"auto"` tries each `/dev/video*` in turn and takes the first that streams a format the encoder can write, `""` does not look at all, anything else is the node to open |
+| `psu_port`, `daq_serial`, `i2c_serial` | `"auto"` probes, `""` does not look at all, anything else is the serial port or USB serial number to use |
+| `camera_device` | `"auto"` registers so long as any `/dev/video*` node exists, `""` does not look at all, anything else is the node to register. Which node actually streams, and whether it carries a format the encoder can write, is not settled until something owns it — see [Owning a device](#owning-a-device) |
 | `camera_format` | `"auto"` reads a frame to decide what it really carries, or name `yuyv` or `raw10_rggb` to state it. A GMSL adapter reports YUYV over UVC while sending raw sensor data, and the UVC format code cannot tell them apart |
 | `simulated_instruments` | Names the instruments to simulate instead of probing for. Empty by default |
 
@@ -128,6 +141,35 @@ state rather than touching the device, and re-probes at most every few seconds.
 A failed register read leaves that one value `None` rather than raising, so one
 flaky exchange cannot abort a long run.
 
+## Owning a device
+
+Some devices are exclusive to open at all, not just to drive: a UVC node
+admits one owner, and opening it is enough to matter even before anything is
+captured. For those, `available()` and detection answer from presence alone —
+whether a node exists — never by opening it, so a scan and a panel poll do not
+themselves claim the camera the way they always claimed the PSU's port. The
+camera is the only instrument like this today; `instruments/uvc_camera.py`
+implements `OwnableCapability` (`owned()`, `own()`, `disown()`) from
+`capabilities/registry.py`, and a provider that does not need this stays a
+plain `CapabilityProvider`.
+
+Something has to own it before it opens:
+
+- **The operator**, through the panel's `set_owned` latching key — the same
+  mechanism as a PSU's output, just settling "is the device open" instead of
+  "is the rail live".
+- **A run**, for exactly its duration. `CapabilityRegistry.claim_for_run` is
+  called before a suite is spawned: it owns whichever of the suite's
+  `requires:` are `OwnableCapability` and not already owned, and hands back a
+  release the supervisor calls once the run ends, however it ends. A
+  capability the operator already had open is left exactly as found — a run
+  never disowns what it did not own — so the bench reads the same after the
+  run as it did before it, whether that was closed or open.
+
+A suite itself never calls `own()`: it is granted the capability the same way
+as any other and drives it through `POST /api/capabilities/camera`, unaware
+that the device only opened because the run claimed it.
+
 ## What a provider declares
 
 Four members are the whole obligation: `name`, `available()`, `describe()` and
@@ -142,6 +184,7 @@ empty state, no commands, or a 405 — it never fails.
 | `StatefulCapability` | `state()` | The values the panel draws |
 | `CommandableCapability` | `command(name, args)`, `commands()` | One control per declared command |
 | `PresentableCapability` | `connection()`, `primary_command()`, `readouts()` | Says how the panel lays its state out |
+| `OwnableCapability` | `owned()`, `own()`, `disown()` | Opening the device is deferred to an explicit claim — see [Owning a device](#owning-a-device) |
 
 `capabilities/declare.py` builds the dictionaries the last two return, so every
 provider describes itself in the same shape:

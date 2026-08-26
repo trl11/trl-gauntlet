@@ -4,10 +4,16 @@ Any UVC camera answers this driver, including a GMSL sensor reached through a
 GMSL-to-USB adapter: the adapter presents the sensor as an ordinary capture
 device, so nothing here knows a GMSL link from a webcam.
 
-The node is held open and left streaming once a snapshot has been taken.
-A capture device is exclusive, so holding it is what stops another process
-taking the camera part-way through a run, and starting a 4K stream costs far
-more than keeping one running between iterations.
+A capture device is exclusive, so nothing here opens one on its own. Detecting
+a camera and polling its `available()` never touch the node — they answer
+from whether a candidate is present, the way ``candidate_ports()`` does for
+the PSU. The node opens only once something *owns* it: the operator's
+latching key on the panel, or, for exactly a run's duration,
+``CapabilityRegistry.claim_for_run``, which owns it only if nothing already
+did and disowns it again when the run ends, leaving the bench exactly as it
+found it. ``own()``/``disown()``/``owned()`` are what :class:`OwnableCapability`
+requires; everything that used to happen implicitly on first use now happens
+only there.
 
 Frames are dropped on the way out of the driver's queue until the newest one
 is reached, because a queue that has been sitting still holds whatever the
@@ -46,6 +52,21 @@ _WARMUP_LIMIT = 8
 _DEFAULT_BURST_FRAMES = 8
 _MAX_BURST_FRAMES = 120
 
+_NOT_OWNED = "not owned"
+_NO_CANDIDATE = "no /dev/video* node is present"
+
+
+def _device_present(device: str) -> bool:
+    """Is there a node to own, without opening it.
+
+    An explicit device is checked by name; ``"auto"`` (an empty ``device``)
+    is present so long as any capture node exists, the same candidates
+    ``own()`` would search.
+    """
+    if device:
+        return Path(device).exists()
+    return bool(capture_devices())
+
 
 class UvcCamera:
     """One video capture device, offered as the ``camera`` capability."""
@@ -61,6 +82,7 @@ class UvcCamera:
         instance: str = "camera0",
         open_camera: Callable[[Path], V4l2Camera] = V4l2Camera,
         link_interval_s: float = 2.0,
+        presence: Callable[[str], bool] = _device_present,
         probe_interval_s: float = 3.0,
         warmup_frames: int = 2,
     ) -> None:
@@ -71,15 +93,17 @@ class UvcCamera:
         self._instance = instance
         self._lock = threading.RLock()
         self._open_camera = open_camera
+        self._presence = presence
         self._probe_interval_s = probe_interval_s
         self._warmup_frames = warmup_frames
-        # Far enough in the past that the first probe happens immediately.
+        # Far enough in the past that the first attempt to own it happens
+        # immediately.
         self._last_probe = clock() - probe_interval_s
         self._identity: dict[str, str] = {}
         self._format: dict[str, Any] = {}
         self._last_frame: dict[str, Any] = {}
         self._snapshots = 0
-        self._unavailable_reason = "not yet probed"
+        self._unavailable_reason = _NOT_OWNED
         self._link: GmslLink | None = None
         self._link_addresses: list[int] = []
         self._link_interval_s = link_interval_s
@@ -88,25 +112,53 @@ class UvcCamera:
         self._link_totals: dict[str, dict[str, int]] = {}
 
     def available(self) -> bool:
-        """Is a camera answering right now.
+        """Is a candidate node present, without opening it.
 
-        Polled by the UI on every refresh, so this reports the connection
-        already held and re-probes for an absent camera at most once per
-        ``probe_interval_s`` rather than opening the device each time.
+        Polled by the UI on every refresh and checked before a run claims the
+        capability, so this only ever looks at the filesystem: an owned
+        camera answers ``True`` without looking again, and an unowned one is
+        a cheap presence check rather than an attempt to open it.
         """
         with self._lock:
-            return self._connect()
+            if self._camera is not None:
+                return True
+            present = self._presence(self._device)
+            if not present:
+                self._unavailable_reason = f"{self._device}: not present" if self._device else _NO_CANDIDATE
+            return present
 
     def close(self) -> None:
         """Stop streaming and release the device."""
         with self._lock:
             self._disconnect()
 
+    def owned(self) -> bool:
+        """Is the device open right now."""
+        with self._lock:
+            return self._camera is not None
+
+    def own(self) -> bool:
+        """Open the device and start streaming, unless it already is.
+
+        Throttled at most once per ``probe_interval_s``, so a suite or an
+        operator retrying against a camera that just failed does not hammer
+        the node.
+        """
+        with self._lock:
+            return self._connect()
+
+    def disown(self) -> None:
+        """Stop streaming and release the device, if this owns it."""
+        with self._lock:
+            self._disconnect()
+
     def command(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         """Carry out one command and return what it produced."""
         with self._lock:
-            if not self._connect():
-                raise CommandRejected(f"camera is unavailable: {self._unavailable_reason}")
+            if name == "set_owned":
+                return self._set_owned(args)
+            if self._camera is None:
+                raise CommandRejected("camera is not owned: own it before driving it")
             if name == "link_status":
                 return self._read_link(force=True)
             if name == "stream_stats":
@@ -118,14 +170,25 @@ class UvcCamera:
     def commands(self) -> list[dict[str, Any]]:
         """The commands this instrument offers.
 
-        `link_status` appears only behind a GMSL adapter, because a webcam has
-        no link to report on and an empty panel control is worse than none.
+        `set_owned` is the latching key: pressing it opens or releases the
+        device, the way `set_output` does for the PSU's rail. The rest only
+        appear once the camera is owned, `link_status` only behind a GMSL
+        adapter, because a webcam has no link to report on and an empty panel
+        control is worse than none.
 
         `stream_stats` is not among them. A suite measures the link with it,
         but a burst of frames answers with numbers an operator cannot act on,
         and taking one costs the panel a second of capture.
         """
-        rows: list[dict[str, Any]] = []
+        rows: list[dict[str, Any]] = [
+            {
+                "name": "set_owned",
+                "label": "Own Camera",
+                "fields": [command_field("owned", "Owned", "boolean")],
+            },
+        ]
+        if self._camera is None:
+            return rows
         if self._link is not None:
             rows.append(
                 {
@@ -137,8 +200,7 @@ class UvcCamera:
                     "refreshes": "GMSL link",
                 }
             )
-        return [
-            *rows,
+        rows.append(
             {
                 "name": "snapshot",
                 "label": "Take Snapshot",
@@ -148,8 +210,9 @@ class UvcCamera:
                 # The result is a picture, so the panel draws it rather than
                 # listing what came back.
                 "returns": "image",
-            },
-        ]
+            }
+        )
+        return rows
 
     def connection(self) -> str:
         """How the instrument is attached, for the panel subtitle."""
@@ -174,8 +237,8 @@ class UvcCamera:
         return self._instance
 
     def primary_command(self) -> str:
-        """Taking a picture is what an operator comes to this panel for."""
-        return "snapshot"
+        """Owning the camera is what opens it, so it gets the full width."""
+        return "set_owned"
 
     def read(self) -> dict[str, Any]:
         """Current state, for suites driving the capability API."""
@@ -189,6 +252,7 @@ class UvcCamera:
         it climbs and never falls, so on a panel it is the smaller figure.
         """
         return [
+            readout("streaming", "Owned", role="summary"),
             readout("format.width", "Width", group="Format", role="summary", unit="px"),
             readout("format.height", "Height", group="Format", role="summary", unit="px"),
             readout("format.fourcc", "Pixel format", group="Format", role="summary"),
@@ -241,6 +305,18 @@ class UvcCamera:
         if name in ("link_status", "snapshot", "stream_stats"):
             return result
         return self.state()
+
+    def _set_owned(self, args: dict[str, Any]) -> dict[str, Any]:
+        """``set_owned``: the latching key that opens or releases the device."""
+        enabled = args.get("owned")
+        if not isinstance(enabled, bool):
+            raise CommandRejected("camera: 'owned' must be true or false")
+        if enabled:
+            if not self._connect():
+                raise CommandRejected(f"camera is unavailable: {self._unavailable_reason}")
+        else:
+            self._disconnect()
+        return {"owned": enabled}
 
     def _connect(self) -> bool:
         """Open a camera if one is not open already, at most once per interval."""

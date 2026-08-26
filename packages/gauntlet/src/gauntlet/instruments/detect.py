@@ -21,11 +21,13 @@ from collections.abc import Callable
 
 from gauntlet.capabilities.registry import CapabilityProvider, CapabilityRegistry
 from gauntlet.config import Settings
+from gauntlet.instruments.cp2112_i2c import Cp2112I2c, candidate_adapters
 from gauntlet.instruments.di2008_daq import Di2008Daq
 from gauntlet.instruments.hm310t_psu import Hm310tPsu, candidate_ports
 from gauntlet.instruments.mock_camera import MockCamera
 from gauntlet.instruments.mock_chamber import MockChamber
 from gauntlet.instruments.mock_daq import MockDaq
+from gauntlet.instruments.mock_i2c import MockI2c
 from gauntlet.instruments.mock_psu import MockPsu
 from gauntlet.instruments.uvc_camera import UvcCamera
 
@@ -44,6 +46,7 @@ def detect_instruments(registry: CapabilityRegistry, settings: Settings) -> None
     # is being simulated.
     _settle(registry, "chamber", MockChamber if "chamber" in simulated else _absent)
     _settle(registry, "daq", MockDaq if "daq" in simulated else lambda: _daq(settings.daq_serial))
+    _settle(registry, "i2c", MockI2c if "i2c" in simulated else lambda: _i2c(settings.i2c_serial))
     _settle(registry, "psu", MockPsu if "psu" in simulated else lambda: _psu(settings.psu_port))
 
 
@@ -69,18 +72,17 @@ def _close(provider: CapabilityProvider) -> None:
 
 
 def _camera(device: str, frame_format: str = "auto") -> CapabilityProvider | None:
-    """The camera, if one is asked for and one answers.
+    """The camera, if one is asked for and a candidate node is present.
 
-    Unlike a serial instrument there is nothing to enumerate before opening:
-    the driver walks the capture nodes itself, so "auto" is passed through as
-    an empty device rather than probed for here.
+    Registering it never opens it: `available()` only checks the filesystem,
+    so "auto" is passed through as an empty device rather than probed for
+    here, and nothing owns the node until an operator or a run does.
     """
     if not device:
         return None
     camera = UvcCamera(device="" if device == "auto" else device, frame_format=frame_format)
     if camera.available():
         return camera
-    _close(camera)
     return None
 
 
@@ -93,6 +95,25 @@ def _daq(serial: str) -> CapabilityProvider | None:
     if daq.available():
         return daq
     _close(daq)
+    return None
+
+
+def _i2c(serial: str) -> CapabilityProvider | None:
+    """The CP2112 bridge, if one is asked for and one answers.
+
+    The kernel adapts it to an ordinary ``i2c-dev`` node itself, so there is
+    nothing to open speculatively: a candidate that is not there does not
+    appear in ``candidate_adapters()`` at all.
+    """
+    if not serial:
+        return None
+    for node, adapter_serial in candidate_adapters():
+        if serial != "auto" and serial != adapter_serial:
+            continue
+        bridge = Cp2112I2c(node, instance=f"i2c-{adapter_serial or node.rsplit('-', 1)[-1]}")
+        if bridge.available():
+            return bridge
+        _close(bridge)
     return None
 
 

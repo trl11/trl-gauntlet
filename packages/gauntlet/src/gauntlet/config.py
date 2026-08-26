@@ -70,6 +70,10 @@ class Settings:
     # simulated reaches the operator unless it is named below.
     psu_port: str = "auto"
     daq_serial: str = "auto"
+    # The bridge is a CP2112, told apart from another by its USB serial number
+    # rather than a port: the kernel adapts it to an i2c-dev node itself, so
+    # "auto" takes the first one the kernel has adapted.
+    i2c_serial: str = "auto"
     # The camera is a /dev/video* node rather than a serial port, so "auto"
     # tries each capture node in turn and takes the first that streams a
     # format the encoder can write.
