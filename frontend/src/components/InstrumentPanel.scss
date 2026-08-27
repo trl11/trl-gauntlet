@@ -57,6 +57,27 @@
     background-color: currentcolor;
   }
 
+  &__status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+  }
+
+  &__collapse {
+    color: $trl-gray;
+
+    &:hover {
+      color: $trl-light-gray;
+    }
+  }
+
+  &__collapsed-hint {
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+  }
+
   &__description {
     font-size: 13px;
     color: $trl-gray;
@@ -290,7 +311,19 @@
   &__modules {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    // A card sized to its own controls, not stretched to match its tallest
+    // neighbour — a fieldless command such as a scan sits in a card its own
+    // height, rather than a box mostly empty beneath its one button.
+    align-items: start;
     gap: 12px;
+
+    // A card with several keys of its own, or the panel's main action,
+    // reads as the row's centre of gravity, so it takes the full row rather
+    // than being squeezed into one column among smaller cards.
+    .instrument-panel__command--group,
+    .instrument-panel__command--primary {
+      grid-column: 1 / -1;
+    }
   }
 
   &__command {
@@ -303,16 +336,58 @@
     background-color: rgba($trl-dark, 0.6);
   }
 
+  &__group-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  // What a detect among the group's keys found, beneath the toolbar rather
+  // than under the field it fills in — the output of pressing one of those
+  // keys, not another control beside them.
+  &__group-found {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 10px;
+    border-top: 1px solid $trl-dark-gray;
+  }
+
+  &__picks-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__picks-label {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: $trl-gray;
+  }
+
   &__controls {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-end;
+    // Top-aligned rather than bottom-aligned: a field whose entry carries a
+    // hint or a row of picks beneath it is taller than its neighbours, and
+    // bottom-alignment would pull its input out of line with theirs to
+    // square up the bottoms instead. Every label sits the same height, so
+    // aligning to the top keeps every entry level regardless of what
+    // trails beneath it.
+    align-items: flex-start;
     gap: 16px;
   }
 
   &__control {
     display: flex;
     flex-direction: column;
+    // Fields sit in a row and share the width the card has to give, so an
+    // address beside a data field reads across rather than stacking down —
+    // and only wrap onto their own line once the card is genuinely too
+    // narrow for both.
+    flex: 1 1 160px;
     gap: 8px;
     min-width: 0;
   }
@@ -392,9 +467,42 @@
     gap: 12px;
   }
 
+  &__field-stack {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 6px;
+  }
+
+  &__picks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  &__picks-empty {
+    font-size: 11px;
+    font-style: italic;
+    color: $trl-gray;
+  }
+
+  &__pick {
+    padding: 2px 8px;
+    border: 1px solid $trl-dark-gray;
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+
+    &--selected {
+      border-color: rgba($indicator-green, 0.5);
+      color: $indicator-green;
+    }
+  }
+
   &__entry {
     display: flex;
     align-items: stretch;
+    width: 100%;
     min-width: 96px;
 
     input {
@@ -541,18 +649,11 @@
     box-shadow: 0 0 8px currentcolor;
   }
 
-  &__keypad {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-
-    .instrument-panel__command {
-      padding: 0;
-      border: none;
-      background: none;
-    }
-  }
-
+  // Only a latching command gets the bare, borderless "power key" look — it
+  // is one control, not a group, and the lock and lamp around it already
+  // carry the weight a border would. Every other command, primary or not,
+  // keeps the same bordered card as its neighbours so a full deck reads as
+  // one set of equally-weighted controls.
   &__command--primary {
     padding: 0;
     border: none;

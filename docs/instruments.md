@@ -219,7 +219,23 @@ reading the display burns large or `"summary"` for the row beneath, and `group`
 splits a multi-channel instrument into sections. `command_field` describes one
 argument: its type, unit, choices, and its minimum and maximum. `number_arg`
 reads that argument back and rejects what the field ruled out, so the bounds
-are stated once.
+are stated once. A ranged field gets a dial by default; `dial=False` keeps it
+a plain entry, for a value an operator types exactly rather than sweeps — an
+address, a count. `choices_from` names a `state()` key holding values found at
+runtime — what a "detect" command discovered — offered beside the entry as
+quick picks; typing one by hand still works. `format="hex"` draws those picks
+(and nothing else — an operator still types decimal unless the field's own
+entry is hex too) as bare hex with no `0x`, for a value read the way it is
+written on a datasheet — an I2C address, say.
+
+Commands that never run at once and always act on the same thing — a write
+and a read of the same address — share a `group` key so the panel draws their
+fields once and a key per command beneath, rather than one bordered card per
+command each repeating the field the last one just took. A field two commands
+in the group both declare is drawn once; a field only one of them takes is
+still only sent by that one. Put the field a command needs first in its own
+`fields`, even one it shares, so the group's controls read in a sensible
+order regardless of which command happens to declare a shared field first.
 
 A command that settles the same fields for several things at once — the
 channels of an acquisition unit, the rails of a supply — adds `command_row` per
@@ -259,9 +275,17 @@ state value, as a flat table of dotted keys.
   whatever its position, the way an indicator lamp does, and a reading seven
   bars cannot spell falls back to plain text.
 - A field declaring both a minimum and a maximum gets a dial, turned by
-  dragging, by clicking a point on it, or by the arrow keys. Its numeric entry
-  stays beside it, since a dial cannot be typed into.
+  dragging, by clicking a point on it, or by the arrow keys, unless it
+  declares `dial=False`. Its numeric entry stays beside it, since a dial
+  cannot be typed into. A field declaring `choices_from` also gets a row of
+  quick-pick buttons beside its entry, drawn from whatever list that
+  `state()` key currently holds — below a group's shared toolbar rather than
+  under the entry itself, since it is what pressing one of those keys found,
+  not another control beside them.
 - Commands are keys. One with no fields is a plain key; `danger` tints it red.
+- The header carries a collapse toggle for every instrument, whatever it
+  declares; an operator not using one gets it out of the way, and the panel
+  remembers the choice per instrument across a reload.
 - The `primary_command` gets the panel's width. If it settles a single boolean,
   and otherwise only picks what to settle it for, it becomes a **latching key**:
   pressing it sends the opposite of what it last sent. A lock beside it has to

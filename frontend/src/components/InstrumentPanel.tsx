@@ -1,11 +1,12 @@
-import { faRotate, faXmark } from "@fortawesome/free-solid-svg-icons";
+import { faChevronDown, faChevronUp, faRotate, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Button, Select } from "@trl11/components/ui";
 import clsx from "clsx";
 import { useEffect, useId, useRef, useState } from "react";
 
-import type { Instrument, InstrumentReadout } from "@api/types";
+import type { Instrument, InstrumentCommand, InstrumentReadout } from "@api/types";
 import CommandForm from "@components/CommandForm";
+import CommandGroup from "@components/CommandGroup";
 import InstrumentState from "@components/InstrumentState";
 import SevenSegment from "@components/SevenSegment";
 import Sparkline from "@components/Sparkline";
@@ -22,6 +23,27 @@ import "./InstrumentPanel.scss";
 
 /** How many polls of history a reading's sparkline keeps. */
 const MAX_SAMPLES = 60;
+
+/** Where one instrument's collapsed state lives, so it survives a reload. */
+const collapseKey = (instanceId: string) => `instrument-panel:collapsed:${instanceId}`;
+
+/** Whether an operator last left this instrument's panel collapsed. */
+function wasCollapsed(instanceId: string): boolean {
+  try {
+    return localStorage.getItem(collapseKey(instanceId)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function rememberCollapsed(instanceId: string, collapsed: boolean): void {
+  try {
+    if (collapsed) localStorage.setItem(collapseKey(instanceId), "1");
+    else localStorage.removeItem(collapseKey(instanceId));
+  } catch {
+    // A viewer with storage blocked just loses the memory of it, not the toggle.
+  }
+}
 
 /**
  * The image a command answered with, and what to send for another like it.
@@ -137,6 +159,44 @@ const ReadoutGroupView: React.FC<{
   </section>
 );
 
+/** One card of the deck: a single command, or several sharing a `group`. */
+type DeckItem = { command: InstrumentCommand } | { group: InstrumentCommand[] };
+
+/**
+ * Commands sharing a `group` collapse into one card, in the order they were
+ * first declared; everything else keeps its own. A "group" of one is drawn
+ * as a single command — grouping only pays for itself once there is more
+ * than one key to press over the same controls.
+ *
+ * `slots` decides where each card sits in the deck — a card with no fields
+ * to gather first sorts ahead of the ones that use what it finds — but a
+ * group's own members always come out in `declared` order, the provider's
+ * own, so reordering the deck around a fieldless command such as a detect
+ * never reorders that detect past the transactions inside its own card.
+ */
+function deckItems(slots: InstrumentCommand[], declared: InstrumentCommand[]): DeckItem[] {
+  const byGroup = new Map<string, InstrumentCommand[]>();
+  for (const command of declared) {
+    if (!command.group) continue;
+    const members = byGroup.get(command.group) ?? [];
+    members.push(command);
+    byGroup.set(command.group, members);
+  }
+  const seen = new Set<string>();
+  const items: DeckItem[] = [];
+  for (const command of slots) {
+    if (!command.group) {
+      items.push({ command });
+      continue;
+    }
+    if (seen.has(command.group)) continue;
+    seen.add(command.group);
+    const members = byGroup.get(command.group) ?? [command];
+    items.push(members.length > 1 ? { group: members } : { command: members[0] });
+  }
+  return items;
+}
+
 /**
  * Draws any instrument from its reported state and its declared commands.
  *
@@ -159,6 +219,14 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
   const [history, setHistory] = useState<Array<Record<string, number>>>([]);
   const [continuous, setContinuous] = useState(false);
   const [live, setLive] = useState(false);
+  // Collapsed by the operator to get an instrument they are not using out of
+  // the way; remembered per instrument, so the bench stays tidy across a
+  // reload rather than reopening everything.
+  const [collapsed, setCollapsed] = useState(() => wasCollapsed(instrument.instance_id));
+
+  useEffect(() => {
+    rememberCollapsed(instrument.instance_id, collapsed);
+  }, [collapsed, instrument.instance_id]);
   // What the viewer's own controls are set to. A field the provider declared
   // with choices is a preset, and starts on the first of them.
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -229,6 +297,7 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
   const primary = others.find((command) => command.name === instrument.primary_command);
   const footer = rest.filter((command) => command.fields.length === 0);
   const rows = rest.filter((command) => command.fields.length > 0);
+  const deck = deckItems([...footer, ...rows, ...(primary ? [primary] : [])], others);
   const subtitle = [instrument.instance_id, instrument.connection].filter(Boolean).join(" · ");
 
   return (
@@ -253,31 +322,60 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
             </dl>
           )}
         </div>
-        <span
-          aria-live="polite"
-          className={clsx(
-            "instrument-panel__chip",
-            !inUse && instrument.available && "instrument-panel__chip--on",
-            inUse && "instrument-panel__chip--busy"
-          )}
-          title={
-            inUse
-              ? `run ${instrument.in_use_by} is driving this instrument; its key stays locked until the run ends`
-              : undefined
-          }
-        >
-          <span className="instrument-panel__dot" aria-hidden="true" />
-          {!instrument.available ? "UNAVAILABLE" : inUse ? "IN USE" : "AVAILABLE"}
-        </span>
+        <div className="instrument-panel__status">
+          <span
+            aria-live="polite"
+            className={clsx(
+              "instrument-panel__chip",
+              !inUse && instrument.available && "instrument-panel__chip--on",
+              inUse && "instrument-panel__chip--busy"
+            )}
+            title={
+              inUse
+                ? `run ${instrument.in_use_by} is driving this instrument; its key stays locked until the run ends`
+                : undefined
+            }
+          >
+            <span className="instrument-panel__dot" aria-hidden="true" />
+            {!instrument.available ? "UNAVAILABLE" : inUse ? "IN USE" : "AVAILABLE"}
+          </span>
+          <Button
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? `Expand ${instrument.name}` : `Collapse ${instrument.name}`}
+            className="instrument-panel__collapse"
+            color="transparent"
+            onClick={() => setCollapsed((current) => !current)}
+            size="small"
+            type="button"
+          >
+            <FontAwesomeIcon icon={collapsed ? faChevronDown : faChevronUp} />
+          </Button>
+        </div>
       </header>
 
-      {instrument.description && (
+      {collapsed && (
+        <p className="instrument-panel__collapsed-hint">
+          Collapsed
+          {specs.length === 0
+            ? ""
+            : " · " +
+              specs
+                .flatMap((group) => group.summary)
+                .map(
+                  (entry) =>
+                    `${entry.label} ${readingText(valueAt(instrument.state, entry.key), entry.precision)}${entry.unit ? ` ${entry.unit}` : ""}`
+                )
+                .join(" · ")}
+        </p>
+      )}
+
+      {!collapsed && instrument.description && (
         <p className="instrument-panel__description">{instrument.description}</p>
       )}
 
-      {groups.length === 0 && <InstrumentState state={instrument.state} />}
+      {!collapsed && groups.length === 0 && <InstrumentState state={instrument.state} />}
 
-      {displays.length > 0 && (
+      {!collapsed && displays.length > 0 && (
         <div className="instrument-panel__groups">
           {displays.map((group) => {
             const refresher = refreshers.get(group.name);
@@ -295,151 +393,163 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
         </div>
       )}
 
-      {!instrument.available && (
+      {!collapsed && !instrument.available && (
         <p className="instrument-panel__unavailable">
           {instrument.unavailable_reason ||
             "the provider reports this instrument as unavailable; controls are read-only"}
         </p>
       )}
 
-      {instrument.commands.length === 0 && (
+      {!collapsed && instrument.commands.length === 0 && (
         <p className="instrument-panel__quiet">Takes no commands.</p>
       )}
 
-      <div className="instrument-panel__deck">
-        {rows.length > 0 && (
-          <div className="instrument-panel__modules">
-            {rows.map((command) => (
-              <CommandForm
-                key={command.name}
-                command={command}
-                disabled={disabled}
-                onSubmit={(args) => onCommand(command.name, args)}
-              />
-            ))}
-          </div>
-        )}
-
-        {footer.length > 0 && (
-          <div className="instrument-panel__keypad">
-            {footer.map((command) => (
-              <CommandForm
-                key={command.name}
-                command={command}
-                disabled={disabled}
-                onSubmit={(args) => onCommand(command.name, args)}
-              />
-            ))}
-          </div>
-        )}
-
-        {primary && (
-          <CommandForm
-            command={primary}
-            disabled={disabled}
-            held={Boolean(instrument.in_use_by)}
-            onSubmit={(args) => onCommand(primary.name, args)}
-            primary
-          />
-        )}
-      </div>
-
-      {viewer !== null && (
-        <section className="instrument-panel__view">
-          <div className="instrument-panel__modes">
-            <Button
-              aria-pressed={!continuous}
-              className={clsx(
-                "instrument-panel__mode",
-                !continuous && "instrument-panel__mode--on"
-              )}
-              color="transparent"
-              onClick={() => {
-                setContinuous(false);
-                setLive(false);
-              }}
-              size="small"
-              type="button"
-            >
-              Snapshot
-            </Button>
-            <Button
-              aria-pressed={continuous}
-              className={clsx("instrument-panel__mode", continuous && "instrument-panel__mode--on")}
-              color="transparent"
-              onClick={() => setContinuous(true)}
-              size="small"
-              type="button"
-            >
-              Continuous
-            </Button>
-            {presets.map((field) => (
-              <Select
-                aria-label={field.unit ? `${field.label} (${field.unit})` : field.label}
-                className="instrument-panel__preset"
-                id={`${fieldId}-${field.name}`}
-                key={field.name}
-                onChange={(event) =>
-                  setSettings((current) => ({ ...current, [field.name]: event.target.value }))
-                }
-                options={field.choices.map((choice) => ({ value: choice, label: choice }))}
-                value={settings[field.name] ?? field.choices[0]}
-              />
-            ))}
-            {pinned.map((entry) => (
-              <span className="instrument-panel__pinned" key={entry.key}>
-                <span className="instrument-panel__pinned-label">{entry.label}</span>
-                {readingText(valueAt(instrument.state, entry.key), entry.precision)}
-                {entry.unit && ` ${entry.unit}`}
-              </span>
-            ))}
+      {!collapsed && (
+        <>
+          <div className="instrument-panel__deck">
+            {/* Every non-latching command gets the same bordered card,
+                whether or not it takes fields, so a lone button such as a
+                scan reads as one command among the others rather than a
+                stray control. A command with no fields to gather first —
+                a scan, a detect — sorts ahead of the ones that use what it
+                finds, and the primary command sorts last, same as before
+                commands could share a card. Commands the provider marked
+                with the same `group` — a write and a read of the same
+                address — collapse into one card, so their shared fields are
+                entered once rather than once per command. */}
+            {deck.length > 0 && (
+              <div className="instrument-panel__modules">
+                {deck.map((item) => {
+                  if ("group" in item) {
+                    return (
+                      <CommandGroup
+                        commands={item.group}
+                        disabled={disabled}
+                        key={item.group.map((command) => command.name).join("+")}
+                        onSubmit={(command, args) => onCommand(command.name, args)}
+                        state={instrument.state}
+                      />
+                    );
+                  }
+                  const { command } = item;
+                  const isPrimary = command === primary;
+                  return (
+                    <CommandForm
+                      command={command}
+                      disabled={disabled}
+                      held={isPrimary ? Boolean(instrument.in_use_by) : undefined}
+                      key={command.name}
+                      onSubmit={(args) => onCommand(command.name, args)}
+                      primary={isPrimary || undefined}
+                      state={instrument.state}
+                    />
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          <Button
-            className={clsx("instrument-panel__go", live && "instrument-panel__go--on")}
-            color="transparent"
-            disabled={!instrument.available || (busy && !live)}
-            onClick={() => {
-              if (!continuous) void send.current(viewer.name, settings);
-              else setLive((running) => !running);
-            }}
-            size="small"
-            type="button"
-          >
-            {!continuous ? "Capture" : live ? "Stop" : "Start"}
-          </Button>
-
-          {preview !== null && (
-            <div className="instrument-panel__shot">
-              <img
-                alt={`the last image ${instrument.name} answered with`}
-                className="instrument-panel__frame"
-                src={preview.src}
-              />
-              {onDismiss !== undefined && (
+          {viewer !== null && (
+            <section className="instrument-panel__view">
+              <div className="instrument-panel__modes">
                 <Button
-                  aria-label="Hide"
-                  className="instrument-panel__close"
+                  aria-pressed={!continuous}
+                  className={clsx(
+                    "instrument-panel__mode",
+                    !continuous && "instrument-panel__mode--on"
+                  )}
                   color="transparent"
                   onClick={() => {
+                    setContinuous(false);
                     setLive(false);
-                    onDismiss();
                   }}
                   size="small"
                   type="button"
                 >
-                  <FontAwesomeIcon icon={faXmark} />
+                  Snapshot
                 </Button>
-              )}
-            </div>
-          )}
-        </section>
-      )}
+                <Button
+                  aria-pressed={continuous}
+                  className={clsx(
+                    "instrument-panel__mode",
+                    continuous && "instrument-panel__mode--on"
+                  )}
+                  color="transparent"
+                  onClick={() => setContinuous(true)}
+                  size="small"
+                  type="button"
+                >
+                  Continuous
+                </Button>
+                {presets.map((field) => (
+                  <Select
+                    aria-label={field.unit ? `${field.label} (${field.unit})` : field.label}
+                    className="instrument-panel__preset"
+                    id={`${fieldId}-${field.name}`}
+                    key={field.name}
+                    onChange={(event) =>
+                      setSettings((current) => ({ ...current, [field.name]: event.target.value }))
+                    }
+                    options={field.choices.map((choice) => ({ value: choice, label: choice }))}
+                    value={settings[field.name] ?? field.choices[0]}
+                  />
+                ))}
+                {pinned.map((entry) => (
+                  <span className="instrument-panel__pinned" key={entry.key}>
+                    <span className="instrument-panel__pinned-label">{entry.label}</span>
+                    {readingText(valueAt(instrument.state, entry.key), entry.precision)}
+                    {entry.unit && ` ${entry.unit}`}
+                  </span>
+                ))}
+              </div>
 
-      {error && (
-        <p className="instrument-panel__error" role="alert">
-          {error}
-        </p>
+              <Button
+                className={clsx("instrument-panel__go", live && "instrument-panel__go--on")}
+                color="transparent"
+                disabled={!instrument.available || (busy && !live)}
+                onClick={() => {
+                  if (!continuous) void send.current(viewer.name, settings);
+                  else setLive((running) => !running);
+                }}
+                size="small"
+                type="button"
+              >
+                {!continuous ? "Capture" : live ? "Stop" : "Start"}
+              </Button>
+
+              {preview !== null && (
+                <div className="instrument-panel__shot">
+                  <img
+                    alt={`the last image ${instrument.name} answered with`}
+                    className="instrument-panel__frame"
+                    src={preview.src}
+                  />
+                  {onDismiss !== undefined && (
+                    <Button
+                      aria-label="Hide"
+                      className="instrument-panel__close"
+                      color="transparent"
+                      onClick={() => {
+                        setLive(false);
+                        onDismiss();
+                      }}
+                      size="small"
+                      type="button"
+                    >
+                      <FontAwesomeIcon icon={faXmark} />
+                    </Button>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+
+          {error && (
+            <p className="instrument-panel__error" role="alert">
+              {error}
+            </p>
+          )}
+        </>
       )}
     </div>
   );

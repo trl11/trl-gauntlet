@@ -536,6 +536,12 @@ export interface Capability {
  */
 export interface InstrumentField {
   choices: string[];
+  /** State key holding values discovered at runtime, offered as quick picks. */
+  choices_from?: string;
+  /** Whether a ranged number gets a dial. Absent means yes, same as before this existed. */
+  dial?: boolean;
+  /** How a runtime-discovered value reads, such as `"hex"` for a bare hex byte. Empty is decimal. */
+  format?: string;
   label: string;
   max: number | null;
   min: number | null;
@@ -561,6 +567,13 @@ export interface InstrumentCommand {
   /** The command energises something, so the button carries a warning tint. */
   danger?: boolean;
   fields: InstrumentField[];
+  /**
+   * Commands that share this key never run at once and act on the same
+   * thing, so the panel draws their fields once and a button per command
+   * beneath — a write and a read of the same address, never both fields
+   * asked for twice.
+   */
+  group?: string;
   label: string;
   name: string;
   /**

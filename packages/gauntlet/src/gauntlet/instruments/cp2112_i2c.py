@@ -132,6 +132,7 @@ class Cp2112I2c:
         self._clock = clock
         self._fd: int | None = None
         self._instance = instance
+        self._known: list[int] = []
         self._last: dict[str, Any] = {}
         self._last_probe = clock() - probe_interval_s
         self._lock = threading.Lock()
@@ -155,11 +156,14 @@ class Cp2112I2c:
 
     def command(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         """Carry out one I2C transaction and return what it moved."""
-        if name not in {"read", "write", "write_read"}:
+        if name not in {"read", "write", "write_read", "scan"}:
             raise CommandRejected(f"i2c has no command {name!r}")
         with self._lock:
             if not self._connect():
                 raise CommandRejected(f"i2c is unavailable: {self._unavailable_reason}")
+            if name == "scan":
+                self._known = self._scan()
+                return {"known_addresses": list(self._known)}
             address = int(number_arg("i2c", args, "address", 0, _ADDRESS_MAX))
             if name == "write":
                 data = _parse_hex(args, "data")
@@ -171,25 +175,69 @@ class Cp2112I2c:
                 result = {"address": address, "data_hex": _to_hex(read), "direction": "read", "length": length}
             else:
                 data = _parse_hex(args, "data")
-                length = int(number_arg("i2c", args, "length", 1, _LENGTH_MAX))
+                # Its own length, independent of how many bytes "data" wrote:
+                # the common case is one byte naming a register and several
+                # read back, so the two counts are typed separately rather
+                # than tied together.
+                length = int(number_arg("i2c", args, "read_length", 1, _LENGTH_MAX))
                 _, read = self._transfer([(address, 0, data), (address, _I2C_M_RD, bytes(length))])
-                result = {"address": address, "data_hex": _to_hex(read), "direction": "write_read", "length": length}
+                result = {
+                    "address": address,
+                    "data_hex": _to_hex(read),
+                    "direction": "write_read",
+                    "length": length,
+                }
             self._last = result
             return result
 
     def commands(self) -> list[dict[str, Any]]:
         """The commands this instrument offers."""
-        address_field = command_field("address", "Address (7-bit)", minimum=0, maximum=_ADDRESS_MAX)
-        length_field = command_field("length", "Length", minimum=1, maximum=_LENGTH_MAX)
+        # An address and a byte count are typed exactly, not swept, and a
+        # detected address is picked rather than dialled to — a dial serves
+        # neither, so both stay plain entries.
+        address_field = command_field(
+            "address",
+            "Address (7-bit)",
+            minimum=0,
+            maximum=_ADDRESS_MAX,
+            dial=False,
+            choices_from="known_addresses",
+            format="hex",
+        )
+        length_field = command_field("length", "Length", minimum=1, maximum=_LENGTH_MAX, dial=False)
+        # A write-then-read's own count, not "length": the bytes it writes
+        # and the bytes it reads back are independent — writing one byte to
+        # name a register and reading several back is the common shape — so
+        # this needs a field (and a name) of its own rather than reusing the
+        # bare read's, which the group would otherwise merge it into.
+        read_length_field = command_field("read_length", "Read-back Length", minimum=1, maximum=_LENGTH_MAX, dial=False)
         data_field = command_field("data", "Data (hex)", "string")
+        # A write, a read, a write-then-read and a detect never run at once
+        # and always name the same device, so they share one card and one
+        # address rather than each asking for it again — one toolbar with
+        # four keys instead of cards repeating the same fields. Detect is
+        # declared last so it sorts to the end of that toolbar, after the
+        # transactions an operator reaches for first.
         return [
-            {"name": "write", "label": "Write", "fields": [address_field, data_field]},
-            {"name": "read", "label": "Read", "fields": [address_field, length_field]},
+            {
+                "name": "write",
+                "label": "Write",
+                "fields": [address_field, data_field],
+                "group": "transfer",
+            },
+            {
+                "name": "read",
+                "label": "Read",
+                "fields": [address_field, length_field],
+                "group": "transfer",
+            },
             {
                 "name": "write_read",
                 "label": "Write then Read",
-                "fields": [address_field, data_field, length_field],
+                "fields": [address_field, data_field, read_length_field],
+                "group": "transfer",
             },
+            {"name": "scan", "label": "Detect", "fields": [], "group": "transfer"},
         ]
 
     def connection(self) -> str:
@@ -219,21 +267,32 @@ class Cp2112I2c:
         return self.state()
 
     def readouts(self) -> list[dict[str, Any]]:
-        """The last transaction's address, direction and bytes."""
+        """The last transaction's address, direction and bytes.
+
+        Labelled ``Last ...`` rather than bare ``Address``/``Length`` so this
+        telemetry strip is never mistaken for the input fields of the same
+        name just below it.
+        """
         return [
-            readout("address", "Address", role="summary"),
-            readout("direction", "Direction", role="summary"),
-            readout("data_hex", "Data", role="headline"),
-            readout("length", "Length", role="summary", unit="B"),
+            readout("address", "Last Address", role="summary"),
+            readout("direction", "Last Direction", role="summary"),
+            readout("data_hex", "Last Data", role="headline"),
+            readout("length", "Last Length", role="summary", unit="B"),
         ]
 
     def state(self) -> dict[str, Any]:
-        """The last transaction this bridge carried, or an empty one."""
+        """The last transaction this bridge carried, or an empty one.
+
+        ``known_addresses`` is what the last ``scan`` found, kept regardless
+        of whether a transaction has run since — it is what backs the
+        address field's quick-pick choices.
+        """
         with self._lock:
             connected = self._connect()
+            known = list(self._known)
         if not connected or not self._last:
-            return {"address": None, "data_hex": None, "direction": None, "length": None}
-        return dict(self._last)
+            return {"address": None, "data_hex": None, "direction": None, "length": None, "known_addresses": known}
+        return {**self._last, "known_addresses": known}
 
     def write(self, values: dict[str, Any]) -> dict[str, Any]:
         """Run a command given as ``{"command": ..., "args": {...}}``."""
@@ -264,6 +323,41 @@ class Cp2112I2c:
             os.close(fd)
         except OSError as exc:
             log.debug("closing %s: %s", self._node, exc)
+
+    def _scan(self) -> list[int]:
+        """Every address in the operator range that acknowledges a probe.
+
+        Reserved addresses (below 0x08 and above 0x77) are skipped, same as
+        every other bus scanner. A probe that gets no acknowledgement is the
+        expected outcome for most of the range, not a wire fault, so this
+        does not go through ``_transfer``: that disconnects the adapter on
+        any I/O error, which a bare NAK must not trigger.
+        """
+        found = []
+        for address in range(0x08, 0x78):
+            if self._probe(address):
+                found.append(address)
+        return found
+
+    def _probe(self, address: int) -> bool:
+        """Does one address answer a single-byte read.
+
+        A zero-length read is rejected by this adapter with ``EINVAL`` for
+        every address, present or not, so it cannot tell an absent device
+        from one that is there — this bridge has to actually clock out a
+        byte to get a real ACK/NAK out of the ``I2C_RDWR`` ioctl.
+        """
+        fd = self._fd
+        if fd is None:
+            return False
+        buf = (ctypes.c_uint8 * 1)()
+        msg = _I2cMsg(addr=address, flags=_I2C_M_RD, len=1, buf=ctypes.cast(buf, ctypes.POINTER(ctypes.c_uint8)))
+        request = _I2cRdwrData(msgs=ctypes.pointer(msg), nmsgs=1)
+        try:
+            fcntl.ioctl(fd, _I2C_RDWR, request)
+        except OSError:
+            return False
+        return True
 
     def _transfer(self, messages: list[tuple[int, int, bytes]]) -> list[bytes]:
         """Run one or more I2C messages back to back, with no stop between them.

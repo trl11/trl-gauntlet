@@ -20,11 +20,24 @@ def command_field(
     kind: str = "number",
     *,
     choices: tuple[str, ...] = (),
+    choices_from: str = "",
+    dial: bool = True,
+    format: str = "",
     maximum: float | None = None,
     minimum: float | None = None,
     unit: str = "",
 ) -> dict[str, Any]:
-    """One argument a command takes, described for the operator UI."""
+    """One argument a command takes, described for the operator UI.
+
+    A ranged number gets a dial by default; ``dial=False`` keeps it a plain
+    entry, for a value an operator types exactly rather than sweeps — an
+    address or a count. ``choices_from`` names a key into the provider's
+    ``state()`` holding a list of values discovered at runtime, drawn as
+    quick-pick choices beside the entry, alongside the field's own static
+    ``choices`` when it has none. ``format="hex"`` draws those runtime values
+    (and nothing else — an operator still types decimal) as bare hex, with no
+    ``0x``, for a value read the way an address is written on a datasheet.
+    """
     return {
         "name": name,
         "label": label,
@@ -33,6 +46,9 @@ def command_field(
         "min": minimum,
         "max": maximum,
         "choices": list(choices),
+        "choices_from": choices_from,
+        "dial": dial,
+        "format": format,
     }
 
 
