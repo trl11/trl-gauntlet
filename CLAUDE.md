@@ -141,8 +141,9 @@ delegate, so `make -C app build` and `make app-build` are the same thing.
 
 `dist/` holds what someone who does not have this repository needs: the two
 installers, the image as a loadable tarball, the two wheels, and the host
-setup a bundle cannot do for itself — `setup-host.sh`, the udev rules it
-installs, and the `README.txt` telling whoever unpacks a release to run it. It
+setup a bundle cannot do for itself — `setup-bench.sh`, the `setup-host.sh` it
+delegates the rules to, those udev rules, and the `README.txt` telling whoever
+unpacks a release to run it. It
 is gitignored, nothing else is written there, and only `make distclean`
 empties it, so an artifact from an earlier version stays until then.
 

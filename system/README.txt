@@ -8,23 +8,51 @@ this machine has instruments plugged into it.
 Set the host up first
 ---------------------
 
-    sudo ./setup-host.sh
+    sudo ./setup-bench.sh
 
-Run this once per machine. Gauntlet drives some instruments over raw USB, and
-those device nodes are owned by root until a udev rule says otherwise, so
-without this the application starts and reports the instrument as unavailable
-with a permission error. The script installs the rules beside it, applies them
-to whatever is already plugged in, and adds you to the `dialout` group.
+Run this once per machine. It is everything a fresh bench needs:
+
+  * libfuse2, which the AppImage mounts itself through. Without it the bundle
+    will not start on its own.
+  * the instrument udev rules and your `dialout` membership, by running
+    setup-host.sh for you.
+  * brltty released from the USB serial adapter. brltty ships a udev rule
+    claiming CH340 adapters as braille displays, so a bench supply on one gets
+    no /dev/ttyUSB node and Gauntlet reports no PSU on the bench.
+  * iperf3, which the ethernet and LAN controller suites measure with.
+
+Every step checks before it acts, so running it again on a machine that is
+already set up changes nothing and reports what it found.
 
 Log out and back in afterwards. Group membership is read when a session
 starts, so the shell you ran the script from still does not have it.
 
-It is safe to run again — it overwrites the same rules and skips a group you
-are already in.
+    sudo ./setup-host.sh
 
-A bench supply on a USB serial port needs none of this. The kernel already
-creates /dev/ttyUSB* owned by `dialout`, which is why only the raw-USB
-instruments have rules here.
+The narrower step, if the udev rules are all you want. Gauntlet drives some
+instruments over raw USB, and those device nodes are owned by root until a
+udev rule says otherwise, so without this the application starts and reports
+the instrument as unavailable with a permission error. The script installs the
+rules beside it, applies them to whatever is already plugged in, and adds you
+to the `dialout` group.
+
+A bench supply on a USB serial port needs no rule of its own. The kernel
+already creates /dev/ttyUSB* owned by `dialout`, which is why only the raw-USB
+instruments have rules here — and why brltty taking the adapter is enough to
+hide one.
+
+
+Testing a unit over the network
+-------------------------------
+
+The ethernet and LAN controller suites reach the unit over SSH and measure
+with iperf3, so the unit needs `iperf3` and `ethtool` installed and it needs
+to accept the key at ~/.ssh/id_ed25519 on this machine. Set GAUNTLET_SSH_KEY
+to use a different one.
+
+Those suites also read registers, the OTP image and the kernel log on the
+unit, which need root there. Without passwordless sudo on the unit they are
+reported as unreadable and the run carries on with the throughput measurement.
 
 
 Install the application

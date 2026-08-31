@@ -52,8 +52,13 @@ runtime:
 	# pip counts anything it finds there as already installed and puts nothing
 	# in the bundle, so a dependency the build host happens to have is the one
 	# the app ships without.
+	# The remote extra, because the app carries the campaigns and many of their
+	# suites reach their unit over SSH. The extra is optional to the SDK so a
+	# suite staying on the host does not pay for it, but a bundle that ships
+	# those suites and not paramiko fails them at setup with an install
+	# instruction no operator can act on.
 	@$(DESKTOP_RUNTIME)/bin/python -s -m pip install --no-cache-dir --disable-pip-version-check \
-		$(SDK) $(APP)
+		"$(SDK)[remote]" $(APP)
 	@$(MAKE) --no-print-directory prune
 
 # The install_only tarball is built to develop against, not to ship: its test
@@ -91,13 +96,14 @@ build: install runtime
 
 # An installer alone is not enough to drive the instruments: the udev rules
 # belong to the host, and nothing in a bundle can install them for it. So the
-# script, the rules it installs and the note telling someone to run it ship
-# beside the installers rather than inside them.
+# two setup scripts, the rules they install and the note telling someone to run
+# them ship beside the installers rather than inside them.
 host-setup:
 	@mkdir -p $(DIST)
-	@install -m 755 $(HOST_SETUP) $(DIST)/
+	@install -m 755 $(HOST_SETUP) $(BENCH_SETUP) $(DIST)/
 	@install -m 644 $(HOST_README) $(UDEV_RULES) $(DIST)/
 	@echo "dist/$(notdir $(HOST_README))"
+	@echo "dist/$(notdir $(BENCH_SETUP))"
 	@echo "dist/$(notdir $(HOST_SETUP))"
 	@echo "dist/$(notdir $(UDEV_RULES))"
 
