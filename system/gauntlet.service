@@ -1,0 +1,34 @@
+# The rig's Gauntlet, kept serving across reboots.
+#
+# A user unit rather than a system one: it needs no root to install, and it
+# runs as the operator whose group membership the udev rules grant the
+# instruments to. `install-service.sh` puts it in place, rewriting ExecStart
+# for wherever the bundle was unpacked, and enables lingering so systemd
+# starts it at boot with nobody logged in.
+#
+# No host or port is named. The application defaults to every interface on
+# 7100, and config.yaml in the data directory is where that is changed.
+
+[Unit]
+Description=Gauntlet test-suite runner
+Documentation=https://github.com/gabephantrl11/trl-gauntlet
+# The instruments are local, but a suite reaches the unit under test over the
+# network, so starting before there is one only produces a first scan that
+# finds nothing.
+After=network-online.target
+Wants=network-online.target
+# A bench is left alone for days at a time, so a bundle that fails to start
+# should keep saying so rather than being given up on after the first few.
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+ExecStart=@SERVE@
+# The backend leads its own process group and signals it on the way out, so a
+# suite mid-run stops with the service rather than outliving it.
+KillMode=control-group
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

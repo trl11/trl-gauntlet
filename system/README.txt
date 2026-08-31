@@ -2,7 +2,8 @@ Gauntlet
 ========
 
 Two ways to install, and one setup step that comes before either of them if
-this machine has instruments plugged into it.
+this machine has instruments plugged into it. A bench that should serve
+Gauntlet all the time has one step after them as well.
 
 
 Set the host up first
@@ -72,6 +73,39 @@ For Debian and Ubuntu. Installs to /opt and adds a desktop entry:
 
 Both carry their own Python and every built-in test suite. Nothing else needs
 installing.
+
+
+Leaving a bench running as a rig
+-------------------------------
+
+    ./install-service.sh
+
+Run this on a machine that should serve Gauntlet all the time, rather than
+only while someone has the application open. It installs a systemd user
+service that starts the backend at boot, restarts it if it stops, and keeps it
+running when nobody is logged in.
+
+Do not use sudo. The service runs as you, because the udev rules above grant
+the instruments to your groups and not to root's.
+
+What it starts is the backend on its own, without the desktop window: the same
+application, reached with a browser instead. The script prints the address when
+it is done, which is port 7100 on this machine unless config.yaml says
+otherwise. Anyone on the lab network can open it.
+
+    systemctl --user status gauntlet.service     is it running
+    journalctl --user -u gauntlet.service -f     what it is doing
+    systemctl --user stop gauntlet.service       stop it until next boot
+    systemctl --user disable --now gauntlet.service   stop it for good
+
+To put a newer release on a bench that already runs the service, copy this
+whole directory over the old one and run ./install-service.sh again. It
+restarts the service on the new bundle. Run artifacts and history are kept
+somewhere else, so they survive.
+
+The desktop application can still be opened on a machine running the service.
+Both read the same run history. They do not serve the same port, so what the
+window shows is its own backend, not the service's.
 
 
 Where your data goes

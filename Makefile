@@ -54,6 +54,9 @@ help:
 	@echo "    make app-build         build the AppImage and the deb into dist/"
 	@echo "    make app-check         format-check, lint and typecheck the shell"
 	@echo ""
+	@echo "  Ship: to a bench"
+	@echo "    make deploy BENCH=user@host   send dist/ to a bench and serve it there"
+	@echo ""
 	@echo "  Ship: the wheels"
 	@echo "    make sdk-build         build the gauntlet-sdk wheel into dist/"
 	@echo "    make gauntlet-build    build the gauntlet wheel into dist/"
@@ -216,7 +219,7 @@ frontend-check: frontend-install
 # exist so that one `make help` lists everything; each delegates and adds
 # nothing.
 
-.PHONY: app-build app-check app-dev app-runtime app-smoke build docker-build docker-run docker-save docker-stop gauntlet-build sdk-build
+.PHONY: app-build app-check app-dev app-runtime app-smoke build deploy docker-build docker-run docker-save docker-stop gauntlet-build sdk-build
 
 app-build app-check app-dev app-runtime app-smoke:
 	@$(MAKE) --no-print-directory -C $(DESKTOP) $(patsubst app-%,%,$@)
@@ -244,6 +247,14 @@ build: version-check
 	@echo ""
 	@echo "dist/"
 	@ls -1sh $(DIST) | tail -n +2 | sed 's/^/  /'
+
+# Put what is already in dist/ on a bench and leave it serving. Nothing is
+# built here: a deploy sends the release that was built and checked, so what
+# reaches the bench is what `make build` produced rather than whatever the
+# working tree happens to be now.
+deploy:
+	@test -n "$(BENCH)" || { echo "usage: make deploy BENCH=user@host [BENCH_DIR=gauntlet]"; exit 2; }
+	@$(ROOT)/scripts/deploy-bench.sh $(BENCH) $(or $(BENCH_DIR),gauntlet)
 
 # ---------------------------------------------------------------------------
 # Suites
