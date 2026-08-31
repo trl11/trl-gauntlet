@@ -36,6 +36,7 @@ SYSTEM         := $(ROOT)/system
 UDEV_RULES     := $(SYSTEM)/99-gauntlet-instruments.rules
 UDEV_RULES_DIR := /etc/udev/rules.d
 HOST_SETUP     := $(SYSTEM)/setup-host.sh
+BENCH_SETUP    := $(SYSTEM)/setup-bench.sh
 HOST_README    := $(SYSTEM)/README.txt
 FRONTEND_OUT := $(APP)/src/gauntlet/web_dist
 # The Electron shell, and the relocatable CPython it ships the backend in.

@@ -96,13 +96,14 @@ build: install runtime
 
 # An installer alone is not enough to drive the instruments: the udev rules
 # belong to the host, and nothing in a bundle can install them for it. So the
-# script, the rules it installs and the note telling someone to run it ship
-# beside the installers rather than inside them.
+# two setup scripts, the rules they install and the note telling someone to run
+# them ship beside the installers rather than inside them.
 host-setup:
 	@mkdir -p $(DIST)
-	@install -m 755 $(HOST_SETUP) $(DIST)/
+	@install -m 755 $(HOST_SETUP) $(BENCH_SETUP) $(DIST)/
 	@install -m 644 $(HOST_README) $(UDEV_RULES) $(DIST)/
 	@echo "dist/$(notdir $(HOST_README))"
+	@echo "dist/$(notdir $(BENCH_SETUP))"
 	@echo "dist/$(notdir $(HOST_SETUP))"
 	@echo "dist/$(notdir $(UDEV_RULES))"
 
