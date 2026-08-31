@@ -47,6 +47,9 @@ class TestInstrumentsApi:
             "min": 0.0,
             "max": 30.0,
             "choices": [],
+            "choices_from": "",
+            "dial": True,
+            "format": "",
         }
 
     def test_scan_reports_the_same_instruments(self, client) -> None:
