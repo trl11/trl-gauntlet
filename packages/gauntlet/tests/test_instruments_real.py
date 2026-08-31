@@ -610,10 +610,14 @@ class _FakeI2cBus:
         self.values = values or {}
         self.calls: list[list[tuple[int, int, bytes]]] = []
         self.fails = False
+        # Addresses that NAK a probe, for a scan told apart from a plain read.
+        self.absent: set[int] = set()
 
     def ioctl(self, fd: int, request: int, argp: cp2112._I2cRdwrData) -> int:
         assert request == cp2112._I2C_RDWR
         if self.fails:
+            raise OSError("no device answered")
+        if argp.nmsgs == 1 and argp.msgs[0].addr in self.absent:
             raise OSError("no device answered")
         data = argp
         messages = []
@@ -655,16 +659,28 @@ class TestCp2112I2c:
     def test_write_read_is_one_transaction_with_no_stop_between(self, monkeypatch: Any) -> None:
         bus = _FakeI2cBus({0x48: b"\x00\x64"})
         bridge = _bridge(monkeypatch, bus)
-        result = bridge.command("write_read", {"address": 0x48, "data": "00", "length": 2})
+        result = bridge.command("write_read", {"address": 0x48, "data": "00", "read_length": 2})
         assert len(bus.calls[-1]) == 2
         assert bus.calls[-1][0] == (0x48, 0, b"\x00")
         assert bus.calls[-1][1][0] == 0x48
         assert bus.calls[-1][1][1] & cp2112._I2C_M_RD
         assert result["data_hex"] == "00 64"
 
+    def test_write_read_s_own_length_is_independent_of_what_data_wrote(self, monkeypatch: Any) -> None:
+        # The common register-read shape: one byte names the register, eight
+        # come back, and the two counts have nothing to do with each other.
+        bus = _FakeI2cBus({0x18: bytes(range(8))})
+        bridge = _bridge(monkeypatch, bus)
+        result = bridge.command("write_read", {"address": 0x18, "data": "00", "read_length": 8})
+        assert bus.calls[-1][0] == (0x18, 0, b"\x00")
+        assert len(bus.calls[-1][1][2]) == 8
+        assert result["length"] == 8
+
     def test_state_reflects_the_last_transaction(self, monkeypatch: Any) -> None:
         bridge = _bridge(monkeypatch, _FakeI2cBus({0x48: b"\xab"}))
-        assert set(bridge.state().values()) == {None}
+        state = bridge.state()
+        assert state["known_addresses"] == []
+        assert {value for key, value in state.items() if key != "known_addresses"} == {None}
         bridge.command("read", {"address": 0x48, "length": 1})
         assert bridge.state()["data_hex"] == "ab"
 
@@ -716,6 +732,57 @@ class TestCp2112I2c:
 
     def test_read_is_the_primary_command(self, monkeypatch: Any) -> None:
         assert _bridge(monkeypatch, _FakeI2cBus()).primary_command() == "read"
+
+    def test_scan_finds_only_the_addresses_that_answer(self, monkeypatch: Any) -> None:
+        bus = _FakeI2cBus()
+        bus.absent = set(range(0x08, 0x78)) - {0x20, 0x50}
+        bridge = _bridge(monkeypatch, bus)
+        result = bridge.command("scan", {})
+        assert result["known_addresses"] == [0x20, 0x50]
+
+    def test_a_scan_is_remembered_in_state_until_the_next_one(self, monkeypatch: Any) -> None:
+        bus = _FakeI2cBus()
+        bus.absent = set(range(0x08, 0x78)) - {0x48}
+        bridge = _bridge(monkeypatch, bus)
+        assert bridge.state()["known_addresses"] == []
+        bridge.command("scan", {})
+        assert bridge.state()["known_addresses"] == [0x48]
+        # A transaction elsewhere does not clear what the last scan found.
+        bridge.command("read", {"address": 0x48, "length": 1})
+        assert bridge.state()["known_addresses"] == [0x48]
+
+    def test_the_address_field_offers_what_the_last_scan_found(self, monkeypatch: Any) -> None:
+        fields = {f["name"]: f for f in _bridge(monkeypatch, _FakeI2cBus()).commands()[2]["fields"]}
+        assert fields["address"]["choices_from"] == "known_addresses"
+        assert fields["address"]["dial"] is False
+
+    def test_write_read_s_length_is_its_own_field_not_read_s(self, monkeypatch: Any) -> None:
+        # A bare read's "length" and a write-then-read's "read_length" are
+        # named apart so the group shows both, typed independently, rather
+        # than merging into one shared control neither use fits.
+        fields = {f["name"]: f for f in _bridge(monkeypatch, _FakeI2cBus()).commands()[2]["fields"]}
+        assert "read_length" in fields
+        assert "length" not in fields
+
+    def test_scan_does_not_disconnect_on_addresses_that_nak(self, monkeypatch: Any) -> None:
+        bus = _FakeI2cBus()
+        bus.absent = set(range(0x08, 0x78))
+        bridge = _bridge(monkeypatch, bus)
+        bridge.command("scan", {})
+        assert bridge.available() is True
+
+    def test_a_probe_reads_a_byte_rather_than_a_zero_length_read(self, monkeypatch: Any) -> None:
+        # A real CP2112 rejects a zero-length read with EINVAL for every
+        # address, present or not, so a scan built on one would find nothing
+        # ever. The probe has to clock out at least one byte to get a real
+        # ACK/NAK out of the adapter.
+        bus = _FakeI2cBus()
+        bus.absent = set(range(0x08, 0x78)) - {0x20}
+        bridge = _bridge(monkeypatch, bus)
+        bridge.command("scan", {})
+        probe_calls = [call for call in bus.calls if len(call) == 1 and call[0][0] == 0x20]
+        assert probe_calls
+        assert probe_calls[-1][0][2] == b"\x00"  # one byte read, not zero
 
 
 class TestDetection:

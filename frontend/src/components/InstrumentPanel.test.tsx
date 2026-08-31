@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Instrument } from "@api/types";
 
@@ -728,7 +728,10 @@ describe("InstrumentPanel arranges commands by shape", () => {
       />
     );
 
+    // The collapse toggle is a local view control, not a command, so it stays
+    // usable while a command is in flight.
     for (const button of screen.getAllByRole("button")) {
+      if (button.className.includes("instrument-panel__collapse")) continue;
       expect(button).toBeDisabled();
     }
   });
@@ -816,5 +819,88 @@ describe("InstrumentPanel, a command that settles several things at once", () =>
     );
     expect(screen.queryByRole("switch", { name: "Lock" })).toBeNull();
     expect(screen.getByRole("button", { name: "Apply" })).toBeInTheDocument();
+  });
+});
+
+describe("InstrumentPanel collapses an instrument the operator is not using", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("hides the deck once collapsed, and shows it again once expanded", async () => {
+    render(<InstrumentPanel instrument={instrument()} onCommand={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Set Level" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Collapse thing" }));
+    expect(screen.queryByRole("button", { name: "Set Level" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Expand thing" }));
+    expect(screen.getByRole("button", { name: "Set Level" })).toBeInTheDocument();
+  });
+
+  it("remembers a collapsed instrument across a reload", () => {
+    render(
+      <InstrumentPanel instrument={instrument({ instance_id: "thing0" })} onCommand={vi.fn()} />
+    );
+    localStorage.setItem("instrument-panel:collapsed:thing0", "1");
+
+    render(
+      <InstrumentPanel instrument={instrument({ instance_id: "thing0" })} onCommand={vi.fn()} />
+    );
+    expect(screen.getAllByRole("button", { name: "Expand thing" }).length).toBeGreaterThan(0);
+  });
+});
+
+describe("InstrumentPanel offers a numeric field's declared control", () => {
+  const address = {
+    name: "address",
+    label: "Address",
+    type: "integer" as const,
+    unit: "",
+    min: 0,
+    max: 127,
+    choices: [],
+    dial: false,
+    choices_from: "known_addresses",
+  };
+  const command = { name: "read", label: "Read", fields: [address] };
+
+  it("keeps a ranged field a plain entry when the provider opts it out of the dial", () => {
+    render(
+      <InstrumentPanel
+        instrument={instrument({ commands: [command], primary_command: "read" })}
+        onCommand={vi.fn()}
+      />
+    );
+    expect(screen.queryByLabelText("Address")).toBeInTheDocument();
+    expect(document.querySelector(".instrument-panel__dial")).toBeNull();
+  });
+
+  it("offers values the provider found at runtime as quick picks", async () => {
+    const onCommand = vi.fn();
+    render(
+      <InstrumentPanel
+        instrument={instrument({
+          commands: [command],
+          primary_command: "read",
+          state: { known_addresses: [0x20, 0x50] },
+        })}
+        onCommand={onCommand}
+      />
+    );
+
+    const pick = screen.getByRole("button", { name: "32" });
+    await userEvent.click(pick);
+    await userEvent.click(screen.getByRole("button", { name: "Read" }));
+
+    expect(onCommand).toHaveBeenCalledWith("read", { address: 32 });
+  });
+
+  it("offers nothing to pick until the provider has found something", () => {
+    render(
+      <InstrumentPanel
+        instrument={instrument({ commands: [command], primary_command: "read" })}
+        onCommand={vi.fn()}
+      />
+    );
+    expect(document.querySelector(".instrument-panel__picks")).toBeNull();
   });
 });

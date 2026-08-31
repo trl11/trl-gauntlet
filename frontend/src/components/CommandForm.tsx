@@ -1,11 +1,12 @@
 import { faLock, faLockOpen } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { Button, Input, Select } from "@trl11/components/ui";
+import { Button } from "@trl11/components/ui";
 import clsx from "clsx";
 import { useEffect, useId, useState } from "react";
 
-import type { InstrumentCommand, InstrumentField } from "@api/types";
-import Knob from "@components/Knob";
+import type { InstrumentCommand } from "@api/types";
+import FieldControl from "@components/FieldControl";
+import { coerce, fieldLabel, initialArgs, initialValue, latchField } from "../utils/commandFields";
 
 import "./InstrumentPanel.scss";
 
@@ -18,61 +19,8 @@ export interface CommandFormProps {
   onSubmit: (args: Record<string, unknown>) => void;
   /** Spans the panel and carries the emphasis, for the instrument's main action. */
   primary?: boolean;
-}
-
-/** The label to show for a field, with its unit when it declares one. */
-function fieldLabel(field: InstrumentField): string {
-  const name = field.label || field.name;
-  return field.unit ? `${name} (${field.unit})` : name;
-}
-
-/** Is this a number the operator can dial in, rather than only type. */
-function dialled(field: InstrumentField): boolean {
-  const numeric = field.type === "integer" || field.type === "number";
-  return numeric && field.min !== null && field.max !== null && field.max > field.min;
-}
-
-/**
- * How far one turn of the dial moves a field.
- *
- * Whatever the range, a power of ten is chosen that divides it into somewhere
- * between a hundred and a thousand settings, which is about as fine as a dial
- * can be driven by hand. An integer field never steps by less than one.
- */
-function stepOf(field: InstrumentField): number {
-  const range = (field.max ?? 0) - (field.min ?? 0);
-  const step =
-    range > 0 ? Number(Math.pow(10, Math.floor(Math.log10(range / 100))).toPrecision(1)) : 1;
-  return field.type === "integer" ? Math.max(1, Math.round(step)) : step;
-}
-
-/**
- * The one boolean a latching key drives, for a command shaped to have one.
- *
- * A command that settles a single true-or-false, and otherwise only picks
- * which thing to settle it for, is what a front panel gives a key that stays
- * down. Anything else keeps its controls and its send key.
- */
-function latchField(command: InstrumentCommand): InstrumentField | null {
-  const booleans = command.fields.filter((field) => field.type === "boolean");
-  const rest = command.fields.filter((field) => field.type !== "boolean");
-  if (booleans.length !== 1) return null;
-  if (rest.some((field) => field.choices.length === 0)) return null;
-  return booleans[0];
-}
-
-/** The value a field starts at: its lowest setting, its first choice, or empty. */
-function initialValue(field: InstrumentField): unknown {
-  if (field.type === "boolean") return false;
-  if (field.choices.length > 0) return field.choices[0];
-  if (dialled(field)) return field.min;
-  return "";
-}
-
-function initialArgs(command: InstrumentCommand): Record<string, unknown> {
-  const args: Record<string, unknown> = {};
-  for (const field of command.fields) args[field.name] = initialValue(field);
-  return args;
+  /** The instrument's current state, for a field whose choices come from it. */
+  state?: Record<string, unknown>;
 }
 
 /**
@@ -93,13 +41,6 @@ function initialRows(command: InstrumentCommand): Record<string, Record<string, 
   return rows;
 }
 
-/** Coerce the raw control value to the type the field declares. */
-function coerce(field: InstrumentField, value: unknown): unknown {
-  if (field.type === "boolean") return value === true;
-  if (field.type === "integer" || field.type === "number") return Number(value);
-  return String(value ?? "");
-}
-
 /** One declared command: its controls, then the key that sends them. */
 const CommandForm: React.FC<CommandFormProps> = ({
   command,
@@ -107,9 +48,10 @@ const CommandForm: React.FC<CommandFormProps> = ({
   held = false,
   onSubmit,
   primary,
+  state = {},
 }) => {
   const fieldId = useId();
-  const [args, setArgs] = useState<Record<string, unknown>>(() => initialArgs(command));
+  const [args, setArgs] = useState<Record<string, unknown>>(() => initialArgs(command.fields));
   const [rows, setRows] = useState<Record<string, Record<string, unknown>>>(() =>
     initialRows(command)
   );
@@ -157,86 +99,6 @@ const CommandForm: React.FC<CommandFormProps> = ({
   const setRow = (key: string, name: string, value: unknown) =>
     setRows((current) => ({ ...current, [key]: { ...current[key], [name]: value } }));
 
-  /**
-   * One field's control, wherever it is drawn.
-   *
-   * The value and where an edit goes are passed in rather than read from one
-   * place, so a field laid out on its own and the same field laid out as a
-   * column of a table are the same control.
-   */
-  const control = (
-    field: InstrumentField,
-    value: unknown,
-    onChange: (next: unknown) => void,
-    id: string,
-    name: string
-  ) => {
-    if (field.type === "boolean") {
-      const on = value === true;
-      return (
-        <Button
-          aria-checked={on}
-          aria-label={name}
-          className={clsx("instrument-panel__toggle", on && "instrument-panel__toggle--on")}
-          color="transparent"
-          disabled={disabled}
-          onClick={() => onChange(!on)}
-          role="switch"
-          type="button"
-        >
-          {on ? "ON" : "OFF"}
-        </Button>
-      );
-    }
-
-    if (field.choices.length > 0) {
-      return (
-        <Select
-          aria-label={name}
-          className="instrument-panel__choice"
-          disabled={disabled}
-          id={id}
-          onChange={(event) => onChange(event.target.value)}
-          options={field.choices.map((choice) => ({ value: choice, label: choice }))}
-          value={String(value ?? "")}
-        />
-      );
-    }
-
-    const numeric = field.type === "integer" || field.type === "number";
-    const entry = (
-      <Input
-        aria-label={name}
-        disabled={disabled}
-        id={id}
-        max={field.max ?? undefined}
-        min={field.min ?? undefined}
-        onChange={(event) => onChange(event.target.value)}
-        step={field.type === "integer" ? 1 : "any"}
-        type={numeric ? "number" : "text"}
-        value={String(value ?? "")}
-      />
-    );
-
-    if (!dialled(field)) return <span className="instrument-panel__entry">{entry}</span>;
-
-    const reading = Number(value);
-    return (
-      <span className="instrument-panel__dial">
-        <Knob
-          disabled={disabled}
-          label={name}
-          max={field.max ?? 0}
-          min={field.min ?? 0}
-          onChange={(next) => onChange(next)}
-          step={stepOf(field)}
-          value={Number.isFinite(reading) ? reading : (field.min ?? 0)}
-        />
-        <span className="instrument-panel__entry">{entry}</span>
-      </span>
-    );
-  };
-
   // The latching key is the boolean's control, so it does not get one of its
   // own; whatever else the command takes still does.
   const settings = command.fields.filter((field) => field.name !== latch?.name);
@@ -263,13 +125,15 @@ const CommandForm: React.FC<CommandFormProps> = ({
               <th scope="row">{fieldLabel(field)}</th>
               {(command.rows ?? []).map((row) => (
                 <td key={row.key}>
-                  {control(
-                    field,
-                    rows[row.key]?.[field.name],
-                    (next) => setRow(row.key, field.name, next),
-                    `${fieldId}-${row.key}-${field.name}`,
-                    `${row.label} ${fieldLabel(field)}`
-                  )}
+                  <FieldControl
+                    disabled={disabled}
+                    field={field}
+                    id={`${fieldId}-${row.key}-${field.name}`}
+                    name={`${row.label} ${fieldLabel(field)}`}
+                    onChange={(next) => setRow(row.key, field.name, next)}
+                    state={state}
+                    value={rows[row.key]?.[field.name]}
+                  />
                 </td>
               ))}
             </tr>
@@ -279,9 +143,15 @@ const CommandForm: React.FC<CommandFormProps> = ({
     </div>
   );
 
+  // Only a command that settles down to one latching key gets the bare
+  // "power key" look; a primary command that still gathers fields — a read
+  // that wants an address — is a group like any other and keeps its border.
   return (
     <form
-      className={clsx("instrument-panel__command", primary && "instrument-panel__command--primary")}
+      className={clsx(
+        "instrument-panel__command",
+        latch !== null && "instrument-panel__command--primary"
+      )}
       onSubmit={submit}
     >
       {rowwise && table}
@@ -291,13 +161,15 @@ const CommandForm: React.FC<CommandFormProps> = ({
           {settings.map((field) => (
             <span className="instrument-panel__control" key={field.name}>
               <span className="instrument-panel__control-label">{fieldLabel(field)}</span>
-              {control(
-                field,
-                args[field.name],
-                (next) => set(field.name, next),
-                `${fieldId}-${field.name}`,
-                fieldLabel(field)
-              )}
+              <FieldControl
+                disabled={disabled}
+                field={field}
+                id={`${fieldId}-${field.name}`}
+                name={fieldLabel(field)}
+                onChange={(next) => set(field.name, next)}
+                state={state}
+                value={args[field.name]}
+              />
             </span>
           ))}
         </div>
