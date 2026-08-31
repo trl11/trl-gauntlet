@@ -81,6 +81,7 @@ ci-validate-dist:
 		"dist/gauntlet-$${version}-py3-none-any.whl" \
 		"dist/gauntlet_sdk-$${version}-py3-none-any.whl" \
 		"dist/README.txt" \
+		"dist/setup-bench.sh" \
 		"dist/setup-host.sh" \
 		"dist/99-gauntlet-instruments.rules" \
 	); \
