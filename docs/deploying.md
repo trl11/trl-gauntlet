@@ -77,7 +77,47 @@ The unit names no host or port. The application already defaults to every
 interface on 7100, and `config.yaml` in the data directory is the one place
 that changes — a unit repeating it would be a second place to disagree.
 
-## Deploying
+## Standing a new rig up
+
+```
+make build
+make deploy-rig RIG_IP=192.168.10.160
+```
+
+One command for a machine that has never been deployed to. `RIG_USER` defaults
+to `trl` and can be overridden.
+
+A deploy alone is not enough the first time, because four of the things a fresh
+host needs are root's to do and a bundle cannot do them for itself.
+[`deploy-rig.sh`](../scripts/deploy-rig.sh) does them in the one order that
+works, delegating rather than repeating: it turns lingering on first, because
+`install-service.sh` treats its own failure to do so as fatal and on a fresh
+account that call wants a password; then runs `deploy-bench.sh` unchanged; then
+`setup-bench.sh` as root for the packages, the rules, the groups and the
+sysctl; then restarts the account's systemd user manager.
+
+That last step is the one worth understanding. A process keeps the groups it
+started with, so the services the deploy just started are running without the
+`dialout` and `video` membership that `setup-bench.sh` granted a moment later.
+Restarting the units does not fix it — they inherit the manager. Restarting the
+manager does, and it is also what lets the landing page finally bind port 80.
+
+**The landing page failing to bind during the deploy step is expected**, and
+the script says so as it happens. The sysctl that allows it is installed in the
+step after.
+
+`sudo` on the rig will ask for a password, two or three times. There is no way
+around that: the udev rules, the groups and the sysctl all need root there,
+which is the same reason `deploy` prints the rules command rather than running
+it.
+
+The datasheets are copied at the end, from `docs/datasheets/`. They live in the
+data directory rather than the bundle, so nothing else carries them.
+
+Running it again on a rig that is already up is safe: every step it delegates
+to checks before it acts.
+
+## Updating a bench
 
 ```
 make build
@@ -90,9 +130,9 @@ tree happens to hold at the time.
 
 It copies the AppImage and the scripts beside it — not the deb, the wheels or
 the server image, which are for other ways of installing — and then runs
-`install-service.sh` on the far side, which restarts the service on the new
-bundle. Updating a bench is the same command as deploying to it for the first
-time.
+`install-service.sh` on the far side, which restarts the services on the new
+bundle. This is the command for a bench that has been set up already;
+`deploy-rig` is the one for a bench that has not.
 
 `BENCH_DIR` names the directory on the bench, and defaults to `gauntlet` in the
 operator's home.

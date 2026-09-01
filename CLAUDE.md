@@ -124,6 +124,7 @@ behind a toggle below 900px. There is no sidebar.
 | Scaffold a suite | `make suite-new NAME=x [TEMPLATE=shell]` |
 | Run the desktop shell | `make app-dev` |
 | Send `dist/` to a bench and leave it serving | `make deploy BENCH=user@host` |
+| Set a rig up from nothing: deploy, host setup, datasheets | `make deploy-rig RIG_IP=x.x.x.x` |
 | Build both installers into `dist/` | `make app-build` |
 | Shell format-check, lint, typecheck | `make app-check` |
 | Run the server image | `make docker-run` / `make docker-stop` |
