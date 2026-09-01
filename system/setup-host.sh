@@ -9,6 +9,11 @@
 # not enough to talk to it. This installs the udev rules that hand those nodes
 # to a group, and puts the invoking user in that group.
 #
+# The rest need no rule, because the kernel's own driver already grouped them:
+# usbserial gives a bench supply a /dev/ttyUSB* owned by dialout, and uvcvideo
+# gives a camera a /dev/video* owned by video. Those want the membership alone,
+# which is why the groups granted here are more than the rules mention.
+#
 # It belongs to the host the instruments are plugged into. A container sees
 # whatever the host's rules decided and cannot set it, so running this inside
 # one changes nothing.
@@ -20,7 +25,9 @@ set -eu
 
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 RULES_DIR=/etc/udev/rules.d
-GROUP=dialout
+# Every group an instrument node is owned by: dialout for the raw-USB nodes the
+# rules regroup and for the serial adapters, video for the camera nodes.
+INSTRUMENT_GROUPS="dialout video"
 
 fail() {
 	echo "setup-host: $*" >&2
@@ -51,15 +58,28 @@ udevadm trigger --subsystem-match=usb --action=add
 # else to add.
 user=${SUDO_USER:-}
 if [ -n "$user" ] && [ "$user" != root ]; then
-	if id -nG "$user" 2>/dev/null | tr ' ' '\n' | grep -qx "$GROUP"; then
-		echo "==> $user is already in $GROUP"
-	else
-		echo "==> adding $user to $GROUP"
-		usermod -aG "$GROUP" "$user"
+	added=0
+	for group in $INSTRUMENT_GROUPS; do
+		if ! getent group "$group" >/dev/null 2>&1; then
+			echo "==> no $group group on this host, so nothing to add $user to"
+		elif id -nG "$user" 2>/dev/null | tr ' ' '\n' | grep -qx "$group"; then
+			echo "==> $user is already in $group"
+		else
+			echo "==> adding $user to $group"
+			usermod -aG "$group" "$user"
+			added=$((added + 1))
+		fi
+	done
+	if [ "$added" != 0 ]; then
 		echo "    $user must log out and back in before this takes effect"
+		# A rig serves from a lingering systemd user manager that outlives a
+		# login, and a process keeps the groups it started with, so restarting
+		# the service alone leaves it without the new one.
+		echo "    a rig serving through systemd needs its user manager restarted:"
+		echo "      sudo loginctl terminate-user $user"
 	fi
 else
-	echo "==> no user to add to $GROUP (run under sudo to add yours)"
+	echo "==> no user to add to $INSTRUMENT_GROUPS (run under sudo to add yours)"
 fi
 
 # What the rules cover, and whether it worked. A vendor id read back out of the

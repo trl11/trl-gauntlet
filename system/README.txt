@@ -15,8 +15,8 @@ Run this once per machine. It is everything a fresh bench needs:
 
   * libfuse2, which the AppImage mounts itself through. Without it the bundle
     will not start on its own.
-  * the instrument udev rules and your `dialout` membership, by running
-    setup-host.sh for you.
+  * the instrument udev rules and your `dialout` and `video` membership, by
+    running setup-host.sh for you.
   * brltty released from the USB serial adapter. brltty ships a udev rule
     claiming CH340 adapters as braille displays, so a bench supply on one gets
     no /dev/ttyUSB node and Gauntlet reports no PSU on the bench.
@@ -35,12 +35,17 @@ instruments over raw USB, and those device nodes are owned by root until a
 udev rule says otherwise, so without this the application starts and reports
 the instrument as unavailable with a permission error. The script installs the
 rules beside it, applies them to whatever is already plugged in, and adds you
-to the `dialout` group.
+to the `dialout` and `video` groups.
 
 A bench supply on a USB serial port needs no rule of its own. The kernel
 already creates /dev/ttyUSB* owned by `dialout`, which is why only the raw-USB
 instruments have rules here — and why brltty taking the adapter is enough to
 hide one.
+
+A camera is the same case. uvcvideo creates /dev/video* owned by `video`, so
+it needs the group and no rule. That group is empty on a fresh Ubuntu, which
+is why a camera the kernel has detected can still refuse to open: the desktop
+session reaches it through an ACL that a service account does not get.
 
 
 Testing a unit over the network
