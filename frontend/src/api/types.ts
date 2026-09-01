@@ -800,6 +800,27 @@ export interface SystemDisk {
   used: number;
 }
 
+/**
+ * One network interface, with counters cumulative since boot.
+ *
+ * Some drivers report these 32-bit, so a caller comparing two samples has to
+ * expect them to wrap. Loopback is not reported.
+ */
+export interface SystemInterface {
+  /** Primary IPv4 address, or null where the interface has none. */
+  address: string | null;
+  name: string;
+  rx_bytes: number;
+  rx_dropped: number;
+  rx_errors: number;
+  rx_packets: number;
+  state: string;
+  tx_bytes: number;
+  tx_dropped: number;
+  tx_errors: number;
+  tx_packets: number;
+}
+
 /** One thermal sensor reading. */
 export interface SystemTemperature {
   celsius: number;
@@ -822,6 +843,8 @@ export interface SystemData {
    */
   disk?: SystemDisk | null;
   disks: SystemDisk[];
+  /** Undefined on a payload captured before the field existed. */
+  interfaces?: SystemInterface[];
   /** One, five, and fifteen minute load averages, or null where the host has none. */
   load_avg: number[] | null;
   memory: SystemMemory;

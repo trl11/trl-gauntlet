@@ -112,6 +112,33 @@ The desktop application can still be opened on a machine running the service.
 Both read the same run history. They do not serve the same port, so what the
 window shows is its own backend, not the service's.
 
+install-service.sh also starts a landing page on port 80, so the bench's bare
+address reaches something: what the host is doing, a link on to Gauntlet, and
+the datasheets below. It is a separate service from Gauntlet and reads nothing
+of its own, so it shows what the application shows, and it still renders while
+Gauntlet is stopped.
+
+Port 80 is below the range an ordinary account may bind, so this is the part
+that needs setup-host.sh to have been run. If the page does not answer, that is
+almost always why.
+
+    systemctl --user status homepage.service     is it running
+    journalctl --user -u homepage.service -f     what it is doing
+
+
+Datasheets on the bench
+-----------------------
+
+    scp datasheet.pdf this-bench:~/.config/gauntlet/datasheets/
+
+The landing page lists what is in that directory and serves it, so a part's
+datasheet sits with the bench that tests it. Create the directory by copying
+the first file into it, or let the service create it when it starts.
+
+It takes .csv, .md, .pdf, .png and .txt. Anything else is ignored rather than
+served. The directory is beside your run history rather than in the release, so
+updating the bench leaves it alone.
+
 
 Where your data goes
 --------------------

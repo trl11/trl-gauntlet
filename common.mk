@@ -43,6 +43,13 @@ HOST_README    := $(SYSTEM)/README.txt
 SERVE_SCRIPT   := $(SYSTEM)/serve-gauntlet.sh
 SERVICE_SETUP  := $(SYSTEM)/install-service.sh
 SERVICE_UNIT   := $(SYSTEM)/gauntlet.service
+# And the landing page a rig answers on port 80 with, so the bare address
+# reaches the bench: the page, the server for it, its unit, and the sysctl that
+# lets a user unit bind a port below 1024.
+PAGE_HTML      := $(SYSTEM)/homepage.html
+PAGE_SERVE     := $(SYSTEM)/serve-homepage.py
+PAGE_UNIT      := $(SYSTEM)/homepage.service
+PORT_SYSCTL    := $(SYSTEM)/60-gauntlet-unprivileged-ports.conf
 FRONTEND_OUT := $(APP)/src/gauntlet/web_dist
 # The Electron shell, and the relocatable CPython it ships the backend in.
 DESKTOP         := $(ROOT)/app

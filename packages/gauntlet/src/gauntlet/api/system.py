@@ -85,6 +85,7 @@ async def system_data(request: Request) -> dict[str, Any]:
         # The one an operator cares about: where this Gauntlet writes its runs,
         # rather than whichever mount happens to be fullest.
         "disk": host_stats.disk_for(request.app.state.settings.runs_dir),
+        "interfaces": host_stats.interfaces(),
         "temperatures": host_stats.temperatures(),
         "uptime_s": host_stats.uptime(),
         "process_count": host_stats.process_count(),

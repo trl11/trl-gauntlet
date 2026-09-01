@@ -30,6 +30,49 @@ not a system one. Two reasons, and both matter:
 systemd start the unit at boot instead of at the next login. Without it a rig
 that reboots unattended comes back with nothing serving.
 
+## The landing page
+
+A rig serves Gauntlet on 7100, which is a number someone has to be told. So a
+second and separate service answers port 80: [`serve-homepage.py`](../system/serve-homepage.py)
+under [`homepage.service`](../system/homepage.service), rendering
+[`homepage.html`](../system/homepage.html). Going to the bench's address is
+then enough, and the page links on to Gauntlet from there.
+
+It is not part of Gauntlet and holds nothing of its own. `/api/` is proxied
+through to Gauntlet on localhost, so `host_stats` stays the one implementation
+of what the bench is doing and the page cannot disagree with the application
+about it. Proxying rather than fetching 7100 from the browser is also what
+keeps the page same-origin, so Gauntlet needs no CORS for it. The page renders
+when Gauntlet is down, reporting that, because a broken bench is when someone
+is most likely to be looking at it.
+
+Nothing names a host. Every link is built from `location.hostname`, for the
+same reason the unit names no host or port: a rig that is renamed or
+readdressed needs no edit.
+
+Binding port 80 is the one thing an ordinary account cannot do, and a user unit
+can be given neither a capability nor a redirect. So
+[`60-gauntlet-unprivileged-ports.conf`](../system/60-gauntlet-unprivileged-ports.conf)
+lowers `net.ipv4.ip_unprivileged_port_start` to 80, installed by `setup-host.sh`
+alongside the udev rules — the same one root step, rather than a second one.
+Every port from 80 up becomes bindable by any local user, which on a
+single-operator bench is nobody new.
+
+## Datasheets
+
+The page lists whatever is in `datasheets/` under the data directory, and
+serves it:
+
+```
+scp datasheet.pdf trl@blinky:~/.config/gauntlet/datasheets/
+```
+
+There is no upload. It is a directory, so it is populated the way a directory
+is, and it lives in the data directory rather than the bundle, so a redeploy
+leaves it alone for the same reason it leaves run history alone. Only `.csv`,
+`.md`, `.pdf`, `.png` and `.txt` are listed or served, and a symlink pointing
+out of the directory is neither.
+
 The unit names no host or port. The application already defaults to every
 interface on 7100, and `config.yaml` in the data directory is the one place
 that changes — a unit repeating it would be a second place to disagree.
@@ -68,8 +111,8 @@ the next time a new bundle is unpacked.
 ## Checking on one
 
 ```
-systemctl --user status gauntlet.service
-journalctl --user -u gauntlet.service -f
+systemctl --user status gauntlet.service homepage.service
+journalctl --user -u gauntlet.service -u homepage.service -f
 ```
 
 Both without `sudo`, and both as the operator's account — a user unit is

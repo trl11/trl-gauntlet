@@ -23,6 +23,14 @@ UNIT_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user
 TEMPLATE=$HERE/$UNIT_NAME
 SERVE=$HERE/serve-gauntlet.sh
 
+# The landing page is the second unit, and an optional one: a bundle from
+# before it existed has neither file, and a bench that only wants the backend
+# is left with what it had.
+PAGE_UNIT_NAME=homepage.service
+PAGE_TEMPLATE=$HERE/$PAGE_UNIT_NAME
+PAGE_SERVE=$HERE/serve-homepage.py
+PAGE_PORT=${GAUNTLET_HOMEPAGE_PORT:-80}
+
 say() {
 	echo "==> $*"
 }
@@ -119,7 +127,54 @@ else
 	note "see what it is doing with: systemctl --user status $UNIT_NAME"
 	note "and its output with:       journalctl --user -u $UNIT_NAME -n 50"
 fi
+# The landing page answers on 80 so the bare address reaches this bench. It is
+# installed the same way, and separately reported: binding 80 needs the sysctl
+# `setup-host.sh` installs, so this is the step that fails on a host where only
+# the backend was ever set up.
+if [ -f "$PAGE_TEMPLATE" ] && [ -x "$PAGE_SERVE" ]; then
+	echo
+	say "installing $PAGE_UNIT_NAME"
+	sed "s|@SERVE@|$PAGE_SERVE|" "$PAGE_TEMPLATE" > "$UNIT_DIR/$PAGE_UNIT_NAME"
+	note "$UNIT_DIR/$PAGE_UNIT_NAME"
+	note "runs $PAGE_SERVE"
+
+	systemctl --user daemon-reload
+	systemctl --user enable "$PAGE_UNIT_NAME" >/dev/null
+	systemctl --user restart "$PAGE_UNIT_NAME"
+
+	say "waiting for the landing page to answer"
+	page=http://127.0.0.1:$PAGE_PORT/
+	page_answered=no
+	attempt=0
+	while [ "$attempt" -lt 15 ]; do
+		status=0
+		health_answers "$page" || status=$?
+		if [ "$status" = 0 ]; then
+			page_answered=yes
+			break
+		fi
+		if [ "$status" = 2 ]; then
+			page_answered=unknown
+			break
+		fi
+		attempt=$((attempt + 1))
+		sleep 1
+	done
+
+	if [ "$page_answered" = yes ]; then
+		say "the landing page is serving on port $PAGE_PORT"
+		note "from the lab        http://$(hostname)/"
+	elif [ "$page_answered" = unknown ]; then
+		say "the landing page is installed; there is nothing here to ask whether it answers"
+	else
+		say "the landing page is installed but has not answered on port $PAGE_PORT"
+		note "a port below 1024 needs the sysctl that setup-host.sh installs:"
+		note "  sudo $HERE/setup-host.sh"
+		note "then: systemctl --user restart $PAGE_UNIT_NAME"
+	fi
+fi
+
 echo
-note "stop it     systemctl --user stop $UNIT_NAME"
-note "start it    systemctl --user start $UNIT_NAME"
-note "follow it   journalctl --user -u $UNIT_NAME -f"
+note "stop them   systemctl --user stop $UNIT_NAME $PAGE_UNIT_NAME"
+note "start them  systemctl --user start $UNIT_NAME $PAGE_UNIT_NAME"
+note "follow them journalctl --user -u $UNIT_NAME -u $PAGE_UNIT_NAME -f"

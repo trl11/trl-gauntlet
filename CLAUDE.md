@@ -56,7 +56,9 @@ anything in `system/` or `scripts/deploy-bench.sh`.
   request is prefixed with `VITE_API_BASE`, and routing is `HashRouter`, so the
   bundle can ship inside Electron. Nothing may assume the API's origin.
 - Do not add a Python dependency for host telemetry. `gauntlet.api.host_stats`
-  uses `/proc`, `/sys`, `os` and `shutil` only.
+  reads `/proc`, `/sys`, `os` and `shutil`, and nothing else but the standard
+  library: an interface's IPv4 address is the one figure the kernel publishes
+  in neither `/proc` nor `/sys`, so it is the one asked for over a socket.
 - `gauntlet.capabilities` holds protocols and the registry, never a device.
   `gauntlet.instruments` holds devices and never a protocol. A provider goes in
   the second and satisfies the first. The same split runs through the API:
@@ -81,8 +83,9 @@ packages/gauntlet/src/gauntlet/scaffold/   suite scaffolder and its templates
 suites/                    reference suites and system_stats; hardware lives
                            in the campaign above
 system/                    what a bench host needs: the udev rules the USB
-                           instruments require, and the service that keeps a
-                           rig serving
+                           instruments require, the service that keeps a rig
+                           serving, and the landing page it answers port 80
+                           with
 ```
 
 Inside `packages/gauntlet/src/gauntlet`: `api/` (one router module per
@@ -224,6 +227,13 @@ and neither is on a package registry.
   systemd unit is a user unit, because the udev rules grant the instruments to
   the operator's groups and a deploy must not need root. The unit names no host
   or port, so `config.yaml` stays the only place those are set.
+- The landing page is a second service, not part of Gauntlet. It answers port
+  80 so the bare address reaches a bench, and reads no telemetry of its own:
+  `/api/` is proxied to Gauntlet on localhost, which keeps one implementation
+  of the host stats and the page same-origin, so Gauntlet needs no CORS. It
+  renders with Gauntlet down. It names no host either — every link is built
+  from `location.hostname` — and its datasheets live in the data directory, so
+  they survive a redeploy the way run history does.
 - `vite build` writes into `packages/gauntlet/src/gauntlet/web_dist/`. The app
   serves it at `/`, falls back to a placeholder when it is absent, and still
   answers unknown `/api/...` paths with a JSON 404 rather than the SPA shell.

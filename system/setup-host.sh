@@ -19,12 +19,14 @@
 # one changes nothing.
 #
 # Every `*.rules` file beside this script is installed, so a rule added to the
-# release is picked up without this script changing.
+# release is picked up without this script changing, and every `*.conf` goes to
+# /etc/sysctl.d the same way.
 
 set -eu
 
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 RULES_DIR=/etc/udev/rules.d
+SYSCTL_DIR=/etc/sysctl.d
 # Every group an instrument node is owned by: dialout for the raw-USB nodes the
 # rules regroup and for the serial adapters, video for the camera nodes.
 INSTRUMENT_GROUPS="dialout video"
@@ -52,6 +54,23 @@ udevadm control --reload-rules
 # Applies the new rules to what is already plugged in. Without it a device
 # attached before this ran keeps the ownership it was given at the time.
 udevadm trigger --subsystem-match=usb --action=add
+
+# What lets the landing page's user unit bind port 80, which an ordinary
+# account cannot otherwise do. Optional: a release from before the page existed
+# ships no .conf, and a bench that only serves the backend needs none.
+sysctls=$(find "$HERE" -maxdepth 1 -name '*.conf' | sort)
+if [ -n "$sysctls" ]; then
+	echo "==> installing sysctl settings into $SYSCTL_DIR"
+	mkdir -p "$SYSCTL_DIR"
+	for conf in $sysctls; do
+		install -m 644 "$conf" "$SYSCTL_DIR/"
+		echo "    $(basename "$conf")"
+	done
+	# Applies now as well as at the next boot, so the page can be started
+	# straight after this without rebooting the bench.
+	sysctl --system >/dev/null 2>&1 || echo "    could not apply them now; they take effect at the next boot"
+	echo "    net.ipv4.ip_unprivileged_port_start = $(sysctl -n net.ipv4.ip_unprivileged_port_start 2>/dev/null || echo '?')"
+fi
 
 # The rules hand the nodes to a group, which does nothing for a user who is not
 # in it. SUDO_USER is who asked for this; under a root login there is nobody

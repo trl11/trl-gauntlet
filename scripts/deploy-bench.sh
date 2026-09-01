@@ -42,7 +42,7 @@ fail() {
 # The AppImage is what is served; the rest is what turns it into a service and
 # what the operator reads. The deb, the wheels and the image are for other
 # ways of installing and are deliberately not sent.
-sent="README.txt gauntlet.service install-service.sh serve-gauntlet.sh setup-bench.sh setup-host.sh 99-gauntlet-instruments.rules"
+sent="README.txt gauntlet.service homepage.html homepage.service install-service.sh serve-gauntlet.sh serve-homepage.py setup-bench.sh setup-host.sh 60-gauntlet-unprivileged-ports.conf 99-gauntlet-instruments.rules"
 
 appimage=$(ls "$DIST"/gauntlet-*.AppImage 2>/dev/null | head -1 || true)
 [ -n "$appimage" ] || fail "no gauntlet-*.AppImage in $DIST; run make build first"
