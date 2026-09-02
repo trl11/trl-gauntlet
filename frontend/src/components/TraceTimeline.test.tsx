@@ -142,6 +142,34 @@ describe("TraceTimeline", () => {
     expect(from).toHaveValue("0.00000");
   });
 
+  it("names the iteration that recorded each capture", async () => {
+    renderTimeline();
+    await screen.findByText(/5 captures/);
+    // Five captures a second apart across the whole run, so each is far
+    // enough from the last to be named.
+    expect(screen.getByText("Iteration")).toBeInTheDocument();
+    for (const iteration of ["0", "1", "2", "3", "4"]) {
+      expect(screen.getByText(iteration)).toBeInTheDocument();
+    }
+  });
+
+  it("graduates the time axis, in the unit the view is read in", async () => {
+    renderTimeline();
+    await screen.findByText(/5 captures/);
+    expect(screen.getByText("Time")).toBeInTheDocument();
+    // Eleven divisions across four seconds, so the axis reads in seconds.
+    expect(screen.getByText("0ns")).toBeInTheDocument();
+    expect(screen.getByText("2.001s")).toBeInTheDocument();
+    expect(screen.getByText("4.002s")).toBeInTheDocument();
+  });
+
+  it("reads the axis in microseconds once it is zoomed into one capture", async () => {
+    renderTimeline();
+    await screen.findByText(/5 captures/);
+    await userEvent.selectOptions(screen.getByLabelText("Time per division"), "0.0001");
+    expect(screen.getByText("500\u00b5s")).toBeInTheDocument();
+  });
+
   it("offers a download of the file itself", async () => {
     renderTimeline();
     const link = await screen.findByLabelText("Download the captures");

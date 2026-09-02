@@ -5,6 +5,8 @@ import {
   extentOf,
   formatSeconds,
   laneLevels,
+  axisTicks,
+  captureMarks,
   parseCaptures,
   timelineMasks,
 } from "./waveform";
@@ -40,8 +42,8 @@ describe("formatSeconds", () => {
 });
 
 /** A capture of `count` samples all holding `byte`, starting at `startS`. */
-function island(startS: number, byte: number, count = 4, rateHz = 1000) {
-  return { bytes: new Uint8Array(count).fill(byte), rateHz, startS };
+function island(startS: number, byte: number, count = 4, rateHz = 1000, iteration = 0) {
+  return { bytes: new Uint8Array(count).fill(byte), iteration, rateHz, startS };
 }
 
 describe("parseCaptures", () => {
@@ -114,7 +116,9 @@ describe("timelineMasks", () => {
   });
 
   it("reports both levels for a column covering an edge", () => {
-    const islands = [{ bytes: new Uint8Array([1, 0, 1, 0]), rateHz: 1000, startS: 0 }];
+    const islands = [
+      { bytes: new Uint8Array([1, 0, 1, 0]), iteration: 0, rateHz: 1000, startS: 0 },
+    ];
     const { high, low } = timelineMasks(islands, { startS: 0, spanS: 0.004 }, 1);
     expect(high[0] & 1).toBe(1);
     expect(low[0] & 1).toBe(1);
@@ -138,8 +142,8 @@ describe("laneLevels", () => {
   /** Two captures a gap apart, the first holding `a` and the second `b`. */
   function pair(a: number, b: number) {
     const islands = [
-      { bytes: new Uint8Array(4).fill(a), rateHz: 1000, startS: 0 },
-      { bytes: new Uint8Array(4).fill(b), rateHz: 1000, startS: 10 },
+      { bytes: new Uint8Array(4).fill(a), iteration: 0, rateHz: 1000, startS: 0 },
+      { bytes: new Uint8Array(4).fill(b), iteration: 1, rateHz: 1000, startS: 10 },
     ];
     const masks = timelineMasks(islands, { startS: 0, spanS: 10.004 }, 12);
     return { masks, lane: laneLevels(masks, 0, 12) };
@@ -167,7 +171,7 @@ describe("laneLevels", () => {
   });
 
   it("draws nothing before the first capture", () => {
-    const islands = [{ bytes: new Uint8Array([1]), rateHz: 1000, startS: 5 }];
+    const islands = [{ bytes: new Uint8Array([1]), iteration: 0, rateHz: 1000, startS: 5 }];
     const lane = laneLevels(timelineMasks(islands, { startS: 0, spanS: 6 }, 6), 0, 6);
     expect(lane.levels[0]).toBe(-1);
     expect(lane.levels[5]).toBe(1);
@@ -175,7 +179,9 @@ describe("laneLevels", () => {
 
   it("carries the level a capture ended on, not the one it started on", () => {
     // One column covering a falling edge ends low, so the gap after it is low.
-    const islands = [{ bytes: new Uint8Array([1, 1, 0, 0]), rateHz: 1000, startS: 0 }];
+    const islands = [
+      { bytes: new Uint8Array([1, 1, 0, 0]), iteration: 0, rateHz: 1000, startS: 0 },
+    ];
     const masks = timelineMasks(islands, { startS: 0, spanS: 0.008 }, 2);
     const lane = laneLevels(masks, 0, 2);
     expect(lane.levels[0]).toBe(2);
@@ -184,10 +190,58 @@ describe("laneLevels", () => {
   });
 
   it("keeps the channels apart", () => {
-    const islands = [{ bytes: new Uint8Array([0b1000_0001]), rateHz: 1000, startS: 0 }];
+    const islands = [
+      { bytes: new Uint8Array([0b1000_0001]), iteration: 0, rateHz: 1000, startS: 0 },
+    ];
     const masks = timelineMasks(islands, { startS: 0, spanS: 0.002 }, 2);
     expect(laneLevels(masks, 0, 2).levels[0]).toBe(1);
     expect(laneLevels(masks, 1, 2).levels[0]).toBe(0);
     expect(laneLevels(masks, 7, 2).levels[0]).toBe(1);
+  });
+});
+
+describe("axisTicks", () => {
+  it("names every division from the left edge to the right", () => {
+    const ticks = axisTicks({ startS: 0, spanS: 1 }, 10);
+    expect(ticks).toHaveLength(11);
+    expect(ticks[0]).toEqual({ fraction: 0, label: "0ns" });
+    expect(ticks[10]).toEqual({ fraction: 1, label: "1s" });
+  });
+
+  it("carries the unit that suits the span", () => {
+    // A view a few milliseconds wide is read in milliseconds, not in seconds
+    // to four decimal places.
+    expect(axisTicks({ startS: 0, spanS: 0.005 }, 10)[2].label).toBe("1ms");
+    expect(axisTicks({ startS: 0, spanS: 0.00001 }, 10)[5].label).toBe("5\u00b5s");
+  });
+
+  it("counts from where the view starts, not from the run", () => {
+    expect(axisTicks({ startS: 2, spanS: 1 }, 10)[0].label).toBe("2s");
+  });
+});
+
+describe("captureMarks", () => {
+  it("places a capture at the fraction of the width it starts at", () => {
+    const islands = [island(0, 1, 4, 1000, 1), island(5, 1, 4, 1000, 2)];
+    expect(captureMarks(islands, { startS: 0, spanS: 10 }, 0)).toEqual([
+      { fraction: 0, iteration: 1 },
+      { fraction: 0.5, iteration: 2 },
+    ]);
+  });
+
+  it("leaves out the captures outside the view", () => {
+    const islands = [island(0, 1, 4, 1000, 1), island(50, 1, 4, 1000, 2)];
+    const marks = captureMarks(islands, { startS: 0, spanS: 10 }, 0);
+    expect(marks.map((mark) => mark.iteration)).toEqual([1]);
+  });
+
+  it("drops a capture that would be named on top of the one before it", () => {
+    const islands = [
+      island(0, 1, 4, 1000, 1),
+      island(0.1, 1, 4, 1000, 2),
+      island(5, 1, 4, 1000, 3),
+    ];
+    const marks = captureMarks(islands, { startS: 0, spanS: 10 }, 0.06);
+    expect(marks.map((mark) => mark.iteration)).toEqual([1, 3]);
   });
 });

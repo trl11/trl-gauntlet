@@ -61,10 +61,26 @@
     color: $trl-gray;
   }
 
+  // A grid rather than a row, so the iteration numbers above the lanes and the
+  // time axis below them line up with the canvas without either being told how
+  // wide the channel names came out.
   &__plot {
     position: relative;
-    display: flex;
+    display: grid;
+    grid-template-columns: auto 1fr;
     background-color: $trl-dark;
+  }
+
+  &__gutter {
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-family: $font-mono;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: $trl-gray;
+    white-space: nowrap;
   }
 
   &__labels {
@@ -98,12 +114,49 @@
     cursor: grabbing;
   }
 
+  &__marks {
+    position: relative;
+    height: 18px;
+    border-bottom: 1px solid $trl-dark-gray;
+  }
+
+  &__mark {
+    position: absolute;
+    bottom: 0;
+    width: 1px;
+    height: 4px;
+    background-color: $trl-gray;
+  }
+
+  &__mark-label {
+    position: absolute;
+    bottom: 5px;
+    font-family: $font-mono;
+    font-size: 10px;
+    color: $trl-gray;
+  }
+
   &__axis {
-    display: flex;
-    justify-content: space-between;
+    position: relative;
+    height: 20px;
+    border-top: 1px solid $trl-dark-gray;
+  }
+
+  &__tick {
+    position: absolute;
+    top: 0;
+    width: 1px;
+    height: 4px;
+    background-color: $trl-gray;
+  }
+
+  &__tick-label {
+    position: absolute;
+    top: 5px;
     font-family: $font-mono;
     font-size: 11px;
     color: $trl-gray;
+    white-space: nowrap;
   }
 
   &__hint {

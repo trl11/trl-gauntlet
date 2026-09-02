@@ -8,6 +8,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { artifactUrl, getArtifactText } from "@api/client";
 import EmptyState from "@components/EmptyState";
 import {
+  axisTicks,
+  captureMarks,
   extentOf,
   formatSeconds,
   laneLevels,
@@ -33,6 +35,9 @@ const DIVISIONS = 10;
 /** What one wheel notch multiplies or divides the span by. */
 const ZOOM_STEP = 1.25;
 
+/** How close two captures may be named before the second is left unlabelled. */
+const MARK_GAP = 0.06;
+
 /** The time steps offered, as seconds per division. */
 const STEPS = [
   1e-6, 2e-6, 5e-6, 1e-5, 2e-5, 5e-5, 1e-4, 2e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 2e-2, 5e-2, 0.1,
@@ -51,6 +56,18 @@ export interface TraceTimelineProps {
 
 function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value));
+}
+
+/**
+ * How a label sits against the position it names.
+ *
+ * Centred over it, except at the two ends, where a centred label would hang
+ * off the side of the plot.
+ */
+function anchorFor(fraction: number): string {
+  if (fraction <= 0) return "translateX(0)";
+  if (fraction >= 1) return "translateX(-100%)";
+  return "translateX(-50%)";
 }
 
 /** The offered step closest to what a span works out at per division. */
@@ -271,6 +288,8 @@ export const TraceTimeline: React.FC<TraceTimelineProps> = ({ live = false, path
 
   const step = view === null ? STEPS[0] : stepFor(view.spanS);
   const fitted = view !== null && view.spanS >= whole.spanS;
+  const ticks = view === null ? [] : axisTicks(view, DIVISIONS);
+  const marks = view === null ? [] : captureMarks(islands, view, MARK_GAP);
 
   return (
     <section className="trace-timeline" aria-label="Traces">
@@ -341,6 +360,23 @@ export const TraceTimeline: React.FC<TraceTimelineProps> = ({ live = false, path
       </div>
 
       <div className="trace-timeline__plot">
+        <span className="trace-timeline__gutter">Iteration</span>
+        <div className="trace-timeline__marks">
+          {marks.map((mark) => (
+            <span
+              className="trace-timeline__mark"
+              key={mark.iteration}
+              style={{ left: `${mark.fraction * 100}%` }}
+            >
+              <span
+                className="trace-timeline__mark-label"
+                style={{ transform: anchorFor(mark.fraction) }}
+              >
+                {mark.iteration}
+              </span>
+            </span>
+          ))}
+        </div>
         <div className="trace-timeline__labels">
           {channels.map((label, channel) => (
             <span
@@ -376,17 +412,30 @@ export const TraceTimeline: React.FC<TraceTimelineProps> = ({ live = false, path
             setPanning(false);
           }}
         />
-      </div>
-
-      <div className="trace-timeline__axis">
-        <span>{formatSeconds(view?.startS ?? 0)}</span>
-        <span>{formatSeconds((view?.startS ?? 0) + (view?.spanS ?? 0))}</span>
+        <span className="trace-timeline__gutter">Time</span>
+        <div className="trace-timeline__axis">
+          {ticks.map((tick) => (
+            <span
+              className="trace-timeline__tick"
+              key={tick.fraction}
+              style={{ left: `${tick.fraction * 100}%` }}
+            >
+              <span
+                className="trace-timeline__tick-label"
+                style={{ transform: anchorFor(tick.fraction) }}
+              >
+                {tick.label}
+              </span>
+            </span>
+          ))}
+        </div>
       </div>
 
       <p className="trace-timeline__hint">
         The step sets how much time is in view; From and To move that window over the run. Scroll to
         zoom, drag to pan. A bright line is a capture; a dim one joins two captures at the level the
-        last one ended on, which was not measured.
+        last one ended on, which was not measured. The number above a capture is the iteration that
+        recorded it, left off where two would land on top of each other.
       </p>
     </section>
   );

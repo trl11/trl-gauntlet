@@ -34,6 +34,8 @@ export function formatSeconds(seconds: number): string {
 export interface Island {
   /** The samples, one byte each. */
   bytes: Uint8Array;
+  /** The iteration that recorded it. */
+  iteration: number;
   /** Samples per second. */
   rateHz: number;
   /** Seconds into the run at which the capture starts. */
@@ -54,6 +56,52 @@ export interface TimeView {
   startS: number;
   /** How many seconds the width covers. */
   spanS: number;
+}
+
+/** One labelled division of the time axis. */
+export interface Tick {
+  /** Where it sits across the plot: 0 at the left edge, 1 at the right. */
+  fraction: number;
+  /** The time it stands at, in the unit that suits it. */
+  label: string;
+}
+
+/** The divisions of a view, each named with the run time it falls at. */
+export function axisTicks(view: TimeView, divisions: number): Tick[] {
+  const ticks: Tick[] = [];
+  for (let index = 0; index <= divisions; index += 1) {
+    const fraction = index / divisions;
+    ticks.push({ fraction, label: formatSeconds(view.startS + fraction * view.spanS) });
+  }
+  return ticks;
+}
+
+/** Where a capture starts in a view, and which iteration recorded it. */
+export interface Mark {
+  /** Where it sits across the plot: 0 at the left edge, 1 at the right. */
+  fraction: number;
+  /** The iteration the capture belongs to. */
+  iteration: number;
+}
+
+/**
+ * The captures a view holds, at the fraction of the width each starts at.
+ *
+ * `minGap` is how close two may be named before the second is dropped, as a
+ * fraction of the width. A run zoomed out far enough has more captures than
+ * there is room to name, and a column of overlapping numbers names none of
+ * them.
+ */
+export function captureMarks(islands: Island[], view: TimeView, minGap: number): Mark[] {
+  const marks: Mark[] = [];
+  let previous = -Infinity;
+  for (const island of islands) {
+    const fraction = (island.startS - view.startS) / view.spanS;
+    if (fraction < 0 || fraction > 1 || fraction - previous < minGap) continue;
+    marks.push({ fraction, iteration: island.iteration });
+    previous = fraction;
+  }
+  return marks;
 }
 
 /** Where a capture ends, in run seconds. */
@@ -86,10 +134,15 @@ export function parseCaptures(text: string): Captures {
   const islands: Island[] = [];
   for (const line of lines.slice(1)) {
     try {
-      const row = JSON.parse(line) as { elapsed_run_s?: number; samples_base64?: string };
+      const row = JSON.parse(line) as {
+        elapsed_run_s?: number;
+        iteration?: number;
+        samples_base64?: string;
+      };
       if (typeof row.samples_base64 !== "string") continue;
       islands.push({
         bytes: decodeSamples(row.samples_base64),
+        iteration: row.iteration ?? 0,
         rateHz,
         startS: row.elapsed_run_s ?? 0,
       });
