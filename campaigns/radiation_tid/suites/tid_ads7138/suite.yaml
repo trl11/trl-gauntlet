@@ -48,7 +48,7 @@ produces: [events, junit, manifest, metrics, summary, verdict]
 requires: [i2c, logic]
 
 supports:
-  target: true
+  target: false
   unit_serial: true
 
 default_metrics: [ads7128.faults, ads7128.pattern, ads7128.pins]
