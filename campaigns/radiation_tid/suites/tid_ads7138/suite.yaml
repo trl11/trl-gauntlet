@@ -5,8 +5,10 @@ title: ADS7138 12-Bit ADC
 category: radiation
 description: >
   Total ionising dose characterisation of the ADS7138QRTERQ1 on PRE-10161.
-  Read the data from 2 ADCs across 4 inputs, and set 2 outputs. Placeholder:
-  the measurement is not implemented yet.
+  Each sample drives a pattern on the eight digital outputs and checks it four
+  ways: what the logic analyzer saw on the pins, what the part reports its own
+  inputs are, whether the configuration registers still read back as written,
+  and whether a conversion read still answers with the fixed code.
 
 setup: |
   The ADC is an Adafruit ADS7128 breakout: 8 channels, 12 bits, I2C. The host
@@ -43,11 +45,13 @@ profiles: ./profiles
 conformance_profile: smoke.yaml
 
 produces: [events, junit, manifest, metrics, summary, verdict]
-requires: []
+requires: [i2c, logic]
 
 supports:
   target: true
   unit_serial: true
+
+default_metrics: [ads7128.faults, ads7128.pattern, ads7128.pins]
 
 overrides:
   - name: duration_s
@@ -55,8 +59,16 @@ overrides:
     type: number
     label: Duration
     unit: s
+    minimum: 1
   - name: sample_period_s
     flag: --sample-period-s
     type: number
     label: Sample period
     unit: s
+    minimum: 0.1
+  - name: driver
+    flag: --driver
+    type: string
+    label: Driver
+    choices: [real, mock]
+    help: mock drives a register model of the part and contacts no instrument.
