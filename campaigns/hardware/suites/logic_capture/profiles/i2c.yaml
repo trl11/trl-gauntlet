@@ -1,0 +1,17 @@
+description: >
+  An I2C bus watched at 4 MHz, which is fast enough to resolve a 400 kHz clock.
+  Both lines are expected to be moving, so a bus that goes quiet fails the
+  capture it went quiet in rather than being noticed afterwards.
+driver: real
+duration_s: 300
+sample_period_s: 5
+rate: 4mhz
+window: 10ms
+save_traces: true
+channels:
+  - channel: "1"
+    label: SCL
+    expect: active
+  - channel: "2"
+    label: SDA
+    expect: active

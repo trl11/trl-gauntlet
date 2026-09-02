@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
+apiVersion: 1
+key: logic_capture
+title: Logic Capture
+category: hardware
+description: >
+  Watch the eight probes of the logic analyzer for a fixed duration. Each
+  capture is one window of samples: what every probe was doing in it is
+  recorded under the label the probe was given, and the picture of the capture
+  is kept, so the run carries both the numbers to chart and the waveform to
+  look through. A probe can be declared active, high or low, which is what
+  turns a capture into a pass or a fail.
+
+exec:
+  command: ["python", "-m", "suite.cli"]
+  args:
+    profile: --profile
+    run_dir: --run-dir
+    target: --target
+    unit_serial: --unit-serial
+  profile_schema_command: ["python", "-m", "suite.cli", "--print-profile-schema"]
+
+profiles: ./profiles
+conformance_profile: mock.yaml
+
+produces: [events, junit, manifest, metrics, summary, verdict]
+requires: [logic]
+
+supports:
+  target: false
+  unit_serial: true
+
+overrides:
+  - name: duration_s
+    flag: --duration-s
+    type: number
+    label: Duration
+    unit: s
+    minimum: 1
+    help: How long to keep capturing.
+  - name: sample_period_s
+    flag: --sample-period-s
+    type: number
+    label: Sample period
+    unit: s
+    minimum: 0.1
+    help: Seconds between captures. Each capture is one metrics record.
+  - name: rate
+    flag: --rate
+    type: string
+    label: Sample rate
+    choices:
+      [
+        24mhz,
+        16mhz,
+        12mhz,
+        8mhz,
+        6mhz,
+        4mhz,
+        3mhz,
+        2mhz,
+        1mhz,
+        500khz,
+        250khz,
+        200khz,
+        100khz,
+        50khz,
+        25khz,
+        20khz,
+      ]
+    help: >
+      How fast to sample. Only rates that divide the analyzer's 48 or 30 MHz
+      clock exactly are on offer, since a rate is a divisor rather than a
+      setting.
+  - name: window
+    flag: --window
+    type: string
+    label: Window
+    choices: [1ms, 10ms, 100ms]
+    help: >
+      How much signal one capture covers. A window shorter than a cycle of what
+      is on the probe shows a flat line rather than a signal.
+  - name: driver
+    flag: --driver
+    type: string
+    label: Driver
+    choices: [real, mock]
+    help: mock synthesises a capture and contacts no instrument.

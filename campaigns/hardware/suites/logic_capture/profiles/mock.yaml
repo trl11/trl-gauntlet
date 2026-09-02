@@ -1,0 +1,13 @@
+description: No instrument required. What `gauntlet verify --run` executes.
+driver: mock
+duration_s: 3
+sample_period_s: 0.5
+rate: 1mhz
+window: 10ms
+save_traces: true
+channels:
+  - channel: "1"
+    label: SCL
+    expect: active
+  - channel: "8"
+    label: IRQ

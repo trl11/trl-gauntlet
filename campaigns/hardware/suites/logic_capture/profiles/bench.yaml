@@ -1,0 +1,28 @@
+description: >
+  A minute of all eight probes at full rate. The starting point for a bench:
+  name the probes for what they are clipped to, and say what each one is
+  expected to be doing — a clock is `active`, a reset held out of reset is
+  `high` — since a probe left as `any` is recorded but never fails a run.
+driver: real
+duration_s: 60
+sample_period_s: 1
+rate: 24mhz
+window: 10ms
+save_traces: true
+channels:
+  - channel: "1"
+    label: CH 1
+  - channel: "2"
+    label: CH 2
+  - channel: "3"
+    label: CH 3
+  - channel: "4"
+    label: CH 4
+  - channel: "5"
+    label: CH 5
+  - channel: "6"
+    label: CH 6
+  - channel: "7"
+    label: CH 7
+  - channel: "8"
+    label: CH 8
