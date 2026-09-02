@@ -111,6 +111,7 @@ function suite(partial: Partial<Suite> = {}): Suite {
       },
     ],
     requires: [],
+    setup: "",
     supports: { target: true, unit_serial: false },
     title: "Thermal Cycle",
     ...partial,

@@ -49,6 +49,8 @@ const SuiteDetail: React.FC<SuiteDetailProps> = ({
 
       {suite.description && <p className="suite-detail__description">{suite.description}</p>}
 
+      {suite.setup && <pre className="suite-detail__setup">{suite.setup}</pre>}
+
       {unmet.length > 0 && (
         <p className="suite-detail__blocked" role="status">
           Cannot start: {unmet.join(", ")} {unmet.length === 1 ? "is" : "are"} unavailable. Check

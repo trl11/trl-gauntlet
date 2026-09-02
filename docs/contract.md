@@ -52,6 +52,19 @@ on `PYTHONPATH`, and Gauntlet's own `bin` directory is prepended to `PATH`.
 stdout. Gauntlet calls it to render a profile editor form.
 `gauntlet_sdk.make_suite_cli` provides it as `--print-profile-schema`.
 
+`setup` describes how the bench is put together. It is shown under the
+description on the Tests page, and unlike `description` its line breaks and
+indentation survive, so an ASCII diagram of the wiring reads as it was written.
+
+```yaml
+setup: |
+  The host reaches the part over a USB-to-I2C bridge.
+
+    +------+   USB   +--------+   I2C   +------+
+    | Host |-------->| bridge |-------->| part |
+    +------+         +--------+         +------+
+```
+
 `overrides` declares the values an operator may set per run. They become form
 controls in the UI and accepted keys on the REST API. Undeclared keys are
 rejected.

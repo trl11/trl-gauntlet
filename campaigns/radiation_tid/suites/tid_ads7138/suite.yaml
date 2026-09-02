@@ -8,6 +8,28 @@ description: >
   Read the data from 2 ADCs across 4 inputs, and set 2 outputs. Placeholder:
   the measurement is not implemented yet.
 
+setup: |
+  The ADC is an Adafruit ADS7128 breakout: 8 channels, 12 bits, I2C. The host
+  reaches it over a CP2112 USB-to-I2C bridge, which the kernel's hid-cp2112
+  driver registers as a /dev/i2c-N adapter, so the suite drives it through the
+  i2c capability. Power, ground, SDA and SCL run to the board over one 4-wire
+  connection. The device address is set by the board's ADDR strap.
+
+  The eight channel pins are brought out as GPIO and wired to the eight
+  channels of an FX2LP logic analyzer, which records them for the length of
+  the run.
+
+      +--------------+          +--------------+           +----------------+
+      |     Host     |   USB    |    CP2112    |    I2C    |    ADS7128     |
+      |  /dev/i2c-N  |--------->|  USB-to-I2C  |---------->|  8 ch, 12 bit  |
+      +--------------+          +--------------+  SDA SCL  +----------------+
+             ^                                                      |
+             |                                            8x GPIO   |
+             |                  +--------------+                    |
+             |    USB           |    FX2LP     |                    |
+             +------------------|   analyzer   |<-------------------+
+                                +--------------+   8 channels
+
 exec:
   command: ["python", "-m", "suite.cli"]
   args:

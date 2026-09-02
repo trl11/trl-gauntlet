@@ -1439,6 +1439,7 @@
       }
     ],
     "requires": [],
+    "setup": "",
     "supports": {
       "target": false,
       "unit_serial": true
@@ -1533,6 +1534,7 @@
           }
         ],
         "requires": [],
+        "setup": "",
         "supports": {
           "target": true,
           "unit_serial": true
@@ -1624,6 +1626,7 @@
           }
         ],
         "requires": [],
+        "setup": "",
         "supports": {
           "target": true,
           "unit_serial": true
@@ -1715,6 +1718,7 @@
           }
         ],
         "requires": [],
+        "setup": "",
         "supports": {
           "target": true,
           "unit_serial": true
@@ -1781,6 +1785,7 @@
           }
         ],
         "requires": [],
+        "setup": "",
         "supports": {
           "target": true,
           "unit_serial": false
@@ -1872,6 +1877,7 @@
           }
         ],
         "requires": [],
+        "setup": "",
         "supports": {
           "target": true,
           "unit_serial": true
@@ -1963,6 +1969,7 @@
           }
         ],
         "requires": [],
+        "setup": "",
         "supports": {
           "target": true,
           "unit_serial": true
@@ -2054,6 +2061,7 @@
           }
         ],
         "requires": [],
+        "setup": "",
         "supports": {
           "target": true,
           "unit_serial": true
@@ -2166,6 +2174,7 @@
           }
         ],
         "requires": [],
+        "setup": "",
         "supports": {
           "target": true,
           "unit_serial": true
@@ -2341,6 +2350,7 @@
           }
         ],
         "requires": [],
+        "setup": "",
         "supports": {
           "target": false,
           "unit_serial": true

@@ -40,6 +40,19 @@
     color: $trl-light-gray;
   }
 
+  // The setup text can carry an ASCII diagram, whose columns only line up if
+  // nothing rewraps it.
+  &__setup {
+    padding: 12px 14px;
+    overflow-x: auto;
+    font-family: $font-mono;
+    font-size: 12px;
+    line-height: 1.7;
+    color: $trl-light-gray;
+    background-color: rgba($trl-dark-gray, 0.3);
+    white-space: pre;
+  }
+
   &__blocked {
     padding: 10px 12px;
     font-size: 13px;
