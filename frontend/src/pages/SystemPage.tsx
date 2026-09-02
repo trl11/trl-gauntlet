@@ -202,10 +202,6 @@ export const SystemPage: React.FC = () => {
         <Panel>
           <div className="system-page__section">
             <h3 className="system-page__section-title">Power</h3>
-            <p className="system-page__note">
-              Takes this host down in order, so a rig needs neither a login nor its power switch.
-              Refused while a test is running.
-            </p>
             <div className="system-page__actions">
               <Button onClick={() => setConfirming("reboot")} disabled={power.isPending}>
                 Reboot
@@ -221,9 +217,7 @@ export const SystemPage: React.FC = () => {
             )}
             {power.isSuccess && (
               <p className="system-page__note" role="status">
-                {power.variables === "reboot"
-                  ? "Rebooting. This page answers again once it is back."
-                  : "Shutting down. This page stops answering."}
+                {power.variables === "reboot" ? "Rebooting\u2026" : "Shutting down\u2026"}
               </p>
             )}
           </div>
@@ -239,8 +233,8 @@ export const SystemPage: React.FC = () => {
           onDismiss={() => setConfirming(null)}
         >
           {confirming === "reboot"
-            ? `Reboot ${host?.hostname ?? "this host"}? It stops serving until it is back.`
-            : `Shut down ${host?.hostname ?? "this host"}? Someone has to press its power button to bring it back.`}
+            ? `Reboot ${host?.hostname ?? "this host"}?`
+            : `Shut down ${host?.hostname ?? "this host"}? It needs its power button to come back.`}
         </Confirm>
       )}
     </div>

@@ -42,12 +42,14 @@ fail() {
 # The AppImage is what is served; the rest is what turns it into a service and
 # what the operator reads. The deb, the wheels and the image are for other
 # ways of installing and are deliberately not sent.
-sent="README.txt blinky.png gauntlet-homepage.service gauntlet.service homepage.html install-service.sh serve-gauntlet.sh serve-homepage.py setup-bench.sh setup-host.sh 60-gauntlet-unprivileged-ports.conf 99-gauntlet-instruments.rules"
+sent="README.txt blinky.png gauntlet-homepage.service gauntlet.service homepage.html install-service.sh polkit serve-gauntlet.sh serve-homepage.py setup-bench.sh setup-host.sh 60-gauntlet-unprivileged-ports.conf 99-gauntlet-instruments.rules"
 
 appimage=$(ls "$DIST"/gauntlet-*.AppImage 2>/dev/null | head -1 || true)
 [ -n "$appimage" ] || fail "no gauntlet-*.AppImage in $DIST; run make build first"
 for file in $sent; do
-	[ -s "$DIST/$file" ] || fail "$DIST/$file is missing; run make build first"
+	# `polkit` is a directory of rules rather than a file, so both shapes count.
+	[ -s "$DIST/$file" ] || [ -d "$DIST/$file" ] ||
+		fail "$DIST/$file is missing; run make build first"
 done
 
 say "sending $(basename "$appimage") and the bench scripts to $BENCH:$REMOTE_DIR"

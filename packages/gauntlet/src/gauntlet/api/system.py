@@ -151,8 +151,14 @@ async def system_power(request: Request, body: PowerBody) -> dict[str, Any]:
     except subprocess.TimeoutExpired as exc:
         raise HTTPException(status_code=504, detail=f"{action} did not answer in time") from exc
     if finished.returncode != 0:
-        # Most often polkit, on a host where this account may not do it.
         detail = (finished.stderr or finished.stdout or "").strip()
+        # Polkit allows this without a password only for a user with an active
+        # local session, and a rig serves from a lingering user manager that
+        # has none. Saying which step installs the rule is the difference
+        # between a fixable message and a puzzle, because the account really
+        # does have the right and only from a console.
+        if "authentication required" in detail.lower():
+            detail = f"{detail} Run setup-host.sh on this bench to install the polkit rule that allows it."
         raise HTTPException(status_code=502, detail=detail or f"{action} was refused")
 
     return {"action": body.action, "status": "accepted"}

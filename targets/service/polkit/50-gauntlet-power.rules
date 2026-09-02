@@ -1,0 +1,34 @@
+// Let the operator power a rig down from the Gauntlet UI.
+//
+// Install on a bench that serves Gauntlet. `setup-host.sh` copies this into
+// /etc/polkit-1/rules.d/, which is the same one root step the udev rules and
+// the sysctl already need.
+//
+//     sudo cp targets/service/polkit/50-gauntlet-power.rules /etc/polkit-1/rules.d/
+//
+// Why it is needed: logind allows power-off without a password only for a user
+// with an active local session. A rig serves from a lingering systemd user
+// manager, which has no session at all, so `systemctl poweroff` from the
+// service is refused with "Interactive authentication required" — the state a
+// rig is in whenever nobody is logged in at its console, which is always.
+//
+// What this trades: any member of `dialout` may power the machine off or
+// reboot it without a password, from a console or over the network. That group
+// already owns the instruments and runs the service, so on a single-operator
+// bench it is nobody new. On a shared or exposed host it is worth thinking
+// about first.
+//
+// Verify: `systemctl poweroff --dry-run` proves nothing — a dry run never asks
+// polkit. Press Shut down in the UI, or run
+// `busctl call org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager CanPowerOff`
+// as the operator, which answers "yes" once this is installed.
+polkit.addRule(function (action, subject) {
+  var powering =
+    action.id == "org.freedesktop.login1.power-off" ||
+    action.id == "org.freedesktop.login1.power-off-multiple-sessions" ||
+    action.id == "org.freedesktop.login1.reboot" ||
+    action.id == "org.freedesktop.login1.reboot-multiple-sessions";
+  if (powering && subject.isInGroup("dialout")) {
+    return polkit.Result.YES;
+  }
+});

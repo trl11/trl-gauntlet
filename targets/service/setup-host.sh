@@ -19,14 +19,17 @@
 # one changes nothing.
 #
 # Every `*.rules` file beside this script is installed, so a rule added to the
-# release is picked up without this script changing, and every `*.conf` goes to
-# /etc/sysctl.d the same way.
+# release is picked up without this script changing, every `*.conf` goes to
+# /etc/sysctl.d the same way, and every `*.rules` under `polkit/` goes to
+# /etc/polkit-1/rules.d. Polkit's live in a subdirectory because they share an
+# extension with udev's and belong somewhere else entirely.
 
 set -eu
 
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 RULES_DIR=/etc/udev/rules.d
 SYSCTL_DIR=/etc/sysctl.d
+POLKIT_DIR=/etc/polkit-1/rules.d
 # Every group an instrument node is owned by: dialout for the raw-USB nodes the
 # rules regroup and for the serial adapters, video for the camera nodes.
 INSTRUMENT_GROUPS="dialout video"
@@ -70,6 +73,24 @@ if [ -n "$sysctls" ]; then
 	# straight after this without rebooting the bench.
 	sysctl --system >/dev/null 2>&1 || echo "    could not apply them now; they take effect at the next boot"
 	echo "    net.ipv4.ip_unprivileged_port_start = $(sysctl -n net.ipv4.ip_unprivileged_port_start 2>/dev/null || echo '?')"
+fi
+
+# What lets the operator power the bench down from the UI. logind allows that
+# without a password only for a user with an active local session, and a rig
+# serves from a lingering user manager that has none. Optional, like the
+# sysctl: a release from before this existed ships no polkit/ directory.
+polkit_rules=$(find "$HERE/polkit" -maxdepth 1 -name '*.rules' 2>/dev/null | sort)
+if [ -n "$polkit_rules" ]; then
+	echo "==> installing polkit rules into $POLKIT_DIR"
+	mkdir -p "$POLKIT_DIR"
+	for rule in $polkit_rules; do
+		install -m 644 "$rule" "$POLKIT_DIR/"
+		echo "    $(basename "$rule")"
+	done
+	# polkit re-reads the directory itself, so there is nothing to reload. A
+	# service already running keeps its refusal cached only as long as its
+	# current call, so the next press of the button is the test.
+	echo "    the rig can now be powered off from its UI"
 fi
 
 # The rules hand the nodes to a group, which does nothing for a user who is not

@@ -84,10 +84,23 @@ class TestPower:
         assert calls == []
 
     def test_a_refusal_reaches_the_operator(self, client, monkeypatch):
+        """Polkit's own words, plus the step that grants the right.
+
+        A rig serves from a lingering user manager with no session, which is
+        exactly the case logind refuses, so this is what an operator meets on
+        a bench where `setup-host.sh` has not been run.
+        """
         self._spy(monkeypatch, returncode=1, stderr="Interactive authentication required.")
         refused = client.post("/api/system/power", json={"action": "poweroff"})
         assert refused.status_code == 502
-        assert "Interactive authentication required." in refused.json()["detail"]
+        detail = refused.json()["detail"]
+        assert "Interactive authentication required." in detail
+        assert "setup-host.sh" in detail
+
+    def test_an_unexplained_refusal_is_passed_through(self, client, monkeypatch):
+        self._spy(monkeypatch, returncode=1, stderr="Failed to start poweroff.target.")
+        refused = client.post("/api/system/power", json={"action": "poweroff"})
+        assert refused.json()["detail"] == "Failed to start poweroff.target."
 
     def test_a_host_without_systemctl_says_so(self, client, monkeypatch):
         self._spy(monkeypatch)

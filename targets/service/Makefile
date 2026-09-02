@@ -18,6 +18,7 @@ SERVE_PAGE     := $(PREFIX)/runtime/bin/python3 -s $(PREFIX)/homepage/serve-home
 UNIT_DIR       := /usr/lib/systemd/user
 UDEV_DIR       := /usr/lib/udev/rules.d
 SYSCTL_DIR     := /usr/lib/sysctl.d
+POLKIT_DIR     := /usr/share/polkit-1/rules.d
 
 .PHONY: build help
 
@@ -38,7 +39,7 @@ build:
 	@$(MAKE) --no-print-directory -C $(DESKTOP) runtime
 	@rm -rf $(STAGE)
 	@install -d $(STAGE)$(PREFIX) $(STAGE)$(UNIT_DIR) $(STAGE)$(UDEV_DIR) \
-		$(STAGE)$(SYSCTL_DIR) $(STAGE)/usr/share/doc/$(PACKAGE) $(STAGE)/DEBIAN
+		$(STAGE)$(SYSCTL_DIR) $(STAGE)$(POLKIT_DIR) $(STAGE)/usr/share/doc/$(PACKAGE) $(STAGE)/DEBIAN
 	@cp -a $(DESKTOP_RUNTIME) $(STAGE)$(PREFIX)/runtime
 	@cp -a $(CAMPAIGNS) $(STAGE)$(PREFIX)/campaigns
 	# What running the suites in the checkout leaves behind. All of it is
@@ -51,6 +52,7 @@ build:
 	@install -m 644 $(PAGE_HTML) $(PAGE_BANNER) $(STAGE)$(PREFIX)/homepage/
 	@install -m 644 $(UDEV_RULES) $(STAGE)$(UDEV_DIR)/
 	@install -m 644 $(PORT_SYSCTL) $(STAGE)$(SYSCTL_DIR)/
+	@install -m 644 $(POLKIT_RULES) $(STAGE)$(POLKIT_DIR)/
 	@install -m 644 $(HOST_README) $(STAGE)/usr/share/doc/$(PACKAGE)/
 	# The units carry a placeholder because where a bundle lands is only known
 	# by whoever installs it. Here that is this package, so it is $(PREFIX).

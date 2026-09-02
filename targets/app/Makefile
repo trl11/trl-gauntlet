@@ -104,6 +104,8 @@ host-setup:
 	@mkdir -p $(DIST)
 	@install -m 755 $(HOST_SETUP) $(BENCH_SETUP) $(SERVE_SCRIPT) $(SERVICE_SETUP) $(PAGE_SERVE) $(DIST)/
 	@install -m 644 $(HOST_README) $(UDEV_RULES) $(SERVICE_UNIT) $(PAGE_HTML) $(PAGE_BANNER) $(PAGE_UNIT) $(PORT_SYSCTL) $(DIST)/
+	@install -d $(DIST)/polkit
+	@install -m 644 $(POLKIT_RULES) $(DIST)/polkit/
 	@echo "dist/$(notdir $(HOST_README))"
 	@echo "dist/$(notdir $(BENCH_SETUP))"
 	@echo "dist/$(notdir $(HOST_SETUP))"
@@ -115,6 +117,7 @@ host-setup:
 	@echo "dist/$(notdir $(PAGE_SERVE))"
 	@echo "dist/$(notdir $(PAGE_UNIT))"
 	@echo "dist/$(notdir $(PORT_SYSCTL))"
+	@echo "dist/polkit/$(notdir $(POLKIT_RULES))"
 	@echo "dist/$(notdir $(UDEV_RULES))"
 
 # Runs before the installers are copied out, so a bundle that only works on

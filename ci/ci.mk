@@ -83,6 +83,7 @@ ci-validate-dist:
 		"dist/gauntlet_sdk-$${version}-py3-none-any.whl" \
 		"dist/README.txt" \
 		"dist/60-gauntlet-unprivileged-ports.conf" \
+		"dist/polkit/50-gauntlet-power.rules" \
 		"dist/gauntlet.service" \
 		"dist/blinky.png" \
 		"dist/homepage.html" \

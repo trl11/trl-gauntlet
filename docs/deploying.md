@@ -99,6 +99,23 @@ alongside the udev rules — the same one root step, rather than a second one.
 Every port from 80 up becomes bindable by any local user, which on a
 single-operator bench is nobody new.
 
+## Powering a rig down
+
+The System page has Reboot and Shut down, so a bench needs neither an SSH
+login nor its power switch. Gauntlet runs `systemctl` on the host it is served
+from; the request is refused while a run is in flight.
+
+logind allows that without a password only for a user with an active local
+session, and a rig serves from a lingering user manager which has none. So
+[`50-gauntlet-power.rules`](../targets/service/polkit/50-gauntlet-power.rules)
+grants it to the `dialout` group — the one that already owns the instruments
+and runs the service — and `setup-host.sh` installs it alongside the udev
+rules. Without it the button answers "Interactive authentication required" and
+names the script to run.
+
+`systemctl poweroff --dry-run` does not test this. A dry run never asks
+polkit, so it succeeds on a host where the real call is refused.
+
 ## Datasheets
 
 The page lists whatever is in `datasheets/` under the data directory, and

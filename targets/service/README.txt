@@ -31,7 +31,10 @@ starts, so the shell you ran the script from still does not have it.
 
     sudo ./setup-host.sh
 
-The narrower step, if the udev rules are all you want. Gauntlet drives some
+The narrower step, if the udev rules are all you want. It also installs the
+polkit rule that lets you shut the bench down from Gauntlet's System page:
+without it the button reports "Interactive authentication required", because
+logind allows that only from a console session and a rig has none. Gauntlet drives some
 instruments over raw USB, and those device nodes are owned by root until a
 udev rule says otherwise, so without this the application starts and reports
 the instrument as unavailable with a permission error. The script installs the
