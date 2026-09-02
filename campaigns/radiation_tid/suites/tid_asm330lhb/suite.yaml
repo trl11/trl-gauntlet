@@ -8,6 +8,15 @@ description: >
   MKI244A. Execute a continuous capture loop monitoring accelerometer and
   gyroscope outputs. Placeholder: the measurement is not implemented yet.
 
+setup: |
+  The IMU is on a STEVAL-MKI244A adapter board. That board mounts on a
+  STEVAL-MKI109D motherboard. A Linux laptop reaches the part through the
+  motherboard's evaluation MCU, over USB.
+
+  The adapter board has not arrived and the measurement is not implemented, so
+  this is the bench the suite is written for rather than one that is wired.
+  The suite runs and passes without any of it.
+
 exec:
   command: ["python", "-m", "suite.cli"]
   args:

@@ -8,6 +8,12 @@ description: >
   software approach is not yet defined for this component. Placeholder: the
   measurement is not implemented yet.
 
+setup: |
+  The bench is not defined yet. Nobody has chosen the test vehicle, and no
+  software approach is decided. The host will be a Jetson or a Linux laptop.
+  There is nothing wired to describe until then, and the suite runs and
+  passes without hardware.
+
 exec:
   command: ["python", "-m", "suite.cli"]
   args:

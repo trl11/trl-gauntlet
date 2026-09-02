@@ -10,6 +10,36 @@ description: >
   in Mbps. Both ends of the link are recorded; the serializer is the part under
   the beam.
 
+setup: |
+  The serializer sits in the LI-IMX728-GMSL3-070H camera head, and the head is
+  the only thing in the beam. It carries an IMX728 image sensor, whose video
+  the serializer puts on the GMSL link. The link runs to an LI-GMSL3-USB3.2
+  adapter, and the adapter and the host it connects to are both outside the
+  beam. The MAX96792 deserializer in that adapter is the known-good reference.
+  One capture crosses both chips, so a fault at one end alone says which end
+  moved.
+
+  The sensor is in the beam with the serializer, so a snapshot that degrades
+  is not by itself a link fault.
+
+  The adapter presents the head to the host as an ordinary UVC camera. It also
+  tunnels I2C to both chips over a vendor extension unit on the same USB
+  connection, so nothing is wired to either board to read the link. Gauntlet
+  owns the device, and the suite drives it through the camera capability over
+  HTTP. The suite only ever reads the two chips. A write can drop the link,
+  and a link dropped under the beam looks exactly like a radiation effect.
+
+      +----------------+   GMSL   +-----------------+   USB   +------------+
+      | LI-IMX728 head |--------->| LI-GMSL3-USB3.2 |-------->|    Host    |
+      |                |          |                 |         |            |
+      | IMX728 sensor  |          |    MAX96792     |         | UVC video, |
+      |       |        |          |  deserializer   |         | and I2C on |
+      |       v        |          |                 |         |  the same  |
+      |    MAX96793    |          |                 |         |    USB     |
+      |   serializer   |          |                 |         +------------+
+      +----------------+          +-----------------+
+        under the beam             outside the beam           outside the beam
+
 exec:
   command: ["python", "-m", "suite.cli"]
   args:
