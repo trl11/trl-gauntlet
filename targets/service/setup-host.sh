@@ -20,16 +20,15 @@
 #
 # Every `*.rules` file beside this script is installed, so a rule added to the
 # release is picked up without this script changing, every `*.conf` goes to
-# /etc/sysctl.d the same way, and every `*.rules` under `polkit/` goes to
-# /etc/polkit-1/rules.d. Polkit's live in a subdirectory because they share an
-# extension with udev's and belong somewhere else entirely.
+# /etc/sysctl.d the same way, and every `*.pkla` under `polkit/` goes to
+# polkit's local authority directory.
 
 set -eu
 
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 RULES_DIR=/etc/udev/rules.d
 SYSCTL_DIR=/etc/sysctl.d
-POLKIT_DIR=/etc/polkit-1/rules.d
+POLKIT_DIR=/etc/polkit-1/localauthority/50-local.d
 # Every group an instrument node is owned by: dialout for the raw-USB nodes the
 # rules regroup and for the serial adapters, video for the camera nodes.
 INSTRUMENT_GROUPS="dialout video"
@@ -79,7 +78,7 @@ fi
 # without a password only for a user with an active local session, and a rig
 # serves from a lingering user manager that has none. Optional, like the
 # sysctl: a release from before this existed ships no polkit/ directory.
-polkit_rules=$(find "$HERE/polkit" -maxdepth 1 -name '*.rules' 2>/dev/null | sort)
+polkit_rules=$(find "$HERE/polkit" -maxdepth 1 -name '*.pkla' 2>/dev/null | sort)
 if [ -n "$polkit_rules" ]; then
 	echo "==> installing polkit rules into $POLKIT_DIR"
 	mkdir -p "$POLKIT_DIR"

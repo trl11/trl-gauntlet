@@ -107,14 +107,25 @@ from; the request is refused while a run is in flight.
 
 logind allows that without a password only for a user with an active local
 session, and a rig serves from a lingering user manager which has none. So
-[`50-gauntlet-power.rules`](../targets/service/polkit/50-gauntlet-power.rules)
+[`50-gauntlet-power.pkla`](../targets/service/polkit/50-gauntlet-power.pkla)
 grants it to the `dialout` group — the one that already owns the instruments
 and runs the service — and `setup-host.sh` installs it alongside the udev
 rules. Without it the button answers "Interactive authentication required" and
 names the script to run.
 
-`systemctl poweroff --dry-run` does not test this. A dry run never asks
-polkit, so it succeeds on a host where the real call is refused.
+It is a `.pkla` rather than the JavaScript `.rules` format because polkit only
+reads `/etc/polkit-1/rules.d` from 0.106 onwards, and Ubuntu 22.04 ships 0.105.
+A `.rules` file there is ignored without a word in any log.
+
+`systemctl poweroff --dry-run` does not test this either. A dry run never asks
+polkit, so it succeeds on a host where the real call is refused. Ask logind:
+
+```
+busctl call org.freedesktop.login1 /org/freedesktop/login1 \
+  org.freedesktop.login1.Manager CanPowerOff
+```
+
+which answers `challenge` until the rule is installed and `yes` afterwards.
 
 ## Datasheets
 

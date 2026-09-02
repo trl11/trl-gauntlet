@@ -1,0 +1,37 @@
+# Let the operator power a rig down from the Gauntlet UI.
+#
+# Install on a bench that serves Gauntlet. `setup-host.sh` copies this into
+# /etc/polkit-1/localauthority/50-local.d/, which is the same one root step the
+# udev rules and the sysctl already need.
+#
+# Why it is needed: logind allows power-off without a password only for a user
+# with an active local session. A rig serves from a lingering systemd user
+# manager, which has no session at all, so `systemctl poweroff` from the
+# service is refused with "Interactive authentication required" — the state a
+# rig is in whenever nobody is logged in at its console, which is always.
+#
+# Why .pkla rather than the JavaScript .rules format: polkit only reads
+# /etc/polkit-1/rules.d from 0.106 onwards. Ubuntu 22.04 ships 0.105, which
+# reads this format alone and ignores a .rules file without a word in any log.
+# A bench on a newer polkit reads .pkla through polkitd-pkla, which Debian and
+# Ubuntu still ship for exactly this reason.
+#
+# What this trades: any member of `dialout` may power the machine off or reboot
+# it without a password, from a console or over the network. That group already
+# owns the instruments and runs the service, so on a single-operator bench it
+# is nobody new. On a shared or exposed host it is worth thinking about first.
+#
+# Verify: `systemctl poweroff --dry-run` proves nothing — a dry run never asks
+# polkit. Ask logind itself, as the operator:
+#
+#     busctl call org.freedesktop.login1 /org/freedesktop/login1 \
+#       org.freedesktop.login1.Manager CanPowerOff
+#
+# which answers "challenge" until this is installed and "yes" afterwards.
+
+[Gauntlet rig power]
+Identity=unix-group:dialout
+Action=org.freedesktop.login1.power-off;org.freedesktop.login1.power-off-multiple-sessions;org.freedesktop.login1.reboot;org.freedesktop.login1.reboot-multiple-sessions
+ResultAny=yes
+ResultInactive=yes
+ResultActive=yes

@@ -18,7 +18,7 @@ SERVE_PAGE     := $(PREFIX)/runtime/bin/python3 -s $(PREFIX)/homepage/serve-home
 UNIT_DIR       := /usr/lib/systemd/user
 UDEV_DIR       := /usr/lib/udev/rules.d
 SYSCTL_DIR     := /usr/lib/sysctl.d
-POLKIT_DIR     := /usr/share/polkit-1/rules.d
+POLKIT_DIR     := /etc/polkit-1/localauthority/50-local.d
 
 .PHONY: build help
 

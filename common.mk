@@ -67,7 +67,7 @@ PAGE_UNIT      := $(PAGE)/gauntlet-homepage.service
 PORT_SYSCTL    := $(SERVICE)/60-gauntlet-unprivileged-ports.conf
 # And what lets the operator power the bench down from the UI. logind refuses
 # that to a user with no session, which is what a lingering user manager is.
-POLKIT_RULES   := $(SERVICE)/polkit/50-gauntlet-power.rules
+POLKIT_RULES   := $(SERVICE)/polkit/50-gauntlet-power.pkla
 
 # Every port this project binds, in one place so that two of them cannot be
 # given the same number.
