@@ -1,8 +1,8 @@
 # The rig's landing page, kept serving across reboots.
 #
 # A user unit for the same reasons gauntlet.service is one: it needs no root to
-# install, and it runs as the operator. `install-service.sh` puts it in place,
-# rewriting ExecStart for wherever the bundle was unpacked.
+# install, and it runs as the operator. ExecStart is rewritten by whichever of
+# the two installs it, for the same reason.
 #
 # Binding port 80 as an ordinary user is what the sysctl `setup-host.sh`
 # installs allows. Without it this unit starts, fails to bind, and says so.

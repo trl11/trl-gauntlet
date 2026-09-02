@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/campaigns/schema
+apiVersion: 1
+key: examples
+title: Examples
+description: >
+  What belongs to no test programme: the two reference suites a new suite is
+  copied from, and one that samples the host it runs on. None of them needs
+  hardware, so this is the campaign to run against a fresh checkout to see
+  Gauntlet do something. Membership is ./suites: a suite added there joins on
+  the next rescan, with or without an entry below.
+
+suites: ./suites
+
+members:
+  - suite: example_sampled
+    profile: smoke.yaml
+    notes: Reference Python suite, written against SuiteSpec.
+  - suite: example_shell
+    profile: smoke.yaml
+    notes: Reference bash suite, with no dependency on Gauntlet at all.
+  - suite: system_stats
+    profile: smoke.yaml
+    notes: CPU, memory, disk and network of the host Gauntlet itself runs on.

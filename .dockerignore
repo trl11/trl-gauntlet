@@ -1,4 +1,4 @@
-# The build needs the two packages, the frontend, the ui-kit, the suites and
+# The build needs the two packages, the frontend, the ui-kit, the campaigns and
 # docker/dependencies.txt. Everything else only slows the context transfer
 # down, and some of it would poison the image: a .venv built for another path,
 # or a node_modules built for another platform.

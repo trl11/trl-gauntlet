@@ -1,9 +1,10 @@
 Gauntlet
 ========
 
-Two ways to install, and one setup step that comes before either of them if
-this machine has instruments plugged into it. A bench that should serve
-Gauntlet all the time has one step after them as well.
+Three ways to install, and one setup step that comes before the first two if
+this machine has instruments plugged into it. The third is for a bench that
+should serve Gauntlet all the time, and needs no setup step at all: it is a
+package, and installing it does that part itself.
 
 
 Set the host up first
@@ -88,19 +89,36 @@ For Debian and Ubuntu. Installs to /opt and adds a desktop entry:
 Both carry their own Python and every built-in test suite. Nothing else needs
 installing.
 
+There is a second package, gauntlet-rig-<version>.deb, and it is not this one:
+it installs the same application with no window and no desktop entry, as the
+service a bench serves the lab with. That is the section below.
+
 
 Leaving a bench running as a rig
 -------------------------------
 
+    sudo apt install ./gauntlet-rig-<version>.deb
+    loginctl enable-linger $USER
+    systemctl --user enable --now gauntlet.service gauntlet-homepage.service
+
+This is the whole thing for a machine that should serve Gauntlet all the time,
+rather than only while someone has the application open. The package carries
+the application, its Python, every test suite, the landing page below and the
+udev rules above, and installing it does the root half of the setup for you —
+so on a bench installed this way, setup-host.sh has nothing left to do.
+
+The two commands after it are yours to run because the service runs as you,
+not as root: the udev rules grant the instruments to your groups and not to
+root's. Lingering is what starts it at boot rather than at your next login.
+
     ./install-service.sh
 
-Run this on a machine that should serve Gauntlet all the time, rather than
-only while someone has the application open. It installs a systemd user
-service that starts the backend at boot, restarts it if it stops, and keeps it
-running when nobody is logged in.
+The other way, for a bench that has the AppImage rather than the package. It
+installs the same systemd user service, pointed at the AppImage beside it.
+Either way what you get starts the backend at boot, restarts it if it stops,
+and keeps it running when nobody is logged in.
 
-Do not use sudo. The service runs as you, because the udev rules above grant
-the instruments to your groups and not to root's.
+Do not use sudo on install-service.sh, for the same reason.
 
 What it starts is the backend on its own, without the desktop window: the same
 application, reached with a browser instead. The script prints the address when
@@ -112,27 +130,27 @@ otherwise. Anyone on the lab network can open it.
     systemctl --user stop gauntlet.service       stop it until next boot
     systemctl --user disable --now gauntlet.service   stop it for good
 
-To put a newer release on a bench that already runs the service, copy this
-whole directory over the old one and run ./install-service.sh again. It
-restarts the service on the new bundle. Run artifacts and history are kept
+To put a newer release on a bench that already runs the service, install the
+newer package over it, or copy this whole directory over the old one and run
+./install-service.sh again. Either restarts the service on the new bundle. Run artifacts and history are kept
 somewhere else, so they survive.
 
 The desktop application can still be opened on a machine running the service.
 Both read the same run history. They do not serve the same port, so what the
 window shows is its own backend, not the service's.
 
-install-service.sh also starts a landing page on port 80, so the bench's bare
-address reaches something: what the host is doing, a link on to Gauntlet, and
+A landing page runs on port 80 too, so the bench's bare address reaches
+something: what the host is doing, a link on to Gauntlet, and
 the datasheets below. It is a separate service from Gauntlet and reads nothing
 of its own, so it shows what the application shows, and it still renders while
 Gauntlet is stopped.
 
 Port 80 is below the range an ordinary account may bind, so this is the part
-that needs setup-host.sh to have been run. If the page does not answer, that is
-almost always why.
+that needs the package installed or setup-host.sh run. If the page does not
+answer, that is almost always why.
 
-    systemctl --user status homepage.service     is it running
-    journalctl --user -u homepage.service -f     what it is doing
+    systemctl --user status gauntlet-homepage.service     is it running
+    journalctl --user -u gauntlet-homepage.service -f     what it is doing
 
 
 Datasheets on the bench

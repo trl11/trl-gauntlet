@@ -1,6 +1,6 @@
 """Reports whether the host's udev rules reached the instruments plugged in.
 
-``system/99-gauntlet-instruments.rules`` is the declaration. This reads the
+``rig/99-gauntlet-instruments.rules`` is the declaration. This reads the
 vendor ids out of it rather than repeating them, so a rule added there is
 checked here without touching this file, then reports the owner and mode of
 every usbfs node those rules cover.
@@ -9,7 +9,7 @@ Stdlib only, and no import of ``gauntlet``: it runs on whichever host the
 instruments are plugged into, which is not necessarily one that has the
 project's virtualenv.
 
-    python3 scripts/udev_check.py    # exit 1 unless every node is writable
+    python3 tools/bench/udev_check.py    # exit 1 unless every node is writable
 """
 
 from __future__ import annotations
@@ -21,8 +21,8 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-RULES = ROOT / "system" / "99-gauntlet-instruments.rules"
+ROOT = Path(__file__).resolve().parent.parent.parent
+RULES = ROOT / "rig" / "99-gauntlet-instruments.rules"
 USB_DEVICES = Path("/sys/bus/usb/devices")
 
 _VENDOR = re.compile(r'ATTRS\{idVendor\}=="([0-9a-fA-F]{4})"')

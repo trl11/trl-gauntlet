@@ -66,7 +66,7 @@ def _ensure_venv() -> None:
         return
     except ModuleNotFoundError:
         pass
-    venv_python = Path(__file__).resolve().parent.parent / ".venv" / "bin" / "python"
+    venv_python = Path(__file__).resolve().parents[2] / ".venv" / "bin" / "python"
     if not venv_python.exists():
         print("gauntlet is not importable and no .venv found; run `make setup` first.", file=sys.stderr)
         sys.exit(1)

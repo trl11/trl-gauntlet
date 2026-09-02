@@ -14,7 +14,7 @@ templates` lists the available templates, and
 [`scaffolding.md`](scaffolding.md) covers the generator itself.
 
 ```
-suites/thermal_cycle/
+campaigns/thermal/suites/thermal_cycle/
 ├── suite.yaml              declaration
 ├── suite/                  code, same name in every suite
 │   ├── cli.py              entry point
@@ -183,7 +183,8 @@ result = run(client, "uname -r", timeout=10.0)
 and writes `live` records. `capture_host_facts` returns hostname, kernel, OS,
 and CPU for the run manifest.
 
-See `suites/ssd/` and `suites/hardware_trigger/` for working examples.
+See `campaigns/hardware/suites/ssd/` and
+`campaigns/hardware/suites/hardware_trigger/` for working examples.
 
 ## Profiles
 
@@ -195,7 +196,8 @@ conformance_profile: mock.yaml
 ```
 
 Built-in suites use a `driver: real | mock` field for this, where `mock`
-synthesises results without contacting a unit. `suites/system_stats/` needs no
+synthesises results without contacting a unit. `campaigns/examples/suites/system_stats/`
+needs no
 such field: it measures the host it runs on, so its `smoke.yaml` is both the
 conformance profile and a real measurement.
 
@@ -246,7 +248,8 @@ contract.
 ## Suites without the iteration loop
 
 Read `GAUNTLET_RUN_DIR`, append JSON lines to `metrics.jsonl`, write
-`verdict.json`, exit. `suites/example_shell/run.sh` implements the contract in
+`verdict.json`, exit. `campaigns/examples/suites/example_shell/run.sh` implements the
+contract in
 bash, and `make suite-new NAME=x TEMPLATE=shell` scaffolds one.
 
 Specification: [`contract.md`](contract.md).

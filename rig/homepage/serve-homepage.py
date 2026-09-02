@@ -17,6 +17,10 @@ Nothing here is Gauntlet's, so it holds no state: the datasheets are read from
 the data directory the application already owns, and survive a redeploy for
 the same reason run history does.
 
+Two files beside this one are served as themselves: ``homepage.html`` and the
+banner it names. Everything else in the directory is not a route, so this is a
+landing page rather than a file server.
+
 The environment overrides every path and port:
 
     GAUNTLET_HOMEPAGE_PORT  what to listen on (default 80)
@@ -40,6 +44,7 @@ from typing import Any
 
 HERE = Path(__file__).resolve().parent
 PAGE = HERE / "homepage.html"
+BANNER = HERE / "blinky.png"
 
 DEFAULT_PORT = 80
 DEFAULT_UPSTREAM = "http://127.0.0.1:7100"
@@ -123,6 +128,8 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?", 1)[0].rstrip("/") or "/"
         if path == "/":
             self.send_page()
+        elif path == "/blinky.png":
+            self.send_banner()
         elif path == "/datasheets":
             self.send_json(HTTPStatus.OK, {"datasheets": datasheets()})
         elif path.startswith("/datasheets/"):
@@ -139,6 +146,15 @@ class Handler(BaseHTTPRequestHandler):
         the base class calls this with.
         """
         sys.stderr.write(f"{self.address_string()} - {format % args}\n")
+
+    def send_banner(self) -> None:
+        """The page's banner, the one file it does not carry inline."""
+        try:
+            body = BANNER.read_bytes()
+        except OSError as error:
+            self.send_json(HTTPStatus.NOT_FOUND, {"detail": str(error)})
+            return
+        self.send_bytes(HTTPStatus.OK, "image/png", body)
 
     def send_bytes(self, status: HTTPStatus, content_type: str, body: bytes) -> None:
         """One response, with the length browsers need to stop reading."""

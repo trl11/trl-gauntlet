@@ -14,10 +14,6 @@
       "to": "runtime"
     },
     {
-      "from": "../suites",
-      "to": "suites"
-    },
-    {
       "from": "../campaigns",
       "to": "campaigns"
     }

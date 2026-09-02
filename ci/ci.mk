@@ -77,14 +77,16 @@ ci-validate-dist:
 	expected=( \
 		"dist/gauntlet-$${version}.AppImage" \
 		"dist/gauntlet-$${version}.deb" \
+		"dist/gauntlet-rig-$${version}.deb" \
 		"dist/gauntlet-$${version}-image.tar.gz" \
 		"dist/gauntlet-$${version}-py3-none-any.whl" \
 		"dist/gauntlet_sdk-$${version}-py3-none-any.whl" \
 		"dist/README.txt" \
 		"dist/60-gauntlet-unprivileged-ports.conf" \
 		"dist/gauntlet.service" \
+		"dist/blinky.png" \
 		"dist/homepage.html" \
-		"dist/homepage.service" \
+		"dist/gauntlet-homepage.service" \
 		"dist/install-service.sh" \
 		"dist/serve-gauntlet.sh" \
 		"dist/serve-homepage.py" \

@@ -134,8 +134,12 @@ Specification: [`docs/contract.md`](docs/contract.md).
 |---|---|
 | `packages/gauntlet-sdk/` | Library for suite authors. Requires pydantic and pyyaml. |
 | `packages/gauntlet/` | Application: discovery, supervisor, REST API, and the built frontend. |
-| `suites/` | Built-in and reference suites. |
+| `campaigns/` | Every suite that ships, each in the campaign that groups it. |
 | `frontend/` | React operator UI, built into `gauntlet/web_dist`. |
+| `app/` | Electron shell: the desktop target. |
+| `docker/` | The server image: the second target. |
+| `rig/` | The service a bench runs, packaged as one deb: the third. |
+| `tools/` | Scripts for deploying, working a bench, and cutting a release. |
 | `extras/trl-ui-kit/` | Component library, a git submodule the UI consumes as source. |
 | `docs/` | Contract specification and guides. |
 

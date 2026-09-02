@@ -5,7 +5,7 @@
 # rules that decide the node's owner: a devcontainer, the server image and the
 # desktop app all see the result rather than set it.
 #
-#     sudo cp system/99-gauntlet-instruments.rules /etc/udev/rules.d/
+#     sudo cp rig/99-gauntlet-instruments.rules /etc/udev/rules.d/
 #     sudo udevadm control --reload-rules
 #     sudo udevadm trigger
 #

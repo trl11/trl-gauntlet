@@ -3,7 +3,8 @@
   The rig's landing page, served on port 80 by serve-homepage.py.
 
   Self-contained on purpose: a bench has no reliable route to the internet, so
-  there is no font, stylesheet or script here that is not in this file.
+  nothing here is fetched from one. The banner is the one thing not in this
+  file, and it is served from beside it by serve-homepage.py.
 
   It names no host. Every link is built from location.hostname, so the page
   works through whatever address the browser arrived on and a rig that is
@@ -45,6 +46,30 @@
       main {
         margin: 0 auto;
         max-width: 1100px;
+      }
+      .banner {
+        align-items: center;
+        background: var(--panel);
+        border: 1px solid var(--edge);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        margin-bottom: 24px;
+        padding: 16px 22px;
+      }
+      .banner .fish {
+        flex: none;
+        height: 84px;
+        width: auto;
+      }
+      .banner .wordmark {
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: 0.3em;
+      }
+      .banner .sub {
+        font-size: 12px;
+        margin-top: 4px;
       }
       header {
         align-items: baseline;
@@ -204,6 +229,14 @@
   </head>
   <body>
     <main>
+      <div class="banner">
+        <img class="fish" src="/blinky.png" alt="Blinky, a three-eyed fish" />
+        <div>
+          <div class="wordmark">GAUNTLET</div>
+          <div class="sub">three eyes on the bench</div>
+        </div>
+      </div>
+
       <header>
         <div>
           <h1 id="host">rig</h1>

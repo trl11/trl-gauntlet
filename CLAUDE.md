@@ -17,7 +17,7 @@ anything in `frontend/`, [`docs/instruments.md`](docs/instruments.md)
 before changing anything in `capabilities/` or `instruments/`, and
 [`docs/campaigns.md`](docs/campaigns.md) before changing anything in
 `campaigns/`, and [`docs/deploying.md`](docs/deploying.md) before changing
-anything in `system/` or `scripts/deploy-bench.sh`.
+anything in `rig/` or `tools/deploy/`.
 
 ## Constraints
 
@@ -75,23 +75,29 @@ anything in `system/` or `scripts/deploy-bench.sh`.
 ```
 app/                       Electron shell: the desktop target
 campaigns/                 campaign directories, each with its own suites
+campaigns/examples/        built-in: the reference suites and system_stats
 campaigns/hardware/        built-in: every suite that drives real hardware
-docker/                    the server image: the other target
+docker/                    the server image: the second target
 docs/                      contract specification and guides
-dist/                      finished artifacts from either (gitignored)
+dist/                      finished artifacts from any of them (gitignored)
 extras/trl-ui-kit/         shared component library (submodule)
 extras/trl-engineering-keys/  bench SSH and signing keys (submodule, dev)
 frontend/                  React frontend, built into gauntlet/web_dist
 packages/gauntlet/         application: discovery, supervisor, API, UI
 packages/gauntlet-sdk/     library suite authors install
 packages/gauntlet/src/gauntlet/scaffold/   suite scaffolder and its templates
-suites/                    reference suites and system_stats; hardware lives
-                           in the campaign above
-system/                    what a bench host needs: the udev rules the USB
-                           instruments require, the service that keeps a rig
-                           serving, and the landing page it answers port 80
-                           with
+rig/                       the service a bench runs: the third target, one deb
+                           carrying the application, both systemd user units,
+                           the udev rules the USB instruments require and the
+                           sysctl the landing page needs
+rig/homepage/              that landing page, its banner and the server for it
+tools/                     scripts that are not shipped: bench/, deploy/,
+                           release/
 ```
+
+Every suite ships inside a campaign. `suites/` at the root is the discovery
+default and where `make suite-new` scaffolds, so it exists only once something
+has been scaffolded into it.
 
 Inside `packages/gauntlet/src/gauntlet`: `api/` (one router module per
 resource), `campaigns/` (discovery and the manifest loader), `capabilities/`,
@@ -112,7 +118,7 @@ behind a toggle below 900px. There is no sidebar.
 | Task | Command |
 |---|---|
 | Setup | `make setup` |
-| Set the bench host up: udev rules and group, via `system/setup-host.sh` | `make install-udev-rules` |
+| Set the bench host up: udev rules and group, via `rig/setup-host.sh` | `make install-udev-rules` |
 | Report whether those rules reached the instruments | `make udev-check` |
 | Devcontainer | `make dev` / `make dev-stop` |
 | Build the frontend and serve, with auto-reload | `make run` |
@@ -131,6 +137,7 @@ behind a toggle below 900px. There is no sidebar.
 | Send `dist/` to a bench and leave it serving | `make deploy BENCH=user@host` |
 | Set a rig up from nothing: deploy, host setup, datasheets | `make deploy-rig RIG_IP=x.x.x.x` |
 | Build both installers into `dist/` | `make app-build` |
+| Package the rig service as one deb into `dist/` | `make rig-build` |
 | Shell format-check, lint, typecheck | `make app-check` |
 | Run the server image | `make docker-run` / `make docker-stop` |
 | Write the image to `dist/` | `make docker-save` |
@@ -146,18 +153,21 @@ it: the frontend build, `check`, the end-to-end test, and a real run of every
 conformance profile.
 
 Every directory that builds something shippable owns the Makefile that builds
-it — `app/`, `docker/`, `packages/gauntlet/`, `packages/gauntlet-sdk/` — and
-the top-level `app-*`, `docker-*`, `gauntlet-*` and `sdk-*` targets only
-delegate, so `make -C app build` and `make app-build` are the same thing.
+it — `app/`, `docker/`, `rig/`, `packages/gauntlet/`, `packages/gauntlet-sdk/`
+— and the top-level `app-*`, `docker-*`, `gauntlet-*`, `rig-*` and `sdk-*`
+targets only delegate, so `make -C app build` and `make app-build` are the same
+thing.
 `make build` runs all of them. Paths, ports and `dist/` are declared once in
 `common.mk`, which they all include.
 
 `dist/` holds what someone who does not have this repository needs: the two
-installers, the image as a loadable tarball, the two wheels, and the host
-setup a bundle cannot do for itself — `setup-bench.sh`, the `setup-host.sh` it
-delegates the rules to, those udev rules, the `serve-gauntlet.sh`,
-`gauntlet.service` and `install-service.sh` that keep a rig serving across
-reboots, and the `README.txt` telling whoever unpacks a release to run it. It
+desktop installers, the rig deb, the image as a loadable tarball, the two
+wheels, and the host setup a bundle cannot do for itself — `setup-bench.sh`,
+the `setup-host.sh` it delegates the rules to, those udev rules, the
+`serve-gauntlet.sh`, `gauntlet.service` and `install-service.sh` that keep a
+rig serving across reboots, and the `README.txt` telling whoever unpacks a
+release to run it. The rig deb needs none of that loose half: it installs the
+rules and the sysctl itself and carries the rest inside. It
 is gitignored, nothing else is written there, and only `make distclean`
 empties it, so an artifact from an earlier version stays until then.
 
@@ -231,11 +241,21 @@ and neither is on a package registry.
   carries a `label` derived from its filename — `smoke.yaml` shows as "Smoke".
   The label is computed, never declared, so no suite can ship a profile the UI
   has to fall back from.
-- A rig serves the backend without Electron: `serve-gauntlet.sh` unpacks the
-  AppImage and runs the Python inside it, so nothing there needs a display. Its
-  systemd unit is a user unit, because the udev rules grant the instruments to
-  the operator's groups and a deploy must not need root. The unit names no host
-  or port, so `config.yaml` stays the only place those are set.
+- A rig serves the backend without Electron: `serve-gauntlet.sh` runs the Python
+  in the bundle, so nothing there needs a display. A bundle is a directory
+  holding `runtime/` and `campaigns/`, and there are two of them: the deb
+  installs one at `/opt/gauntlet` with the script inside it, and the AppImage
+  carries one the script unpacks into `~/.cache/gauntlet`. Which it is, is
+  decided by whether a runtime sits beside the script.
+- Both units are systemd user units, because the udev rules grant the
+  instruments to the operator's groups and a deploy must not need root. Both
+  carry `@SERVE@` in `ExecStart`, rewritten by whichever install puts them in
+  place — the deb at packaging time, `install-service.sh` on the bench. Neither
+  names a host or port, so `config.yaml` stays the only place those are set.
+- The rig deb does the root half of a bench setup in `postinst` — udev, the
+  sysctl, the groups — and starts nothing. A user unit has to run as the
+  operator, and dpkg does not know which account that is, so the two commands
+  that start it are printed instead.
 - The landing page is a second service, not part of Gauntlet. It answers port
   80 so the bare address reaches a bench, and reads no telemetry of its own:
   `/api/` is proxied to Gauntlet on localhost, which keeps one implementation

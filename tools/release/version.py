@@ -5,8 +5,8 @@ refuses a ``dynamic.version`` file outside the package directory, and npm has no
 dynamic version at all. So the number is written into each manifest instead, and
 ``check`` is what stops the copies drifting from it.
 
-    python scripts/version.py check    # exit 1 on any mismatch
-    python scripts/version.py sync     # rewrite the manifests from VERSION
+    python tools/release/version.py check    # exit 1 on any mismatch
+    python tools/release/version.py sync     # rewrite the manifests from VERSION
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 VERSION_FILE = ROOT / "VERSION"
 
 # Every manifest that declares the version, and nothing that only reads it.

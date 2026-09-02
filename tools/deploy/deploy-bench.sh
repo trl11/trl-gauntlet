@@ -2,7 +2,7 @@
 #
 # Put the release in dist/ on a bench and leave it serving.
 #
-#     scripts/deploy-bench.sh trl@blinky [directory]
+#     tools/deploy/deploy-bench.sh trl@blinky [directory]
 #
 # `make deploy BENCH=trl@blinky` is the same thing. The directory defaults to
 # ~/gauntlet on the bench.
@@ -21,7 +21,7 @@ set -eu
 BENCH=${1:-}
 REMOTE_DIR=${2:-gauntlet}
 
-HERE=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+HERE=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 DIST=$HERE/dist
 
 say() {
@@ -42,7 +42,7 @@ fail() {
 # The AppImage is what is served; the rest is what turns it into a service and
 # what the operator reads. The deb, the wheels and the image are for other
 # ways of installing and are deliberately not sent.
-sent="README.txt gauntlet.service homepage.html homepage.service install-service.sh serve-gauntlet.sh serve-homepage.py setup-bench.sh setup-host.sh 60-gauntlet-unprivileged-ports.conf 99-gauntlet-instruments.rules"
+sent="README.txt blinky.png gauntlet-homepage.service gauntlet.service homepage.html install-service.sh serve-gauntlet.sh serve-homepage.py setup-bench.sh setup-host.sh 60-gauntlet-unprivileged-ports.conf 99-gauntlet-instruments.rules"
 
 appimage=$(ls "$DIST"/gauntlet-*.AppImage 2>/dev/null | head -1 || true)
 [ -n "$appimage" ] || fail "no gauntlet-*.AppImage in $DIST; run make build first"

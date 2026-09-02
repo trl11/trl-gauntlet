@@ -26,7 +26,7 @@ SERVE=$HERE/serve-gauntlet.sh
 # The landing page is the second unit, and an optional one: a bundle from
 # before it existed has neither file, and a bench that only wants the backend
 # is left with what it had.
-PAGE_UNIT_NAME=homepage.service
+PAGE_UNIT_NAME=gauntlet-homepage.service
 PAGE_TEMPLATE=$HERE/$PAGE_UNIT_NAME
 PAGE_SERVE=$HERE/serve-homepage.py
 PAGE_PORT=${GAUNTLET_HOMEPAGE_PORT:-80}

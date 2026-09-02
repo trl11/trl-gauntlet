@@ -2,7 +2,7 @@
 #
 # Stand a new rig up from nothing, in one command.
 #
-#     scripts/deploy-rig.sh 192.168.10.160 [user] [directory]
+#     tools/deploy/deploy-rig.sh 192.168.10.160 [user] [directory]
 #
 # `make deploy-rig RIG_IP=192.168.10.160` is the same thing. The user defaults
 # to trl and the directory to ~/gauntlet on the rig.
@@ -47,7 +47,7 @@ RIG=${1:-}
 RIG_USER=${2:-trl}
 REMOTE_DIR=${3:-gauntlet}
 
-HERE=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+HERE=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 
 say() {
 	echo "==> $*"
@@ -92,7 +92,7 @@ ssh -t "$TARGET" "sudo loginctl enable-linger $RIG_USER" ||
 echo
 say "step 2 of 4: sending the release and installing the services"
 note "the landing page not binding port 80 here is expected on a fresh rig"
-"$HERE/scripts/deploy-bench.sh" "$TARGET" "$REMOTE_DIR"
+"$HERE/tools/deploy/deploy-bench.sh" "$TARGET" "$REMOTE_DIR"
 
 echo
 say "step 3 of 4: setting the host up"
@@ -169,7 +169,7 @@ if [ "$page" = yes ]; then
 	printf '    %-20s %s\n' "landing page" "http://$RIG/"
 else
 	printf '    %-20s %s\n' "landing page" "NOT answering on port 80"
-	note "see: ssh $TARGET 'journalctl --user -u homepage.service -n 20'"
+	note "see: ssh $TARGET 'journalctl --user -u gauntlet-homepage.service -n 20'"
 fi
 
 # Named rather than counted: which instruments answered is the thing an
@@ -186,5 +186,5 @@ if [ "$page" = yes ]; then
 else
 	say "the rig is serving Gauntlet, but the landing page is not answering"
 fi
-note "stop them   ssh $TARGET 'systemctl --user stop gauntlet.service homepage.service'"
-note "follow them ssh $TARGET 'journalctl --user -u gauntlet.service -u homepage.service -f'"
+note "stop them   ssh $TARGET 'systemctl --user stop gauntlet.service gauntlet-homepage.service'"
+note "follow them ssh $TARGET 'journalctl --user -u gauntlet.service -u gauntlet-homepage.service -f'"

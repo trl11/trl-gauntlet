@@ -84,7 +84,7 @@ through, so `make app-dev` opens a window on the host's display. On a host
 without X11 both are empty; `xvfb-run make app-dev` runs the app headless
 there, which is also how it is exercised in CI.
 
-`suites/*/suite.yaml` is bound to the schema the running app serves at
+`campaigns/*/suites/*/suite.yaml` is bound to the schema the running app serves at
 `/api/schemas/suite`, so the YAML extension validates a manifest as it is
 edited while `make run` is up.
 
@@ -115,7 +115,7 @@ needs its own gid added instead:
 "runArgs": ["--group-add=<gid>"]
 ```
 
-The DAQ additionally needs the udev rule in `../system/`, without which its
+The DAQ additionally needs the udev rule in `../rig/`, without which its
 usbfs node stays `root:root` and `dev` can read its descriptors and nothing
 else. Install it on the host, not in here — see the header of the file.
 

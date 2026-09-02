@@ -14,10 +14,10 @@ services:
     volumes:
       # Runs, the run index and config. The only state the server keeps.
       - gauntlet-data:/data
-      # Suites beyond the built-in ones, which the image already carries: a
-      # second copy of those is discovered, found to be a duplicate key, and
-      # ignored. Point GAUNTLET_SUITES at a directory of your own; the default
-      # is empty, and discovery skips a root with nothing in it.
+      # A suite belonging to no campaign. Every built-in suite belongs to one
+      # and arrives with it below, so this root is for suites of your own.
+      # Point GAUNTLET_SUITES at a directory; the default is empty, and
+      # discovery skips a root with nothing in it.
       #
       # The daemon resolves the source against its own host. Run from the
       # devcontainer that is not this file's directory, so the devcontainer

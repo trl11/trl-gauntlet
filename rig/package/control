@@ -1,0 +1,17 @@
+Package: gauntlet-rig
+Version: @VERSION@
+Architecture: amd64
+Maintainer: TRL11 <dev@trl11.com>
+Section: misc
+Priority: optional
+Installed-Size: @SIZE@
+Depends: can-utils, iproute2, lsof, mosquitto-clients, openssh-client, systemd
+Description: Gauntlet, as the service a bench runs
+ A bench left running as a rig serves Gauntlet to the lab all the time. This
+ installs everything that takes: the application and the interpreter it runs
+ under, every campaign and so every suite, the two systemd user units that
+ keep them serving across reboots, the landing page the bare address reaches,
+ and the udev rules and sysctl the instruments and that page need.
+ .
+ No desktop, no display and nobody logged in: Electron is not part of this.
+ Install the gauntlet package instead for the windowed application.
