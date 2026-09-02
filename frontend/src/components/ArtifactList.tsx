@@ -36,8 +36,17 @@ export interface ArtifactListProps {
   galleries?: ArtifactGallery[];
   /** Poll for new files while the run is in flight. */
   live?: boolean;
+  /** Sends the operator to the tab that draws a file. */
+  onOpen?: (tab: string) => void;
   /** Run whose directory is listed. */
   runId: string;
+  /**
+   * The tab that draws a file, by path.
+   *
+   * A file with one is previewed by going there rather than inline: its
+   * contents are for the view that understands them, not for reading.
+   */
+  viewers?: Record<string, string>;
 }
 
 function extensionOf(path: string): string {
@@ -60,7 +69,9 @@ function prettify(path: string, text: string): string {
 export const ArtifactList: React.FC<ArtifactListProps> = ({
   galleries = [],
   live = false,
+  onOpen,
   runId,
+  viewers = {},
 }) => {
   const [preview, setPreview] = useState<string | null>(null);
 
@@ -98,6 +109,7 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
         count: held.length,
         // The directory they share, so the row names a real place on disk.
         directory: held.length > 0 ? held[0].path.slice(0, held[0].path.indexOf("/") + 1) : "",
+        extension: held.length > 0 ? extensionOf(held[0].path) : "file",
         tab: gallery.tab,
       };
     })
@@ -124,7 +136,7 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
             {folded.map((row) => (
               <tr className="artifact-list__folded" key={row.tab}>
                 <td className="artifact-list__path">{row.directory || row.tab}</td>
-                <td className="artifact-list__mono">images</td>
+                <td className="artifact-list__mono">{row.extension}</td>
                 <td className="artifact-list__mono">{formatBytes(row.bytes)}</td>
                 <td className="artifact-list__actions">
                   {row.count} in the {row.tab} tab
@@ -137,13 +149,19 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
                 <td className="artifact-list__mono">{extensionOf(file.path)}</td>
                 <td className="artifact-list__mono">{formatBytes(file.size)}</td>
                 <td className="artifact-list__actions">
-                  {file.text && (
-                    <Button
-                      size="small"
-                      onClick={() => setPreview(preview === file.path ? null : file.path)}
-                    >
-                      {preview === file.path ? "Hide" : "Preview"}
+                  {viewers[file.path] !== undefined ? (
+                    <Button size="small" onClick={() => onOpen?.(viewers[file.path])}>
+                      Preview
                     </Button>
+                  ) : (
+                    file.text && (
+                      <Button
+                        size="small"
+                        onClick={() => setPreview(preview === file.path ? null : file.path)}
+                      >
+                        {preview === file.path ? "Hide" : "Preview"}
+                      </Button>
+                    )
                   )}
                   <a
                     className="artifact-list__download"

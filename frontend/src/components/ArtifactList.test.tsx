@@ -24,6 +24,51 @@ function renderList(galleries?: ArtifactGallery[]) {
   );
 }
 
+describe("ArtifactList previews", () => {
+  beforeEach(() => {
+    listed.mockResolvedValue({
+      run_id: "run-1",
+      run_dir: "/runs/run-1",
+      artifacts: [
+        { path: "traces/captures.jsonl", size: 56916, text: true },
+        { path: "verdict.json", size: 120, text: true },
+      ],
+    });
+  });
+
+  it("lists a file a tab draws, so it can be downloaded", async () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ArtifactList runId="run-1" viewers={{ "traces/captures.jsonl": "traces" }} />
+      </QueryClientProvider>
+    );
+    expect(await screen.findByText("traces/captures.jsonl")).toBeInTheDocument();
+    expect(screen.getByLabelText("Download traces/captures.jsonl")).toHaveAttribute(
+      "href",
+      "/api/runs/run-1/artifacts/traces/captures.jsonl"
+    );
+  });
+
+  it("previews that file by opening the tab that draws it", async () => {
+    const opened = vi.fn();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <ArtifactList
+          runId="run-1"
+          viewers={{ "traces/captures.jsonl": "traces" }}
+          onOpen={opened}
+        />
+      </QueryClientProvider>
+    );
+    await screen.findByText("traces/captures.jsonl");
+    const rows = screen.getAllByRole("button", { name: "Preview" });
+    await userEvent.click(rows[0]);
+    expect(opened).toHaveBeenCalledWith("traces");
+    // It went to the tab rather than dumping the base64 inline.
+    expect(text).not.toHaveBeenCalled();
+  });
+});
+
 describe("ArtifactList", () => {
   beforeEach(() => {
     listed.mockResolvedValue({
