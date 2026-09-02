@@ -77,7 +77,7 @@ populated and both packages installed. Port 7100 is forwarded for the app and
 System packages come from `../dependencies.txt`, which lives at the repository
 root because it describes a development machine rather than this container — a
 bare host developing on the project needs the same set. The server image needs
-a shorter one and keeps it in `../docker/dependencies.txt`.
+a shorter one and keeps it in `../targets/docker/dependencies.txt`.
 
 The host's X11 socket is mounted at `/tmp/.X11-unix` and `DISPLAY` is passed
 through, so `make app-dev` opens a window on the host's display. On a host
@@ -115,7 +115,7 @@ needs its own gid added instead:
 "runArgs": ["--group-add=<gid>"]
 ```
 
-The DAQ additionally needs the udev rule in `../rig/`, without which its
+The DAQ additionally needs the udev rule in `../targets/service/`, without which its
 usbfs node stays `root:root` and `dev` can read its descriptors and nothing
 else. Install it on the host, not in here — see the header of the file.
 

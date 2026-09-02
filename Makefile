@@ -49,7 +49,7 @@ help:
 	@echo "    make docker-stop       stop and remove it"
 	@echo ""
 	@echo "  Ship: the rig service"
-	@echo "    make rig-build         package the rig service as one deb into dist/"
+	@echo "    make service-build     package the rig service as one deb into dist/"
 	@echo ""
 	@echo "  Ship: the desktop app"
 	@echo "    make app-dev           run the shell against the checkout"
@@ -223,7 +223,7 @@ frontend-check: frontend-install
 # exist so that one `make help` lists everything; each delegates and adds
 # nothing.
 
-.PHONY: app-build app-check app-dev app-runtime app-smoke build deploy deploy-rig docker-build docker-run docker-save docker-stop gauntlet-build rig-build sdk-build
+.PHONY: app-build app-check app-dev app-runtime app-smoke build deploy deploy-rig docker-build docker-run docker-save docker-stop gauntlet-build sdk-build service-build
 
 app-build app-check app-dev app-runtime app-smoke:
 	@$(MAKE) --no-print-directory -C $(DESKTOP) $(patsubst app-%,%,$@)
@@ -234,8 +234,8 @@ docker-build docker-run docker-save docker-stop:
 gauntlet-build:
 	@$(MAKE) --no-print-directory -C $(APP) $(patsubst gauntlet-%,%,$@)
 
-rig-build:
-	@$(MAKE) --no-print-directory -C $(RIG) $(patsubst rig-%,%,$@)
+service-build:
+	@$(MAKE) --no-print-directory -C $(SERVICE) $(patsubst service-%,%,$@)
 
 sdk-build:
 	@$(MAKE) --no-print-directory -C $(SDK) $(patsubst sdk-%,%,$@)
@@ -250,7 +250,7 @@ sdk-build:
 # because a prerequisite would be free to run before the directory is cleared.
 build: version-check
 	@rm -rf $(DIST)
-	@$(MAKE) --no-print-directory sdk-build gauntlet-build docker-save app-build rig-build
+	@$(MAKE) --no-print-directory sdk-build gauntlet-build docker-save app-build service-build
 	@echo ""
 	@echo "dist/"
 	@ls -1sh $(DIST) | tail -n +2 | sed 's/^/  /'

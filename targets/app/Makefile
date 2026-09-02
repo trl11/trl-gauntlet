@@ -1,9 +1,9 @@
 #
-# The desktop shell. `make -C app help`, or the app-* targets at the top level,
-# which delegate here.
+# The desktop shell. `make -C targets/app help`, or the app-* targets at the top
+# level, which delegate here.
 #
 
-include $(dir $(lastword $(MAKEFILE_LIST)))../common.mk
+include $(dir $(lastword $(MAKEFILE_LIST)))../../common.mk
 
 .DEFAULT_GOAL := help
 
@@ -26,7 +26,7 @@ help:
 	@echo "    make dev               run the shell against the checkout"
 	@echo "    make runtime           fetch CPython $(PYTHON_BUILD_VERSION) and install Gauntlet into it"
 	@echo "    make build             build the AppImage and the deb, then smoke them"
-	@echo "    make smoke             run what is built with app/runtime moved aside"
+	@echo "    make smoke             run what is built with the runtime moved aside"
 	@echo "    make check             format-check, lint and typecheck"
 
 install:

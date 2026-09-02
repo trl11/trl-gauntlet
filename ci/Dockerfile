@@ -1,5 +1,5 @@
 # Jenkins CI environment. It is deliberately separate from the runtime image:
-# it contains the desktop-packaging and test toolchain, while docker/Dockerfile
+# it contains the desktop-packaging and test toolchain, while the server image's
 # remains the small image shipped to bench hosts.
 ARG NODE_IMAGE=node:22-bookworm
 FROM ${NODE_IMAGE}

@@ -8,7 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Electron's runtime, an X server and FUSE for the desktop app. The list lives
 # at the repository root because it describes such a machine rather than this
 # container — a bare host developing on the project needs the same packages.
-# The server image needs a shorter one and keeps it in docker/.
+# The server image needs a shorter one and keeps it in targets/docker/.
 #
 # The base image carries a yarn repository whose signing key it no longer
 # ships, which fails `apt-get update` outright. Node comes from NodeSource

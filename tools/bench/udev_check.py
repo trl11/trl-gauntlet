@@ -1,6 +1,7 @@
 """Reports whether the host's udev rules reached the instruments plugged in.
 
-``rig/99-gauntlet-instruments.rules`` is the declaration. This reads the
+``targets/service/99-gauntlet-instruments.rules`` is the declaration. This reads
+the
 vendor ids out of it rather than repeating them, so a rule added there is
 checked here without touching this file, then reports the owner and mode of
 every usbfs node those rules cover.

@@ -26,7 +26,7 @@ PYPROJECTS = (
     ROOT / "packages" / "gauntlet-sdk" / "pyproject.toml",
 )
 PACKAGE_JSONS = (
-    ROOT / "app" / "package.json",
+    ROOT / "targets" / "app" / "package.json",
     ROOT / "frontend" / "package.json",
 )
 

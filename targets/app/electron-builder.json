@@ -4,7 +4,7 @@
   "productName": "Gauntlet",
   "asar": true,
   "directories": {
-    "output": "../build/app/${version}"
+    "output": "../../build/app/${version}"
   },
   "icon": "icons/icon.png",
   "files": ["dist"],
@@ -14,7 +14,7 @@
       "to": "runtime"
     },
     {
-      "from": "../campaigns",
+      "from": "../../campaigns",
       "to": "campaigns"
     }
   ],

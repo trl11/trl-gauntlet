@@ -408,7 +408,8 @@ The kernel's usbserial drivers already create `/dev/ttyUSB*` and `/dev/ttyACM*`
 owned by `dialout`, which is why the PSU needs nothing installed. An instrument
 driven over raw USB is claimed through usbfs, whose nodes default to
 `root:root 0664` — enough to read descriptors, not enough to talk. That is what
-`rig/99-gauntlet-instruments.rules` settles, and `rig/setup-host.sh`
+`targets/service/99-gauntlet-instruments.rules` settles, and
+`targets/service/setup-host.sh`
 installs it:
 
 ```

@@ -11,13 +11,13 @@ __pycache__/
 .ruff_cache/
 coverage.xml
 
-# Node. Unanchored, so frontend/ and app/ need no entry of their own.
+# Node. Unanchored, so frontend/ and targets/app/ need no entry of their own.
 node_modules/
 
 # Generated, never source: the wheels, installers and image in dist/, the
 # frontend bundle vite writes into the gauntlet package, and the Electron
 # runtime the shell downloads.
-app/runtime/
+targets/app/runtime/
 build/
 dist/
 web_dist/

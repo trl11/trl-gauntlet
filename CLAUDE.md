@@ -17,7 +17,7 @@ anything in `frontend/`, [`docs/instruments.md`](docs/instruments.md)
 before changing anything in `capabilities/` or `instruments/`, and
 [`docs/campaigns.md`](docs/campaigns.md) before changing anything in
 `campaigns/`, and [`docs/deploying.md`](docs/deploying.md) before changing
-anything in `rig/` or `tools/deploy/`.
+anything in `targets/service/` or `tools/deploy/`.
 
 ## Constraints
 
@@ -73,11 +73,9 @@ anything in `rig/` or `tools/deploy/`.
 ## Layout
 
 ```
-app/                       Electron shell: the desktop target
 campaigns/                 campaign directories, each with its own suites
 campaigns/examples/        built-in: the reference suites and system_stats
 campaigns/hardware/        built-in: every suite that drives real hardware
-docker/                    the server image: the second target
 docs/                      contract specification and guides
 dist/                      finished artifacts from any of them (gitignored)
 extras/trl-ui-kit/         shared component library (submodule)
@@ -86,11 +84,14 @@ frontend/                  React frontend, built into gauntlet/web_dist
 packages/gauntlet/         application: discovery, supervisor, API, UI
 packages/gauntlet-sdk/     library suite authors install
 packages/gauntlet/src/gauntlet/scaffold/   suite scaffolder and its templates
-rig/                       the service a bench runs: the third target, one deb
+targets/                   the three ways this ships, one directory each
+targets/app/               Electron shell: the desktop target
+targets/docker/            the server image: the second target
+targets/service/           the service a bench runs: the third, one deb
                            carrying the application, both systemd user units,
                            the udev rules the USB instruments require and the
                            sysctl the landing page needs
-rig/homepage/              that landing page, its banner and the server for it
+targets/service/homepage/  that landing page, its banner and the server for it
 tools/                     scripts that are not shipped: bench/, deploy/,
                            release/
 ```
@@ -118,7 +119,7 @@ behind a toggle below 900px. There is no sidebar.
 | Task | Command |
 |---|---|
 | Setup | `make setup` |
-| Set the bench host up: udev rules and group, via `rig/setup-host.sh` | `make install-udev-rules` |
+| Set the bench host up: udev rules and group, via `targets/service/setup-host.sh` | `make install-udev-rules` |
 | Report whether those rules reached the instruments | `make udev-check` |
 | Devcontainer | `make dev` / `make dev-stop` |
 | Build the frontend and serve, with auto-reload | `make run` |
@@ -137,7 +138,7 @@ behind a toggle below 900px. There is no sidebar.
 | Send `dist/` to a bench and leave it serving | `make deploy BENCH=user@host` |
 | Set a rig up from nothing: deploy, host setup, datasheets | `make deploy-rig RIG_IP=x.x.x.x` |
 | Build both installers into `dist/` | `make app-build` |
-| Package the rig service as one deb into `dist/` | `make rig-build` |
+| Package the rig service as one deb into `dist/` | `make service-build` |
 | Shell format-check, lint, typecheck | `make app-check` |
 | Run the server image | `make docker-run` / `make docker-stop` |
 | Write the image to `dist/` | `make docker-save` |
@@ -148,15 +149,15 @@ behind a toggle below 900px. There is no sidebar.
 Run `make check` before committing. Run `make suite-verify-run` as well when
 changing the launcher, the contract models, or the conformance checker,
 `make frontend-check` when changing anything under `frontend/`, and
-`make app-check` when changing anything under `app/`. `make verify` is all of
+`make app-check` when changing anything under `targets/app/`. `make verify` is all of
 it: the frontend build, `check`, the end-to-end test, and a real run of every
 conformance profile.
 
 Every directory that builds something shippable owns the Makefile that builds
-it — `app/`, `docker/`, `rig/`, `packages/gauntlet/`, `packages/gauntlet-sdk/`
-— and the top-level `app-*`, `docker-*`, `gauntlet-*`, `rig-*` and `sdk-*`
-targets only delegate, so `make -C app build` and `make app-build` are the same
-thing.
+it — the three under `targets/`, plus `packages/gauntlet/` and
+`packages/gauntlet-sdk/` — and the top-level `app-*`, `docker-*`, `gauntlet-*`,
+`sdk-*` and `service-*` targets only delegate, so `make -C targets/app build`
+and `make app-build` are the same thing.
 `make build` runs all of them. Paths, ports and `dist/` are declared once in
 `common.mk`, which they all include.
 

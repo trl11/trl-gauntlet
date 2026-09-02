@@ -1,6 +1,6 @@
 #
-# Paths and ports, shared by the top-level Makefile and the ones in app/ and
-# docker/. Included rather than passed down, so a sub-make invoked directly
+# Paths and ports, shared by the top-level Makefile and the three under
+# targets/. Included rather than passed down, so a sub-make invoked directly
 # knows as much as one the top level delegated to.
 #
 
@@ -32,36 +32,39 @@ CAMPAIGNS    := $(ROOT)/campaigns
 # is there to be one.
 SUITE_SOURCES := $(wildcard $(SUITES)) $(CAMPAIGNS)
 FRONTEND     := $(ROOT)/frontend
+FRONTEND_OUT := $(APP)/src/gauntlet/web_dist
+
+# The three ways this ships, each owning the Makefile that builds it.
+TARGETS         := $(ROOT)/targets
+# The Electron shell, and the relocatable CPython it ships the backend in.
+DESKTOP         := $(TARGETS)/app
+DESKTOP_RUNTIME := $(DESKTOP)/runtime
+DOCKER          := $(TARGETS)/docker
 # Everything a bench host needs and the desktop bundle cannot carry: the udev
 # rules for the devices Gauntlet claims itself, the scripts that install them,
 # the services that keep a rig serving, and the landing page it answers port 80
-# with. `make rig-build` packages the lot as one deb; the same files also ship
-# beside the installers, for a bench that installs by hand.
-RIG            := $(ROOT)/rig
-UDEV_RULES     := $(RIG)/99-gauntlet-instruments.rules
+# with. `make service-build` packages the lot as one deb; the same files also
+# ship beside the installers, for a bench that installs by hand.
+SERVICE        := $(TARGETS)/service
+UDEV_RULES     := $(SERVICE)/99-gauntlet-instruments.rules
 UDEV_RULES_DIR := /etc/udev/rules.d
-HOST_SETUP     := $(RIG)/setup-host.sh
-BENCH_SETUP    := $(RIG)/setup-bench.sh
-HOST_README    := $(RIG)/README.txt
+HOST_SETUP     := $(SERVICE)/setup-host.sh
+BENCH_SETUP    := $(SERVICE)/setup-bench.sh
+HOST_README    := $(SERVICE)/README.txt
 # What a bench left running as a rig needs on top of that: the backend without
 # its window, and the user unit that keeps it serving across reboots.
-SERVE_SCRIPT   := $(RIG)/serve-gauntlet.sh
-SERVICE_SETUP  := $(RIG)/install-service.sh
-SERVICE_UNIT   := $(RIG)/gauntlet.service
+SERVE_SCRIPT   := $(SERVICE)/serve-gauntlet.sh
+SERVICE_SETUP  := $(SERVICE)/install-service.sh
+SERVICE_UNIT   := $(SERVICE)/gauntlet.service
 # And the landing page a rig answers on port 80 with, so the bare address
 # reaches the bench: the page, its banner, the server for it, its unit, and the
 # sysctl that lets a user unit bind a port below 1024.
-PAGE           := $(RIG)/homepage
+PAGE           := $(SERVICE)/homepage
 PAGE_HTML      := $(PAGE)/homepage.html
 PAGE_BANNER    := $(PAGE)/blinky.png
 PAGE_SERVE     := $(PAGE)/serve-homepage.py
 PAGE_UNIT      := $(PAGE)/gauntlet-homepage.service
-PORT_SYSCTL    := $(RIG)/60-gauntlet-unprivileged-ports.conf
-FRONTEND_OUT := $(APP)/src/gauntlet/web_dist
-# The Electron shell, and the relocatable CPython it ships the backend in.
-DESKTOP         := $(ROOT)/app
-DESKTOP_RUNTIME := $(DESKTOP)/runtime
-DOCKER          := $(ROOT)/docker
+PORT_SYSCTL    := $(SERVICE)/60-gauntlet-unprivileged-ports.conf
 
 # Every port this project binds, in one place so that two of them cannot be
 # given the same number.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Runs the packaged app with app/runtime moved out of the way.
+# Runs the packaged app with the build's runtime moved out of the way.
 #
 # Anything in the bundle still pointing at the tree that built it works on the
 # build host and nowhere else, because the build host is the one machine where
@@ -8,14 +8,14 @@
 # and it shipped once already. Moving the runtime aside is what makes the
 # difference visible here rather than on the machine the app is installed on.
 #
-#   app/scripts/smoke.sh <unpacked-app-directory>
+#   targets/app/scripts/smoke.sh <unpacked-app-directory>
 
 set -euo pipefail
 
 APP_DIR=${1:?usage: smoke.sh <unpacked-app-directory>}
-ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-RUNTIME=$ROOT/app/runtime
-PARKED=$ROOT/app/runtime.parked-by-smoke
+APP=$(cd "$(dirname "$0")/.." && pwd)
+RUNTIME=$APP/runtime
+PARKED=$APP/runtime.parked-by-smoke
 WORK=$(mktemp -d)
 SUITE=example_sampled
 PROFILE=smoke.yaml

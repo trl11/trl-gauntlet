@@ -29,8 +29,9 @@ on, needs no hardware, and finishes in three seconds on the `quick` profile.
 System packages are listed twice, because the two things this repository builds
 need different sets. [`dependencies.txt`](dependencies.txt) is a development
 machine: the suites' transports, plus Electron's runtime, an X server and FUSE
-for the desktop app. [`docker/dependencies.txt`](docker/dependencies.txt) is
-the server image, and is the transports alone.
+for the desktop app.
+[`targets/docker/dependencies.txt`](targets/docker/dependencies.txt) is the
+server image, and is the transports alone.
 [`requirements.txt`](requirements.txt) installs both packages editable for
 anyone preferring `pip` to `make setup`.
 
@@ -136,9 +137,9 @@ Specification: [`docs/contract.md`](docs/contract.md).
 | `packages/gauntlet/` | Application: discovery, supervisor, REST API, and the built frontend. |
 | `campaigns/` | Every suite that ships, each in the campaign that groups it. |
 | `frontend/` | React operator UI, built into `gauntlet/web_dist`. |
-| `app/` | Electron shell: the desktop target. |
-| `docker/` | The server image: the second target. |
-| `rig/` | The service a bench runs, packaged as one deb: the third. |
+| `targets/app/` | Electron shell: the desktop target. |
+| `targets/docker/` | The server image: the second target. |
+| `targets/service/` | The service a bench runs, packaged as one deb: the third. |
 | `tools/` | Scripts for deploying, working a bench, and cutting a release. |
 | `extras/trl-ui-kit/` | Component library, a git submodule the UI consumes as source. |
 | `docs/` | Contract specification and guides. |

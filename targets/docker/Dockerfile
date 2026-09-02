@@ -34,7 +34,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # beside it: the one at the repository root describes a development machine and
 # carries Electron's runtime, an X server and FUSE, none of which a container
 # that serves an API has any use for.
-COPY docker/dependencies.txt /tmp/dependencies.txt
+COPY targets/docker/dependencies.txt /tmp/dependencies.txt
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         $(sed -e 's/#.*//' /tmp/dependencies.txt | xargs) && \

@@ -1,9 +1,9 @@
 #
-# The server image. `make -C docker help`, or the docker-* targets at the top
-# level, which delegate here.
+# The server image. `make -C targets/docker help`, or the docker-* targets at the
+# top level, which delegate here.
 #
 
-include $(dir $(lastword $(MAKEFILE_LIST)))../common.mk
+include $(dir $(lastword $(MAKEFILE_LIST)))../../common.mk
 
 .DEFAULT_GOAL := help
 

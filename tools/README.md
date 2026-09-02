@@ -1,7 +1,7 @@
 # Tools
 
 Scripts this project is worked on with, none of which ship. What does ship is
-in `rig/`, `app/` and `docker/`.
+under `targets/`.
 
 | Directory | Contents |
 |---|---|

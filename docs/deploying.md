@@ -1,13 +1,14 @@
 # Deploying to a bench
 
 A bench that only runs tests now and then wants nothing more than the AppImage
-and [`setup-bench.sh`](../rig/setup-bench.sh); [the release
-README](../rig/README.txt) covers that, and it is what an operator who has
+and [`setup-bench.sh`](../targets/service/setup-bench.sh); [the release
+README](../targets/service/README.txt) covers that, and it is what an operator who has
 no checkout reads.
 
 This is about the other kind: a bench left running as a rig, serving Gauntlet
 to the lab all the time. Everything such a bench needs is in
-[`rig/`](../rig/), and `make rig-build` packages the lot as one deb.
+[`targets/service/`](../targets/service/), and `make service-build` packages the
+lot as one deb.
 
 ## The package
 
@@ -46,7 +47,7 @@ systemctl --user daemon-reload
 ## What runs there
 
 The desktop bundle is a window and a backend for it. A rig wants only the
-backend, so [`serve-gauntlet.sh`](../rig/serve-gauntlet.sh) runs the Python in
+backend, so [`serve-gauntlet.sh`](../targets/service/serve-gauntlet.sh) runs the Python in
 the bundle directly. Electron never starts, which is what lets the rig serve
 with no display, no graphical session and nobody logged in.
 
@@ -56,7 +57,7 @@ goes inside it, so there is nothing to unpack. An AppImage carries one instead,
 and the script unpacks it once into `~/.cache/gauntlet` and serves it from
 there.
 
-[`gauntlet.service`](../rig/gauntlet.service) is a systemd **user** unit,
+[`gauntlet.service`](../targets/service/gauntlet.service) is a systemd **user** unit,
 not a system one. Two reasons, and both matter:
 
 - The udev rules grant the instruments to a group, and it is the operator's
@@ -73,9 +74,9 @@ that reboots unattended comes back with nothing serving.
 ## The landing page
 
 A rig serves Gauntlet on 7100, which is a number someone has to be told. So a
-second and separate service answers port 80: [`serve-homepage.py`](../rig/homepage/serve-homepage.py)
-under [`gauntlet-homepage.service`](../rig/homepage/gauntlet-homepage.service), rendering
-[`homepage.html`](../rig/homepage/homepage.html). Going to the bench's address is
+second and separate service answers port 80: [`serve-homepage.py`](../targets/service/homepage/serve-homepage.py)
+under [`gauntlet-homepage.service`](../targets/service/homepage/gauntlet-homepage.service), rendering
+[`homepage.html`](../targets/service/homepage/homepage.html). Going to the bench's address is
 then enough, and the page links on to Gauntlet from there.
 
 It is not part of Gauntlet and holds nothing of its own. `/api/` is proxied
@@ -92,7 +93,7 @@ readdressed needs no edit.
 
 Binding port 80 is the one thing an ordinary account cannot do, and a user unit
 can be given neither a capability nor a redirect. So
-[`60-gauntlet-unprivileged-ports.conf`](../rig/60-gauntlet-unprivileged-ports.conf)
+[`60-gauntlet-unprivileged-ports.conf`](../targets/service/60-gauntlet-unprivileged-ports.conf)
 lowers `net.ipv4.ip_unprivileged_port_start` to 80, installed by `setup-host.sh`
 alongside the udev rules — the same one root step, rather than a second one.
 Every port from 80 up becomes bindable by any local user, which on a

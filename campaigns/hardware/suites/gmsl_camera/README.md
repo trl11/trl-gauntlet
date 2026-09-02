@@ -24,7 +24,7 @@ effect until the container is rebuilt.
 
 **No udev rule is needed.** Unlike the DATAQ, which is claimed through usbfs,
 the kernel's `uvcvideo` driver already owns `/dev/video*` and leaves it
-`root:video 0660`, so there is nothing for `rig/setup-host.sh` to install.
+`root:video 0660`, so there is nothing for `targets/service/setup-host.sh` to install.
 
 ## What it will drive
 
