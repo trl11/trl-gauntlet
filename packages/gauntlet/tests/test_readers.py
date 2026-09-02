@@ -157,6 +157,21 @@ class TestPublishRecord:
 
         assert _events(bus, "iteration")[0]["images"] == []
 
+    def test_trace_paths_travel_beside_the_images(self, bus):
+        publish_record(
+            bus,
+            '{"iteration":1,"success":true,"metrics":{"images":["frames/a.png"],"traces":["traces/a.png"]}}',
+        )
+
+        iteration = _events(bus, "iteration")[0]
+        assert iteration["images"] == ["frames/a.png"]
+        assert iteration["traces"] == ["traces/a.png"]
+
+    def test_an_iteration_naming_no_traces_carries_none(self, bus):
+        publish_record(bus, '{"iteration":1,"success":true}')
+
+        assert _events(bus, "iteration")[0]["traces"] == []
+
     def test_a_line_that_is_not_json_is_dropped(self, bus):
         publish_record(bus, "not json at all")
 

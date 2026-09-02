@@ -49,6 +49,7 @@ const TABS = [
   "metrics",
   "iterations",
   "snapshots",
+  "traces",
   "artifacts",
   "notes",
 ] as const;
@@ -168,6 +169,15 @@ export const RunPage: React.FC = () => {
       iterations.flatMap((row) => row.images.map((path) => ({ iteration: row.iteration, path }))),
     [iterations]
   );
+  // The same, for what the run named in `metrics.traces`. A trace is an image
+  // like any other and the gallery draws it the same way; it has its own tab
+  // because a captured signal is looked through for a different reason than a
+  // picture of the unit, and a run recording both should not interleave them.
+  const traces = useMemo(
+    () =>
+      iterations.flatMap((row) => row.traces.map((path) => ({ iteration: row.iteration, path }))),
+    [iterations]
+  );
 
   if (run.isPending) return <Spinner className="run-page__spinner" />;
 
@@ -186,20 +196,31 @@ export const RunPage: React.FC = () => {
   // So an operator can tell a tab holds something new without opening it.
   // The gallery's images are one folded row in the artifact list, so the badge
   // counts them once rather than reporting hundreds of files.
-  const snapshotPaths = new Set(snapshots.map((shot) => shot.path));
-  const listedFiles = files.filter((file) => !snapshotPaths.has(file.path));
+  const galleries = [
+    { paths: snapshots.map((shot) => shot.path), tab: "snapshots" },
+    { paths: traces.map((trace) => trace.path), tab: "traces" },
+  ];
+  const gathered = new Set(galleries.flatMap((gallery) => gallery.paths));
+  const listedFiles = files.filter((file) => !gathered.has(file.path));
+  const foldedRows = galleries.filter((gallery) => gallery.paths.length > 0).length;
   const tabCounts: Partial<Record<Tab, number>> = {
-    artifacts: listedFiles.length + (listedFiles.length < files.length ? 1 : 0),
+    artifacts: listedFiles.length + foldedRows,
     iterations: iterations.length,
     log: logs.length,
     notes: notes.data?.notes.length ?? 0,
     snapshots: snapshots.length,
+    traces: traces.length,
   };
 
-  // Snapshots are offered only by a run that recorded some, which is what
-  // keeps the tab out of the way of every run that records none. Nothing here
-  // asks which suite ran: the images decide.
-  const visibleTabs = TABS.filter((name) => name !== "snapshots" || snapshots.length > 0);
+  // A gallery tab is offered only by a run that recorded something for it,
+  // which is what keeps both out of the way of every run that records
+  // neither. Nothing here asks which suite ran or which instrument it drove:
+  // the files decide.
+  const empty: Partial<Record<Tab, boolean>> = {
+    snapshots: snapshots.length === 0,
+    traces: traces.length === 0,
+  };
+  const visibleTabs = TABS.filter((name) => !empty[name]);
   const active = visibleTabs.includes(tab) ? tab : "overview";
 
   return (
@@ -355,9 +376,8 @@ export const RunPage: React.FC = () => {
           />
         )}
         {active === "snapshots" && <SnapshotGallery runId={runId} snapshots={snapshots} />}
-        {active === "artifacts" && (
-          <ArtifactList runId={runId} live={live} snapshots={snapshots.map((shot) => shot.path)} />
-        )}
+        {active === "traces" && <SnapshotGallery runId={runId} snapshots={traces} />}
+        {active === "artifacts" && <ArtifactList runId={runId} live={live} galleries={galleries} />}
         {active === "notes" && (
           <NotesPanel
             busy={addNote.isPending || removeNote.isPending || notes.isPending}

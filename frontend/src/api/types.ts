@@ -473,6 +473,14 @@ export interface RunIterationEvent extends RunEventBase {
   iteration: number | null;
   reason: string;
   success: boolean;
+  /**
+   * Paths the iteration recorded as captured signals, from `metrics.traces`.
+   *
+   * The same kind of file as `images` and shown the same way, kept apart
+   * because a picture of a signal is looked through for a different reason
+   * than a picture of the unit.
+   */
+  traces: string[];
   type: "iteration";
 }
 

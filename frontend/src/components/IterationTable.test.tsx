@@ -6,8 +6,8 @@ import IterationTable, { type IterationRow } from "./IterationTable";
 import type { MetricSample } from "./MetricsChart";
 
 const ITERATIONS: IterationRow[] = [
-  { elapsed_run_s: 2, images: [], iteration: 1, reason: "", success: true },
-  { elapsed_run_s: 5, images: [], iteration: 2, reason: "rail low", success: false },
+  { elapsed_run_s: 2, images: [], iteration: 1, reason: "", success: true, traces: [] },
+  { elapsed_run_s: 5, images: [], iteration: 2, reason: "rail low", success: false, traces: [] },
 ];
 
 const SAMPLES: MetricSample[] = [

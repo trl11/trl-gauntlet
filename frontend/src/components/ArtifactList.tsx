@@ -16,20 +16,28 @@ const LIVE_POLL_MS = 5000;
 /** Above this, a file is downloaded instead of fetched and pretty-printed inline. */
 const MAX_PREVIEW_BYTES = 500_000;
 
+/** One gallery tab's files, folded into a row of their own. */
+export interface ArtifactGallery {
+  /** Paths that tab already shows. */
+  paths: string[];
+  /** The tab they are shown in, which the folded row sends the operator to. */
+  tab: string;
+}
+
 /** Props for {@link ArtifactList}. */
 export interface ArtifactListProps {
-  /** Poll for new files while the run is in flight. */
-  live?: boolean;
-  /** Run whose directory is listed. */
-  runId: string;
   /**
-   * Artifact paths the snapshot gallery already shows, folded into one row.
+   * Artifact paths a gallery tab already shows, one folded row each.
    *
    * A run samples for as long as it is asked to, so an image per sample runs
    * to hundreds of files. Listing them individually would bury the handful of
    * artifacts an operator comes to this tab for.
    */
-  snapshots?: string[];
+  galleries?: ArtifactGallery[];
+  /** Poll for new files while the run is in flight. */
+  live?: boolean;
+  /** Run whose directory is listed. */
+  runId: string;
 }
 
 function extensionOf(path: string): string {
@@ -50,9 +58,9 @@ function prettify(path: string, text: string): string {
 
 /** Every file a run wrote, with an inline preview for the text ones. */
 export const ArtifactList: React.FC<ArtifactListProps> = ({
+  galleries = [],
   live = false,
   runId,
-  snapshots = [],
 }) => {
   const [preview, setPreview] = useState<string | null>(null);
 
@@ -79,17 +87,24 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
     );
   }
 
-  const gallery = new Set(snapshots);
-  const files = artifacts.data.artifacts.filter((file) => !gallery.has(file.path));
-  const folded = artifacts.data.artifacts.filter((file) => gallery.has(file.path));
+  const gathered = new Set(galleries.flatMap((gallery) => gallery.paths));
+  const files = artifacts.data.artifacts.filter((file) => !gathered.has(file.path));
+  const folded = galleries
+    .map((gallery) => {
+      const shown = new Set(gallery.paths);
+      const held = artifacts.data.artifacts.filter((file) => shown.has(file.path));
+      return {
+        bytes: held.reduce((total, file) => total + file.size, 0),
+        count: held.length,
+        // The directory they share, so the row names a real place on disk.
+        directory: held.length > 0 ? held[0].path.slice(0, held[0].path.indexOf("/") + 1) : "",
+        tab: gallery.tab,
+      };
+    })
+    .filter((row) => row.count > 0);
   if (files.length === 0 && folded.length === 0) {
     return <EmptyState title="No artifacts" message="This run has not written any files yet." />;
   }
-
-  const foldedBytes = folded.reduce((total, file) => total + file.size, 0);
-  // The directory they share, so the row names a real place on disk.
-  const foldedDir =
-    folded.length > 0 ? folded[0].path.slice(0, folded[0].path.indexOf("/") + 1) : "";
 
   const tooLarge = previewSize > MAX_PREVIEW_BYTES;
 
@@ -106,14 +121,16 @@ export const ArtifactList: React.FC<ArtifactListProps> = ({
             </tr>
           </thead>
           <tbody>
-            {folded.length > 0 && (
-              <tr className="artifact-list__folded">
-                <td className="artifact-list__path">{foldedDir || "snapshots"}</td>
+            {folded.map((row) => (
+              <tr className="artifact-list__folded" key={row.tab}>
+                <td className="artifact-list__path">{row.directory || row.tab}</td>
                 <td className="artifact-list__mono">images</td>
-                <td className="artifact-list__mono">{formatBytes(foldedBytes)}</td>
-                <td className="artifact-list__actions">{folded.length} in the Snapshots tab</td>
+                <td className="artifact-list__mono">{formatBytes(row.bytes)}</td>
+                <td className="artifact-list__actions">
+                  {row.count} in the {row.tab} tab
+                </td>
               </tr>
-            )}
+            ))}
             {files.map((file) => (
               <tr key={file.path}>
                 <td className="artifact-list__path">{file.path}</td>

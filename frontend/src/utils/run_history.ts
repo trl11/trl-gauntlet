@@ -80,12 +80,14 @@ export function replay(records: MetricsRecord[]): Replayed {
     }
     if (record.kind === "live" || record.success == null) return;
     const images = record.metrics?.images;
+    const traces = record.metrics?.traces;
     result.iterations.push({
       elapsed_run_s: record.elapsed_run_s ?? null,
       images: Array.isArray(images) ? (images as string[]) : [],
       iteration: record.iteration ?? null,
       reason: record.reason ?? "",
       success: record.success === true,
+      traces: Array.isArray(traces) ? (traces as string[]) : [],
     });
   });
   return result;

@@ -103,6 +103,18 @@ This is also what tells the operator's panel the instrument is yours for the
 length of the run: it names the run and locks the instrument's main key while
 it is in flight. See [`instruments.md`](instruments.md).
 
+An instrument that answers with a picture — a camera's snapshot, a logic
+analyzer's capture — returns it as `image_base64`. Write it into the run
+directory and name it in the iteration's metrics, and the run page draws it:
+`images` for a picture of the unit, `traces` for a captured signal, each in a
+tab of its own.
+
+```python
+relative = f"traces/capture_{ictx.iteration:04d}.png"
+ctx.artifact(*relative.split("/")).write_bytes(base64.b64decode(capture["image_base64"]))
+return IterationOutcome(success=True, metrics={"traces": [relative]})
+```
+
 ## Remote units
 
 `gauntlet_sdk.remote` provides SSH access. Install

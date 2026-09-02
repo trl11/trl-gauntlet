@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getArtifactText, listArtifacts } from "@api/client";
-import ArtifactList from "./ArtifactList";
+import ArtifactList, { type ArtifactGallery } from "./ArtifactList";
 
 vi.mock("@api/client", () => ({
   artifactUrl: (runId: string, path: string) => `/api/runs/${runId}/artifacts/${path}`,
@@ -15,11 +15,11 @@ vi.mock("@api/client", () => ({
 const listed = vi.mocked(listArtifacts);
 const text = vi.mocked(getArtifactText);
 
-function renderList(snapshots?: string[]) {
+function renderList(galleries?: ArtifactGallery[]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ArtifactList runId="run-1" snapshots={snapshots} />
+      <ArtifactList runId="run-1" galleries={galleries} />
     </QueryClientProvider>
   );
 }
@@ -81,12 +81,32 @@ describe("ArtifactList", () => {
     expect(await screen.findByText("No artifacts")).toBeInTheDocument();
   });
 
-  it("folds the gallery's images into one row so they cannot bury the rest", async () => {
-    renderList(["frames/001.png"]);
+  it("folds a gallery's images into one row so they cannot bury the rest", async () => {
+    renderList([{ paths: ["frames/001.png"], tab: "snapshots" }]);
     expect(await screen.findByText("verdict.json")).toBeInTheDocument();
     expect(screen.queryByText("frames/001.png")).not.toBeInTheDocument();
     expect(screen.getByText("frames/")).toBeInTheDocument();
-    expect(screen.getByText("1 in the Snapshots tab")).toBeInTheDocument();
+    expect(screen.getByText(/1 in the snapshots tab/)).toBeInTheDocument();
+  });
+
+  it("gives each gallery its own row, so one tab's files are not counted as another's", async () => {
+    listed.mockResolvedValue({
+      run_id: "run-1",
+      run_dir: "/runs/run-1",
+      artifacts: [
+        { path: "verdict.json", size: 120, text: true },
+        { path: "frames/001.png", size: 4096, text: false },
+        { path: "traces/001.png", size: 2048, text: false },
+      ],
+    });
+    renderList([
+      { paths: ["frames/001.png"], tab: "snapshots" },
+      { paths: ["traces/001.png"], tab: "traces" },
+    ]);
+    expect(await screen.findByText("frames/")).toBeInTheDocument();
+    expect(screen.getByText("traces/")).toBeInTheDocument();
+    expect(screen.queryByText("traces/001.png")).not.toBeInTheDocument();
+    expect(screen.getByText(/1 in the traces tab/)).toBeInTheDocument();
   });
 
   it("reports a failure to list the directory", async () => {
