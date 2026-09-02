@@ -1,0 +1,13 @@
+description: >
+  The beam-line profile for the ADS7138QRTERQ1, run continuously. The run
+  has no end of its own: it samples until the operator stops it from the
+  app, and the verdict is taken over what was collected, so a session whose
+  every iteration passed is recorded as a pass and not an abort.
+driver: real
+duration_s: 0
+sample_period_s: 1.0
+address: 16
+probe_map: [5, 3, 1, 7, 8, 6, 4, 2]
+rate: 1mhz
+window: 1ms
+save_traces: true

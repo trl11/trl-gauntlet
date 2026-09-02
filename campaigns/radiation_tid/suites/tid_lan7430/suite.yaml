@@ -12,6 +12,32 @@ description: >
   The session never aborts, so a part that degrades, dies or recovers is
   recorded rather than lost.
 
+setup: |
+  The controller is an EVB-LAN7430 in the M.2 slot of a Raspberry Pi. It
+  appears there as an ordinary interface: eth1 on the current bench. The
+  controller is the only thing in the beam. The unit that holds it and the lab
+  host at the other end of the cable are both outside. Gauntlet reaches the
+  unit over SSH with a key. The iperf3 client runs on the lab host.
+
+  The iperf3 server runs on the unit, bound to the controller's own address.
+  That is what forces the traffic across the part rather than out of the
+  unit's built-in interface. Every tick also compares the interface's own byte
+  counters against what iperf3 reported moving, because a run measured on the
+  wrong interface still reads as a healthy gigabit.
+
+  The suite reads a bench supply on the rail and never commands it. The supply
+  is absent from requires:, so the operator keeps the rail while the beam is
+  on. A bench without a supply runs the suite unchanged.
+
+      +----------------+  Ethernet  +--------------+  M.2   +--------------+
+      |    Lab host    |----------->| LAN7430 eth1 |------->| Raspberry Pi |
+      | iperf3 client  |            |    iperf3    |        |     unit     |
+      |                |            |    server    |        |              |
+      +----------------+            +--------------+        +--------------+
+       outside the beam              under the beam         outside the beam
+               |                                                    ^
+               +----------------------- SSH ------------------------+
+
 exec:
   command: ["python", "-m", "suite.cli"]
   args:

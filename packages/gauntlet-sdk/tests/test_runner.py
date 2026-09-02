@@ -98,9 +98,21 @@ class TestIterationRunner:
         assert not result.aborted
         assert result.passed
 
-    def test_requires_a_bound(self):
-        with pytest.raises(ValueError, match="max_iterations or max_duration_s"):
-            IterationRunner(_ok)
+    def test_without_a_bound_the_loop_runs_until_it_is_stopped(self):
+        runner = IterationRunner(_ok, period_s=0)
+
+        def _stop_after_three(ctx):
+            if ctx.iteration >= 3:
+                runner.request_stop()
+            return IterationOutcome(success=True)
+
+        runner._iterate = _stop_after_three
+        result, _ = runner.run()
+
+        assert result.total_iterations == 3
+        assert result.stopped_early
+        assert not result.aborted
+        assert result.passed
 
     def test_duration_mode_stops_at_the_deadline(self):
         result, _ = IterationRunner(_ok, max_duration_s=0.15, period_s=0.05).run()
@@ -312,6 +324,40 @@ class TestRunSuite:
 
         assert result.total_iterations >= 1
         assert (run_dir / "verdict.json").is_file()
+
+    def test_a_zero_duration_suite_samples_until_it_is_stopped(self, tmp_path):
+        def _stop_on_third(_ctx, ictx):
+            if ictx.iteration == 3:
+                signal.raise_signal(signal.SIGUSR1)
+            return IterationOutcome(success=True)
+
+        spec = SuiteSpec(
+            name="demo",
+            profile_model=Profile,
+            iterate=_stop_on_third,
+            duration_seconds=lambda _p: 0.0,
+            sample_period_seconds=lambda p: p.sample_period_s,
+        )
+        result, run_dir = run_suite(spec, Profile(), run_dir=tmp_path / "run")
+
+        assert result.total_iterations == 3
+        assert result.stopped_early
+        verdict = json.loads((run_dir / "verdict.json").read_text())
+        assert verdict["passed"] is True
+        assert verdict["aborted"] is False
+
+    def test_a_zero_count_suite_cycles_until_it_is_stopped(self, tmp_path):
+        def _stop_on_second(_ctx, ictx):
+            if ictx.iteration == 2:
+                signal.raise_signal(signal.SIGUSR1)
+            return IterationOutcome(success=True)
+
+        spec = _spec(_stop_on_second)
+        result, _ = run_suite(spec, Profile(iterations=0), run_dir=tmp_path / "run")
+
+        assert result.total_iterations == 2
+        assert result.stopped_early
+        assert result.passed
 
     def test_evaluate_can_fail_a_run_whose_iterations_all_passed(self, tmp_path):
         spec = _spec(evaluate=lambda _outcomes, _profile: (False, "throughput below floor"))

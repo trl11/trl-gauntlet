@@ -1,0 +1,21 @@
+description: >
+  A continuous session at thirty-second ticks, with per-tick floors and a
+  session-average gate. The run has no end of its own: it samples until the
+  operator stops it from the app, and the verdict is taken over what was
+  collected, so a session whose every iteration passed is recorded as a pass
+  and not an abort.
+driver: real
+duration_s: 0
+sample_period_s: 30.0
+probe:
+  transfer_mb: 128
+  tx_floor_mbps: 400.0
+  rx_floor_mbps: 400.0
+monitor:
+  enabled: true
+  sample_period_s: 30.0
+pass_criteria:
+  min_avg_tx_mbps: 700.0
+  min_avg_rx_mbps: 700.0
+  max_anomalies: 100
+  require_alive_at_end: true

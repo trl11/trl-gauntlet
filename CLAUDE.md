@@ -170,6 +170,9 @@ and neither is on a package registry.
 ## Behaviour to preserve
 
 - A run without `verdict.json` is recorded as `error`, not `failed`.
+- A profile whose `duration_s` is zero gives the loop no end of its own: the
+  suite samples until the operator stops the run. That stop is graceful, so a
+  session whose every iteration passed is recorded as `passed`, not `aborted`.
 - Gauntlet creates the run directory and passes `GAUNTLET_RUN_DIR`.
 - Overrides not declared in a manifest are rejected, not forwarded.
 - `suite_environment()` prepends Gauntlet's `bin` to `PATH` and the suite

@@ -10,6 +10,36 @@ description: >
   in Mbps. Both ends of the link are recorded; the deserializer is the part under
   the beam.
 
+setup: |
+  The deserializer sits in the LI-GMSL3-USB3.2 adapter, and the adapter is the
+  only thing in the beam. An LI-IMX728-GMSL3-070H camera head outside the beam
+  drives the link into it: the head carries an IMX728 image sensor, whose
+  video its MAX96793 serializer puts on the GMSL link. That serializer is the
+  known-good reference. The host the adapter connects to is outside the beam
+  as well. One capture crosses both chips, so a fault at one end alone says
+  which end moved.
+
+  The sensor is outside the beam with the serializer, so what a snapshot shows
+  is the link rather than a sensor that has been irradiated too.
+
+  The adapter presents the head to the host as an ordinary UVC camera. It also
+  tunnels I2C to both chips over a vendor extension unit on the same USB
+  connection, so nothing is wired to either board to read the link. Gauntlet
+  owns the device, and the suite drives it through the camera capability over
+  HTTP. The suite only ever reads the two chips. A write can drop the link,
+  and a link dropped under the beam looks exactly like a radiation effect.
+
+      +----------------+   GMSL   +-----------------+   USB   +------------+
+      | LI-IMX728 head |--------->| LI-GMSL3-USB3.2 |-------->|    Host    |
+      |                |          |                 |         |            |
+      | IMX728 sensor  |          |    MAX96792     |         | UVC video, |
+      |       |        |          |  deserializer   |         | and I2C on |
+      |       v        |          |                 |         |  the same  |
+      |    MAX96793    |          |                 |         |    USB     |
+      |   serializer   |          |                 |         +------------+
+      +----------------+          +-----------------+
+       outside the beam             under the beam            outside the beam
+
 exec:
   command: ["python", "-m", "suite.cli"]
   args:

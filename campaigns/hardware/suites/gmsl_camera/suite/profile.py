@@ -29,7 +29,9 @@ class CameraSnapshotProfile(BaseModel):
         pattern="^(real|mock)$",
         description="`mock` synthesises frames and contacts no instrument.",
     )
-    duration_s: float = Field(default=30.0, gt=0, description="How long to keep taking snapshots.")
+    duration_s: float = Field(
+        default=30.0, ge=0, description="How long to keep taking snapshots. 0 runs until the operator stops the run."
+    )
     sample_period_s: float = Field(
         default=2.0,
         gt=0,

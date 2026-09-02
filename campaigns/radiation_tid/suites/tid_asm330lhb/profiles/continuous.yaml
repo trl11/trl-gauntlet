@@ -1,0 +1,7 @@
+description: >
+  TBD - the continuous beam-line profile for the ASM330LHBG1TR. The run has
+  no end of its own: it samples until the operator stops it from the app,
+  and the verdict is taken over what was collected, so a session whose every
+  iteration passed is recorded as a pass and not an abort.
+duration_s: 0
+sample_period_s: 1.0

@@ -48,7 +48,9 @@ class CanProfile(BaseModel):
         pattern="^(real|mock)$",
         description="`mock` synthesises a contiguous counter stream with no bus.",
     )
-    duration_s: float = Field(default=60.0, gt=0, description="How long to exercise the link.")
+    duration_s: float = Field(
+        default=60.0, ge=0, description="How long to exercise the link. 0 runs until the operator stops the run."
+    )
     sample_period_s: float = Field(default=1.0, gt=0, description="Seconds between accounting ticks.")
     rate_hz: float = Field(default=100.0, gt=0, description="Frames the unit sends per second.")
     services_to_stop: list[str] = Field(

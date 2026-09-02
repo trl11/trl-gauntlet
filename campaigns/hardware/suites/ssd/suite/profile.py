@@ -93,7 +93,9 @@ class SsdProfile(BaseModel):
         pattern="^(real|mock)$",
         description="`mock` synthesises plausible numbers with no unit attached.",
     )
-    duration_s: float = Field(default=3600.0, gt=0, description="How long to keep probing.")
+    duration_s: float = Field(
+        default=3600.0, ge=0, description="How long to keep probing. 0 runs until the operator stops the run."
+    )
     sample_period_s: float = Field(default=5.0, gt=0, description="Seconds between probe ticks.")
     units: list[Unit] = Field(
         default_factory=list,

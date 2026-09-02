@@ -1,0 +1,35 @@
+description: >
+  Every analog input on the real unit, all on the widest voltage range,
+  sampled continuously. Rename the channels for whatever is wired to them
+  and narrow the range of the ones that want it. The run has no end of its
+  own: it samples until the operator stops it from the app, and the verdict
+  is taken over what was collected, so a session whose every iteration
+  passed is recorded as a pass and not an abort.
+driver: real
+duration_s: 0
+sample_period_s: 1
+channels:
+  - channel: "1"
+    mode: 10v
+    label: CH 1
+  - channel: "2"
+    mode: 10v
+    label: CH 2
+  - channel: "3"
+    mode: 10v
+    label: CH 3
+  - channel: "4"
+    mode: 10v
+    label: CH 4
+  - channel: "5"
+    mode: 10v
+    label: CH 5
+  - channel: "6"
+    mode: 10v
+    label: CH 6
+  - channel: "7"
+    mode: 10v
+    label: CH 7
+  - channel: "8"
+    mode: 10v
+    label: CH 8

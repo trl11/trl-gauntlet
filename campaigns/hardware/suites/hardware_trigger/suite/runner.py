@@ -153,7 +153,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
             "last_exit_status": state.last_exit_status,
             "anomalies_total": state.anomalies.total(),
         },
-        summary=f"{state.runs_completed}/{profile.runs} pulses",
+        summary=f"{state.runs_completed}/{profile.runs} pulses" if profile.runs else f"{state.runs_completed} pulses",
     )
 
 

@@ -1,9 +1,9 @@
 """The iteration loop that drives sampled suites.
 
-Configure either a duration or an iteration count. The runner handles cadence,
-sink fan-out, and stop handling. Ctrl-C aborts the run; a graceful stop request
-completes the in-flight iteration and rolls up a verdict from the samples
-collected.
+Configure a duration, an iteration count, or neither — with neither, the loop
+runs until it is stopped. The runner handles cadence, sink fan-out, and stop
+handling. Ctrl-C aborts the run; a graceful stop request completes the
+in-flight iteration and rolls up a verdict from the samples collected.
 """
 
 from __future__ import annotations
@@ -75,7 +75,11 @@ PassCriteriaFn = Callable[[RunResult, list[IterationOutcome]], "tuple[bool, str]
 
 
 class IterationRunner:
-    """Runs an iterate callable on a fixed cadence until done or stopped."""
+    """Runs an iterate callable on a fixed cadence until done or stopped.
+
+    With neither ``max_iterations`` nor ``max_duration_s``, the loop has no end
+    of its own and runs until :meth:`request_stop` or :meth:`abort`.
+    """
 
     def __init__(
         self,
@@ -89,8 +93,6 @@ class IterationRunner:
         on_start: Callable[[], None] | None = None,
         on_stop: Callable[[], None] | None = None,
     ) -> None:
-        if max_iterations is None and max_duration_s is None:
-            raise ValueError("IterationRunner needs max_iterations or max_duration_s")
         self._iterate = iterate
         self._max_iterations = max_iterations
         self._max_duration_s = max_duration_s
@@ -140,8 +142,10 @@ class IterationRunner:
             deadline = started + self._max_duration_s if self._max_duration_s else None
             if self._max_iterations is not None:
                 info(f"starting {self._max_iterations} iterations @ period={self._period_s:.1f}s")
-            else:
+            elif self._max_duration_s is not None:
                 info(f"starting duration={self._max_duration_s:.0f}s @ period={self._period_s:.1f}s")
+            else:
+                info(f"starting until stopped @ period={self._period_s:.1f}s")
 
             while not self._stopped:
                 if self._max_iterations is not None and index >= self._max_iterations:

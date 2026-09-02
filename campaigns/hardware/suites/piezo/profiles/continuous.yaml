@@ -1,0 +1,23 @@
+description: >
+  Extend-and-return cycles with a temperature ceiling, run continuously. The
+  run has no end of its own: it samples until the operator stops it from the
+  app, and the verdict is taken over what was collected, so a session whose
+  every iteration passed is recorded as a pass and not an abort.
+driver: real
+cycles: 0
+cycle_delay_s: 0.5
+motion:
+  axes:
+    - name: axis0
+      serial: "0"
+      axis: 0
+      home_usteps: 0
+      extended_usteps: 2700008
+      speed_hz: 200
+  extended_dwell_s: 1.0
+  move_timeout_s: 30.0
+  max_temperature_c: 60.0
+pass_criteria:
+  max_anomalies: 100
+  max_missed_targets: 0
+  require_alive_at_end: true

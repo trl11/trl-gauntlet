@@ -1,0 +1,16 @@
+description: >
+  Stills from the real camera, one every two seconds, scaled to 960px wide,
+  taken continuously. The brightness window and the sharpness floor are set
+  wide enough to pass any lit scene, so narrow them once the camera is
+  pointed at whatever the run is really watching. The run has no end of its
+  own: it samples until the operator stops it from the app, and the verdict
+  is taken over what was collected, so a session whose every iteration
+  passed is recorded as a pass and not an abort.
+driver: real
+duration_s: 0
+sample_period_s: 2
+max_width: 960
+min_mean_luma: 4
+max_mean_luma: 250
+min_sharpness: 0.5
+max_identical_frames: 3

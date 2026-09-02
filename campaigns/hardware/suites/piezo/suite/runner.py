@@ -221,7 +221,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
         success=not failed,
         reason="; ".join(failed),
         metrics=metrics,
-        summary=f"cycle {ictx.iteration}/{profile.cycles}",
+        summary=f"cycle {ictx.iteration}/{profile.cycles}" if profile.cycles else f"cycle {ictx.iteration}",
     )
 
 

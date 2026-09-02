@@ -50,7 +50,9 @@ class SuiteSpec:
 
     ``iterate`` is the per-tick work and the only required callable. Set
     exactly one of ``duration_seconds`` or ``iteration_count`` to choose
-    between a time-bounded and a cycle-bounded run.
+    between a time-bounded and a cycle-bounded run. Zero from either gives the
+    run no end of its own: it samples until the operator stops it, and the
+    verdict is taken over what was collected.
 
     ``setup`` and ``teardown`` bracket the loop — open instruments in setup,
     stash handles on ``ctx.extras``, release them in teardown, which runs in a
@@ -143,10 +145,12 @@ def run_suite(
         "stop_on_failure": bool(spec.stop_on_failure(profile)),
     }
     if spec.duration_seconds is not None:
-        runner_kwargs["max_duration_s"] = float(spec.duration_seconds(profile))
+        duration_s = float(spec.duration_seconds(profile))
+        runner_kwargs["max_duration_s"] = duration_s if duration_s > 0 else None
     else:
         assert spec.iteration_count is not None
-        runner_kwargs["max_iterations"] = int(spec.iteration_count(profile))
+        count = int(spec.iteration_count(profile))
+        runner_kwargs["max_iterations"] = count if count > 0 else None
 
     runner = IterationRunner(_iterate, **runner_kwargs)
     runner.add_sink(jsonl)
