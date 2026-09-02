@@ -35,7 +35,14 @@ from gauntlet.capabilities.declare import command_field, readout
 from gauntlet.capabilities.registry import CommandRejected
 from gauntlet.instruments.gmsl import ChipStatus, GmslError, GmslLink
 from gauntlet.instruments.imaging import ENCODING_AUTO, ImageError, encode_frame, image_suffix
-from gauntlet.instruments.v4l2 import SUPPORTED_FORMATS, V4l2Camera, V4l2Error, capture_devices, fourcc
+from gauntlet.instruments.v4l2 import (
+    SUPPORTED_FORMATS,
+    V4l2Camera,
+    V4l2Error,
+    V4l2Timeout,
+    capture_devices,
+    fourcc,
+)
 
 log = logging.getLogger("gauntlet.instruments.uvc_camera")
 
@@ -512,9 +519,15 @@ class UvcCamera:
             for _ in range(warmup):
                 frame = camera.grab()
             payload, measured = encode_frame(frame, max_width=max_width, encoding=self._frame_format, lossy=lossy)
+        except V4l2Timeout as exc:
+            # The device is open and streaming; this capture simply missed.
+            # Keeping it open is what lets the next sample succeed, and what
+            # stops one late frame reading as a camera nobody owns for the
+            # rest of the run and the run after it.
+            raise CommandRejected(f"camera: {exc}") from exc
         except (ImageError, V4l2Error) as exc:
             # A camera that has been unplugged answers every grab the same way,
-            # so the device is dropped and the next command re-probes for it.
+            # so the device is dropped here and `set_owned` re-probes for it.
             self._disconnect()
             raise CommandRejected(f"camera: {exc}") from exc
 

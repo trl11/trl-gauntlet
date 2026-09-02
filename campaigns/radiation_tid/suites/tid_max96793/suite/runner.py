@@ -63,6 +63,10 @@ def _setup(ctx: SuiteContext) -> None:
     camera = Camera(granted.url)
     ctx.extras[_CAMERA] = camera
     try:
+        camera.own()
+    except LinkError as exc:
+        warn(f"{granted.instance_id}: could not open the camera: {exc}")
+    try:
         state = camera.state()
     except LinkError as exc:
         warn(f"{granted.instance_id}: could not read the camera's state: {exc}")

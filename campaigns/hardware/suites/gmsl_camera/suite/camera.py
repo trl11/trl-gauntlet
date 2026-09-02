@@ -43,6 +43,18 @@ class Camera:
         self._timeout_s = timeout_s
         self._url = url
 
+    def own(self) -> None:
+        """Open the device, so a capture has something to come from.
+
+        Ownership is the driver holding the node open and streaming, and it is
+        held in memory, so it does not survive the service restarting. A run
+        that assumed the operator had latched it in the panel failed every
+        sample until someone did. Asking for it here costs nothing when it is
+        already owned and is the difference between a run and a wasted beam
+        slot when it is not.
+        """
+        self._post({"command": "set_owned", "args": {"owned": True}})
+
     def snapshot(self, *, max_width: int) -> Snapshot:
         """Take one still and return it with its measurements.
 
