@@ -156,11 +156,39 @@ streams each record. The file must be line-buffered.
 
 Numeric leaves of `metrics` are flattened to dotted paths and plotted.
 `metrics.images` is a list of paths relative to the run directory, and
-`metrics.traces` is the same for a picture of a captured signal — a logic
-analyzer's window, a scope's screen. Both are drawn the same way and each gets
-its own tab, because a signal is looked through for a different reason than a
-picture of the unit. A run recording neither is offered neither tab: the files
-decide, and nothing asks which suite ran or what it drove.
+`metrics.traces` is the same for a captured signal — a logic analyzer's window,
+a scope's screen. Each gets its own tab, because a signal is looked through for
+a different reason than a picture of the unit. A run recording neither is
+offered neither tab: the files decide, and nothing asks which suite ran or what
+it drove.
+
+A trace is a picture, shown like any image, or a run's captures, drawn as lanes
+that scroll and zoom. The suffix decides.
+
+A `.jsonl` trace is a whole run's captures, appended a line at a time and drawn
+on one timeline. The first line is the header and every line after it is one
+capture:
+
+```
+{"channels": ["SCL", "SDA", "", "", "", "", "", ""], "rate_hz": 1000000}
+{"elapsed_run_s": 0.0, "iteration": 0, "samples": 1000, "samples_base64": "AAAA..."}
+{"elapsed_run_s": 1.0, "iteration": 1, "samples": 1000, "samples_base64": "AAAA..."}
+```
+
+`elapsed_run_s` is where the capture goes on the run's timeline, which is what
+lets one view hold the lot. A run samples a window at a time, so the captures
+are islands with the rest of the run between them: the gaps hold no samples and
+are drawn empty rather than at a level. Every iteration that appends names the
+file in its `metrics.traces`, which is what that field means and is how the run
+page counts captures; the artifact list still shows the one file.
+
+`samples_base64` decodes to one byte per sample, bit *n* being the level of
+channel *n + 1*; `channels` labels them, the first being channel 1, and an
+empty label falls back to the channel number.
+
+Write the samples rather than a picture where the operator will want to look
+inside the capture. They cost `rate_hz * seconds` a capture before base64, so a
+suite sampling for a long time should let a profile turn them off.
 
 ## Conformance
 
