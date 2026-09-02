@@ -600,6 +600,7 @@ class Fx2Logic:
             "image_base64": _base64(waveform.render(samples)),
             "rate_hz": rate_hz,
             "samples": len(samples),
+            "samples_base64": _base64(samples),
             "suffix": ".png",
             "window_s": captured_s,
         }

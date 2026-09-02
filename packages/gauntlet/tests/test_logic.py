@@ -306,6 +306,13 @@ class TestFx2Logic:
         assert result["suffix"] == ".png"
         assert base64.b64decode(result["image_base64"]).startswith(b"\x89PNG\r\n\x1a\n")
 
+    def test_a_capture_answers_with_the_samples_themselves(self) -> None:
+        analyzer = _analyzer(_FakeAnalyzer(stream=pattern(2000)))
+        result = analyzer.command("capture", {"rate": "1mhz", "window": "1ms"})
+        samples = base64.b64decode(result["samples_base64"])
+        assert len(samples) == result["samples"]
+        assert samples == pattern(2000)[:1000]
+
     def test_a_suite_drives_it_through_the_capability_endpoint(self) -> None:
         # `POST /api/capabilities/logic` reaches `write`, which is how a suite
         # drives the analyzer: it never calls `command` itself.
@@ -453,6 +460,10 @@ class TestMockLogic:
     def test_a_capture_answers_with_a_picture_of_itself(self) -> None:
         result = MockLogic().command("capture", {"rate": "1mhz", "window": "1ms"})
         assert base64.b64decode(result["image_base64"]).startswith(b"\x89PNG\r\n\x1a\n")
+
+    def test_a_capture_answers_with_the_samples_themselves(self) -> None:
+        result = MockLogic().command("capture", {"rate": "1mhz", "window": "1ms"})
+        assert len(base64.b64decode(result["samples_base64"])) == result["samples"]
 
     def test_captures_are_counted_for_the_viewer(self) -> None:
         analyzer = MockLogic()

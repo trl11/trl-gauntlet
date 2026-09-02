@@ -188,6 +188,7 @@ class MockLogic:
             "image_base64": base64.b64encode(waveform.render(samples)).decode(),
             "rate_hz": rate_hz,
             "samples": len(samples),
+            "samples_base64": base64.b64encode(samples).decode(),
             "suffix": ".png",
             "window_s": window_s,
         }
