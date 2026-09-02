@@ -63,7 +63,11 @@ class TidAds7138Profile(BaseModel):
     sample_period_s: float = Field(default=1.0, gt=0, description="Seconds between samples.")
     save_traces: bool = Field(
         default=True,
-        description="Keep a picture of every capture. Off for a long run, which would keep thousands.",
+        description=(
+            "Keep the samples of every capture, to be looked through afterwards. "
+            "One byte per sample, so rate times window. Off for a long run, "
+            "which would keep thousands."
+        ),
     )
 
     @field_validator("rate")

@@ -17,6 +17,11 @@ from typing import Any
 
 from suite.adc import GPI_VALUE
 
+# What a mock capture reports, so a run with no bench writes a trace of the
+# same shape a real one does.
+_MOCK_RATE_HZ = 1_000_000
+_MOCK_SAMPLES = 1000
+
 
 class AnalyzerError(RuntimeError):
     """The instrument refused a capture, or could not be reached."""
@@ -27,18 +32,14 @@ class Capture:
 
     def __init__(self, payload: dict[str, Any]) -> None:
         self.channels: dict[str, dict[str, Any]] = payload.get("channels") or {}
+        self.rate_hz: int = int(payload.get("rate_hz") or 0)
         self.samples: int = int(payload.get("samples") or 0)
-        self._image: str = str(payload.get("image_base64") or "")
+        self._samples: str = str(payload.get("samples_base64") or "")
 
     @property
-    def image(self) -> bytes:
-        """The picture of the capture, empty when it answered without one."""
-        if not self._image:
-            return b""
-        try:
-            return base64.b64decode(self._image)
-        except ValueError as exc:
-            raise AnalyzerError(f"capture: the picture would not decode: {exc}") from exc
+    def samples_base64(self) -> str:
+        """Every sample as it arrived: one byte each, bit *n* being probe *n+1*."""
+        return self._samples
 
     def levels(self) -> dict[int, int]:
         """What each probe was sitting at, by probe number."""
@@ -84,7 +85,18 @@ class MockAnalyzer:
         """The levels the part is holding, reported as a capture."""
         driven = self._adc.read_register(GPI_VALUE)
         channels = {str(probe): {"level": (driven >> output) & 1} for output, probe in enumerate(self._probe_map)}
-        return Capture({"channels": channels, "samples": 0})
+        held = 0
+        for output, probe in enumerate(self._probe_map):
+            held |= ((driven >> output) & 1) << (probe - 1)
+        samples = bytes([held]) * _MOCK_SAMPLES
+        return Capture(
+            {
+                "channels": channels,
+                "rate_hz": _MOCK_RATE_HZ,
+                "samples": len(samples),
+                "samples_base64": base64.b64encode(samples).decode(),
+            }
+        )
 
 
 def _detail(error: urllib.error.HTTPError) -> str:

@@ -19,6 +19,7 @@ is recorded: a floating input measures the probe, not the part.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from gauntlet_sdk import (
@@ -58,6 +59,10 @@ from suite.profile import TidAds7138Profile
 _ADC = "adc"
 _ANALYZER = "analyzer"
 
+# Every capture of a run goes in one file, appended a line at a time, so the
+# run page can draw them on one timeline. The first line names the channels.
+_CAPTURES = "traces/captures.jsonl"
+
 # What setup writes, and what every iteration reads back. All eight channels
 # are GPIOs, all eight are outputs, and all eight are push-pull, which the
 # bench needs because an analyzer probe offers no pullup for an open drain.
@@ -92,6 +97,14 @@ def probes_to_byte(levels: dict[int, int], probe_map: list[int]) -> int:
         if levels.get(probe):
             value |= 1 << output
     return value
+
+
+def channel_labels(probe_map: list[int]) -> list[str]:
+    """The output clipped to each of the analyzer's eight probes, probe 1 first."""
+    labels = [""] * 8
+    for output, probe in enumerate(probe_map):
+        labels[probe - 1] = f"GPO{output}"
+    return labels
 
 
 def named_bits(value: int) -> str:
@@ -205,10 +218,33 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
         faults.append(f"a conversion read answered 0x{fixed:04x}, not the fixed 0x{FIXED_PATTERN:04x}")
 
     traces: list[str] = []
-    if profile.save_traces and captured.image:
-        relative = f"traces/capture_{ictx.iteration:04d}.png"
-        ctx.artifact(*relative.split("/")).write_bytes(captured.image)
-        traces.append(relative)
+    if profile.save_traces and captured.samples_base64:
+        path = ctx.artifact(*_CAPTURES.split("/"))
+        # Whether this is the first capture is asked of the file rather than of
+        # the iteration number, which does not start at zero.
+        first = not path.exists()
+        lines = []
+        # The header carries the rate the analyzer captured at rather than the
+        # one the profile asked for, and is written beside the first capture
+        # because that is when the analyzer has reported it.
+        if first:
+            lines.append(json.dumps({"channels": channel_labels(profile.probe_map), "rate_hz": captured.rate_hz}))
+        lines.append(
+            json.dumps(
+                {
+                    "elapsed_run_s": round(ictx.elapsed_run_s, 6),
+                    "iteration": ictx.iteration,
+                    "samples": captured.samples,
+                    "samples_base64": captured.samples_base64,
+                }
+            )
+        )
+        with path.open("a") as handle:
+            handle.write("\n".join(lines) + "\n")
+        # Every iteration names the file it appended to, which is what
+        # `metrics.traces` means, and is what lets the run page count captures
+        # rather than files.
+        traces.append(_CAPTURES)
 
     metrics: dict[str, Any] = {
         "ads7128": {

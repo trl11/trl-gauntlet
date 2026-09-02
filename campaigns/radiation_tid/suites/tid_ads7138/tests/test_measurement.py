@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import base64
+
 import pytest
 from pydantic import ValidationError
 from suite.adc import GPI_VALUE, GPIO_CFG, GPO_VALUE, PIN_CFG, MockAdc
 from suite.analyzer import MockAnalyzer
 from suite.profile import TidAds7138Profile
-from suite.runner import _PATTERNS, named_bits, pattern_for, probes_to_byte
+from suite.runner import _PATTERNS, channel_labels, named_bits, pattern_for, probes_to_byte
 
 # The wiring of the bench this suite was written against: the probe each
 # output is clipped to, in the scrambled order the ribbon gives.
@@ -61,6 +63,16 @@ class TestProbes:
         assert named_bits(0b00100100) == "GPO2, GPO5"
 
 
+class TestChannelLabels:
+    def test_each_probe_is_labelled_with_the_output_clipped_to_it(self) -> None:
+        # GPO0 is on probe 5, so probe 5's lane is the one that reads GPO0.
+        assert channel_labels(BENCH_MAP)[4] == "GPO0"
+        assert channel_labels(BENCH_MAP)[0] == "GPO2"
+
+    def test_every_probe_is_named_once(self) -> None:
+        assert sorted(channel_labels(BENCH_MAP)) == [f"GPO{bit}" for bit in range(8)]
+
+
 class TestMockPart:
     def test_the_inputs_mirror_what_the_outputs_are_driving(self) -> None:
         adc = MockAdc()
@@ -75,6 +87,19 @@ class TestMockPart:
         adc.write_register(GPIO_CFG, 0x0F)
         adc.write_register(GPO_VALUE, 0xFF)
         assert adc.read_register(GPI_VALUE) == 0x0F
+
+    def test_the_trace_holds_the_pattern_the_outputs_were_driving(self) -> None:
+        adc = MockAdc()
+        adc.write_register(PIN_CFG, 0xFF)
+        adc.write_register(GPIO_CFG, 0xFF)
+        adc.write_register(GPO_VALUE, 0xA5)
+        captured = MockAnalyzer(adc, BENCH_MAP).capture("1mhz", "1ms")
+        samples = base64.b64decode(captured.samples_base64)
+        assert len(samples) == captured.samples
+        # A sample byte carries probe n in bit n-1, which is the shape the
+        # viewer decodes and the opposite end of the same wiring.
+        levels = {probe: (samples[0] >> (probe - 1)) & 1 for probe in range(1, 9)}
+        assert probes_to_byte(levels, BENCH_MAP) == 0xA5
 
     def test_the_analyzer_reports_the_pattern_through_the_probe_map(self) -> None:
         adc = MockAdc()
