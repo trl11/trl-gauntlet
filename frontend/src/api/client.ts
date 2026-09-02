@@ -21,6 +21,8 @@ import type {
   MetricsResponse,
   Note,
   NoteList,
+  PowerAction,
+  PowerResult,
   ProfileContent,
   ProfileDiff,
   RunControlResult,
@@ -183,6 +185,18 @@ export const getSystemInfo = (): Promise<SystemInfo> => request<SystemInfo>("/ap
 
 /** `GET /api/system/data` */
 export const getSystemData = (): Promise<SystemData> => request<SystemData>("/api/system/data");
+
+/**
+ * `POST /api/system/power`
+ *
+ * The host it is served from goes down once this answers, so the reply is the
+ * last thing this Gauntlet says. A run in flight is refused with a 409.
+ */
+export const powerHost = (action: PowerAction): Promise<PowerResult> =>
+  request<PowerResult>("/api/system/power", {
+    method: "POST",
+    body: JSON.stringify({ action }),
+  });
 
 /* -------------------------------------------------------------------------
  * Suites, profiles, schemas

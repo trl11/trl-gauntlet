@@ -1,14 +1,22 @@
-import { useQuery } from "@tanstack/react-query";
-import { Spinner } from "@trl11/components/ui";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Button, Confirm, Spinner } from "@trl11/components/ui";
+import { useState } from "react";
 
-import { apiUrl, getHealth, getSettings, getSystemData, getSystemInfo } from "@api/client";
-import type { SystemData, SystemTemperature } from "@api/types";
+import {
+  apiUrl,
+  getHealth,
+  getSettings,
+  getSystemData,
+  getSystemInfo,
+  powerHost,
+} from "@api/client";
+import type { PowerAction, SystemData, SystemTemperature } from "@api/types";
 import DefinitionRows, { type DefinitionRow } from "@components/DefinitionRows";
 import PageHeader from "@components/PageHeader";
 import Panel from "@components/Panel";
 import { formatBytes, formatDuration, formatPercent } from "../utils/format";
 
-import "./SettingsPage.scss";
+import "./SystemPage.scss";
 
 /** How often the health probe is repeated. */
 const HEALTH_POLL_MS = 5000;
@@ -77,7 +85,7 @@ function healthStatus(pending: boolean, healthy: boolean): { failed: boolean; la
 }
 
 /** What the service is, where it answers, and how the host carrying it is doing. */
-export const SettingsPage: React.FC = () => {
+export const SystemPage: React.FC = () => {
   const health = useQuery({
     queryKey: ["health"],
     queryFn: getHealth,
@@ -92,6 +100,9 @@ export const SettingsPage: React.FC = () => {
     refetchInterval: HOST_POLL_MS,
   });
 
+  const [confirming, setConfirming] = useState<PowerAction | null>(null);
+  const power = useMutation({ mutationFn: powerHost });
+
   const status = healthStatus(health.isPending, health.isSuccess);
   const config = settings.data;
   const host = info.data;
@@ -102,7 +113,7 @@ export const SettingsPage: React.FC = () => {
     {
       label: "api server",
       value: (
-        <span aria-live="polite" className={status.failed ? "settings-page__fault" : undefined}>
+        <span aria-live="polite" className={status.failed ? "system-page__fault" : undefined}>
           {status.label}
         </span>
       ),
@@ -116,17 +127,17 @@ export const SettingsPage: React.FC = () => {
   }
 
   return (
-    <div className="settings-page">
-      <PageHeader title="Settings" />
+    <div className="system-page">
+      <PageHeader title="System" />
 
-      <div className="settings-page__grid">
+      <div className="system-page__grid">
         <Panel>
-          <div className="settings-page__section">
-            <h3 className="settings-page__section-title">Info</h3>
+          <div className="system-page__section">
+            <h3 className="system-page__section-title">Info</h3>
             {info.isPending ? (
               <Spinner />
             ) : info.isError ? (
-              <p className="settings-page__error" role="alert">
+              <p className="system-page__error" role="alert">
                 {info.error.message}
               </p>
             ) : (
@@ -140,19 +151,19 @@ export const SettingsPage: React.FC = () => {
             )}
           </div>
 
-          <div className="settings-page__section">
-            <h3 className="settings-page__section-title">Runtime</h3>
+          <div className="system-page__section">
+            <h3 className="system-page__section-title">Runtime</h3>
             <DefinitionRows rows={runtime} />
             {settings.isPending && <Spinner />}
             {settings.isError && (
-              <p className="settings-page__error" role="alert">
+              <p className="system-page__error" role="alert">
                 {settings.error.message}
               </p>
             )}
           </div>
 
-          <div className="settings-page__section">
-            <h3 className="settings-page__section-title">Documentation</h3>
+          <div className="system-page__section">
+            <h3 className="system-page__section-title">Documentation</h3>
             <DefinitionRows
               rows={[
                 {
@@ -174,12 +185,12 @@ export const SettingsPage: React.FC = () => {
         </Panel>
 
         <Panel>
-          <div className="settings-page__section">
-            <h3 className="settings-page__section-title">Host stats</h3>
+          <div className="system-page__section">
+            <h3 className="system-page__section-title">Host stats</h3>
             {system.isPending ? (
               <Spinner />
             ) : system.isError ? (
-              <p className="settings-page__error" role="alert">
+              <p className="system-page__error" role="alert">
                 Host telemetry is unavailable.
               </p>
             ) : (
@@ -187,9 +198,53 @@ export const SettingsPage: React.FC = () => {
             )}
           </div>
         </Panel>
+
+        <Panel>
+          <div className="system-page__section">
+            <h3 className="system-page__section-title">Power</h3>
+            <p className="system-page__note">
+              Takes this host down in order, so a rig needs neither a login nor its power switch.
+              Refused while a test is running.
+            </p>
+            <div className="system-page__actions">
+              <Button onClick={() => setConfirming("reboot")} disabled={power.isPending}>
+                Reboot
+              </Button>
+              <Button onClick={() => setConfirming("poweroff")} disabled={power.isPending}>
+                Shut down
+              </Button>
+            </div>
+            {power.isError && (
+              <p className="system-page__fault" role="alert">
+                {(power.error as Error).message}
+              </p>
+            )}
+            {power.isSuccess && (
+              <p className="system-page__note" role="status">
+                {power.variables === "reboot"
+                  ? "Rebooting. This page answers again once it is back."
+                  : "Shutting down. This page stops answering."}
+              </p>
+            )}
+          </div>
+        </Panel>
       </div>
+
+      {confirming && (
+        <Confirm
+          onConfirm={() => {
+            power.mutate(confirming);
+            setConfirming(null);
+          }}
+          onDismiss={() => setConfirming(null)}
+        >
+          {confirming === "reboot"
+            ? `Reboot ${host?.hostname ?? "this host"}? It stops serving until it is back.`
+            : `Shut down ${host?.hostname ?? "this host"}? Someone has to press its power button to bring it back.`}
+        </Confirm>
+      )}
     </div>
   );
 };
 
-export default SettingsPage;
+export default SystemPage;

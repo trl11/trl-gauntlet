@@ -11,7 +11,7 @@ const DESTINATIONS: Record<string, string> = {
   d: "/",
   h: "/history",
   i: "/instruments",
-  s: "/settings",
+  s: "/system",
   t: "/tests",
   u: "/units",
 };
@@ -30,7 +30,7 @@ const SHORTCUTS: Shortcut[] = [
   { keys: "g h", description: "Go to History" },
   { keys: "g u", description: "Go to Units" },
   { keys: "g i", description: "Go to Instruments" },
-  { keys: "g s", description: "Go to Settings" },
+  { keys: "g s", description: "Go to System" },
   { keys: "Esc", description: "Close the open modal or overlay" },
 ];
 

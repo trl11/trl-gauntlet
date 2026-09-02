@@ -47,7 +47,7 @@ describe("the g prefix", () => {
     ["h", "/history"],
     ["u", "/units"],
     ["i", "/instruments"],
-    ["s", "/settings"],
+    ["s", "/system"],
   ])("g then %s navigates to %s", (key, destination) => {
     mount();
 

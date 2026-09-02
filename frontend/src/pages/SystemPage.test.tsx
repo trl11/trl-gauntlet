@@ -1,16 +1,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SystemData } from "@api/types";
 
-import SettingsPage from "./SettingsPage";
+import SystemPage from "./SystemPage";
 import { pending, spinners } from "../test/queries";
 
 const getHealth = vi.fn();
 const getSettings = vi.fn();
 const getSystemInfo = vi.fn();
 const getSystemData = vi.fn();
+const powerHost = vi.fn();
 
 vi.mock("@api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@api/client")>();
@@ -20,6 +22,7 @@ vi.mock("@api/client", async (importOriginal) => {
     getSettings: () => getSettings(),
     getSystemInfo: () => getSystemInfo(),
     getSystemData: () => getSystemData(),
+    powerHost: (action: string) => powerHost(action),
   };
 });
 
@@ -48,13 +51,14 @@ function renderSettings() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <SettingsPage />
+      <SystemPage />
     </QueryClientProvider>
   );
 }
 
 beforeEach(() => {
   getHealth.mockResolvedValue({ status: "ok" });
+  powerHost.mockResolvedValue({ action: "poweroff", status: "accepted" });
   getSystemData.mockResolvedValue(systemData());
   getSettings.mockResolvedValue({
     data_dir: "/home/dev/.local/share/gauntlet",
@@ -89,7 +93,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("SettingsPage", () => {
+describe("SystemPage", () => {
   it("reports the health of the API", async () => {
     renderSettings();
     expect(await screen.findByText("healthy")).toBeInTheDocument();
@@ -153,7 +157,7 @@ describe("SettingsPage", () => {
   });
 });
 
-describe("SettingsPage host telemetry", () => {
+describe("SystemPage host telemetry", () => {
   it("lists the host figures as label and value", async () => {
     renderSettings();
 
@@ -212,5 +216,35 @@ describe("SettingsPage host telemetry", () => {
 
     await screen.findByText("Host telemetry is unavailable.");
     expect(screen.getByText("bench-01")).toBeInTheDocument();
+  });
+
+  describe("power", () => {
+    it("asks before taking the host down", async () => {
+      renderSettings();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Shut down" }));
+
+      expect(screen.getByText(/Shut down bench-01\?/)).toBeInTheDocument();
+      expect(powerHost).not.toHaveBeenCalled();
+    });
+
+    it("powers off once the operator confirms", async () => {
+      renderSettings();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Shut down" }));
+      await userEvent.click(screen.getByRole("button", { name: /confirm|yes|ok/i }));
+
+      expect(powerHost).toHaveBeenCalledWith("poweroff");
+    });
+
+    it("reports a refusal rather than pretending it went down", async () => {
+      powerHost.mockRejectedValue(new Error("alpha is running as 20260101T000000Z-0001"));
+      renderSettings();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Shut down" }));
+      await userEvent.click(screen.getByRole("button", { name: /confirm|yes|ok/i }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("alpha is running");
+    });
   });
 });

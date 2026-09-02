@@ -77,7 +77,7 @@ describe("every route renders", () => {
   it("shows the shell with a link to each page", async () => {
     open("#/");
     const nav = within(await screen.findByRole("navigation", { name: "Primary" }));
-    for (const label of ["Dashboard", "History", "Tests", "Units", "Instruments", "Settings"]) {
+    for (const label of ["Dashboard", "History", "Tests", "Units", "Instruments", "System"]) {
       expect(nav.getByRole("link", { name: label })).toBeInTheDocument();
     }
   });
@@ -90,7 +90,7 @@ describe("every route renders", () => {
     // The panels fed by the run history: recent runs, and the units behind them.
     expect(await screen.findByText("Recent runs")).toBeInTheDocument();
     expect(await screen.findByRole("link", { name: "all units (2) →" })).toBeInTheDocument();
-    // Host telemetry belongs to the settings page.
+    // Host telemetry belongs to the system page.
     expect(screen.queryByText("Host stats")).not.toBeInTheDocument();
   });
 
@@ -140,9 +140,9 @@ describe("every route renders", () => {
     }
   });
 
-  it("settings shows the host, the version it runs, and its telemetry", async () => {
-    open("#/settings");
-    expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
+  it("system shows the host, the version it runs, and its telemetry", async () => {
+    open("#/system");
+    expect(await screen.findByRole("heading", { name: "System" })).toBeInTheDocument();
     expect(await screen.findByText(String(fixtures.systemInfo.hostname))).toBeInTheDocument();
     expect(await screen.findByText(String(fixtures.settings.port))).toBeInTheDocument();
     // The readings reach the rows, not just their labels.

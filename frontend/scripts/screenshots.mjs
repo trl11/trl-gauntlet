@@ -23,7 +23,7 @@ const ROUTES = [
   ["history", "/history"],
   ["units", "/units"],
   ["instruments", "/instruments"],
-  ["settings", "/settings"],
+  ["system", "/system"],
 ];
 
 await mkdir(out, { recursive: true });

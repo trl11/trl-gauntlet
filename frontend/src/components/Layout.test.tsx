@@ -73,7 +73,7 @@ describe("Layout", () => {
   it("renders the wordmark and every nav link", async () => {
     renderLayout();
     expect(screen.getByRole("link", { name: "Gauntlet" })).toHaveAttribute("href", "/");
-    for (const label of ["Dashboard", "History", "Tests", "Units", "Instruments", "Settings"]) {
+    for (const label of ["Dashboard", "History", "Tests", "Units", "Instruments", "System"]) {
       expect(screen.getByRole("link", { name: label })).toBeInTheDocument();
     }
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument();

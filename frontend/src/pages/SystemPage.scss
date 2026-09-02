@@ -1,6 +1,6 @@
 @use "@trl11/styles/theme.scss" as *;
 
-.settings-page {
+.system-page {
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -39,7 +39,7 @@
 
     // Everything below the heading takes the panel's width.
     .definition-rows,
-    .settings-page__error {
+    .system-page__error {
       align-self: stretch;
     }
   }
@@ -64,5 +64,16 @@
 
   &__fault {
     color: $indicator-red;
+  }
+
+  &__note {
+    font-size: 13px;
+    color: $trl-light-gray;
+    margin: 0 0 12px;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 12px;
   }
 }
