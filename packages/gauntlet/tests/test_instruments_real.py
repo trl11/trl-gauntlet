@@ -790,7 +790,14 @@ class TestDetection:
         """Settings that look for nothing, bar what a test asks for."""
         return Settings(
             data_dir=tmp_path / "data",
-            **{"camera_device": "", "daq_serial": "", "i2c_serial": "", "psu_port": "", **overrides},
+            **{
+                "camera_device": "",
+                "daq_serial": "",
+                "i2c_serial": "",
+                "logic_serial": "",
+                "psu_port": "",
+                **overrides,
+            },
         )
 
     def test_nothing_answering_registers_nothing(self, tmp_path: Any) -> None:
@@ -820,6 +827,13 @@ class TestDetection:
         assert is_simulated(psu) is False
         assert psu.available() is False
         assert "/dev/does-not-exist" in psu.describe()["unavailable_reason"]
+
+    def test_a_named_analyzer_registers_even_before_it_is_on_the_bus(self, tmp_path: Any) -> None:
+        registry = CapabilityRegistry()
+        detect_instruments(registry, self._settings(tmp_path, logic_serial="NOTHERE"))
+        analyzer = registry.provider("logic")
+        assert is_simulated(analyzer) is False
+        assert analyzer.available() is False
 
     def test_a_working_device_is_never_rebuilt(self, tmp_path: Any) -> None:
         registry = CapabilityRegistry()

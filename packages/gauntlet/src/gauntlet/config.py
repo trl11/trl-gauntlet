@@ -74,6 +74,15 @@ class Settings:
     # rather than a port: the kernel adapts it to an i2c-dev node itself, so
     # "auto" takes the first one the kernel has adapted.
     i2c_serial: str = "auto"
+    # The logic analyzer is told apart from another by its USB serial number,
+    # as the bridge is. Most of these boards carry none, so "auto" takes the
+    # first one on the bus.
+    logic_serial: str = "auto"
+    # Where the fx2lafw firmware the analyzer runs on is. It is sigrok's and is
+    # not shipped here, so "auto" searches the directories the
+    # sigrok-firmware-fx2lafw package installs into; name a file or a
+    # directory to load it from somewhere else.
+    logic_firmware: str = "auto"
     # The camera is a /dev/video* node rather than a serial port, so "auto"
     # tries each capture node in turn and takes the first that streams a
     # format the encoder can write.
