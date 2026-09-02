@@ -18,6 +18,8 @@ profiles: ./profiles
 conformance_profile: smoke.yaml
 
 produces: [metrics, verdict]
+# Hardware this suite needs, by capability name: camera, chamber, daq, i2c,
+# logic or psu. A run is refused when one is absent. See docs/writing-a-suite.md.
 requires: []
 
 supports:

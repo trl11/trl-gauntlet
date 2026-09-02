@@ -101,7 +101,27 @@ requires: [psu]
 
 This is also what tells the operator's panel the instrument is yours for the
 length of the run: it names the run and locks the instrument's main key while
-it is in flight. See [`instruments.md`](instruments.md).
+it is in flight.
+
+### What there is to ask for
+
+| Name | What it gives a suite |
+|---|---|
+| `camera` | Still images from a USB camera, one per `snapshot`, each measured for brightness and sharpness. Behind a GMSL adapter it also reports the link's lock state and error counters. |
+| `chamber` | A temperature setpoint and a reading. Simulation only — there is no driver for real hardware. |
+| `daq` | Eight analog inputs, each a voltage range or a thermocouple type, read a scan at a time. |
+| `i2c` | An I2C bridge a suite drives itself: `write`, `read`, `write_read` and a bus `scan`, with no fixed device on the other end. |
+| `logic` | Eight digital probes, captured a window at a time. Answers with each probe's level, edges, duty and frequency, and a picture of the capture. |
+| `psu` | A bench supply: set voltage and current limit, switch the output, read back volts, amps and watts. |
+
+Ask for a capability rather than a device. `daq` is a DATAQ DI-2008 on this
+bench and `i2c` a CP2112, but a suite never learns that, which is what lets
+the same suite run against another unit behind the same capability.
+
+[`instruments.md`](instruments.md) has the commands each one takes, what its
+readings mean, and what a driver does when the hardware misbehaves. Whichever
+you ask for, drive it over HTTP at the URL the grant carries — the suites
+under `campaigns/hardware/` each hold a small client worth copying.
 
 An instrument that answers with a picture — a camera's snapshot, a logic
 analyzer's capture — returns it as `image_base64`. Write it into the run
