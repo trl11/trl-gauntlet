@@ -158,6 +158,19 @@ class TestProfiles:
             "standard.yaml",
         ]
 
+    def test_the_continuous_profile_is_offered_last(self, make_suite):
+        """It has no end of its own, so it is the worst one to start by accident."""
+        suite = make_suite("alpha")
+        for name in ("continuous.yaml", "zebra.yaml", "bench.yaml"):
+            (suite.profiles_dir / name).write_text("description: x\n")
+
+        assert [p.name for p in list_profiles(suite)] == [
+            "smoke.yaml",
+            "bench.yaml",
+            "zebra.yaml",
+            "continuous.yaml",
+        ]
+
     def test_a_profile_carries_a_label_to_show_an_operator(self, make_suite):
         suite = make_suite("alpha")
         (suite.profiles_dir / "long_soak.yaml").write_text("description: x\n")

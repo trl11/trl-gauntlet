@@ -1,10 +1,10 @@
 description: >
-  A minute of every analog input on the real unit, all on the widest voltage
+  Half a minute of every analog input on the real unit, all on the widest voltage
   range. The starting point for a bench: rename the channels for whatever is
   wired to them and narrow the range of the ones that want it, since a 3V3 rail
   measured on 10v throws away most of the resolution the unit has.
 driver: real
-duration_s: 60
+duration_s: 30
 sample_period_s: 1
 channels:
   - channel: "1"

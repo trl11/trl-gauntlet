@@ -1,10 +1,10 @@
 description: >
-  Two minutes against the real part, to prove the bench is wired the way the
+  Half a minute against the real part, to prove the bench is wired the way the
   measurement assumes before the beam is on. Run this first: it is the cheapest
   way to catch a link that came up at 100 Mbps, an OTP that cannot be read
   without sudo, or traffic taking a route around the controller.
 driver: real
-duration_s: 120.0
+duration_s: 30.0
 sample_period_s: 15.0
 
 # The login on the unit. The key is the engineering key carried in the
