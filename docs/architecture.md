@@ -30,7 +30,7 @@ flowchart LR
 | `gauntlet.suites` | Walks the suite roots, loads and validates each `suite.yaml`, lists profiles. |
 | `gauntlet.supervisor` | Builds the command line, spawns the process, streams output, finalizes the run. |
 | `gauntlet.capabilities` | The provider protocols, and the registry that grants a provider to a run. Holds no device code. |
-| `gauntlet.instruments` | The providers themselves. Ships `MockChamber`, `MockDaq` and `MockPsu`; a real driver belongs beside them. |
+| `gauntlet.instruments` | The providers themselves: `camera`, `chamber`, `daq`, `i2c`, `logic` and `psu`, each a driver and a simulation under one capability name. See [`instruments.md`](instruments.md). |
 | `gauntlet.conformance` | Checks a suite against the contract. |
 | `gauntlet.storage` | SQLite behind `RunsIndex` (run history), `NotesIndex` (operator notes on runs and units), and `UnitsIndex` (units, aggregated from the runs table). One database file. |
 | `gauntlet.api` | REST routers, one module per resource: `system`, `suites`, `runs`, `artifacts`, `units`, `instruments`, `capabilities`. `notes` is shared plumbing rather than a router; `host_stats` reads the host. The documentation tags are coarser than the modules: `artifacts` is served under `runs`, and `capabilities` under `system`. |

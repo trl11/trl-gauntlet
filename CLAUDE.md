@@ -64,6 +64,11 @@ anything in `system/` or `scripts/deploy-bench.sh`.
   the second and satisfies the first. The same split runs through the API:
   `api/capabilities.py` is what a suite drives, `api/instruments.py` is what the
   operator sees.
+- A suite asks for hardware by capability name in `requires:`. What ships is
+  `camera`, `chamber` (simulation only), `daq`, `i2c`, `logic` and `psu`.
+  [`docs/writing-a-suite.md`](docs/writing-a-suite.md) says what each one
+  gives a suite; [`docs/instruments.md`](docs/instruments.md) says what backs
+  it and which commands it takes.
 
 ## Layout
 

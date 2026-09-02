@@ -47,6 +47,15 @@ it needs the group and no rule. That group is empty on a fresh Ubuntu, which
 is why a camera the kernel has detected can still refuse to open: the desktop
 session reaches it through an ACL that a service account does not get.
 
+A logic analyzer needs one thing more. The board carries no acquisition
+firmware of its own, so Gauntlet writes sigrok's fx2lafw into it over USB --
+which needs the rule above, and needs the firmware file, which is not shipped
+here because it is GPL and this is not. Install sigrok-firmware-fx2lafw, or
+unpack the firmware anywhere and name it as `logic_firmware` in config.yaml.
+Until then the analyzer is listed as unavailable and says which file it
+wanted. Once the file is there it loads itself: the board drops off the bus
+for a second as it restarts, and the scan after that finds it ready.
+
 
 Testing a unit over the network
 -------------------------------
