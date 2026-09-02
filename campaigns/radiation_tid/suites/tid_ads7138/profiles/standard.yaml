@@ -1,3 +1,9 @@
-description: TBD — the beam-line profile for the ADS7138QRTERQ1.
+description: The bench profile — the ADS7128 at 0x10 and all eight probes.
+driver: real
+address: 16
+probe_map: [5, 3, 1, 7, 8, 6, 4, 2]
+rate: 1mhz
+window: 1ms
 duration_s: 300.0
 sample_period_s: 1.0
+save_traces: true

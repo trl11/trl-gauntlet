@@ -114,6 +114,7 @@ function suite(): Suite {
     produces: ["verdict"],
     profiles: "profiles",
     requires: ["chamber"],
+    setup: "",
     supports: { target: true, unit_serial: true },
     title: "Thermal cycle",
   };

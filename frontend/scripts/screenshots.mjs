@@ -131,13 +131,15 @@ async function captureProfileEditor() {
 /** Each tab of the run view, which routing alone does not reach. */
 async function captureRunTabs(runId) {
   await capture("run", `/runs/${encodeURIComponent(runId)}`);
-  // Snapshots appears only on a run that wrote images, hence the count check below.
+  // Snapshots and Traces appear only on a run that recorded them, hence the
+  // count check below.
   for (const tab of [
     "Overview",
     "Log",
     "Metrics",
     "Iterations",
     "Snapshots",
+    "Traces",
     "Artifacts",
     "Notes",
   ]) {

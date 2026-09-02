@@ -162,9 +162,12 @@ itself, drawn by `instruments/waveform.py` and returned the way a camera
 returns a snapshot. Eight channels of a few million samples are measured
 without a loop over them: one channel is a 256-entry translation of the
 stream, and its edges are one exclusive-or of that against itself shifted by a
-sample. A suite writes the picture into its run directory and names it in
-`metrics.traces`, which is what gives the run its own Traces tab; see
-[`contract.md`](contract.md).
+sample. The samples themselves come back too, in `samples_base64`, so a suite
+can record what was captured rather than only a drawing of it. A suite writes
+either into its run directory and names it in `metrics.traces`, which is what
+gives the run its own Traces tab — a picture is shown as one, and sample data
+is drawn as lanes the operator can scroll and zoom. See
+[`contract.md`](contract.md) for both shapes.
 
 ## What is registered
 

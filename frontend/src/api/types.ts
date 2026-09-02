@@ -139,6 +139,7 @@ export interface Suite {
   profiles: string;
   profiles_available?: SuiteProfile[];
   requires: string[];
+  setup: string;
   supports: SuiteSupports;
   title: string;
 }

@@ -52,6 +52,7 @@ function suite(partial: Partial<Suite> & { key: string; title: string }): Suite 
     profiles: "./profiles",
     profiles_available: [],
     requires: [],
+    setup: "",
     supports: { target: true, unit_serial: false },
     ...partial,
   };
@@ -72,6 +73,7 @@ const THERMAL = suite({
     },
   ],
   requires: ["chamber"],
+  setup: "Chamber on the bench.\n\n  +------+\n  | oven |\n  +------+",
   title: "Thermal Cycle",
 });
 
@@ -164,6 +166,12 @@ describe("TestsPage", () => {
     renderPage("/tests?suite=thermal_cycle");
     expect(await screen.findByRole("region", { name: "Thermal Cycle" })).toBeInTheDocument();
     expect(screen.getByText("Chamber profile with per-segment pass/fail.")).toBeInTheDocument();
+  });
+
+  it("shows the setup of the selected suite with its line breaks intact", async () => {
+    renderPage("/tests?suite=thermal_cycle");
+    const detail = await screen.findByRole("region", { name: "Thermal Cycle" });
+    expect(detail.querySelector("pre")?.textContent).toBe(THERMAL.setup);
   });
 
   it("lists every discovered suite, with no search box to filter them", async () => {

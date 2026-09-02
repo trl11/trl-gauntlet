@@ -111,7 +111,7 @@ it is in flight.
 | `chamber` | A temperature setpoint and a reading. Simulation only — there is no driver for real hardware. |
 | `daq` | Eight analog inputs, each a voltage range or a thermocouple type, read a scan at a time. |
 | `i2c` | An I2C bridge a suite drives itself: `write`, `read`, `write_read` and a bus `scan`, with no fixed device on the other end. |
-| `logic` | Eight digital probes, captured a window at a time. Answers with each probe's level, edges, duty and frequency, and a picture of the capture. |
+| `logic` | Eight digital probes, captured a window at a time. Answers with each probe's level, edges, duty and frequency, a picture of the capture, and the samples themselves. |
 | `psu` | A bench supply: set voltage and current limit, switch the output, read back volts, amps and watts. |
 
 Ask for a capability rather than a device. `daq` is a DATAQ DI-2008 on this
@@ -134,6 +134,37 @@ relative = f"traces/capture_{ictx.iteration:04d}.png"
 ctx.artifact(*relative.split("/")).write_bytes(base64.b64decode(capture["image_base64"]))
 return IterationOutcome(success=True, metrics={"traces": [relative]})
 ```
+
+An instrument that samples answers with `samples_base64` as well. Recording
+that instead of the picture gives the operator lanes to scroll and zoom rather
+than a fixed drawing, which is what you want when the question is what
+happened inside the window. Append every capture to one `.jsonl` file, placed
+on the run's timeline by `elapsed_run_s`, and name that file in the
+`metrics.traces` of every iteration that appends to it.
+
+```python
+relative = "traces/captures.jsonl"
+lines = []
+if ictx.iteration == 0:
+    lines.append(json.dumps({"channels": labels, "rate_hz": capture["rate_hz"]}))
+lines.append(
+    json.dumps(
+        {
+            "elapsed_run_s": round(ictx.elapsed_run_s, 6),
+            "iteration": ictx.iteration,
+            "samples": capture["samples"],
+            "samples_base64": capture["samples_base64"],
+        }
+    )
+)
+with ctx.artifact(*relative.split("/")).open("a") as handle:
+    handle.write("\n".join(lines) + "\n")
+return IterationOutcome(success=True, metrics={"traces": [relative]})
+```
+
+Samples cost `rate_hz * seconds` bytes, so a suite sampling for a long time
+should let a profile turn them off. [`contract.md`](contract.md) defines every
+shape a trace can take.
 
 ## Remote units
 

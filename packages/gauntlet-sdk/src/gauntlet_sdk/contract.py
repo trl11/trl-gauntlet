@@ -91,6 +91,14 @@ class SuiteManifest(BaseModel):
     title: str = Field(min_length=1, max_length=80)
     category: str = Field(default="general", max_length=40)
     description: str = Field(default="", max_length=500)
+    setup: str = Field(
+        default="",
+        max_length=4000,
+        description=(
+            "How the bench is put together, shown under the description. Line breaks and "
+            "indentation are preserved, so an ASCII diagram survives."
+        ),
+    )
     exec: ExecSpec
     profiles: str = "./profiles"
     conformance_profile: str = Field(

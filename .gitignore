@@ -33,6 +33,7 @@ output/
 .ci-cache/
 .env
 .plan/
+.todo
 files/
 tmp/
 
