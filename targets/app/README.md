@@ -50,6 +50,14 @@ that path exists. An absolute shebang in a pip console script is exactly that,
 and it shipped once already. Parking the runtime is what makes the difference
 visible here rather than on the machine the app is installed on.
 
+Which is why the backend is started as `python3 -m gauntlet` by path, never
+through the `gauntlet` console script beside it. pip writes that script a
+shebang naming the interpreter as it stood when the runtime was built, so
+anywhere else it fails to exec with `ENOENT` — reported against a file that
+plainly exists, because it is the interpreter that is missing and not the
+script. The interpreter is the one thing python-build-standalone makes
+relocatable, so it is the one thing invoked by path.
+
 ## What the bundle carries
 
 `electron-builder.json` names `runtime/` and `../../campaigns` as

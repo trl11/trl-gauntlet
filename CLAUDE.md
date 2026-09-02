@@ -17,7 +17,9 @@ anything in `frontend/`, [`docs/instruments.md`](docs/instruments.md)
 before changing anything in `capabilities/` or `instruments/`, and
 [`docs/campaigns.md`](docs/campaigns.md) before changing anything in
 `campaigns/`, and [`docs/deploying.md`](docs/deploying.md) before changing
-anything in `targets/service/` or `tools/deploy/`.
+anything in `targets/service/` or `tools/deploy/`. Each directory under
+`targets/` has a README about itself, and
+[`targets/README.md`](targets/README.md) covers what the three share.
 
 ## Constraints
 
@@ -88,10 +90,7 @@ targets/                   the three ways this ships, one directory each
 targets/app/               Electron shell: the desktop target
 targets/docker/            the server image: the second target
 targets/service/           the service a bench runs: the third, one deb
-                           carrying the application, both systemd user units,
-                           the udev rules the USB instruments require and the
-                           sysctl the landing page needs
-targets/service/homepage/  that landing page, its banner and the server for it
+targets/service/homepage/  the landing page a rig answers port 80 with
 tools/                     scripts that are not shipped: bench/, deploy/,
                            release/
 ```
@@ -149,28 +148,26 @@ behind a toggle below 900px. There is no sidebar.
 Run `make check` before committing. Run `make suite-verify-run` as well when
 changing the launcher, the contract models, or the conformance checker,
 `make frontend-check` when changing anything under `frontend/`, and
-`make app-check` when changing anything under `targets/app/`. `make verify` is all of
-it: the frontend build, `check`, the end-to-end test, and a real run of every
-conformance profile.
+`make app-check` when changing anything under `targets/app/`. `make verify` is
+all of it: the frontend build, `check`, the end-to-end test, and a real run of
+every conformance profile.
 
 Every directory that builds something shippable owns the Makefile that builds
-it — the three under `targets/`, plus `packages/gauntlet/` and
-`packages/gauntlet-sdk/` — and the top-level `app-*`, `docker-*`, `gauntlet-*`,
-`sdk-*` and `service-*` targets only delegate, so `make -C targets/app build`
-and `make app-build` are the same thing.
-`make build` runs all of them. Paths, ports and `dist/` are declared once in
-`common.mk`, which they all include.
+it — the three under `targets/`, plus both packages — and the top-level
+`app-*`, `docker-*`, `gauntlet-*`, `sdk-*` and `service-*` targets only
+delegate, so `make -C targets/app build` and `make app-build` are the same
+thing. `make build` runs all of them. Paths, ports and `dist/` are declared
+once in `common.mk`, which they all include.
 
 `dist/` holds what someone who does not have this repository needs: the two
 desktop installers, the rig deb, the image as a loadable tarball, the two
-wheels, and the host setup a bundle cannot do for itself — `setup-bench.sh`,
-the `setup-host.sh` it delegates the rules to, those udev rules, the
-`serve-gauntlet.sh`, `gauntlet.service` and `install-service.sh` that keep a
-rig serving across reboots, and the `README.txt` telling whoever unpacks a
-release to run it. The rig deb needs none of that loose half: it installs the
-rules and the sysctl itself and carries the rest inside. It
-is gitignored, nothing else is written there, and only `make distclean`
-empties it, so an artifact from an earlier version stays until then.
+wheels, and the loose copies of everything in `targets/service/` — the setup
+scripts, the udev rules, both units, the landing page and the `README.txt`
+telling whoever unpacks a release what to run. That loose half is for a bench
+installed by hand; the rig deb carries all of it inside and installs the rules
+and the sysctl itself. `dist/` is gitignored, nothing else is written there,
+and only `make distclean` empties it, so an artifact from an earlier version
+stays until then.
 
 The gauntlet wheel carries `web_dist` as package data, so anything building it
 builds the frontend first. A wheel built without it serves the placeholder in
@@ -251,8 +248,8 @@ and neither is on a package registry.
 - Both units are systemd user units, because the udev rules grant the
   instruments to the operator's groups and a deploy must not need root. Both
   carry `@SERVE@` in `ExecStart`, rewritten by whichever install puts them in
-  place — the deb at packaging time, `install-service.sh` on the bench. Neither
-  names a host or port, so `config.yaml` stays the only place those are set.
+  place. Neither names a host or port, so `config.yaml` stays the only place
+  those are set.
 - The rig deb does the root half of a bench setup in `postinst` — udev, the
   sysctl, the groups — and starts nothing. A user unit has to run as the
   operator, and dpkg does not know which account that is, so the two commands
@@ -294,43 +291,48 @@ its declared type, so a body that drifts from `api/types.ts` fails `tsc`.
 
 - `from __future__ import annotations` in every module.
 - `Path` over `str` for filesystem arguments.
-- Docstrings on public API. Comments explain non-obvious logic and describe
-  current behaviour only.
-- Alphabetical ordering where order is not otherwise meaningful.
-- Fix lint failures rather than adding ignores.
+- Alphabetical ordering where order is not otherwise meaningful; order
+  functions by process flow or by how often they are reached.
+- `make format` before building, and `make frontend-check` for the frontend.
+  ruff and mypy on the Python, Prettier and ESLint on the TypeScript. Fix a
+  lint failure rather than adding an ignore.
+- End every file with a newline.
 - TypeScript: no `any`, no type gymnastics, no wrappers over React Query or
   `request()`. `useState` unless a reducer is genuinely simpler. Props
   interfaces are documented; declare a prop only once something passes it.
 
-## Style
-
-- Keep lists alphabetical where order doesn't matter; order functions by process flow or frequency of use.
-- `make <component>-format` before building. clang-format + clang-tidy, ruff + mypy, Prettier + ESLint.
-- End every file with a newline.
-
 ### Writing code
 
 - **Write the simplest thing that works.** No speculative generality.
-- **No new abstraction until there are 2+ real callers.** Inline over indirection.
-- **No new dependency without asking**, and no new file or class the change does not need.
+- **No new abstraction until there are 2+ real callers.** Inline over
+  indirection.
+- **No new dependency without asking**, and no new file or class the change
+  does not need.
 - **No config options, feature flags or plugin hooks unless requested.**
-- **Handle only errors that can actually occur here.** No defensive try/catch around code that cannot throw.
+- **Handle only errors that can actually occur here.** No defensive try/catch
+  around code that cannot throw.
 - Prefer a free function over a class.
 
 ### Comments
 
 - **Default to none.** Reach for a clearer name or a smaller function first.
-- Write one only where a reader would otherwise get it wrong: a constraint imposed from outside the file, a non-obvious consequence, a deliberate choice that looks like a mistake.
-- Give the reason, not the mechanics. A comment paraphrasing the line below it should be deleted.
-- Describe the code as it stands — no history, no "previously/now", no ticket ids, no account of what a change fixed. That belongs in the commit message.
-- One or two lines. Doxygen/docstrings only on public APIs (`sdk/cpp/`, `sdk/python/`, `sdk/public/`).
+  Docstrings on public API.
+- Write one only where a reader would otherwise get it wrong: a constraint
+  imposed from outside the file, a non-obvious consequence, a deliberate choice
+  that looks like a mistake.
+- Give the reason, not the mechanics. A comment paraphrasing the line below it
+  should be deleted.
+- Describe the code as it stands — no history, no "previously/now", no ticket
+  ids, no account of what a change fixed. That belongs in the commit message.
+- One or two lines.
 
 ## Don'ts
 
-- **Never edit `CHANGELOG.md`.** It is written by hand when a release is cut.
 - Never commit or push unless asked. Branch first if on the default branch.
-- Never delete unrelated dead code — mention it instead. Remove only what your own change orphaned.
+- Never delete unrelated dead code — mention it instead. Remove only what your
+  own change orphaned.
 - Never put a `.plan/` or `docs/plans/` reference in a shipped file.
 
-Two positives that belong beside them: update `docs/dev` alongside the change, and put an issue you find outside the current task in `.todo` (git-ignored) after asking first.
-
+Two positives that belong beside them: update `docs/` alongside the change, and
+put an issue you find outside the current task in `.todo` (git-ignored) after
+asking first.
