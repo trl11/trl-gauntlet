@@ -28,6 +28,7 @@ import MetricsChart from "@components/MetricsChart";
 import NotesPanel from "@components/NotesPanel";
 import PageHeader from "@components/PageHeader";
 import SnapshotGallery from "@components/SnapshotGallery";
+import TraceTimeline from "@components/TraceTimeline";
 import VerdictBanner from "@components/VerdictBanner";
 import VerdictSummary from "@components/VerdictSummary";
 import useEventStream from "@hooks/useEventStream";
@@ -179,6 +180,11 @@ export const RunPage: React.FC = () => {
     [iterations]
   );
 
+  // A trace is a run's captures on one timeline or a picture of one. Which a
+  // suite wrote is read from the file, not from the suite.
+  const timeline = traces.find((row) => row.path.endsWith(".jsonl"))?.path ?? null;
+  const drawn = traces.filter((row) => !row.path.endsWith(".jsonl"));
+
   if (run.isPending) return <Spinner className="run-page__spinner" />;
 
   if (run.isError || run.data === undefined) {
@@ -193,12 +199,16 @@ export const RunPage: React.FC = () => {
   const detail = run.data;
   const reconnecting = live && !stream.connected && !stream.ended;
 
-  // So an operator can tell a tab holds something new without opening it.
-  // The gallery's images are one folded row in the artifact list, so the badge
-  // counts them once rather than reporting hundreds of files.
+  // So an operator can tell a tab holds something new without opening it. A
+  // badge counts what was recorded rather than what was written: images are
+  // one folded row in the artifact list, and every capture of a run is named
+  // by the iteration that took it though they share one file.
+  //
+  // Only the image galleries are folded away. The timeline is one file, and an
+  // operator looking for something to download wants to see it listed.
   const galleries = [
     { paths: snapshots.map((shot) => shot.path), tab: "snapshots" },
-    { paths: traces.map((trace) => trace.path), tab: "traces" },
+    { paths: drawn.map((trace) => trace.path), tab: "traces" },
   ];
   const gathered = new Set(galleries.flatMap((gallery) => gallery.paths));
   const listedFiles = files.filter((file) => !gathered.has(file.path));
@@ -376,8 +386,21 @@ export const RunPage: React.FC = () => {
           />
         )}
         {active === "snapshots" && <SnapshotGallery runId={runId} snapshots={snapshots} />}
-        {active === "traces" && <SnapshotGallery runId={runId} snapshots={traces} />}
-        {active === "artifacts" && <ArtifactList runId={runId} live={live} galleries={galleries} />}
+        {active === "traces" && timeline !== null && (
+          <TraceTimeline live={live} path={timeline} runId={runId} />
+        )}
+        {active === "traces" && drawn.length > 0 && (
+          <SnapshotGallery runId={runId} snapshots={drawn} />
+        )}
+        {active === "artifacts" && (
+          <ArtifactList
+            galleries={galleries}
+            live={live}
+            runId={runId}
+            viewers={timeline === null ? {} : { [timeline]: "traces" }}
+            onOpen={(name) => setTab(TABS.find((known) => known === name) ?? "overview")}
+          />
+        )}
         {active === "notes" && (
           <NotesPanel
             busy={addNote.isPending || removeNote.isPending || notes.isPending}

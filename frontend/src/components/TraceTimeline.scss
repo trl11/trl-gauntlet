@@ -1,0 +1,113 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.trace-timeline {
+  // A canvas cannot read SCSS, so the palette it draws with is published here
+  // and read back through getComputedStyle.
+  --waveform-trace: #{$indicator-green};
+  // The level a pin held between captures, which was inferred rather than
+  // measured, so it is drawn back from the captures themselves.
+  --waveform-held: #{$trl-green};
+  --waveform-guide: #{$trl-dark-gray};
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &__group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  &__field {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+  }
+
+  &__input {
+    width: 86px;
+    padding: 4px 6px;
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-light-gray;
+    background-color: $trl-dark;
+    border: 1px solid $trl-dark-gray;
+  }
+
+  &__select {
+    padding: 4px 6px;
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-light-gray;
+    background-color: $trl-dark;
+    border: 1px solid $trl-dark-gray;
+  }
+
+  &__reading {
+    font-family: $font-mono;
+    font-size: 12px;
+    color: $trl-gray;
+  }
+
+  &__plot {
+    position: relative;
+    display: flex;
+    background-color: $trl-dark;
+  }
+
+  &__labels {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    border-right: 1px solid $trl-dark-gray;
+  }
+
+  &__label {
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+    white-space: nowrap;
+  }
+
+  // The canvas is sized in device pixels by the draw, so it is stretched to
+  // the box rather than the box to it.
+  &__canvas {
+    display: block;
+    flex: 1 1 auto;
+    width: 100%;
+    cursor: crosshair;
+    touch-action: none;
+  }
+
+  &__canvas--panning {
+    cursor: grabbing;
+  }
+
+  &__axis {
+    display: flex;
+    justify-content: space-between;
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+  }
+
+  &__hint {
+    font-size: 12px;
+    color: $trl-gray;
+  }
+}
