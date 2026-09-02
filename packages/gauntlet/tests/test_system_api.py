@@ -51,6 +51,7 @@ class TestSystemData:
             "cpu_percent",
             "disk",
             "disks",
+            "interfaces",
             "load_avg",
             "memory",
             "process_count",

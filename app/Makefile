@@ -95,16 +95,25 @@ build: install runtime
 	@echo "dist/gauntlet-$(VERSION).deb"
 
 # An installer alone is not enough to drive the instruments: the udev rules
-# belong to the host, and nothing in a bundle can install them for it. So the
-# two setup scripts, the rules they install and the note telling someone to run
-# them ship beside the installers rather than inside them.
+# belong to the host, and nothing in a bundle can install them for it. Nor can
+# a bundle make itself come back after the bench reboots. So the setup scripts,
+# the rules they install, the service that keeps the backend serving and the
+# note telling someone to run them ship beside the installers rather than
+# inside them.
 host-setup:
 	@mkdir -p $(DIST)
-	@install -m 755 $(HOST_SETUP) $(BENCH_SETUP) $(DIST)/
-	@install -m 644 $(HOST_README) $(UDEV_RULES) $(DIST)/
+	@install -m 755 $(HOST_SETUP) $(BENCH_SETUP) $(SERVE_SCRIPT) $(SERVICE_SETUP) $(PAGE_SERVE) $(DIST)/
+	@install -m 644 $(HOST_README) $(UDEV_RULES) $(SERVICE_UNIT) $(PAGE_HTML) $(PAGE_UNIT) $(PORT_SYSCTL) $(DIST)/
 	@echo "dist/$(notdir $(HOST_README))"
 	@echo "dist/$(notdir $(BENCH_SETUP))"
 	@echo "dist/$(notdir $(HOST_SETUP))"
+	@echo "dist/$(notdir $(SERVE_SCRIPT))"
+	@echo "dist/$(notdir $(SERVICE_SETUP))"
+	@echo "dist/$(notdir $(SERVICE_UNIT))"
+	@echo "dist/$(notdir $(PAGE_HTML))"
+	@echo "dist/$(notdir $(PAGE_SERVE))"
+	@echo "dist/$(notdir $(PAGE_UNIT))"
+	@echo "dist/$(notdir $(PORT_SYSCTL))"
 	@echo "dist/$(notdir $(UDEV_RULES))"
 
 # Runs before the installers are copied out, so a bundle that only works on

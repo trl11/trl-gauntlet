@@ -9,18 +9,27 @@
 # not enough to talk to it. This installs the udev rules that hand those nodes
 # to a group, and puts the invoking user in that group.
 #
+# The rest need no rule, because the kernel's own driver already grouped them:
+# usbserial gives a bench supply a /dev/ttyUSB* owned by dialout, and uvcvideo
+# gives a camera a /dev/video* owned by video. Those want the membership alone,
+# which is why the groups granted here are more than the rules mention.
+#
 # It belongs to the host the instruments are plugged into. A container sees
 # whatever the host's rules decided and cannot set it, so running this inside
 # one changes nothing.
 #
 # Every `*.rules` file beside this script is installed, so a rule added to the
-# release is picked up without this script changing.
+# release is picked up without this script changing, and every `*.conf` goes to
+# /etc/sysctl.d the same way.
 
 set -eu
 
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 RULES_DIR=/etc/udev/rules.d
-GROUP=dialout
+SYSCTL_DIR=/etc/sysctl.d
+# Every group an instrument node is owned by: dialout for the raw-USB nodes the
+# rules regroup and for the serial adapters, video for the camera nodes.
+INSTRUMENT_GROUPS="dialout video"
 
 fail() {
 	echo "setup-host: $*" >&2
@@ -46,20 +55,50 @@ udevadm control --reload-rules
 # attached before this ran keeps the ownership it was given at the time.
 udevadm trigger --subsystem-match=usb --action=add
 
+# What lets the landing page's user unit bind port 80, which an ordinary
+# account cannot otherwise do. Optional: a release from before the page existed
+# ships no .conf, and a bench that only serves the backend needs none.
+sysctls=$(find "$HERE" -maxdepth 1 -name '*.conf' | sort)
+if [ -n "$sysctls" ]; then
+	echo "==> installing sysctl settings into $SYSCTL_DIR"
+	mkdir -p "$SYSCTL_DIR"
+	for conf in $sysctls; do
+		install -m 644 "$conf" "$SYSCTL_DIR/"
+		echo "    $(basename "$conf")"
+	done
+	# Applies now as well as at the next boot, so the page can be started
+	# straight after this without rebooting the bench.
+	sysctl --system >/dev/null 2>&1 || echo "    could not apply them now; they take effect at the next boot"
+	echo "    net.ipv4.ip_unprivileged_port_start = $(sysctl -n net.ipv4.ip_unprivileged_port_start 2>/dev/null || echo '?')"
+fi
+
 # The rules hand the nodes to a group, which does nothing for a user who is not
 # in it. SUDO_USER is who asked for this; under a root login there is nobody
 # else to add.
 user=${SUDO_USER:-}
 if [ -n "$user" ] && [ "$user" != root ]; then
-	if id -nG "$user" 2>/dev/null | tr ' ' '\n' | grep -qx "$GROUP"; then
-		echo "==> $user is already in $GROUP"
-	else
-		echo "==> adding $user to $GROUP"
-		usermod -aG "$GROUP" "$user"
+	added=0
+	for group in $INSTRUMENT_GROUPS; do
+		if ! getent group "$group" >/dev/null 2>&1; then
+			echo "==> no $group group on this host, so nothing to add $user to"
+		elif id -nG "$user" 2>/dev/null | tr ' ' '\n' | grep -qx "$group"; then
+			echo "==> $user is already in $group"
+		else
+			echo "==> adding $user to $group"
+			usermod -aG "$group" "$user"
+			added=$((added + 1))
+		fi
+	done
+	if [ "$added" != 0 ]; then
 		echo "    $user must log out and back in before this takes effect"
+		# A rig serves from a lingering systemd user manager that outlives a
+		# login, and a process keeps the groups it started with, so restarting
+		# the service alone leaves it without the new one.
+		echo "    a rig serving through systemd needs its user manager restarted:"
+		echo "      sudo loginctl terminate-user $user"
 	fi
 else
-	echo "==> no user to add to $GROUP (run under sudo to add yours)"
+	echo "==> no user to add to $INSTRUMENT_GROUPS (run under sudo to add yours)"
 fi
 
 # What the rules cover, and whether it worked. A vendor id read back out of the

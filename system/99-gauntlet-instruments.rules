@@ -21,6 +21,17 @@
 # DATAQ Instruments USB DAQs (DI-1100, DI-2008, DI-4108, DI-4208, ...).
 SUBSYSTEM=="usb", ATTRS{idVendor}=="0683", MODE="0660", GROUP="dialout"
 
+# Cypress FX2LP logic analyzers (CY7C68013A), which the cheap eight-channel
+# USB analyzers are all built on. The board carries no acquisition firmware of
+# its own: sigrok's fx2lafw is written into its RAM over the same usbfs node
+# the samples come back on, so without this rule a bench cannot even load it.
+# It answers with whichever ids its EEPROM holds — a Saleae clone's or the
+# bare part's — and keeps them once the firmware is running, so all three are
+# claimed.
+SUBSYSTEM=="usb", ATTRS{idVendor}=="04b4", ATTRS{idProduct}=="8613", MODE="0660", GROUP="dialout"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="0925", ATTRS{idProduct}=="3881", MODE="0660", GROUP="dialout"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="608c", MODE="0660", GROUP="dialout"
+
 # Silicon Labs CP2112 USB-to-I2C/SMBus bridge. The kernel's own hid-cp2112
 # driver claims the HID device and adapts it to an ordinary i2c-dev node,
 # whose default permissions are the same root:root 0664 as any other usbfs

@@ -22,6 +22,7 @@ export interface IterationRow {
   iteration: number | null;
   reason: string;
   success: boolean;
+  traces: string[];
 }
 
 /** Props for {@link IterationTable}. */

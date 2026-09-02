@@ -162,6 +162,7 @@ function emitTheRun(source: FakeEventSource): void {
     iteration: 1,
     reason: "",
     success: true,
+    traces: [],
   });
   source.emit("metrics", {
     seq: 1,
@@ -178,6 +179,7 @@ function emitTheRun(source: FakeEventSource): void {
     iteration: 2,
     reason: "rail low",
     success: false,
+    traces: [],
   });
   source.emit("anomaly", {
     seq: 2,

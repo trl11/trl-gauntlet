@@ -16,7 +16,8 @@ crosses that boundary, [`docs/frontend.md`](docs/frontend.md) before changing
 anything in `frontend/`, [`docs/instruments.md`](docs/instruments.md)
 before changing anything in `capabilities/` or `instruments/`, and
 [`docs/campaigns.md`](docs/campaigns.md) before changing anything in
-`campaigns/`.
+`campaigns/`, and [`docs/deploying.md`](docs/deploying.md) before changing
+anything in `system/` or `scripts/deploy-bench.sh`.
 
 ## Constraints
 
@@ -55,7 +56,9 @@ before changing anything in `capabilities/` or `instruments/`, and
   request is prefixed with `VITE_API_BASE`, and routing is `HashRouter`, so the
   bundle can ship inside Electron. Nothing may assume the API's origin.
 - Do not add a Python dependency for host telemetry. `gauntlet.api.host_stats`
-  uses `/proc`, `/sys`, `os` and `shutil` only.
+  reads `/proc`, `/sys`, `os` and `shutil`, and nothing else but the standard
+  library: an interface's IPv4 address is the one figure the kernel publishes
+  in neither `/proc` nor `/sys`, so it is the one asked for over a socket.
 - `gauntlet.capabilities` holds protocols and the registry, never a device.
   `gauntlet.instruments` holds devices and never a protocol. A provider goes in
   the second and satisfies the first. The same split runs through the API:
@@ -79,7 +82,10 @@ packages/gauntlet-sdk/     library suite authors install
 packages/gauntlet/src/gauntlet/scaffold/   suite scaffolder and its templates
 suites/                    reference suites and system_stats; hardware lives
                            in the campaign above
-system/                    host udev rules the USB instruments need
+system/                    what a bench host needs: the udev rules the USB
+                           instruments require, the service that keeps a rig
+                           serving, and the landing page it answers port 80
+                           with
 ```
 
 Inside `packages/gauntlet/src/gauntlet`: `api/` (one router module per
@@ -117,6 +123,8 @@ behind a toggle below 900px. There is no sidebar.
 | Contract checks | `make suite-verify-run` |
 | Scaffold a suite | `make suite-new NAME=x [TEMPLATE=shell]` |
 | Run the desktop shell | `make app-dev` |
+| Send `dist/` to a bench and leave it serving | `make deploy BENCH=user@host` |
+| Set a rig up from nothing: deploy, host setup, datasheets | `make deploy-rig RIG_IP=x.x.x.x` |
 | Build both installers into `dist/` | `make app-build` |
 | Shell format-check, lint, typecheck | `make app-check` |
 | Run the server image | `make docker-run` / `make docker-stop` |
@@ -142,8 +150,9 @@ delegate, so `make -C app build` and `make app-build` are the same thing.
 `dist/` holds what someone who does not have this repository needs: the two
 installers, the image as a loadable tarball, the two wheels, and the host
 setup a bundle cannot do for itself — `setup-bench.sh`, the `setup-host.sh` it
-delegates the rules to, those udev rules, and the `README.txt` telling whoever
-unpacks a release to run it. It
+delegates the rules to, those udev rules, the `serve-gauntlet.sh`,
+`gauntlet.service` and `install-service.sh` that keep a rig serving across
+reboots, and the `README.txt` telling whoever unpacks a release to run it. It
 is gitignored, nothing else is written there, and only `make distclean`
 empties it, so an artifact from an earlier version stays until then.
 
@@ -214,6 +223,18 @@ and neither is on a package registry.
   carries a `label` derived from its filename — `smoke.yaml` shows as "Smoke".
   The label is computed, never declared, so no suite can ship a profile the UI
   has to fall back from.
+- A rig serves the backend without Electron: `serve-gauntlet.sh` unpacks the
+  AppImage and runs the Python inside it, so nothing there needs a display. Its
+  systemd unit is a user unit, because the udev rules grant the instruments to
+  the operator's groups and a deploy must not need root. The unit names no host
+  or port, so `config.yaml` stays the only place those are set.
+- The landing page is a second service, not part of Gauntlet. It answers port
+  80 so the bare address reaches a bench, and reads no telemetry of its own:
+  `/api/` is proxied to Gauntlet on localhost, which keeps one implementation
+  of the host stats and the page same-origin, so Gauntlet needs no CORS. It
+  renders with Gauntlet down. It names no host either — every link is built
+  from `location.hostname` — and its datasheets live in the data directory, so
+  they survive a redeploy the way run history does.
 - `vite build` writes into `packages/gauntlet/src/gauntlet/web_dist/`. The app
   serves it at `/`, falls back to a placeholder when it is absent, and still
   answers unknown `/api/...` paths with a JSON 404 rather than the SPA shell.

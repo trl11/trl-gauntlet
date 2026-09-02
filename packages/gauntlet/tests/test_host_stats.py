@@ -82,6 +82,35 @@ def thermal(monkeypatch, tmp_path: Path) -> Path:
     return root
 
 
+@pytest.fixture
+def net(monkeypatch, tmp_path: Path) -> Path:
+    """A ``/proc/net/dev`` and the ``/sys/class/net`` holding the states."""
+    root = tmp_path / "proc"
+    root.mkdir(exist_ok=True)
+    (root / "net").mkdir(exist_ok=True)
+    (root / "net" / "dev").write_text(
+        textwrap.dedent(
+            """\
+            Inter-|   Receive                                                |  Transmit
+             face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
+                lo: 1000      10    0    0    0     0          0         0     1000      10    0    0    0     0       0          0
+              eth1: 5000      50    1    2    0     0          0         0     6000      60    3    4    0     0       0          0
+              eth0: 7000      70    0    0    0     0          0         0     8000      80    0    0    0     0       0          0
+              junk: 1 2 3
+            """
+        )
+    )
+    classes = tmp_path / "class-net"
+    classes.mkdir()
+    for name, state in (("eth0", "up"), ("eth1", "down")):
+        interface = classes / name
+        interface.mkdir()
+        (interface / "operstate").write_text(f"{state}\n")
+    monkeypatch.setattr(host_stats, "_PROC", root)
+    monkeypatch.setattr(host_stats, "_SYS_NET", classes)
+    return root
+
+
 class TestBootTime:
     def test_reads_the_btime_line(self, proc: Path) -> None:
         assert host_stats.boot_time() == "2026-01-01T00:00:00Z"
@@ -220,6 +249,48 @@ class TestDisks:
         (proc / "mounts").write_text(f"/dev/sda1 {tmp_path} ext4 rw 0 0\n")
         disk = host_stats.disks()[0]
         assert disk["percent"] == pytest.approx(100.0 * disk["used"] / disk["total"], abs=0.05)
+
+
+class TestInterfaces:
+    def test_reports_the_counters_for_each_interface(self, net: Path) -> None:
+        found = {nic["name"]: nic for nic in host_stats.interfaces()}
+        assert found["eth1"]["rx_bytes"] == 5000
+        assert found["eth1"]["tx_bytes"] == 6000
+        assert found["eth1"]["rx_errors"] == 1
+        assert found["eth1"]["rx_dropped"] == 2
+        assert found["eth1"]["tx_errors"] == 3
+        assert found["eth1"]["tx_dropped"] == 4
+
+    def test_loopback_is_left_out(self, net: Path) -> None:
+        assert "lo" not in [nic["name"] for nic in host_stats.interfaces()]
+
+    def test_a_short_line_is_skipped(self, net: Path) -> None:
+        assert "junk" not in [nic["name"] for nic in host_stats.interfaces()]
+
+    def test_interfaces_are_ordered_by_name(self, net: Path) -> None:
+        assert [nic["name"] for nic in host_stats.interfaces()] == ["eth0", "eth1"]
+
+    def test_the_address_is_reported_for_each_interface(self, net: Path, monkeypatch) -> None:
+        monkeypatch.setattr(host_stats, "_ipv4_address", lambda name: f"10.0.0.{len(name)}")
+        found = {nic["name"]: nic for nic in host_stats.interfaces()}
+        assert found["eth0"]["address"] == "10.0.0.4"
+
+    def test_an_interface_without_an_address_reports_none(self, net: Path, monkeypatch) -> None:
+        monkeypatch.setattr(host_stats, "_ipv4_address", lambda name: None)
+        assert all(nic["address"] is None for nic in host_stats.interfaces())
+
+    def test_the_operational_state_is_read_from_sys(self, net: Path) -> None:
+        found = {nic["name"]: nic for nic in host_stats.interfaces()}
+        assert found["eth0"]["state"] == "up"
+        assert found["eth1"]["state"] == "down"
+
+    def test_an_interface_sys_does_not_know_is_unknown(self, net: Path, tmp_path: Path) -> None:
+        (tmp_path / "class-net" / "eth0").rename(tmp_path / "class-net" / "gone")
+        found = {nic["name"]: nic for nic in host_stats.interfaces()}
+        assert found["eth0"]["state"] == "unknown"
+
+    def test_no_net_dev_reports_nothing(self, proc: Path) -> None:
+        assert host_stats.interfaces() == []
 
 
 class TestLoadAvg:

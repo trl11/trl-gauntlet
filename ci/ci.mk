@@ -81,6 +81,13 @@ ci-validate-dist:
 		"dist/gauntlet-$${version}-py3-none-any.whl" \
 		"dist/gauntlet_sdk-$${version}-py3-none-any.whl" \
 		"dist/README.txt" \
+		"dist/60-gauntlet-unprivileged-ports.conf" \
+		"dist/gauntlet.service" \
+		"dist/homepage.html" \
+		"dist/homepage.service" \
+		"dist/install-service.sh" \
+		"dist/serve-gauntlet.sh" \
+		"dist/serve-homepage.py" \
 		"dist/setup-bench.sh" \
 		"dist/setup-host.sh" \
 		"dist/99-gauntlet-instruments.rules" \

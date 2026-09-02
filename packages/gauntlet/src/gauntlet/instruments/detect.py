@@ -23,11 +23,13 @@ from gauntlet.capabilities.registry import CapabilityProvider, CapabilityRegistr
 from gauntlet.config import Settings
 from gauntlet.instruments.cp2112_i2c import Cp2112I2c, candidate_adapters
 from gauntlet.instruments.di2008_daq import Di2008Daq
+from gauntlet.instruments.fx2_logic import Fx2Logic
 from gauntlet.instruments.hm310t_psu import Hm310tPsu, candidate_ports
 from gauntlet.instruments.mock_camera import MockCamera
 from gauntlet.instruments.mock_chamber import MockChamber
 from gauntlet.instruments.mock_daq import MockDaq
 from gauntlet.instruments.mock_i2c import MockI2c
+from gauntlet.instruments.mock_logic import MockLogic
 from gauntlet.instruments.mock_psu import MockPsu
 from gauntlet.instruments.uvc_camera import UvcCamera
 
@@ -47,6 +49,11 @@ def detect_instruments(registry: CapabilityRegistry, settings: Settings) -> None
     _settle(registry, "chamber", MockChamber if "chamber" in simulated else _absent)
     _settle(registry, "daq", MockDaq if "daq" in simulated else lambda: _daq(settings.daq_serial))
     _settle(registry, "i2c", MockI2c if "i2c" in simulated else lambda: _i2c(settings.i2c_serial))
+    _settle(
+        registry,
+        "logic",
+        MockLogic if "logic" in simulated else lambda: _logic(settings.logic_serial, settings.logic_firmware),
+    )
     _settle(registry, "psu", MockPsu if "psu" in simulated else lambda: _psu(settings.psu_port))
 
 
@@ -123,6 +130,26 @@ def _drop(registry: CapabilityRegistry, name: str) -> None:
     if gone is not None:
         log.info("instrument %s: no longer present", name)
         _close(gone)
+
+
+def _logic(serial: str, firmware: str) -> CapabilityProvider | None:
+    """The logic analyzer, if one is asked for and a board is on the bus.
+
+    Registration turns on the board being there rather than on it being
+    usable. One that arrived without firmware is not usable until it has been
+    loaded and has come back on the bus, and an operator who can see it
+    waiting reads that from ``unavailable_reason`` rather than from an empty
+    Instruments page.
+    """
+    if not serial:
+        return None
+    if serial != "auto":
+        return Fx2Logic(firmware=firmware, serial_filter=serial)
+    analyzer = Fx2Logic(firmware=firmware)
+    if analyzer.attached():
+        return analyzer
+    _close(analyzer)
+    return None
 
 
 def _psu(port: str) -> CapabilityProvider | None:

@@ -31,13 +31,25 @@ FRONTEND     := $(ROOT)/frontend
 # What a host needs before it can drive the instruments: the udev rules for the
 # devices Gauntlet claims itself, the script that installs them, and the note
 # telling whoever unpacks a release to run it. Installed on the bench, not in
-# the devcontainer, so all three ship beside the installers.
+# the devcontainer, so all of them ship beside the installers.
 SYSTEM         := $(ROOT)/system
 UDEV_RULES     := $(SYSTEM)/99-gauntlet-instruments.rules
 UDEV_RULES_DIR := /etc/udev/rules.d
 HOST_SETUP     := $(SYSTEM)/setup-host.sh
 BENCH_SETUP    := $(SYSTEM)/setup-bench.sh
 HOST_README    := $(SYSTEM)/README.txt
+# And what a bench left running as a rig needs on top of that: the backend
+# without its window, and the user unit that keeps it serving across reboots.
+SERVE_SCRIPT   := $(SYSTEM)/serve-gauntlet.sh
+SERVICE_SETUP  := $(SYSTEM)/install-service.sh
+SERVICE_UNIT   := $(SYSTEM)/gauntlet.service
+# And the landing page a rig answers on port 80 with, so the bare address
+# reaches the bench: the page, the server for it, its unit, and the sysctl that
+# lets a user unit bind a port below 1024.
+PAGE_HTML      := $(SYSTEM)/homepage.html
+PAGE_SERVE     := $(SYSTEM)/serve-homepage.py
+PAGE_UNIT      := $(SYSTEM)/homepage.service
+PORT_SYSCTL    := $(SYSTEM)/60-gauntlet-unprivileged-ports.conf
 FRONTEND_OUT := $(APP)/src/gauntlet/web_dist
 # The Electron shell, and the relocatable CPython it ships the backend in.
 DESKTOP         := $(ROOT)/app

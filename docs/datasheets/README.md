@@ -9,17 +9,42 @@ supplier moved a PDF.
 | `LI-GMSL3-USB3.2-datasheet.pdf` | LI-GMSL3-USB3.2 adapter, which carries the MAX96792A | [leopardimaging.com](https://leopardimaging.com/wp-content/uploads/2025/07/LI-GMSL3-USB3.2_Datasheet.pdf) |
 | `LI-USB30-AR0820-GMSL3-user-guide.pdf` | The AR0820 board's user guide. Kept because the USB and GMSL3 sections match the IMX728 board and the IMX728 guide is not published | [leopardimaging.com](https://leopardimaging.com/wp-content/uploads/2025/06/LI-USB30-AR0820-GMSL3_User_Guide_20250618.pdf) |
 
-## Missing, and why
+## The parts under irradiation
 
-The two register maps that matter most are published by Analog Devices but
-could not be fetched from this container: every attempt fails with an HTTP/2
-`INTERNAL_ERROR`, which is a bot filter rather than a broken link. They open
-normally in a browser.
+One per suite in the `radiation_tid` campaign, so a beam-line session has the
+register maps to hand.
 
-- [MAX96792A deserializer user guide](https://www.analog.com/media/en/technical-documentation/user-guides/max96792a-device-specific-user-guide.pdf)
-- [MAX96793 serializer user guide](https://www.analog.com/media/en/technical-documentation/user-guides/max96793-device-specific-user-guide.pdf)
+| File | Part | Suite | Source |
+|---|---|---|---|
+| `ADS7138-datasheet.pdf` | TI ADS7138, 8-channel 12-bit ADC | `tid_ads7138` | [ti.com](https://www.ti.com/lit/ds/symlink/ads7138.pdf) |
+| `LAN7430-LAN7431-datasheet.pdf` | Microchip LAN7430, PCIe to Gigabit Ethernet. DS00002631, and covers the LAN7431 too | `tid_lan7430` | [microchip.com](https://ww1.microchip.com/downloads/aemDocuments/documents/UNG/ProductDocuments/DataSheets/LAN7430-LAN7431-Data-Sheet-DS00002631.pdf) |
+| `PIC18F25-26K83-datasheet.pdf` | Microchip PIC18F26K83, 8-bit MCU with CAN. DS40001943C, and covers the 25K83 and the LF parts | `tid_pic18f26k83` | [microchip.com](https://ww1.microchip.com/downloads/en/DeviceDoc/PIC18\(L\)F2526K83-Data-Sheet-DS40001943C.pdf) |
+| `TMP100-datasheet.pdf` | TI TMP100, I2C temperature sensor | `tid_tmp100` | [ti.com](https://www.ti.com/lit/ds/symlink/tmp100.pdf) |
+| `DS_asm330lhb.pdf` | ST ASM330LHB, 6-axis automotive IMU | `tid_asm330lhb` | [st.com](https://www.st.com/resource/en/datasheet/asm330lhb.pdf) |
+| `max96792a.pdf` | ADI MAX96792A deserializer. The device-specific user guide, which is where the register map is | `tid_max96792` | [analog.com](https://www.analog.com/media/en/technical-documentation/user-guides/max96792a-device-specific-user-guide.pdf) |
+| `ADI-MAX96793-datasheet.pdf` | ADI MAX96793 serializer datasheet | `tid_max96793` | [analog.com](https://www.analog.com/en/products/max96793.html) |
 
-Download both by hand and drop them here.
+## Fetching these
+
+Analog Devices, ST and Mouser all refuse an automated fetch: the first two
+answer with an HTTP/2 `INTERNAL_ERROR` before a byte of PDF arrives, and Mouser
+returns a JavaScript bot challenge in place of the file. These are filters
+rather than broken links, so anything they publish is downloaded by hand and
+dropped in here. TI and Microchip serve theirs to an ordinary request.
+
+Copy the directory to a rig with
+
+    scp docs/datasheets/* trl@<bench>:~/.config/gauntlet/datasheets/
+
+which is where the landing page reads them from.
+
+## Still missing
+
+- The MAX96793 **user guide**. What is here is the datasheet, which gives the
+  part's electrical characteristics but not its register map; the deserializer
+  has its user guide and the serializer does not. Reading a serializer register
+  by number wants
+  [the user guide](https://www.analog.com/media/en/technical-documentation/user-guides/max96793-device-specific-user-guide.pdf).
 
 ## Reading the SerDes registers
 

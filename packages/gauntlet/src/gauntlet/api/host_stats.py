@@ -11,11 +11,26 @@ from __future__ import annotations
 import os
 import platform
 import shutil
+import socket
+import struct
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 _PROC = Path("/proc")
+_SYS_NET = Path("/sys/class/net")
+
+# An interface's IPv4 address is the one thing here the kernel publishes in
+# neither /proc nor /sys, so it is asked for over a socket instead. fcntl is
+# Unix-only, and a platform without it reports no address rather than failing
+# to import.
+try:
+    import fcntl
+
+    _SIOCGIFADDR = 0x8915
+except ImportError:  # pragma: no cover - not reachable on the hosts this runs on
+    fcntl = None  # type: ignore[assignment]
+    _SIOCGIFADDR = 0
 _THERMAL = Path("/sys/class/thermal")
 
 # Mounts backed by storage, as opposed to the kernel's own virtual filesystems.
@@ -121,6 +136,46 @@ def disks() -> list[dict[str, Any]]:
     return sorted(mounted, key=lambda disk: str(disk["mount"]))
 
 
+def interfaces() -> list[dict[str, Any]]:
+    """Every network interface the kernel counts, with its traffic and errors.
+
+    Loopback is left out for the same reason ``disks()`` leaves out the
+    kernel's virtual filesystems: it is always present, always healthy, and
+    never what someone looking at a bench wants to know about.
+
+    The counters are cumulative since boot and 32-bit on some drivers, so a
+    caller comparing two samples has to expect them to wrap.
+    """
+    counters: list[dict[str, Any]] = []
+    for line in (_read_text(_PROC / "net" / "dev") or "").splitlines():
+        name, separator, rest = line.partition(":")
+        if not separator:
+            continue
+        name = name.strip()
+        fields = rest.split()
+        if name == "lo" or len(fields) < 12:
+            continue
+        values = [_as_int(field) for field in fields[:12]]
+        if any(value is None for value in values):
+            continue
+        counters.append(
+            {
+                "address": _ipv4_address(name),
+                "name": name,
+                "state": (_read_text(_SYS_NET / name / "operstate") or "").strip() or "unknown",
+                "rx_bytes": values[0],
+                "rx_packets": values[1],
+                "rx_errors": values[2],
+                "rx_dropped": values[3],
+                "tx_bytes": values[8],
+                "tx_packets": values[9],
+                "tx_errors": values[10],
+                "tx_dropped": values[11],
+            }
+        )
+    return sorted(counters, key=lambda interface: str(interface["name"]))
+
+
 def load_avg() -> list[float] | None:
     """One, five, and fifteen minute load averages."""
     try:
@@ -218,6 +273,27 @@ def uptime() -> float | None:
         return round(float(fields[0]), 1)
     except ValueError:
         return None
+
+
+def _ipv4_address(name: str) -> str | None:
+    """The interface's primary IPv4 address, or None where it has none.
+
+    An interface can carry several; this reports the first, which is the one
+    the kernel answers SIOCGIFADDR with and the one a bench is reached on.
+    """
+    if fcntl is None:
+        return None
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            packed = fcntl.ioctl(
+                sock.fileno(),
+                _SIOCGIFADDR,
+                struct.pack("256s", name[:15].encode()),
+            )
+    except OSError:
+        # No address assigned, or a name the kernel does not know.
+        return None
+    return socket.inet_ntoa(packed[20:24])
 
 
 def _as_int(value: str) -> int | None:

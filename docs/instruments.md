@@ -18,11 +18,13 @@ declares about itself; naming an instrument anywhere else is a defect.
 | `daq` | DATAQ DI-2008, `instruments/di2008_daq.py` | vendor bulk-USB protocol, claimed through usbfs |
 | `camera` | any UVC camera, `instruments/uvc_camera.py` | V4L2 ioctls on a `/dev/video*` node, memory-mapped capture |
 | `i2c` | Silicon Labs CP2112, `instruments/cp2112_i2c.py` | `I2C_RDWR` on the `i2c-dev` node the kernel's own `hid-cp2112` driver adapts it to |
+| `logic` | any Cypress FX2LP eight-channel analyzer, `instruments/fx2_logic.py` | vendor bulk-USB, claimed through usbfs, once sigrok's fx2lafw is loaded into it |
 | `chamber` | nothing | simulation only |
 
 Beside each is a simulation — `mock_psu.py`, `mock_daq.py`, `mock_camera.py`,
-`mock_i2c.py`, `mock_chamber.py` — which exists for development and for
-tests, and which reaches an operator only when they ask for it.
+`mock_i2c.py`, `mock_logic.py`, `mock_chamber.py` — which exists for
+development and for tests, and which reaches an operator only when they ask
+for it.
 
 Its eight channels are settled by one `configure` command carrying a row each,
 rather than a control that picks a channel and a control that sets it. A row
@@ -112,6 +114,58 @@ repeated start requires. There is no fixed device on the other end of the
 bus: a suite names the address and the bytes itself, through `write`, `read`
 and `write_read`, the way it would with any I2C bridge.
 
+### The analyzer that arrives without firmware
+
+The cheap eight-channel analyzers — Xicoolee's among them — are all the same
+board: a Cypress FX2LP (CY7C68013A) with its port B wired to the probes, no
+acquisition logic of its own and nothing in it worth calling firmware. What
+makes one a logic analyzer is fx2lafw, sigrok's firmware for the part, written
+into its RAM over USB. Until that is in it the board answers only its
+bootloader, so `instruments/fx2_logic.py` loads it and then speaks its
+protocol, both taken from libsigrok's `src/hardware/fx2lafw` and `src/ezusb.c`.
+
+**The firmware is sigrok's and is not shipped here.** `logic_firmware` says
+where it is: `"auto"` searches the directories `sigrok-firmware-fx2lafw`
+installs into, and a path names a file or a directory to load it from instead.
+A board with no image to load is registered anyway and reports which file it
+wanted, because "install this package" is a fault to show rather than
+something to hide.
+
+What tells a loaded board from an unloaded one is not its USB ids. fx2lafw
+keeps whichever ids the EEPROM carries — `0925:3881` for the Saleae clones,
+`04b4:8613` for a bare part — and changes the descriptor strings, which read
+`sigrok` and `fx2lafw` once it is running. Loading renumerates the board: it
+drops off the bus and comes back a second or two later. So a load is one
+probe and the capture is the probe after it, which is why nothing waits and
+`available()` says what it is waiting for.
+
+A capture is one window of samples at one rate: a byte per sample, a bit per
+channel, straight off bulk endpoint 2. There is no trigger and no stop
+command — the firmware fills its FIFO and stalls there — so a capture drains
+the endpoint before it starts, or it would read the tail of the one before it.
+The rates on offer are the ones that divide the board's 48 or 30 MHz clock
+exactly, since a rate is a divisor rather than a setting, and a capture is
+measured against the rate it was asked for rather than one rounded to.
+
+**The window is a request.** libsigrok keeps thirty-two reads in flight so the
+endpoint is never unattended; one synchronous reader has one, and the gap
+between two of them is enough for the board to overrun and stop sending. On
+the bench board a whole window arrives at 1 MHz and below, and 24 MHz gives
+one 16 KiB FIFO — 0.68 ms of signal — before it goes quiet. So a capture
+reports the window it got rather than the one it asked for, and a short one is
+what the board gave rather than a fault. For a look at a fast edge, which is
+what the fastest rates are for, that is the window wanted anyway.
+
+What comes back is what each probe did over that window — its level, its
+edges, its duty and the frequency those imply — and a picture of the capture
+itself, drawn by `instruments/waveform.py` and returned the way a camera
+returns a snapshot. Eight channels of a few million samples are measured
+without a loop over them: one channel is a 256-entry translation of the
+stream, and its edges are one exclusive-or of that against itself shifted by a
+sample. A suite writes the picture into its run directory and names it in
+`metrics.traces`, which is what gives the run its own Traces tab; see
+[`contract.md`](contract.md).
+
 ## What is registered
 
 `instruments/detect.py` decides, at startup and again on every operator scan.
@@ -121,9 +175,10 @@ it.
 
 | Setting | Meaning |
 |---|---|
-| `psu_port`, `daq_serial`, `i2c_serial` | `"auto"` probes, `""` does not look at all, anything else is the serial port or USB serial number to use |
+| `psu_port`, `daq_serial`, `i2c_serial`, `logic_serial` | `"auto"` probes, `""` does not look at all, anything else is the serial port or USB serial number to use. Most analyzer boards carry no serial number, so `"auto"` takes the first on the bus |
 | `camera_device` | `"auto"` registers so long as any `/dev/video*` node exists, `""` does not look at all, anything else is the node to register. Which node actually streams, and whether it carries a format the encoder can write, is not settled until something owns it — see [Owning a device](#owning-a-device) |
 | `camera_format` | `"auto"` reads a frame to decide what it really carries, or name `yuyv` or `raw10_rggb` to state it. A GMSL adapter reports YUYV over UVC while sending raw sensor data, and the UVC format code cannot tell them apart |
+| `logic_firmware` | Where fx2lafw is. `"auto"` searches the directories `sigrok-firmware-fx2lafw` installs into; a file or a directory names it instead |
 | `simulated_instruments` | Names the instruments to simulate instead of probing for. Empty by default |
 
 An explicitly named device stays registered even when it goes quiet, reporting

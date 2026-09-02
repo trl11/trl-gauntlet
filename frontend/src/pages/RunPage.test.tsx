@@ -229,6 +229,55 @@ describe("RunPage", () => {
     await screen.findByRole("tablist");
     expect(screen.queryByRole("tab", { name: /snapshots/ })).not.toBeInTheDocument();
   });
+
+  it("offers no traces tab for a run that recorded no traces", async () => {
+    renderPage();
+    await screen.findByRole("tablist");
+    expect(screen.queryByRole("tab", { name: /traces/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("RunPage traces", () => {
+  beforeEach(() => {
+    vi.mocked(getRun).mockResolvedValue(FINISHED);
+    vi.mocked(listSuites).mockResolvedValue({ errors: [], suites: [] });
+    vi.mocked(getRunVerdict).mockResolvedValue({ passed: true } as never);
+    vi.mocked(getRunManifest).mockResolvedValue({} as never);
+    vi.mocked(listArtifacts).mockResolvedValue({ artifacts: [], run_dir: "", run_id: "run-1" });
+    vi.mocked(listRunNotes).mockResolvedValue({ notes: [] });
+    vi.mocked(getRunMetrics).mockResolvedValue({
+      count: 1,
+      records: [
+        {
+          elapsed_run_s: 1,
+          iteration: 1,
+          kind: "iteration",
+          metrics: {
+            images: ["frames/snapshot_0001.png"],
+            traces: ["traces/capture_0001.png"],
+          },
+          success: true,
+          timestamp: 1767225600,
+        },
+      ] as never,
+      run_id: "run-1",
+    });
+  });
+
+  it("offers a traces tab of its own, counting only the traces", async () => {
+    renderPage();
+    expect(await screen.findByRole("tab", { name: /traces/ })).toHaveTextContent("1");
+    expect(screen.getByRole("tab", { name: /snapshots/ })).toHaveTextContent("1");
+  });
+
+  it("draws the recorded traces rather than the snapshots", async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole("tab", { name: /traces/ }));
+
+    const drawn = screen.getAllByRole("img");
+    expect(drawn).toHaveLength(1);
+    expect(drawn[0]).toHaveAttribute("src", "/api/runs/run-1/artifacts/traces/capture_0001.png");
+  });
 });
 
 describe("RunPage snapshots", () => {

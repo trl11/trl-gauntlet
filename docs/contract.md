@@ -105,6 +105,7 @@ Paths are relative to `GAUNTLET_RUN_DIR`.
 | `events.sqlite` | no | suite, during the run | Queryable form of `metrics.jsonl`. |
 | `summary.md` | no | suite, at exit | Human-readable rollup. |
 | `frames/` | no | suite, during the run | Images referenced from `metrics.images`. |
+| `traces/` | no | suite, during the run | Captured signals referenced from `metrics.traces`. |
 | `profile.yaml` | no | Gauntlet | Copy of the profile as run. |
 | `test.log` | no | Gauntlet | Captured stdout and stderr. |
 
@@ -141,7 +142,12 @@ streams each record. The file must be line-buffered.
 | `anomaly` | `probe` | Recorded and counted; does not affect pass/fail. |
 
 Numeric leaves of `metrics` are flattened to dotted paths and plotted.
-`metrics.images` is a list of paths relative to the run directory.
+`metrics.images` is a list of paths relative to the run directory, and
+`metrics.traces` is the same for a picture of a captured signal — a logic
+analyzer's window, a scope's screen. Both are drawn the same way and each gets
+its own tab, because a signal is looked through for a different reason than a
+picture of the unit. A run recording neither is offered neither tab: the files
+decide, and nothing asks which suite ran or what it drove.
 
 ## Conformance
 

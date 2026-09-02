@@ -149,16 +149,25 @@ def publish_record(bus: EventBus, line: str) -> None:
                 detail=phase.get("detail") or {},
             )
 
-    raw_images = metrics.get("images")
-    images = [p for p in raw_images if isinstance(p, str)] if isinstance(raw_images, list) else []
     bus.publish_threadsafe(
         "iteration",
         iteration=iteration,
         elapsed_run_s=elapsed,
         success=bool(record.get("success", True)),
         reason=record.get("reason") or "",
-        images=images,
+        images=recorded_paths(metrics, "images"),
+        traces=recorded_paths(metrics, "traces"),
     )
+
+
+def recorded_paths(metrics: dict[str, Any], key: str) -> list[str]:
+    """The run-relative paths a record listed under ``key``.
+
+    Anything that is not a list of strings is nothing: a record naming a file
+    badly costs that file, not the iteration it was recorded against.
+    """
+    listed = metrics.get(key)
+    return [path for path in listed if isinstance(path, str)] if isinstance(listed, list) else []
 
 
 def flatten(value: Any, prefix: str = "") -> list[tuple[str, Any]]:
