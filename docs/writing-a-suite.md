@@ -199,6 +199,29 @@ synthesises results without contacting a unit. `suites/system_stats/` needs no
 such field: it measures the host it runs on, so its `smoke.yaml` is both the
 conformance profile and a real measurement.
 
+### Running until the operator stops
+
+A zero bound — `duration_s` on a time-bounded suite, the iteration count on a
+cycle-bounded one — gives the loop no end of its own, so the suite runs until
+the operator presses Stop. That is a graceful stop: the in-flight iteration
+finishes, the artifacts are written, and the verdict is taken over what was
+collected, so a session whose every iteration passed is recorded as a pass
+rather than an abort. Abort is still a kill, and still writes nothing.
+
+The profile model has to allow it — `ge=0` rather than `gt=0` or `ge=1` — and
+the run needs an operator to end it, so a suite whose only profiles are
+unbounded cannot be verified. Ship it alongside a bounded one, and keep the
+conformance profile bounded.
+
+Pass criteria want a second look too. A gate on a total, like a minimum number
+of frames received, fails a session the operator stopped early even though
+every iteration passed; gate the rate instead.
+
+```yaml
+duration_s: 0
+sample_period_s: 30.0
+```
+
 ## Overrides
 
 Values an operator may change per run without editing a profile:

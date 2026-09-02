@@ -45,7 +45,9 @@ class TidAsm330lhbProfile(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     description: str = Field(default="", description="Shown in the profile picker.")
-    duration_s: float = Field(default=60.0, gt=0, description="How long to run.")
+    duration_s: float = Field(
+        default=60.0, ge=0, description="How long to run. 0 runs until the operator stops the run."
+    )
     sample_period_s: float = Field(default=1.0, gt=0, description="Seconds between samples.")
 
 

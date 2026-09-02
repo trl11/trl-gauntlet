@@ -1,0 +1,23 @@
+description: >
+  A bus session with a small loss budget, run continuously. The run has no
+  end of its own: it samples until the operator stops it from the app, and
+  the verdict is taken over what was collected, so a session whose every
+  iteration passed is recorded as a pass and not an abort.
+driver: real
+duration_s: 0
+sample_period_s: 5.0
+rate_hz: 100.0
+services_to_stop:
+  - rso-threat-assessment
+link:
+  unit_iface: can0
+  lab_iface: can0
+  bitrate: 500000
+  arbitration_id: 0x100
+pass_criteria:
+  max_missing: 50
+  max_anomalies: 100
+  # A total that assumes a long session would fail one the operator stopped
+  # early, so what is gated here is the loss rate rather than the count.
+  min_received: 0
+  require_alive_at_end: true

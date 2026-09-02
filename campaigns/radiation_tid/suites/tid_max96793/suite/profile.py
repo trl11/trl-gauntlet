@@ -22,7 +22,9 @@ class TidMax96793Profile(BaseModel):
         pattern="^(real|mock)$",
         description="`mock` synthesises a healthy link and contacts no instrument.",
     )
-    duration_s: float = Field(default=300.0, gt=0, description="How long to watch the link.")
+    duration_s: float = Field(
+        default=300.0, ge=0, description="How long to watch the link. 0 runs until the operator stops the run."
+    )
     sample_period_s: float = Field(
         default=2.0,
         gt=0,

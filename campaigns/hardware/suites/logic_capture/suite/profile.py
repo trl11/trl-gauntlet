@@ -91,7 +91,9 @@ class LogicCaptureProfile(BaseModel):
         pattern="^(real|mock)$",
         description="`mock` synthesises a capture and contacts no instrument.",
     )
-    duration_s: float = Field(default=60.0, gt=0, description="How long to keep capturing.")
+    duration_s: float = Field(
+        default=60.0, ge=0, description="How long to keep capturing. 0 runs until the operator stops the run."
+    )
     sample_period_s: float = Field(default=1.0, gt=0, description="Seconds between captures.")
     rate: str = Field(default="24mhz", description=f"Sample rate. One of: {', '.join(RATES)}.")
     window: str = Field(

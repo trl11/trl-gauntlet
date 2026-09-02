@@ -57,7 +57,9 @@ class HardwareTriggerProfile(BaseModel):
         pattern="^(real|mock)$",
         description="`mock` runs the whole flow with no unit attached.",
     )
-    runs: int = Field(default=5, ge=1, description="Pulses to emit in this session.")
+    runs: int = Field(
+        default=5, ge=0, description="Pulses to emit in this session. 0 pulses until the operator stops the run."
+    )
     cycle_delay_s: float = Field(default=0.0, ge=0, description="Pause between pulses.")
     trigger: TriggerBlock = Field(default_factory=TriggerBlock)
     monitor: MonitorBlock = Field(default_factory=MonitorBlock)

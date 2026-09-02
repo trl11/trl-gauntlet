@@ -1,0 +1,17 @@
+description: >
+  The beam-line profile for the MAX96792AGTM/VY+, run continuously, keeping
+  one frame in ten. Narrow max_errors_per_sample to the baseline this part
+  shows with the beam off before trusting a pass. The run has no end of its
+  own: it samples until the operator stops it from the app, and the verdict
+  is taken over what was collected, so a session whose every iteration
+  passed is recorded as a pass and not an abort.
+driver: real
+duration_s: 0
+sample_period_s: 2
+max_width: 960
+max_errors_per_sample: 200
+max_total_errors: 100000
+max_dropped_frames: 8
+max_corrupt_frames: 0
+max_unlocks: 0
+snapshot_every: 10

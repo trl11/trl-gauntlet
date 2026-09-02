@@ -139,7 +139,9 @@ class TidLan7430Profile(BaseModel):
         pattern="^(real|mock)$",
         description="`mock` synthesises a degrading part with no hardware attached.",
     )
-    duration_s: float = Field(default=3600.0, gt=0, description="How long to keep testing.")
+    duration_s: float = Field(
+        default=3600.0, ge=0, description="How long to keep testing. 0 runs until the operator stops the run."
+    )
     sample_period_s: float = Field(default=30.0, gt=0, description="Seconds between measurement ticks.")
     ssh_timeout_s: float = Field(default=60.0, gt=0, description="Per-command SSH timeout.")
     # Named here rather than left to `GAUNTLET_SSH_USER` and `GAUNTLET_SSH_KEY`:

@@ -74,7 +74,11 @@ class PiezoProfile(BaseModel):
         pattern="^(real|mock)$",
         description="`mock` synthesises motion telemetry with no controller.",
     )
-    cycles: int = Field(default=100, ge=1, description="Extend-and-return cycles in this session.")
+    cycles: int = Field(
+        default=100,
+        ge=0,
+        description="Extend-and-return cycles in this session. 0 cycles until the operator stops the run.",
+    )
     cycle_delay_s: float = Field(default=0.0, ge=0, description="Pause between cycles.")
     mqtt: MqttBlock = Field(default_factory=MqttBlock)
     motion: MotionBlock = Field(default_factory=MotionBlock)

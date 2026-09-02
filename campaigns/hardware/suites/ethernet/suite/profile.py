@@ -54,7 +54,9 @@ class EthernetProfile(BaseModel):
         pattern="^(real|mock)$",
         description="`mock` synthesises throughput with no unit attached.",
     )
-    duration_s: float = Field(default=3600.0, gt=0, description="How long to keep testing.")
+    duration_s: float = Field(
+        default=3600.0, ge=0, description="How long to keep testing. 0 runs until the operator stops the run."
+    )
     sample_period_s: float = Field(default=10.0, gt=0, description="Seconds between speed tests.")
     probe: ProbeBlock = Field(default_factory=ProbeBlock)
     monitor: MonitorBlock = Field(default_factory=MonitorBlock)
