@@ -277,3 +277,36 @@ its declared type, so a body that drifts from `api/types.ts` fails `tsc`.
 - TypeScript: no `any`, no type gymnastics, no wrappers over React Query or
   `request()`. `useState` unless a reducer is genuinely simpler. Props
   interfaces are documented; declare a prop only once something passes it.
+
+## Style
+
+- Keep lists alphabetical where order doesn't matter; order functions by process flow or frequency of use.
+- `make <component>-format` before building. clang-format + clang-tidy, ruff + mypy, Prettier + ESLint.
+- End every file with a newline.
+
+### Writing code
+
+- **Write the simplest thing that works.** No speculative generality.
+- **No new abstraction until there are 2+ real callers.** Inline over indirection.
+- **No new dependency without asking**, and no new file or class the change does not need.
+- **No config options, feature flags or plugin hooks unless requested.**
+- **Handle only errors that can actually occur here.** No defensive try/catch around code that cannot throw.
+- Prefer a free function over a class.
+
+### Comments
+
+- **Default to none.** Reach for a clearer name or a smaller function first.
+- Write one only where a reader would otherwise get it wrong: a constraint imposed from outside the file, a non-obvious consequence, a deliberate choice that looks like a mistake.
+- Give the reason, not the mechanics. A comment paraphrasing the line below it should be deleted.
+- Describe the code as it stands — no history, no "previously/now", no ticket ids, no account of what a change fixed. That belongs in the commit message.
+- One or two lines. Doxygen/docstrings only on public APIs (`sdk/cpp/`, `sdk/python/`, `sdk/public/`).
+
+## Don'ts
+
+- **Never edit `CHANGELOG.md`.** It is written by hand when a release is cut.
+- Never commit or push unless asked. Branch first if on the default branch.
+- Never delete unrelated dead code — mention it instead. Remove only what your own change orphaned.
+- Never put a `.plan/` or `docs/plans/` reference in a shipped file.
+
+Two positives that belong beside them: update `docs/dev` alongside the change, and put an issue you find outside the current task in `.todo` (git-ignored) after asking first.
+
