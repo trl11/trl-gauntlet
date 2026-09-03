@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import subprocess
 import time
+
+from gauntlet.api import system
 
 
 def _wait_for_finish(client, run_id, timeout_s=20.0):
@@ -28,6 +31,82 @@ class TestSystem:
     def test_instruments_include_the_mocks(self, client):
         names = {i["name"] for i in client.get("/api/instruments").json()["instruments"]}
         assert {"psu", "daq", "chamber"} <= names
+
+
+class TestPower:
+    """`POST /api/system/power`, which takes the host down.
+
+    Every test replaces `subprocess.run`, so nothing here can reach logind:
+    a test that really powered the machine off would take the suite with it.
+    """
+
+    def _spy(self, monkeypatch, returncode=0, stderr=""):
+        calls = []
+
+        def fake_run(argv, **kwargs):
+            calls.append(argv)
+            return subprocess.CompletedProcess(argv, returncode, stdout="", stderr=stderr)
+
+        monkeypatch.setattr(system.subprocess, "run", fake_run)
+        monkeypatch.setattr(system.shutil, "which", lambda _name: "/bin/systemctl")
+        return calls
+
+    def test_poweroff_asks_systemctl(self, client, monkeypatch):
+        calls = self._spy(monkeypatch)
+        body = client.post("/api/system/power", json={"action": "poweroff"})
+        assert body.status_code == 200
+        assert body.json() == {"action": "poweroff", "status": "accepted"}
+        assert calls == [["/bin/systemctl", "poweroff"]]
+
+    def test_reboot_asks_systemctl(self, client, monkeypatch):
+        calls = self._spy(monkeypatch)
+        assert client.post("/api/system/power", json={"action": "reboot"}).status_code == 200
+        assert calls == [["/bin/systemctl", "reboot"]]
+
+    def test_an_unknown_action_is_refused(self, client, monkeypatch):
+        calls = self._spy(monkeypatch)
+        assert client.post("/api/system/power", json={"action": "halt"}).status_code == 422
+        assert calls == []
+
+    def test_a_run_in_flight_holds_the_host_up(self, client, monkeypatch):
+        """The one thing on a bench that cannot resume from where it left off."""
+        calls = self._spy(monkeypatch)
+
+        class _Live:
+            finished = False
+            run_id = "20260101T000000Z-0001"
+            suite = "alpha"
+
+        monkeypatch.setattr(client.app.state.supervisor, "active", lambda: _Live())
+        refused = client.post("/api/system/power", json={"action": "poweroff"})
+        assert refused.status_code == 409
+        assert "alpha" in refused.json()["detail"]
+        assert calls == []
+
+    def test_a_refusal_reaches_the_operator(self, client, monkeypatch):
+        """Polkit's own words, plus the step that grants the right.
+
+        A rig serves from a lingering user manager with no session, which is
+        exactly the case logind refuses, so this is what an operator meets on
+        a bench where `setup-host.sh` has not been run.
+        """
+        self._spy(monkeypatch, returncode=1, stderr="Interactive authentication required.")
+        refused = client.post("/api/system/power", json={"action": "poweroff"})
+        assert refused.status_code == 502
+        detail = refused.json()["detail"]
+        assert "Interactive authentication required." in detail
+        assert "setup-host.sh" in detail
+
+    def test_an_unexplained_refusal_is_passed_through(self, client, monkeypatch):
+        self._spy(monkeypatch, returncode=1, stderr="Failed to start poweroff.target.")
+        refused = client.post("/api/system/power", json={"action": "poweroff"})
+        assert refused.json()["detail"] == "Failed to start poweroff.target."
+
+    def test_a_host_without_systemctl_says_so(self, client, monkeypatch):
+        self._spy(monkeypatch)
+        monkeypatch.setattr(system.shutil, "which", lambda _name: None)
+        unavailable = client.post("/api/system/power", json={"action": "poweroff"})
+        assert unavailable.status_code == 503
 
 
 class TestSchemas:

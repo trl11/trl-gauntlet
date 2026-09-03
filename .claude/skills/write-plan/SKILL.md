@@ -37,7 +37,7 @@ already decided something, do not re-open it.
    plan. Read the root `CLAUDE.md` first, then the `docs/` page for the area:
    `contract.md` before anything crossing the suite boundary, `frontend.md` before `frontend/`,
    `instruments.md` before `capabilities/` or `instruments/`, `campaigns.md` before `campaigns/`,
-   `deploying.md` before `system/` or `scripts/deploy-bench.sh`. Check any `graphify-out/` graphs
+   `deploying.md` before `targets/service/` or `tools/deploy/deploy-bench.sh`. Check any `graphify-out/` graphs
    that exist.
 2. **Establish what exists today** so the plan can say what changes. This becomes the current-contract
    section — often the highest-value part of the file.
@@ -61,7 +61,7 @@ row; the plan says which it crosses, and names the ones it deliberately does not
 | `frontend/src/api/client.ts` | New requests. It is the only module that calls `fetch`, every path is prefixed with `VITE_API_BASE`, and nothing may assume the API's origin |
 | Theme and styling | Colours, fonts and spacing come from `@trl11/styles/theme.scss`. One `X.scss` beside each `X.tsx`, no hex literals. Never edit the `extras/trl-ui-kit` submodule |
 | Host telemetry | `gauntlet.api.host_stats` stays standard-library only |
-| The release pipeline | A new file that ships to a bench crosses all of `common.mk`, `app/Makefile` host-setup, `ci-validate-dist` in `ci/ci.mk`, the `sent` list in `scripts/deploy-bench.sh`, and `install-service.sh` or `setup-host.sh`. Missing one either fails CI or silently does not reach the bench |
+| The release pipeline | A new file that ships to a bench crosses all of `common.mk`, `targets/app/Makefile` host-setup, `ci-validate-dist` in `ci/ci.mk`, the `sent` list in `tools/deploy/deploy-bench.sh`, and `install-service.sh` or `setup-host.sh`. Missing one either fails CI or silently does not reach the bench |
 | `docs/` | Always for behaviour a reader would otherwise have to infer. The root `CLAUDE.md` layout block and command table when either changes |
 
 ## Sections
@@ -118,7 +118,7 @@ fine and useful.
 
 **Name real things.** Symbols, files, fields, endpoints, UI components, make targets. Backtick them.
 `CapabilityRegistry.claim_for_run`, `RunsIndex.import_tree`, `GET /api/system/data`,
-`system/serve-homepage.py`.
+`targets/service/homepage/serve-homepage.py`.
 
 **Lead with what is reused.** The lede names the existing path the change extends — discovery, the
 supervisor, the capability registry, the runs index, the release pipeline. If nothing is reused, the

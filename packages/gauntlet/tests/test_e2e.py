@@ -20,7 +20,7 @@ from gauntlet.config import Settings
 
 pytestmark = pytest.mark.e2e
 
-# packages/gauntlet/tests -> the repository root, where suites/ lives.
+# packages/gauntlet/tests -> the repository root, where the campaigns live.
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 SUITE = "system_stats"
@@ -39,7 +39,7 @@ def e2e_run(tmp_path_factory) -> dict[str, Any]:
     settings = Settings(
         host="127.0.0.1",
         port=7100,
-        suite_roots=[REPO_ROOT / "suites"],
+        suite_roots=[REPO_ROOT / "campaigns" / "examples" / "suites"],
         data_dir=data_dir,
     )
     with TestClient(create_app(settings)) as client:

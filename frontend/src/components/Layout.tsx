@@ -42,7 +42,7 @@ const NAV: NavItem[] = [
   { icon: faPlay, label: "Tests", path: "/tests" },
   { icon: faMicrochip, label: "Units", path: "/units" },
   { icon: faSliders, label: "Instruments", path: "/instruments" },
-  { icon: faGear, label: "Settings", path: "/settings" },
+  { icon: faGear, label: "System", path: "/system" },
 ];
 
 function activeRun(runs: RunRow[] | undefined): RunRow | null {

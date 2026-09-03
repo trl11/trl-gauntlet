@@ -2,7 +2,7 @@
 # anything after a # are ignored. The devcontainer installs these at image
 # build time; a bare host developing on this project needs the same set.
 #
-# The server image needs a shorter list and reads docker/dependencies.txt. The
+# The server image needs a shorter list and reads its own. The
 # two overlap in the transports and diverge everywhere else: nothing here that
 # builds, runs or displays the desktop app belongs in a container that serves
 # an API.
@@ -44,7 +44,7 @@ usbutils
 libfuse2
 
 # Electron's own runtime. `make app-dev` and the built app both fail to start
-# without these. The list matches deb.depends in app/electron-builder.json, so
+# without these. The list matches deb.depends in targets/app/electron-builder.json, so
 # running from the checkout needs no more than installing the package would.
 libasound2
 libatspi2.0-0
@@ -65,6 +65,6 @@ xdg-utils
 xauth
 xvfb
 
-# Rasterises frontend/public/favicon.svg into app/icons/icon.png, the icon
+# Rasterises frontend/public/favicon.svg into targets/app/icons/icon.png, the icon
 # electron-builder packages. The PNG is checked in; this regenerates it.
 librsvg2-bin

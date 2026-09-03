@@ -20,7 +20,14 @@ from gauntlet.config import Settings
 from gauntlet.instruments import MockCamera, detect_instruments, gmsl, imaging, is_simulated, v4l2
 from gauntlet.instruments.imaging import ImageError, encode_frame, encode_png, image_suffix, measure, yuyv_to_rgb
 from gauntlet.instruments.uvc_camera import UvcCamera
-from gauntlet.instruments.v4l2 import PIXELFORMAT_MJPG, PIXELFORMAT_YUYV, Frame, V4l2Error, fourcc
+from gauntlet.instruments.v4l2 import (
+    PIXELFORMAT_MJPG,
+    PIXELFORMAT_YUYV,
+    Frame,
+    V4l2Error,
+    V4l2Timeout,
+    fourcc,
+)
 
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
@@ -309,6 +316,31 @@ class TestUvcCamera:
             camera.command("snapshot", {})
         assert fake.closed is True
         assert camera.owned() is False
+
+    def test_a_late_frame_leaves_the_camera_owned(self) -> None:
+        """A timeout is this capture missing, not the device going away.
+
+        Dropping it would leave every later command in the run answering
+        "not owned", which says nothing about the frame that did not arrive.
+        """
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera = camera_with(fake, warmup_frames=0)
+        camera.own()
+        fake.grab_error = V4l2Timeout("/dev/video0: no frame within 5s")
+        with pytest.raises(CommandRejected, match="no frame within 5s"):
+            camera.command("snapshot", {})
+        assert fake.closed is False
+        assert camera.owned() is True
+
+    def test_a_capture_after_a_late_frame_succeeds(self) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera = camera_with(fake, warmup_frames=0)
+        camera.own()
+        fake.grab_error = V4l2Timeout("/dev/video0: no frame within 5s")
+        with pytest.raises(CommandRejected, match="no frame within 5s"):
+            camera.command("snapshot", {})
+        fake.grab_error = None
+        assert camera.command("snapshot", {})["image_base64"]
 
     def test_an_unknown_command_is_rejected(self) -> None:
         camera = camera_with(_FakeCamera(Path("/dev/video0")))

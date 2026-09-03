@@ -27,10 +27,12 @@ curl -X POST localhost:7100/api/campaigns/rescan
 
 | Campaign | Contents |
 |---|---|
+| `examples` | The two reference suites a new suite is copied from, and one that samples the host Gauntlet runs on. None of them needs hardware. |
 | `hardware` | The suites that drive real hardware. Most reach it over a transport of their own; `daq_capture` and `gmsl_camera` are driven through an instrument Gauntlet lends them instead. |
 | `radiation_tid` | One suite per component of the TID campaign. `tid_lan7430`, `tid_max96793` and `tid_max96792` measure; the rest are placeholders that run and pass without hardware and measure nothing yet. Each placeholder's `runner.py` opens with the component, test vehicle, host and fixture it is for, and what it has to grow into. |
 
-`suites/` at the repository root keeps what belongs to no programme — the two
-reference suites and `system_stats`.
+`examples` keeps what belongs to no programme — the two reference suites and
+`system_stats`. Nothing needs hardware, so it is the campaign to run against a
+fresh checkout.
 
 See [`docs/campaigns.md`](../docs/campaigns.md).

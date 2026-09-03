@@ -1,0 +1,58 @@
+#!/bin/sh
+#
+# What installing the package can do for the host, and what it cannot.
+#
+# dpkg has already put the udev rules and the sysctl in place; both need
+# telling that they are there. The groups the instrument nodes are owned by
+# are granted here too, to whoever ran the install, because that is the one
+# thing this knows and `setup-host.sh` would otherwise have to be run for.
+#
+# The services are user units and are deliberately not started. They have to
+# run as the operator, and this runs as root, so which account is meant is not
+# something dpkg knows. The two commands that say are printed instead.
+
+set -e
+
+INSTRUMENT_GROUPS="dialout video"
+
+[ "$1" = configure ] || exit 0
+
+if command -v udevadm >/dev/null 2>&1; then
+	udevadm control --reload-rules
+	# Applies the new rules to what is already plugged in. Without it a device
+	# attached before this ran keeps the ownership it was given at the time.
+	udevadm trigger --subsystem-match=usb --action=add
+fi
+
+if command -v sysctl >/dev/null 2>&1; then
+	sysctl --system >/dev/null 2>&1 ||
+		echo "gauntlet-rig: could not apply the sysctl now; it takes effect at the next boot"
+fi
+
+user=${SUDO_USER:-}
+if [ -n "$user" ] && [ "$user" != root ]; then
+	for group in $INSTRUMENT_GROUPS; do
+		if getent group "$group" >/dev/null 2>&1 &&
+			! id -nG "$user" 2>/dev/null | tr ' ' '\n' | grep -qx "$group"; then
+			usermod -aG "$group" "$user"
+			echo "gauntlet-rig: added $user to $group"
+		fi
+	done
+fi
+
+cat <<NOTE
+
+gauntlet-rig is installed. Two commands as the operator start it, and they are
+not run here because only the operator knows which account that is:
+
+    loginctl enable-linger \$USER
+    systemctl --user enable --now gauntlet.service gauntlet-homepage.service
+
+Lingering is what starts them at boot rather than at the next login. Then:
+
+    http://$(hostname)/       the landing page
+    http://$(hostname):7100/  Gauntlet itself
+
+An account newly added to dialout or video keeps the groups it logged in with,
+so if the instruments are not seen, log out and back in.
+NOTE

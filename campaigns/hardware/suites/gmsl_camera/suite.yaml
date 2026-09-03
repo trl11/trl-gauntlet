@@ -37,7 +37,11 @@ overrides:
     type: number
     label: Duration
     unit: s
-    minimum: 1
+    # Zero is a duration: it gives the loop no end of its own and the suite
+    # samples until the operator stops the run, which is what `continuous.yaml`
+    # ships. A floor of 1 would reject the value that profile seeds the form
+    # with.
+    minimum: 0
     help: How long to keep taking snapshots.
   - name: sample_period_s
     flag: --sample-period-s

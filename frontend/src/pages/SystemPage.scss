@@ -1,0 +1,79 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.system-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+
+  &__grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    max-width: 720px;
+    align-items: start;
+    gap: 24px;
+
+    .panel {
+      padding: 20px 24px 24px;
+      gap: 28px;
+    }
+
+    .definition-rows > div {
+      padding: 6px 0;
+    }
+
+    .definition-rows dt {
+      font-size: 12px;
+    }
+
+    .definition-rows dd {
+      font-size: 13px;
+      line-height: 1.5;
+    }
+  }
+
+  &__section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: flex-start;
+
+    // Everything below the heading takes the panel's width.
+    .definition-rows,
+    .system-page__error {
+      align-self: stretch;
+    }
+  }
+
+  // The heading carries the only rule in the panel, so it reads as the start
+  // of a block rather than as another row.
+  &__section-title {
+    width: 100%;
+    padding-bottom: 8px;
+    border-bottom: 1px solid $trl-dark-gray;
+    font-family: $font-mono;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: $trl-light-gray;
+  }
+
+  &__error {
+    font-size: 13px;
+    color: $indicator-red;
+  }
+
+  &__fault {
+    color: $indicator-red;
+  }
+
+  &__note {
+    font-size: 13px;
+    color: $trl-light-gray;
+    margin: 12px 0 0;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 12px;
+  }
+}

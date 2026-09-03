@@ -1,0 +1,32 @@
+# The rig's landing page, kept serving across reboots.
+#
+# A user unit for the same reasons gauntlet.service is one: it needs no root to
+# install, and it runs as the operator. ExecStart is rewritten by whichever of
+# the two installs it, for the same reason.
+#
+# Binding port 80 as an ordinary user is what the sysctl `setup-host.sh`
+# installs allows. Without it this unit starts, fails to bind, and says so.
+#
+# No host or port is named. serve-homepage.py defaults to 80 and to Gauntlet on
+# 127.0.0.1:7100, and its environment is where either is changed.
+
+[Unit]
+Description=Gauntlet rig landing page
+Documentation=https://github.com/gabephantrl11/trl-gauntlet
+# The page is a view of Gauntlet, so there is nothing to show before it is up.
+# Wants rather than Requires: the page renders and reports Gauntlet as down,
+# which is more use to someone looking at a broken bench than no page at all.
+After=network-online.target gauntlet.service
+Wants=network-online.target gauntlet.service
+# A bench is left alone for days at a time, so a page that fails to start
+# should keep saying so rather than being given up on after the first few.
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+ExecStart=@SERVE@
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

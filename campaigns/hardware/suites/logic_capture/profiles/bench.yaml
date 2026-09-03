@@ -1,10 +1,10 @@
 description: >
-  A minute of all eight probes at full rate. The starting point for a bench:
+  Half a minute of all eight probes at full rate. The starting point for a bench:
   name the probes for what they are clipped to, and say what each one is
   expected to be doing — a clock is `active`, a reset held out of reset is
   `high` — since a probe left as `any` is recorded but never fails a run.
 driver: real
-duration_s: 60
+duration_s: 30
 sample_period_s: 1
 rate: 24mhz
 window: 10ms

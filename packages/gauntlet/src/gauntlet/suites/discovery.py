@@ -24,6 +24,11 @@ _PROFILE_SUFFIXES = (".yaml", ".yml")
 # without hardware and proves the suite executes, so it is what an operator
 # reaches for before anything else.
 _FIRST_PROFILE = "smoke"
+
+# And the one offered last. It has no duration of its own and samples until
+# the operator stops it, so it is the profile least often wanted and the one
+# worst to start by accident.
+_LAST_PROFILE = "continuous"
 _MAX_DEPTH = 3
 
 
@@ -155,8 +160,13 @@ def list_profiles(suite: LoadedSuite, user_profiles_dir: Path | None = None) -> 
 
 
 def _profile_order(name: str) -> tuple[int, str]:
-    """Sort key putting the smoke profile first and the rest alphabetically."""
-    return (0 if Path(name).stem == _FIRST_PROFILE else 1, name)
+    """Sort key putting smoke first, continuous last, and the rest between."""
+    stem = Path(name).stem
+    if stem == _FIRST_PROFILE:
+        return (0, name)
+    if stem == _LAST_PROFILE:
+        return (2, name)
+    return (1, name)
 
 
 def resolve_profile(suite: LoadedSuite, name: str, user_profiles_dir: Path | None = None) -> Path | None:

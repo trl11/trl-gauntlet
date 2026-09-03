@@ -48,7 +48,7 @@ produces: [events, junit, manifest, metrics, summary, verdict]
 requires: [i2c, logic]
 
 supports:
-  target: true
+  target: false
   unit_serial: true
 
 default_metrics: [ads7128.faults, ads7128.pattern, ads7128.pins]
@@ -59,7 +59,11 @@ overrides:
     type: number
     label: Duration
     unit: s
-    minimum: 1
+    # Zero is a duration: it gives the loop no end of its own and the suite
+    # samples until the operator stops the run, which is what `continuous.yaml`
+    # ships. A floor of 1 would reject the value that profile seeds the form
+    # with.
+    minimum: 0
   - name: sample_period_s
     flag: --sample-period-s
     type: number

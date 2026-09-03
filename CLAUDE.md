@@ -17,7 +17,9 @@ anything in `frontend/`, [`docs/instruments.md`](docs/instruments.md)
 before changing anything in `capabilities/` or `instruments/`, and
 [`docs/campaigns.md`](docs/campaigns.md) before changing anything in
 `campaigns/`, and [`docs/deploying.md`](docs/deploying.md) before changing
-anything in `system/` or `scripts/deploy-bench.sh`.
+anything in `targets/service/` or `tools/deploy/`. Each directory under
+`targets/` has a README about itself, and
+[`targets/README.md`](targets/README.md) covers what the three share.
 
 ## Constraints
 
@@ -73,25 +75,29 @@ anything in `system/` or `scripts/deploy-bench.sh`.
 ## Layout
 
 ```
-app/                       Electron shell: the desktop target
 campaigns/                 campaign directories, each with its own suites
+campaigns/examples/        built-in: the reference suites and system_stats
 campaigns/hardware/        built-in: every suite that drives real hardware
-docker/                    the server image: the other target
 docs/                      contract specification and guides
-dist/                      finished artifacts from either (gitignored)
+dist/                      finished artifacts from any of them (gitignored)
 extras/trl-ui-kit/         shared component library (submodule)
 extras/trl-engineering-keys/  bench SSH and signing keys (submodule, dev)
 frontend/                  React frontend, built into gauntlet/web_dist
 packages/gauntlet/         application: discovery, supervisor, API, UI
 packages/gauntlet-sdk/     library suite authors install
 packages/gauntlet/src/gauntlet/scaffold/   suite scaffolder and its templates
-suites/                    reference suites and system_stats; hardware lives
-                           in the campaign above
-system/                    what a bench host needs: the udev rules the USB
-                           instruments require, the service that keeps a rig
-                           serving, and the landing page it answers port 80
-                           with
+targets/                   the three ways this ships, one directory each
+targets/app/               Electron shell: the desktop target
+targets/docker/            the server image: the second target
+targets/service/           the service a bench runs: the third, one deb
+targets/service/homepage/  the landing page a rig answers port 80 with
+tools/                     scripts that are not shipped: bench/, deploy/,
+                           release/
 ```
+
+Every suite ships inside a campaign. `suites/` at the root is the discovery
+default and where `make suite-new` scaffolds, so it exists only once something
+has been scaffolded into it.
 
 Inside `packages/gauntlet/src/gauntlet`: `api/` (one router module per
 resource), `campaigns/` (discovery and the manifest loader), `capabilities/`,
@@ -112,7 +118,7 @@ behind a toggle below 900px. There is no sidebar.
 | Task | Command |
 |---|---|
 | Setup | `make setup` |
-| Set the bench host up: udev rules and group, via `system/setup-host.sh` | `make install-udev-rules` |
+| Set the bench host up: udev rules and group, via `targets/service/setup-host.sh` | `make install-udev-rules` |
 | Report whether those rules reached the instruments | `make udev-check` |
 | Devcontainer | `make dev` / `make dev-stop` |
 | Build the frontend and serve, with auto-reload | `make run` |
@@ -131,6 +137,7 @@ behind a toggle below 900px. There is no sidebar.
 | Send `dist/` to a bench and leave it serving | `make deploy BENCH=user@host` |
 | Set a rig up from nothing: deploy, host setup, datasheets | `make deploy-rig RIG_IP=x.x.x.x` |
 | Build both installers into `dist/` | `make app-build` |
+| Package the rig service as one deb into `dist/` | `make service-build` |
 | Shell format-check, lint, typecheck | `make app-check` |
 | Run the server image | `make docker-run` / `make docker-stop` |
 | Write the image to `dist/` | `make docker-save` |
@@ -141,25 +148,26 @@ behind a toggle below 900px. There is no sidebar.
 Run `make check` before committing. Run `make suite-verify-run` as well when
 changing the launcher, the contract models, or the conformance checker,
 `make frontend-check` when changing anything under `frontend/`, and
-`make app-check` when changing anything under `app/`. `make verify` is all of
-it: the frontend build, `check`, the end-to-end test, and a real run of every
-conformance profile.
+`make app-check` when changing anything under `targets/app/`. `make verify` is
+all of it: the frontend build, `check`, the end-to-end test, and a real run of
+every conformance profile.
 
 Every directory that builds something shippable owns the Makefile that builds
-it — `app/`, `docker/`, `packages/gauntlet/`, `packages/gauntlet-sdk/` — and
-the top-level `app-*`, `docker-*`, `gauntlet-*` and `sdk-*` targets only
-delegate, so `make -C app build` and `make app-build` are the same thing.
-`make build` runs all of them. Paths, ports and `dist/` are declared once in
-`common.mk`, which they all include.
+it — the three under `targets/`, plus both packages — and the top-level
+`app-*`, `docker-*`, `gauntlet-*`, `sdk-*` and `service-*` targets only
+delegate, so `make -C targets/app build` and `make app-build` are the same
+thing. `make build` runs all of them. Paths, ports and `dist/` are declared
+once in `common.mk`, which they all include.
 
 `dist/` holds what someone who does not have this repository needs: the two
-installers, the image as a loadable tarball, the two wheels, and the host
-setup a bundle cannot do for itself — `setup-bench.sh`, the `setup-host.sh` it
-delegates the rules to, those udev rules, the `serve-gauntlet.sh`,
-`gauntlet.service` and `install-service.sh` that keep a rig serving across
-reboots, and the `README.txt` telling whoever unpacks a release to run it. It
-is gitignored, nothing else is written there, and only `make distclean`
-empties it, so an artifact from an earlier version stays until then.
+desktop installers, the rig deb, the image as a loadable tarball, the two
+wheels, and the loose copies of everything in `targets/service/` — the setup
+scripts, the udev rules, both units, the landing page and the `README.txt`
+telling whoever unpacks a release what to run. That loose half is for a bench
+installed by hand; the rig deb carries all of it inside and installs the rules
+and the sysctl itself. `dist/` is gitignored, nothing else is written there,
+and only `make distclean` empties it, so an artifact from an earlier version
+stays until then.
 
 The gauntlet wheel carries `web_dist` as package data, so anything building it
 builds the frontend first. A wheel built without it serves the placeholder in
@@ -231,11 +239,21 @@ and neither is on a package registry.
   carries a `label` derived from its filename — `smoke.yaml` shows as "Smoke".
   The label is computed, never declared, so no suite can ship a profile the UI
   has to fall back from.
-- A rig serves the backend without Electron: `serve-gauntlet.sh` unpacks the
-  AppImage and runs the Python inside it, so nothing there needs a display. Its
-  systemd unit is a user unit, because the udev rules grant the instruments to
-  the operator's groups and a deploy must not need root. The unit names no host
-  or port, so `config.yaml` stays the only place those are set.
+- A rig serves the backend without Electron: `serve-gauntlet.sh` runs the Python
+  in the bundle, so nothing there needs a display. A bundle is a directory
+  holding `runtime/` and `campaigns/`, and there are two of them: the deb
+  installs one at `/opt/gauntlet` with the script inside it, and the AppImage
+  carries one the script unpacks into `~/.cache/gauntlet`. Which it is, is
+  decided by whether a runtime sits beside the script.
+- Both units are systemd user units, because the udev rules grant the
+  instruments to the operator's groups and a deploy must not need root. Both
+  carry `@SERVE@` in `ExecStart`, rewritten by whichever install puts them in
+  place. Neither names a host or port, so `config.yaml` stays the only place
+  those are set.
+- The rig deb does the root half of a bench setup in `postinst` — udev, the
+  sysctl, the groups — and starts nothing. A user unit has to run as the
+  operator, and dpkg does not know which account that is, so the two commands
+  that start it are printed instead.
 - The landing page is a second service, not part of Gauntlet. It answers port
   80 so the bare address reaches a bench, and reads no telemetry of its own:
   `/api/` is proxied to Gauntlet on localhost, which keeps one implementation
@@ -273,43 +291,48 @@ its declared type, so a body that drifts from `api/types.ts` fails `tsc`.
 
 - `from __future__ import annotations` in every module.
 - `Path` over `str` for filesystem arguments.
-- Docstrings on public API. Comments explain non-obvious logic and describe
-  current behaviour only.
-- Alphabetical ordering where order is not otherwise meaningful.
-- Fix lint failures rather than adding ignores.
+- Alphabetical ordering where order is not otherwise meaningful; order
+  functions by process flow or by how often they are reached.
+- `make format` before building, and `make frontend-check` for the frontend.
+  ruff and mypy on the Python, Prettier and ESLint on the TypeScript. Fix a
+  lint failure rather than adding an ignore.
+- End every file with a newline.
 - TypeScript: no `any`, no type gymnastics, no wrappers over React Query or
   `request()`. `useState` unless a reducer is genuinely simpler. Props
   interfaces are documented; declare a prop only once something passes it.
 
-## Style
-
-- Keep lists alphabetical where order doesn't matter; order functions by process flow or frequency of use.
-- `make <component>-format` before building. clang-format + clang-tidy, ruff + mypy, Prettier + ESLint.
-- End every file with a newline.
-
 ### Writing code
 
 - **Write the simplest thing that works.** No speculative generality.
-- **No new abstraction until there are 2+ real callers.** Inline over indirection.
-- **No new dependency without asking**, and no new file or class the change does not need.
+- **No new abstraction until there are 2+ real callers.** Inline over
+  indirection.
+- **No new dependency without asking**, and no new file or class the change
+  does not need.
 - **No config options, feature flags or plugin hooks unless requested.**
-- **Handle only errors that can actually occur here.** No defensive try/catch around code that cannot throw.
+- **Handle only errors that can actually occur here.** No defensive try/catch
+  around code that cannot throw.
 - Prefer a free function over a class.
 
 ### Comments
 
 - **Default to none.** Reach for a clearer name or a smaller function first.
-- Write one only where a reader would otherwise get it wrong: a constraint imposed from outside the file, a non-obvious consequence, a deliberate choice that looks like a mistake.
-- Give the reason, not the mechanics. A comment paraphrasing the line below it should be deleted.
-- Describe the code as it stands — no history, no "previously/now", no ticket ids, no account of what a change fixed. That belongs in the commit message.
-- One or two lines. Doxygen/docstrings only on public APIs (`sdk/cpp/`, `sdk/python/`, `sdk/public/`).
+  Docstrings on public API.
+- Write one only where a reader would otherwise get it wrong: a constraint
+  imposed from outside the file, a non-obvious consequence, a deliberate choice
+  that looks like a mistake.
+- Give the reason, not the mechanics. A comment paraphrasing the line below it
+  should be deleted.
+- Describe the code as it stands — no history, no "previously/now", no ticket
+  ids, no account of what a change fixed. That belongs in the commit message.
+- One or two lines.
 
 ## Don'ts
 
-- **Never edit `CHANGELOG.md`.** It is written by hand when a release is cut.
 - Never commit or push unless asked. Branch first if on the default branch.
-- Never delete unrelated dead code — mention it instead. Remove only what your own change orphaned.
+- Never delete unrelated dead code — mention it instead. Remove only what your
+  own change orphaned.
 - Never put a `.plan/` or `docs/plans/` reference in a shipped file.
 
-Two positives that belong beside them: update `docs/dev` alongside the change, and put an issue you find outside the current task in `.todo` (git-ignored) after asking first.
-
+Two positives that belong beside them: update `docs/` alongside the change, and
+put an issue you find outside the current task in `.todo` (git-ignored) after
+asking first.

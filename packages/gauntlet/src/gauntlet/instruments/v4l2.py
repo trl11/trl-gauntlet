@@ -53,6 +53,16 @@ class V4l2Error(RuntimeError):
     """The device refused an ioctl, or produced no frame."""
 
 
+class V4l2Timeout(V4l2Error):
+    """No frame arrived in time, from a device that is still open.
+
+    Told apart from the rest because the two call for opposite handling: a
+    device that has gone answers every ioctl the same way and is worth
+    dropping, while a late frame says nothing about the device beyond that
+    this capture missed.
+    """
+
+
 def _ioc(direction: int, size: int, number: int) -> int:
     """One ioctl request number, encoded the way `asm-generic/ioctl.h` does."""
     return (direction << 30) | (size << 16) | (ord("V") << 8) | number
@@ -352,10 +362,10 @@ class V4l2Camera:
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise V4l2Error(f"{self._path}: no frame within {timeout_s:g}s")
+                raise V4l2Timeout(f"{self._path}: no frame within {timeout_s:g}s")
             ready, _, _ = select.select([fd], [], [], remaining)
             if not ready:
-                raise V4l2Error(f"{self._path}: no frame within {timeout_s:g}s")
+                raise V4l2Timeout(f"{self._path}: no frame within {timeout_s:g}s")
 
             buffer = self._buffer()
             self._ioctl(VIDIOC_DQBUF, buffer)

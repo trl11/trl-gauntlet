@@ -1,0 +1,43 @@
+# Gauntlet as a server. From this directory, `docker compose up` builds the
+# image and serves on 7100.
+
+services:
+  gauntlet:
+    build:
+      # The build copies both packages, the frontend and the ui-kit, so the
+      # context is the repository rather than this directory.
+      context: ../..
+      dockerfile: targets/docker/Dockerfile
+    image: gauntlet:latest
+    ports:
+      - "${GAUNTLET_PORT:-7100}:7100"
+    volumes:
+      # Runs, the run index and config. The only state the server keeps.
+      - gauntlet-data:/data
+      # A suite belonging to no campaign. Every built-in suite belongs to one
+      # and arrives with it below, so this root is for suites of your own.
+      # Point GAUNTLET_SUITES at a directory; the default is empty, and
+      # discovery skips a root with nothing in it.
+      #
+      # The daemon resolves the source against its own host. Run from the
+      # devcontainer that is not this file's directory, so the devcontainer
+      # exports the host's path to the checkout.
+      - ${GAUNTLET_SUITES:-${GAUNTLET_HOST_WORKSPACE:-../..}/targets/docker/suites}:/suites:ro
+      # Campaigns beyond the built-in ones, on the same terms. A campaign
+      # carries its own suites, so one mounted here brings them with it and
+      # needs no second mount above.
+      - ${GAUNTLET_CAMPAIGNS:-${GAUNTLET_HOST_WORKSPACE:-../..}/targets/docker/campaigns}:/campaigns:ro
+    restart: unless-stopped
+
+    # A suite that drives real hardware needs the device the transport speaks
+    # to. SocketCAN additionally needs the host's network namespace, since a
+    # can0 interface cannot be passed through like a character device.
+    #
+    # devices:
+    #   - /dev/ttyUSB0:/dev/ttyUSB0
+    # network_mode: host
+    # cap_add:
+    #   - NET_ADMIN
+
+volumes:
+  gauntlet-data:

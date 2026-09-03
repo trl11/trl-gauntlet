@@ -1,6 +1,6 @@
 #
-# Paths and ports, shared by the top-level Makefile and the ones in app/ and
-# docker/. Included rather than passed down, so a sub-make invoked directly
+# Paths and ports, shared by the top-level Makefile and the three under
+# targets/. Included rather than passed down, so a sub-make invoked directly
 # knows as much as one the top level delegated to.
 #
 
@@ -22,39 +22,52 @@ BIN          := $(VENV)/bin
 PY           := $(BIN)/python
 APP          := $(ROOT)/packages/gauntlet
 SDK          := $(ROOT)/packages/gauntlet-sdk
+# Where a suite belonging to no test programme goes. Nothing is shipped here:
+# every suite in this repository belongs to a campaign, so the directory exists
+# only once `make suite-new` has scaffolded one into it.
 SUITES       := $(ROOT)/suites
 CAMPAIGNS    := $(ROOT)/campaigns
 # Every suite, wherever it lives. A campaign carries its own, so checking
-# $(SUITES) alone silently skips them.
-SUITE_SOURCES := $(SUITES) $(CAMPAIGNS)
+# $(SUITES) alone silently skips them, and $(SUITES) is only a source once it
+# is there to be one.
+SUITE_SOURCES := $(wildcard $(SUITES)) $(CAMPAIGNS)
 FRONTEND     := $(ROOT)/frontend
-# What a host needs before it can drive the instruments: the udev rules for the
-# devices Gauntlet claims itself, the script that installs them, and the note
-# telling whoever unpacks a release to run it. Installed on the bench, not in
-# the devcontainer, so all of them ship beside the installers.
-SYSTEM         := $(ROOT)/system
-UDEV_RULES     := $(SYSTEM)/99-gauntlet-instruments.rules
-UDEV_RULES_DIR := /etc/udev/rules.d
-HOST_SETUP     := $(SYSTEM)/setup-host.sh
-BENCH_SETUP    := $(SYSTEM)/setup-bench.sh
-HOST_README    := $(SYSTEM)/README.txt
-# And what a bench left running as a rig needs on top of that: the backend
-# without its window, and the user unit that keeps it serving across reboots.
-SERVE_SCRIPT   := $(SYSTEM)/serve-gauntlet.sh
-SERVICE_SETUP  := $(SYSTEM)/install-service.sh
-SERVICE_UNIT   := $(SYSTEM)/gauntlet.service
-# And the landing page a rig answers on port 80 with, so the bare address
-# reaches the bench: the page, the server for it, its unit, and the sysctl that
-# lets a user unit bind a port below 1024.
-PAGE_HTML      := $(SYSTEM)/homepage.html
-PAGE_SERVE     := $(SYSTEM)/serve-homepage.py
-PAGE_UNIT      := $(SYSTEM)/homepage.service
-PORT_SYSCTL    := $(SYSTEM)/60-gauntlet-unprivileged-ports.conf
 FRONTEND_OUT := $(APP)/src/gauntlet/web_dist
+
+# The three ways this ships, each owning the Makefile that builds it.
+TARGETS         := $(ROOT)/targets
 # The Electron shell, and the relocatable CPython it ships the backend in.
-DESKTOP         := $(ROOT)/app
+DESKTOP         := $(TARGETS)/app
 DESKTOP_RUNTIME := $(DESKTOP)/runtime
-DOCKER          := $(ROOT)/docker
+DOCKER          := $(TARGETS)/docker
+# Everything a bench host needs and the desktop bundle cannot carry: the udev
+# rules for the devices Gauntlet claims itself, the scripts that install them,
+# the services that keep a rig serving, and the landing page it answers port 80
+# with. `make service-build` packages the lot as one deb; the same files also
+# ship beside the installers, for a bench that installs by hand.
+SERVICE        := $(TARGETS)/service
+UDEV_RULES     := $(SERVICE)/99-gauntlet-instruments.rules
+UDEV_RULES_DIR := /etc/udev/rules.d
+HOST_SETUP     := $(SERVICE)/setup-host.sh
+BENCH_SETUP    := $(SERVICE)/setup-bench.sh
+HOST_README    := $(SERVICE)/README.txt
+# What a bench left running as a rig needs on top of that: the backend without
+# its window, and the user unit that keeps it serving across reboots.
+SERVE_SCRIPT   := $(SERVICE)/serve-gauntlet.sh
+SERVICE_SETUP  := $(SERVICE)/install-service.sh
+SERVICE_UNIT   := $(SERVICE)/gauntlet.service
+# And the landing page a rig answers on port 80 with, so the bare address
+# reaches the bench: the page, its banner, the server for it, its unit, and the
+# sysctl that lets a user unit bind a port below 1024.
+PAGE           := $(SERVICE)/homepage
+PAGE_HTML      := $(PAGE)/homepage.html
+PAGE_BANNER    := $(PAGE)/blinky.png
+PAGE_SERVE     := $(PAGE)/serve-homepage.py
+PAGE_UNIT      := $(PAGE)/gauntlet-homepage.service
+PORT_SYSCTL    := $(SERVICE)/60-gauntlet-unprivileged-ports.conf
+# And what lets the operator power the bench down from the UI. logind refuses
+# that to a user with no session, which is what a lingering user manager is.
+POLKIT_RULES   := $(SERVICE)/polkit/50-gauntlet-power.pkla
 
 # Every port this project binds, in one place so that two of them cannot be
 # given the same number.

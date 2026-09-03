@@ -1,0 +1,6 @@
+description: >
+  Half a minute for checking the bench before a beam-line session. The
+  measurement for the TMP100AQDBVRQ1 is not implemented yet, so this runs the same
+  scaffold the beam-line profile does, for half a minute rather than five.
+duration_s: 30.0
+sample_period_s: 1.0

@@ -48,6 +48,9 @@ help:
 	@echo "    make docker-save       write the image to dist/ as a tarball"
 	@echo "    make docker-stop       stop and remove it"
 	@echo ""
+	@echo "  Ship: the rig service"
+	@echo "    make service-build     package the rig service as one deb into dist/"
+	@echo ""
 	@echo "  Ship: the desktop app"
 	@echo "    make app-dev           run the shell against the checkout"
 	@echo "    make app-runtime       fetch CPython and install Gauntlet into it"
@@ -135,7 +138,7 @@ install-udev-rules:
 # included, because it asks about /dev rather than about udev.
 udev-check:
 	@echo "==> instruments the rules cover"
-	@python3 $(ROOT)/scripts/udev_check.py
+	@python3 $(ROOT)/tools/bench/udev_check.py
 
 # ---------------------------------------------------------------------------
 # Develop
@@ -220,7 +223,7 @@ frontend-check: frontend-install
 # exist so that one `make help` lists everything; each delegates and adds
 # nothing.
 
-.PHONY: app-build app-check app-dev app-runtime app-smoke build deploy deploy-rig docker-build docker-run docker-save docker-stop gauntlet-build sdk-build
+.PHONY: app-build app-check app-dev app-runtime app-smoke build deploy deploy-rig docker-build docker-run docker-save docker-stop gauntlet-build sdk-build service-build
 
 app-build app-check app-dev app-runtime app-smoke:
 	@$(MAKE) --no-print-directory -C $(DESKTOP) $(patsubst app-%,%,$@)
@@ -230,6 +233,9 @@ docker-build docker-run docker-save docker-stop:
 
 gauntlet-build:
 	@$(MAKE) --no-print-directory -C $(APP) $(patsubst gauntlet-%,%,$@)
+
+service-build:
+	@$(MAKE) --no-print-directory -C $(SERVICE) $(patsubst service-%,%,$@)
 
 sdk-build:
 	@$(MAKE) --no-print-directory -C $(SDK) $(patsubst sdk-%,%,$@)
@@ -244,7 +250,7 @@ sdk-build:
 # because a prerequisite would be free to run before the directory is cleared.
 build: version-check
 	@rm -rf $(DIST)
-	@$(MAKE) --no-print-directory sdk-build gauntlet-build docker-save app-build
+	@$(MAKE) --no-print-directory sdk-build gauntlet-build docker-save app-build service-build
 	@echo ""
 	@echo "dist/"
 	@ls -1sh $(DIST) | tail -n +2 | sed 's/^/  /'
@@ -255,7 +261,7 @@ build: version-check
 # working tree happens to be now.
 deploy:
 	@test -n "$(BENCH)" || { echo "usage: make deploy BENCH=user@host [BENCH_DIR=gauntlet]"; exit 2; }
-	@$(ROOT)/scripts/deploy-bench.sh $(BENCH) $(or $(BENCH_DIR),gauntlet)
+	@$(ROOT)/tools/deploy/deploy-bench.sh $(BENCH) $(or $(BENCH_DIR),gauntlet)
 
 # Everything `deploy` does, plus the host setup a bench has only once: the
 # packages, the udev rules, the groups, the sysctl that lets the landing page
@@ -264,7 +270,7 @@ deploy:
 # rig that has.
 deploy-rig:
 	@test -n "$(RIG_IP)" || { echo "usage: make deploy-rig RIG_IP=x.x.x.x [RIG_USER=trl] [BENCH_DIR=gauntlet]"; exit 2; }
-	@$(ROOT)/scripts/deploy-rig.sh $(RIG_IP) $(or $(RIG_USER),trl) $(or $(BENCH_DIR),gauntlet)
+	@$(ROOT)/tools/deploy/deploy-rig.sh $(RIG_IP) $(or $(RIG_USER),trl) $(or $(BENCH_DIR),gauntlet)
 
 # ---------------------------------------------------------------------------
 # Suites
@@ -313,10 +319,10 @@ check: version-check format-check lint typecheck gauntlet-test suite-test fronte
 # VERSION is the number; every manifest carries a copy because neither
 # setuptools nor npm can read one from outside its own directory.
 version-check:
-	@$(PY) $(ROOT)/scripts/version.py check
+	@$(PY) $(ROOT)/tools/release/version.py check
 
 version-sync:
-	@$(PY) $(ROOT)/scripts/version.py sync
+	@$(PY) $(ROOT)/tools/release/version.py sync
 
 # Every test in the project, and nothing else.
 test: gauntlet-test suite-test frontend-test test-e2e

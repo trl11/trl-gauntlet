@@ -15,7 +15,7 @@ Most work here does not become a pull request. A branch is merged into `main` lo
 2. Run the checks for what the branch touched, from the table in `CLAUDE.md`:
    - `make check` — always. This is what CI runs.
    - `make frontend-check` — anything under `frontend/`.
-   - `make app-check` — anything under `app/`.
+   - `make app-check` — anything under `targets/app/`.
    - `make suite-verify-run` — the launcher, the contract models, or the conformance checker.
    - `make verify` is all of it including a real run of every conformance profile. It takes a long time; don't run it unless asked.
 3. `git fetch origin`, then `git log origin/main..HEAD --oneline` to read your own commits. The description is written from the branch as a whole, not from the last commit.

@@ -408,7 +408,8 @@ The kernel's usbserial drivers already create `/dev/ttyUSB*` and `/dev/ttyACM*`
 owned by `dialout`, which is why the PSU needs nothing installed. An instrument
 driven over raw USB is claimed through usbfs, whose nodes default to
 `root:root 0664` — enough to read descriptors, not enough to talk. That is what
-`system/99-gauntlet-instruments.rules` settles, and `system/setup-host.sh`
+`targets/service/99-gauntlet-instruments.rules` settles, and
+`targets/service/setup-host.sh`
 installs it:
 
 ```
@@ -442,7 +443,7 @@ on, so whoever unpacks a release has to, and the README is what tells them.
 `make udev-check` is the report on its own, and does run in the devcontainer:
 it asks what `/dev` looks like now, not what udev was told. Both read the vendor
 ids out of the rules file rather than repeating them, so a rule added there is
-covered without touching `scripts/udev_check.py`.
+covered without touching `tools/bench/udev_check.py`.
 
 Until the rule is installed the node can be opened by hand with
 `sudo chgrp dialout /dev/bus/usb/<bus>/<device> && sudo chmod 660` on the same

@@ -1,0 +1,12 @@
+description: >
+  Half a minute on the real part, one sample a second, for checking the bench
+  before a beam-line session. The same eight probes the beam-line profile
+  drives, for long enough to show the pattern holding and no longer.
+driver: real
+address: 16
+probe_map: [5, 3, 1, 7, 8, 6, 4, 2]
+rate: 1mhz
+window: 1ms
+duration_s: 30.0
+sample_period_s: 1.0
+save_traces: true

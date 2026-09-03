@@ -1,4 +1,4 @@
-"""Health, settings, versions, contract schemas, and host telemetry.
+"""Health, settings, versions, contract schemas, host telemetry, and power.
 
 The telemetry endpoints report what :mod:`gauntlet.api.host_stats` reads from
 the host. ``cpu_percent`` is the one reading a single sample cannot give, so
@@ -7,15 +7,36 @@ the previous ``/proc/stat`` reading is kept on ``app.state``.
 
 from __future__ import annotations
 
+import logging
+import shutil
+import subprocess
 import sys
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request
 from gauntlet_sdk.contract import CONTRACT_MODELS, CONTRACT_VERSION, json_schema
+from pydantic import BaseModel, ConfigDict
 
 from gauntlet.api import host_stats
 
+log = logging.getLogger("gauntlet.api.system")
+
 router = APIRouter()
+
+# Long enough to reach logind and be told the request was accepted, short
+# enough that a host which will not answer does not hold the request open. The
+# machine goes down after this returns, not during it.
+_POWER_TIMEOUT_S = 10.0
+
+_POWER_COMMANDS = {"poweroff": "poweroff", "reboot": "reboot"}
+
+
+class PowerBody(BaseModel):
+    """Which way to take the host down."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action: Literal["poweroff", "reboot"]
 
 
 @router.get("/health")
@@ -90,3 +111,54 @@ async def system_data(request: Request) -> dict[str, Any]:
         "uptime_s": host_stats.uptime(),
         "process_count": host_stats.process_count(),
     }
+
+
+@router.post("/system/power")
+async def system_power(request: Request, body: PowerBody) -> dict[str, Any]:
+    """Take this host down, so a rig needs neither a login nor its power switch.
+
+    Refused while a run is in flight: a suite mid-measurement is the one thing
+    on the bench that cannot be restarted from where it left off, and an
+    operator who meant to stop it can.
+
+    ``systemctl`` rather than a signal of our own, because logind is what
+    unmounts the disks and stops the units in order. It needs no root: the
+    services run as the operator, and logind lets a local user power off the
+    machine they are the only one on. A host that refuses says so, and the
+    reason reaches the operator rather than the log alone.
+    """
+    action = _POWER_COMMANDS[body.action]
+
+    active = request.app.state.supervisor.active()
+    if active is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{active.suite} is running as {active.run_id}; stop it first",
+        )
+
+    systemctl = shutil.which("systemctl")
+    if systemctl is None:
+        raise HTTPException(status_code=503, detail="there is no systemctl on this host")
+
+    log.warning("%s requested through the API", action)
+    try:
+        finished = subprocess.run(
+            [systemctl, action],
+            capture_output=True,
+            text=True,
+            timeout=_POWER_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise HTTPException(status_code=504, detail=f"{action} did not answer in time") from exc
+    if finished.returncode != 0:
+        detail = (finished.stderr or finished.stdout or "").strip()
+        # Polkit allows this without a password only for a user with an active
+        # local session, and a rig serves from a lingering user manager that
+        # has none. Saying which step installs the rule is the difference
+        # between a fixable message and a puzzle, because the account really
+        # does have the right and only from a console.
+        if "authentication required" in detail.lower():
+            detail = f"{detail} Run setup-host.sh on this bench to install the polkit rule that allows it."
+        raise HTTPException(status_code=502, detail=detail or f"{action} was refused")
+
+    return {"action": body.action, "status": "accepted"}

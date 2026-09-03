@@ -1,8 +1,8 @@
-[submodule "extras/trl-ui-kit"]
-	path = extras/trl-ui-kit
-	url = git@github.com:trl11/trl-ui-kit.git
-	branch = dev
 [submodule "extras/trl-engineering-keys"]
 	path = extras/trl-engineering-keys
 	url = git@github.com:trl11/trl-engineering-keys.git
+	branch = dev
+[submodule "extras/trl-ui-kit"]
+	path = extras/trl-ui-kit
+	url = git@github.com:trl11/trl-ui-kit.git
 	branch = dev

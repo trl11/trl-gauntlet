@@ -764,6 +764,15 @@ export interface Settings {
   [key: string]: unknown;
 }
 
+/** What `POST /api/system/power` was asked to do. */
+export type PowerAction = "poweroff" | "reboot";
+
+/** `POST /api/system/power`. The host goes down after this answers. */
+export interface PowerResult {
+  action: PowerAction;
+  status: string;
+}
+
 /**
  * `GET /api/system/info`. Static host facts.
  *

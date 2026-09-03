@@ -9,7 +9,7 @@ import HistoryPage from "@pages/HistoryPage";
 import InstrumentsPage from "@pages/InstrumentsPage";
 import NotFoundPage from "@pages/NotFoundPage";
 import RunPage from "@pages/RunPage";
-import SettingsPage from "@pages/SettingsPage";
+import SystemPage from "@pages/SystemPage";
 import TestsPage from "@pages/TestsPage";
 import UnitsPage from "@pages/UnitsPage";
 
@@ -43,7 +43,7 @@ export const App: React.FC = () => (
             <Route path="units" element={<UnitsPage />} />
             <Route path="units/:serial" element={<UnitsPage />} />
             <Route path="instruments" element={<InstrumentsPage />} />
-            <Route path="settings" element={<SettingsPage />} />
+            <Route path="system" element={<SystemPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>

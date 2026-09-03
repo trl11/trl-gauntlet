@@ -56,6 +56,10 @@ def _setup(ctx: SuiteContext) -> None:
     camera = Camera(granted.url)
     ctx.extras[_CAMERA] = camera
     try:
+        camera.own()
+    except CameraError as exc:
+        warn(f"{granted.instance_id}: could not open the camera: {exc}")
+    try:
         state = camera.state()
     except CameraError as exc:
         # Not fatal: the snapshots are what the run is for, and the first one
