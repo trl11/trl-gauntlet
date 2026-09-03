@@ -1,4 +1,4 @@
-"""Command-line entry point."""
+"""Command-line entry point for the SSD dose suite."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from suite.runner import SPEC
 
 def _extra_args(parser: argparse.ArgumentParser) -> None:
     """Flags beyond the contract's own, matching `overrides:` in suite.yaml."""
-    parser.add_argument("--driver", choices=["real", "mock"], default=None, help="drive a real disk, or synthesise")
+    parser.add_argument("--driver", choices=["real", "mock"], default=None, help="drive real hardware, or synthesise")
     parser.add_argument("--ssh-user", default=None, help="login on the unit (default trl)")
     parser.add_argument("--ssh-key-path", default=None, help="private key to authenticate with")
 
@@ -25,8 +25,8 @@ def _extra_overrides(args: argparse.Namespace) -> dict[str, Any]:
 
 main = make_suite_cli(
     SPEC,
-    prog="ssd",
-    description="Check that an SSD on the unit writes, reads back and reports clean.",
+    prog="tid_ssd",
+    description="Measure SSD bandwidth, data integrity and NVMe health under total ionising dose.",
     extra_args=_extra_args,
     extra_overrides=_extra_overrides,
 )

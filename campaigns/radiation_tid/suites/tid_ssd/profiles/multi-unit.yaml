@@ -1,0 +1,44 @@
+description: >
+  Several drives characterised in one exposure, one unit each, probed
+  concurrently for eight hours. Their metrics are namespaced under
+  `units.<name>.*` and each drive gets its own verdict rows, so one part
+  degrading does not hide behind the rest. Add one entry per machine
+  holding a drive, with `host` set to that machine.
+
+  Two units must not name the same host: every unit shares the one `probe:`
+  block below, so both would write the same `test_path` at the same moment and
+  report each other's bytes as SHA-256 miscompares. Under a beam that reads as
+  the drive corrupting data.
+driver: real
+duration_s: 28800.0
+sample_period_s: 30.0
+
+# The login on the unit. The key is the engineering key carried in the
+# extras/trl-engineering-keys submodule, so nothing has to be exported or
+# copied into ~/.ssh; set ssh_key_path only on a bench using a different one.
+ssh_user: trl
+
+units:
+  - {name: uut0, host: 192.168.11.196}
+
+probe:
+  devices:
+    - name: nvme0
+      device: /dev/nvme0n1
+      test_path: /mnt/ssd-test/gauntlet_ssd_io.bin
+  test_size_mb: 256
+  verify_size_kb: 256
+
+dmesg:
+  enabled: true
+
+psu:
+  enabled: true
+
+monitor:
+  enabled: true
+  sample_period_s: 30.0
+
+pass_criteria:
+  require_measurement: true
+  require_device_at_end: false

@@ -1,4 +1,4 @@
-"""Profile model for the SSD endurance suite."""
+"""Profile model for the SSD check."""
 
 from __future__ import annotations
 
@@ -20,16 +20,7 @@ class Device(BaseModel):
 
 
 def _default_devices() -> list[Device]:
-    return [Device(name="nvme0", device="/dev/nvme0n1", test_path="/var/tmp/gauntlet_ssd_io.bin")]
-
-
-class Unit(BaseModel):
-    """One unit under test."""
-
-    model_config = ConfigDict(extra="forbid", title="Unit")
-
-    name: str = Field(description="Label keying this unit's metrics, verdict rows and anomalies.")
-    host: str = Field(description="Address to connect to.")
+    return [Device(name="nvme0", device="/dev/nvme0n1", test_path="/mnt/ssd-test/gauntlet_ssd_io.bin")]
 
 
 class ProbeBlock(BaseModel):
@@ -45,45 +36,20 @@ class ProbeBlock(BaseModel):
     ssh_timeout_s: float = Field(default=30.0, gt=0, description="Per-probe SSH timeout.")
 
 
-class ProvisionBlock(BaseModel):
-    """Prepare a unit whose disk is not already mounted.
-
-    Disabled by default. When enabled the suite formats, mounts, and installs
-    the probe before the first tick.
-    """
-
-    model_config = ConfigDict(extra="forbid", title="Provision")
-
-    enabled: bool = False
-    device: str = Field(default="/dev/nvme0n1", description="Disk to prepare. Formatting destroys its contents.")
-    mount_point: str = "/mnt/ssd-test"
-    filesystem: str = "ext4"
-    format_device: bool = Field(default=True, description="Format before mounting. Destructive.")
-    install_dir: str = Field(default="/tmp/gauntlet-ssd", description="Where the probe script is installed.")
-    format_timeout_s: float = Field(default=180.0, gt=0)
-
-
 class PassCriteria(BaseModel):
-    """Session budgets."""
+    """What a working disk has to manage.
+
+    The budget is zero: this run is short enough that anything anomalous in it
+    is a reason to look at the disk rather than a rate to stay under.
+    """
 
     model_config = ConfigDict(extra="forbid", title="Pass criteria")
 
-    max_anomalies: int = Field(default=100, ge=0, description="Anomalies tolerated per unit.")
-    max_verify_failures: int = Field(default=0, ge=0, description="Data miscompares tolerated per unit.")
-    require_alive_at_end: bool = True
-
-
-class MonitorBlock(BaseModel):
-    """Background sampling of the unit while the session runs."""
-
-    model_config = ConfigDict(extra="forbid", title="Monitor")
-
-    enabled: bool = True
-    sample_period_s: float = Field(default=10.0, gt=0)
+    max_anomalies: int = Field(default=0, ge=0, description="Anomalies tolerated across the run.")
 
 
 class SsdProfile(BaseModel):
-    """An SSD endurance session."""
+    """An SSD check."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -93,15 +59,16 @@ class SsdProfile(BaseModel):
         pattern="^(real|mock)$",
         description="`mock` synthesises plausible numbers with no unit attached.",
     )
-    duration_s: float = Field(
-        default=3600.0, ge=0, description="How long to keep probing. 0 runs until the operator stops the run."
-    )
-    sample_period_s: float = Field(default=5.0, gt=0, description="Seconds between probe ticks.")
-    units: list[Unit] = Field(
-        default_factory=list,
-        description="Units probed concurrently each tick. Empty means the single run target.",
+    duration_s: float = Field(default=30.0, ge=0, description="How long to keep probing.")
+    sample_period_s: float = Field(default=10.0, gt=0, description="Seconds between probe ticks.")
+    # Named here rather than left to `GAUNTLET_SSH_USER` and `GAUNTLET_SSH_KEY`:
+    # a run started from the app inherits whatever shell launched the server, so
+    # a login that lives only in an exported variable is one nobody remembers to
+    # set, and the run fails against `root`.
+    ssh_user: str = Field(default="trl", description="Login on the unit.")
+    ssh_key_path: str = Field(
+        default="",
+        description="Private key to authenticate with. Empty uses the bundled engineering key.",
     )
     probe: ProbeBlock = Field(default_factory=ProbeBlock)
-    provision: ProvisionBlock = Field(default_factory=ProvisionBlock)
-    monitor: MonitorBlock = Field(default_factory=MonitorBlock)
     pass_criteria: PassCriteria = Field(default_factory=PassCriteria)

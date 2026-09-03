@@ -1,11 +1,21 @@
-description: Two-minute check against a mounted NVMe disk.
+description: >
+  Half a minute against the disk on the unit: three ticks of write, read and
+  SHA-256 verify, with the SMART counters read before and after. This is the
+  quick answer to whether a disk works. Anything anomalous fails the run,
+  because over three ticks there is no rate to average away.
 driver: real
-duration_s: 120.0
+duration_s: 30.0
 sample_period_s: 10.0
+
+# The login on the unit. The key is the engineering key carried in the
+# extras/trl-engineering-keys submodule, so nothing has to be exported or
+# copied into ~/.ssh; set ssh_key_path only on a bench using a different one.
+ssh_user: trl
+
 probe:
   devices:
     - name: nvme0
       device: /dev/nvme0n1
-      test_path: /var/tmp/gauntlet_ssd_io.bin
+      test_path: /mnt/ssd-test/gauntlet_ssd_io.bin
   test_size_mb: 64
   verify_size_kb: 64

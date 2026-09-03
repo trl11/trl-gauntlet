@@ -1,7 +1,7 @@
 """Runs the SSD probe and evaluates its results.
 
-The measurement is ``probe.sh``, executed on the unit. One SSH round-trip per
-device per tick returns write bandwidth, read bandwidth, a SHA-256
+The measurement is ``probe.sh``, fed to the unit on stdin. One SSH round-trip
+per device per tick returns write bandwidth, read bandwidth, a SHA-256
 write-verify, and SMART counters.
 """
 
@@ -14,7 +14,7 @@ from typing import Any
 
 from gauntlet_sdk.remote import RemoteError, run, shell_quote
 
-from suite.profile import Device, ProbeBlock, ProvisionBlock
+from suite.profile import Device, ProbeBlock
 
 PROBE_SCRIPT = Path(__file__).parent / "probe.sh"
 
@@ -57,47 +57,6 @@ def load_script() -> str:
     return PROBE_SCRIPT.read_text()
 
 
-def install(client: Any, install_dir: str, *, timeout: float) -> str:
-    """Copy the probe onto the unit and return its remote path."""
-    remote_path = f"{install_dir.rstrip('/')}/probe.sh"
-    body = shell_quote(load_script())
-    command = f"mkdir -p {shell_quote(install_dir)} && printf '%s' {body} > {shell_quote(remote_path)} && chmod +x {shell_quote(remote_path)}"
-    result = run(client, command, timeout=timeout)
-    if not result.ok:
-        raise RemoteError(f"installing probe to {remote_path}: {result.output}")
-    return remote_path
-
-
-def provision(client: Any, block: ProvisionBlock, *, ssh_user: str, timeout: float) -> None:
-    """Make ``mount_point`` a writable filesystem on the unit.
-
-    Returns without formatting when a filesystem is already mounted there.
-    """
-    mount = shell_quote(block.mount_point)
-    already = run(client, f"mountpoint -q {mount} && echo mounted || true", timeout=timeout)
-    if "mounted" in already.stdout:
-        return
-
-    if block.format_device:
-        fmt = run(
-            client,
-            f"sudo -n mkfs.{block.filesystem} -F {shell_quote(block.device)}",
-            timeout=block.format_timeout_s,
-        )
-        if not fmt.ok:
-            raise RemoteError(f"formatting {block.device}: {fmt.output}")
-
-    steps = (
-        f"sudo -n mkdir -p {mount}",
-        f"sudo -n mount {shell_quote(block.device)} {mount}",
-        f"sudo -n chown {shell_quote(ssh_user)} {mount}",
-    )
-    for step in steps:
-        result = run(client, step, timeout=timeout)
-        if not result.ok:
-            raise RemoteError(f"provisioning ({step}): {result.output}")
-
-
 def read_smart_baseline(client: Any, devices: list[Device], *, timeout: float) -> dict[str, dict[str, int]]:
     """Snapshot SMART counters before the session starts.
 
@@ -121,21 +80,22 @@ def read_smart_baseline(client: Any, devices: list[Device], *, timeout: float) -
     return baselines
 
 
-def probe_command(block: ProbeBlock, device: Device, installed_path: str | None) -> str:
-    """Build the per-tick command for one device."""
-    script = installed_path or "/dev/stdin"
+def probe_command(block: ProbeBlock, device: Device) -> str:
+    """Build the per-tick command for one device.
+
+    The script is fed in on stdin rather than installed, so a unit keeps
+    nothing of the suite between runs.
+    """
     args = f"{shell_quote(device.device)} {shell_quote(device.test_path)} {int(block.test_size_mb)} {int(block.verify_size_kb)}"
-    if installed_path:
-        return f"bash {shell_quote(script)} {args}"
     return f"bash -s -- {args} <<'GAUNTLET_PROBE_EOF'\n{load_script()}\nGAUNTLET_PROBE_EOF"
 
 
-def run_probe(client: Any, block: ProbeBlock, device: Device, installed_path: str | None) -> dict[str, Any]:
+def run_probe(client: Any, block: ProbeBlock, device: Device) -> dict[str, Any]:
     """Probe one device and return its parsed JSON result.
 
     Raises on transport failure or unparsable output.
     """
-    result = run(client, probe_command(block, device, installed_path), timeout=block.ssh_timeout_s)
+    result = run(client, probe_command(block, device), timeout=block.ssh_timeout_s)
     text = result.stdout.strip()
     if not text:
         raise RemoteError(f"probe produced no output for {device.name}: {result.stderr.strip()[-300:]}")
@@ -165,6 +125,21 @@ def synth_probe(device: Device) -> dict[str, Any]:
 def evaluate(state: DeviceState, block: ProbeBlock, device: Device, result: dict[str, Any]) -> list[Anomaly]:
     """Fold one probe result into ``state`` and return what was anomalous."""
     anomalies: list[Anomaly] = []
+
+    if result.get("test_path_ok") is False:
+        # No bandwidth was measured: the figure would have been another disk's.
+        anomalies.append(
+            Anomaly(
+                "device",
+                "test_path_not_on_device",
+                {
+                    "device": device.name,
+                    "device_disk": result.get("device_disk"),
+                    "test_path": device.test_path,
+                    "test_path_disk": result.get("test_path_disk"),
+                },
+            )
+        )
 
     if result.get("cache_drop_failed"):
         # Reads are served from page cache when the drop fails.

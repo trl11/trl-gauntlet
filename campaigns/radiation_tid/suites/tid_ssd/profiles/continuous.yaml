@@ -1,0 +1,37 @@
+description: >
+  The beam-line profile, run continuously: one measurement every thirty seconds
+  for as long as the exposure lasts. Nothing is gated tightly, for the reason
+  `standard.yaml` gives. The run has no end of its own: it samples until the
+  operator stops it from the app, and the verdict is taken over what was
+  collected, so a session whose every iteration passed is recorded as a pass
+  and not an abort.
+driver: real
+duration_s: 0
+sample_period_s: 30.0
+
+# The login on the unit. The key is the engineering key carried in the
+# extras/trl-engineering-keys submodule, so nothing has to be exported or
+# copied into ~/.ssh; set ssh_key_path only on a bench using a different one.
+ssh_user: trl
+
+probe:
+  devices:
+    - name: nvme0
+      device: /dev/nvme0n1
+      test_path: /mnt/ssd-test/gauntlet_ssd_io.bin
+  test_size_mb: 256
+  verify_size_kb: 256
+
+dmesg:
+  enabled: true
+
+psu:
+  enabled: true
+
+monitor:
+  enabled: true
+  sample_period_s: 30.0
+
+pass_criteria:
+  require_measurement: true
+  require_device_at_end: false

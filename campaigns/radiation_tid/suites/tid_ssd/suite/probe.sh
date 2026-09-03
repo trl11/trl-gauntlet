@@ -12,10 +12,13 @@
 #      TEST_PATH.verify and a sha256 sink (the "what we wrote" hash),
 #      drop caches, sha256 the file on disk → second hash. Mismatch
 #      means the storage corrupted the data.
-#   4. `smartctl -A -j DEVICE` → NVMe media/ECC counters. Returns an
+#   4. `smartctl -A -j DEVICE` → the NVMe health log. Returns an
 #      empty object if smartctl isn't installed (e.g. on eMMC-only
 #      units) or sudo is denied; the runner doesn't fail the tick on
 #      that.
+#   5. Whether DEVICE is still a block device at all. Dose takes a
+#      drive off the bus before it takes the filesystem with it, so
+#      this is reported separately from the I/O failing.
 #
 # Cache drop and smartctl both need root. The script uses `sudo -n`;
 # a sudo failure on the cache drop is treated as a hard error
@@ -55,6 +58,14 @@ test_path_disk=""
 device_disk=""
 smart_json="{}"
 
+# Checked before the I/O, so a drive that has left the bus is reported as
+# missing rather than only as a write that failed.
+if [ -b "$DEVICE" ]; then
+  device_present=true
+else
+  device_present=false
+fi
+
 mkdir -p "$(dirname "$TEST_PATH")" 2>/dev/null || true
 
 # The whole-disk kernel name behind a block device node: the parent when the
@@ -72,7 +83,7 @@ disk_of() {
 # left on the root filesystem reports the boot disk's bandwidth beside the
 # named drive's health log, which reads as a plausible result and is not one.
 # An unmounted /mnt/ssd-test is the way that happens in practice.
-if [ -b "$DEVICE" ]; then
+if [ "$device_present" = true ]; then
   device_disk=$(disk_of "$DEVICE")
   test_path_disk=$(disk_of "$(df --output=source "$(dirname "$TEST_PATH")" 2>/dev/null | tail -n 1)")
   if [ -z "$test_path_disk" ] || [ "$test_path_disk" != "$device_disk" ]; then
@@ -178,4 +189,4 @@ fi
 
 [ -z "$err" ] && err_json=null || err_json="\"$err\""
 
-printf '%s\n' "{\"write_mbps\": $write_mbps, \"read_mbps\": $read_mbps, \"verify_ok\": $verify_ok, \"verify_expected_sha\": $verify_expected_sha, \"verify_actual_sha\": $verify_actual_sha, \"cache_drop_failed\": $cache_drop_failed, \"test_path_ok\": $test_path_ok, \"test_path_disk\": \"$test_path_disk\", \"device_disk\": \"$device_disk\", \"smart\": $smart_json, \"error\": $err_json}"
+printf '%s\n' "{\"device_present\": $device_present, \"write_mbps\": $write_mbps, \"read_mbps\": $read_mbps, \"verify_ok\": $verify_ok, \"verify_expected_sha\": $verify_expected_sha, \"verify_actual_sha\": $verify_actual_sha, \"cache_drop_failed\": $cache_drop_failed, \"test_path_ok\": $test_path_ok, \"test_path_disk\": \"$test_path_disk\", \"device_disk\": \"$device_disk\", \"smart\": $smart_json, \"error\": $err_json}"

@@ -1,12 +1,14 @@
 # yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
 apiVersion: 1
 key: ssd
-title: SSD Endurance
+title: SSD Check
 category: hardware
 description: >
-  Probe one or more SSDs on the unit under test. Each tick measures write and
-  read bandwidth with dd, verifies a written block with a SHA-256 compare, and
-  reads SMART error counters.
+  Does the disk on this unit work. Each tick writes and reads a block with dd
+  for bandwidth, writes a second block and compares its SHA-256 after a cache
+  drop, and reads the NVMe SMART counters. Half a minute answers the question;
+  for a disk that has to be characterised rather than checked, the radiation
+  campaign's tid_ssd runs the same probe for hours.
 
 exec:
   command: ["python", "-m", "suite.cli"]
@@ -21,6 +23,12 @@ profiles: ./profiles
 conformance_profile: mock.yaml
 
 produces: [events, junit, manifest, metrics, summary, verdict]
+
+# Charted on the Metrics tab and columned on the Iterations tab before the
+# operator picks their own. The two rates say whether the disk performs, and
+# the running anomaly count says whether anything went wrong while it did.
+default_metrics: [anomalies_total, nvme0.read_mbps, nvme0.write_mbps]
+
 requires: []
 
 supports:
@@ -43,3 +51,11 @@ overrides:
     type: string
     label: Driver
     choices: [real, mock]
+  - name: ssh_user
+    flag: --ssh-user
+    type: string
+    label: SSH user
+  - name: ssh_key_path
+    flag: --ssh-key-path
+    type: string
+    label: SSH key

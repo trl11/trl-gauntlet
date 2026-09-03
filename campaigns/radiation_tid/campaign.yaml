@@ -3,9 +3,9 @@ apiVersion: 1
 key: radiation_tid
 title: Radiation TID
 description: 'Total ionising dose characterisation of the flight component set, one suite
-  per component. The LAN7430 and both ends of the GMSL link measure; the four remaining
-  suites are placeholders that run and pass without hardware, so the campaign has a
-  green baseline to fill in.'
+  per component. The LAN7430, the SSD and both ends of the GMSL link measure; the four
+  remaining suites are placeholders that run and pass without hardware, so the campaign
+  has a green baseline to fill in.'
 suites: ./suites
 members:
 - suite: tid_lan7430
@@ -57,3 +57,12 @@ members:
   fixture: 9-1
   profile: standard.yaml
   notes: TBD - test vehicle, host and software approach are not yet defined.
+- suite: tid_ssd
+  component: TBD
+  test_vehicle: TBD
+  host: Raspberry Pi
+  fixture: TBD
+  profile: standard.yaml
+  notes: Forked from the hardware campaign's ssd suite, which stays there as the quick
+    bench check. Component, test vehicle and fixture are not yet chosen; run bench.yaml
+    against whichever drive is picked before the first exposure.

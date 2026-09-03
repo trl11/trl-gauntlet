@@ -1,1 +1,1 @@
-"""SSD endurance probing over SSH."""
+"""SSD check over SSH."""
