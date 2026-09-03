@@ -1,0 +1,37 @@
+description: >
+  The beam-line profile. One measurement every thirty seconds for as long as
+  the exposure lasts, recording bandwidth, data integrity and every NVMe health
+  field that dose is known to move. Nothing is gated tightly: the first
+  exposures are for characterisation, and a floor set before the part has been
+  measured would only encode a guess. Tighten `pass_criteria` and set the
+  bandwidth floors once a baseline run exists.
+driver: real
+duration_s: 28800.0
+sample_period_s: 30.0
+
+# The login on the unit. The key is the engineering key carried in the
+# extras/trl-engineering-keys submodule, so nothing has to be exported or
+# copied into ~/.ssh; set ssh_key_path only on a bench using a different one.
+ssh_user: trl
+
+probe:
+  devices:
+    - name: nvme0
+      device: /dev/nvme0n1
+      test_path: /mnt/ssd-test/gauntlet_ssd_io.bin
+  test_size_mb: 256
+  verify_size_kb: 256
+
+dmesg:
+  enabled: true
+
+psu:
+  enabled: true
+
+monitor:
+  enabled: true
+  sample_period_s: 30.0
+
+pass_criteria:
+  require_measurement: true
+  require_device_at_end: false

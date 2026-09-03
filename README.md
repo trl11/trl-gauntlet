@@ -74,7 +74,7 @@ one key jumps between pages.
 | Suite | Description |
 |---|---|
 | `system_stats` | Samples the Linux host: CPU, load, memory, swap, disks, thermal zones, network counters, processes, uptime. No hardware. |
-| `ssd` | SSD bandwidth, SHA-256 write-verify and SMART counters over SSH. One unit or many, probed concurrently. |
+| `ssd` | Half a minute of SSD bandwidth, SHA-256 write-verify and SMART counters over SSH — whether a disk works. `tid_ssd` in the radiation campaign runs the same probe for hours. |
 | `ethernet` | Timed upload and download between the unit and the lab host. |
 | `hardware_trigger` | GPIO trigger pulse train over SSH. |
 | `can_bus` | Counter frames over CAN, with gap and reorder accounting. |

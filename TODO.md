@@ -112,7 +112,9 @@ bench it is about to measure and does not depend on what the last one left.
 - Every ported suite has been exercised only through its mock driver. The SSH,
   serial, CAN and MQTT paths are untested against hardware. `system_stats` is
   the exception: it reads the host it runs on.
-- `ssd` provisioning (`profiles/bare-disk.yaml`) is likewise mock-only.
+- `tid_ssd` provisioning is likewise mock-only, and no profile enables it: the
+  block formats and mounts a bare disk, which is destructive and has never run
+  against one. `ssd` dropped it when it became a quick check.
 - The Instruments screen has been driven against two real providers, the PSU
   read-only and the DAQ read and write. Nothing has exercised a provider that
   fails or goes offline mid-command.

@@ -14,7 +14,9 @@ suites: ./suites
 members:
   - suite: ssd
     profile: smoke.yaml
-    notes: SSD bandwidth, SHA-256 write-verify and SMART counters, over SSH.
+    notes: Half a minute of write, read, SHA-256 verify and SMART counters over SSH —
+      the quick answer to whether a disk works. The radiation campaign's tid_ssd runs
+      the same probe for hours, against a part being characterised.
   - suite: ethernet
     profile: smoke.yaml
     notes: Timed upload and download between the unit and the lab host, over SSH and TCP.
