@@ -125,6 +125,35 @@ def yuyv_to_rgb(data: bytes, width: int, height: int, *, step: int = 1) -> tuple
     return pixels, out_width, out_height
 
 
+def scale_rgb(data: bytes, width: int, height: int, *, max_width: int = 0) -> tuple[bytearray, int, int]:
+    """Packed 8-bit RGB, subsampled to land inside `max_width`.
+
+    A USB3 Vision camera debayers on the sensor board and sends RGB already,
+    so there is nothing to convert: the only work is taking every `step`-th
+    pixel in both directions, the way the other two decoders do while they
+    convert. A `max_width` below one keeps every pixel.
+    """
+    stride = width * 3
+    if len(data) < stride * height:
+        raise ImageError(f"frame is {len(data)} bytes, a {width}x{height} RGB frame is {stride * height}")
+
+    step = _step_for(width, max_width)
+    if step == 1:
+        return bytearray(data[: stride * height]), width, height
+
+    out_width = (width + step - 1) // step
+    out_height = (height + step - 1) // step
+    pixels = bytearray(out_width * out_height * 3)
+    at = 0
+    for out_y in range(out_height):
+        row = (out_y * step) * stride
+        for out_x in range(out_width):
+            source = row + out_x * step * 3
+            pixels[at : at + 3] = data[source : source + 3]
+            at += 3
+    return pixels, out_width, out_height
+
+
 def looks_like_raw10(data: bytes, *, samples: int = 4096) -> bool:
     """Whether a frame is 10-bit sensor data rather than the YUYV it claims.
 

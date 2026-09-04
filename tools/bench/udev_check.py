@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-RULES = ROOT / "rig" / "99-gauntlet-instruments.rules"
+RULES = ROOT / "targets" / "service" / "99-gauntlet-instruments.rules"
 USB_DEVICES = Path("/sys/bus/usb/devices")
 
 _VENDOR = re.compile(r'ATTRS\{idVendor\}=="([0-9a-fA-F]{4})"')

@@ -202,6 +202,23 @@ describe("InstrumentPanel shows an image a command answered with", () => {
     expect(screen.queryByRole("button", { name: "Take Snapshot" })).not.toBeInTheDocument();
   });
 
+  it("draws a command pinned to the viewer beside the modes rather than in the deck", async () => {
+    const onCommand = vi.fn();
+    const pinned = camera({
+      commands: [
+        ...camera().commands,
+        { name: "reset", label: "Reboot Camera", fields: [], role: "viewer" },
+      ],
+    });
+    render(<InstrumentPanel instrument={pinned} onCommand={onCommand} />);
+
+    const button = mode("Reboot Camera");
+    expect(button.closest(".instrument-panel__modes")).not.toBeNull();
+
+    await userEvent.click(button);
+    expect(onCommand).toHaveBeenCalledWith("reset", {});
+  });
+
   it("captures once a press in snapshot mode, and draws what came back", async () => {
     const onCommand = vi.fn();
     const { rerender } = render(<InstrumentPanel instrument={camera()} onCommand={onCommand} />);

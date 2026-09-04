@@ -256,6 +256,11 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
   // Readings the provider pinned to the viewer, which sit with its controls
   // rather than on a display of their own.
   const pinned = (instrument.readouts ?? []).filter((entry) => entry.role === "viewer");
+  // Commands the provider pinned there too, drawn in the same row as the
+  // viewer's modes rather than as cards down in the deck.
+  const viewerActions = instrument.commands.filter(
+    (command) => command !== viewer && command.role === "viewer"
+  );
 
   useEffect(() => {
     setSettings(Object.fromEntries(presets.map((field) => [field.name, field.choices[0]])));
@@ -291,7 +296,10 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
       .map((command) => [command.refreshes as string, command])
   );
   const others = instrument.commands.filter(
-    (command) => command !== viewer && !refreshers.has(command.refreshes ?? "")
+    (command) =>
+      command !== viewer &&
+      !viewerActions.includes(command) &&
+      !refreshers.has(command.refreshes ?? "")
   );
   const rest = others.filter((command) => command.name !== instrument.primary_command);
   const primary = others.find((command) => command.name === instrument.primary_command);
@@ -493,6 +501,19 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
                     options={field.choices.map((choice) => ({ value: choice, label: choice }))}
                     value={settings[field.name] ?? field.choices[0]}
                   />
+                ))}
+                {viewerActions.map((command) => (
+                  <Button
+                    className="instrument-panel__mode"
+                    color="transparent"
+                    disabled={disabled}
+                    key={command.name}
+                    onClick={() => onCommand(command.name, {})}
+                    size="small"
+                    type="button"
+                  >
+                    {command.label || command.name}
+                  </Button>
                 ))}
                 {pinned.map((entry) => (
                   <span className="instrument-panel__pinned" key={entry.key}>

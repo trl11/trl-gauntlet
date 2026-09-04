@@ -597,6 +597,12 @@ export interface InstrumentCommand {
    * button, so no page needs to know which instruments take pictures.
    */
   returns?: string;
+  /**
+   * Where the panel puts the command, when its place is not the deck.
+   * `"viewer"` sits it with the controls of the command that answers with a
+   * picture, for one an operator reaches for while looking at what it drew.
+   */
+  role?: "viewer";
   /** Heading for the column naming each row, when the command carries rows. */
   row_label?: string;
   /**

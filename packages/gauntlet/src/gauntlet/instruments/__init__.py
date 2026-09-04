@@ -13,6 +13,7 @@ is registered, and registers a simulation only when the settings ask for one.
 
 from __future__ import annotations
 
+from gauntlet.instruments.alvium_camera import AlviumCamera
 from gauntlet.instruments.detect import detect_instruments, is_simulated
 from gauntlet.instruments.di2008_daq import Di2008Daq
 from gauntlet.instruments.fx2_logic import Fx2Logic
@@ -25,6 +26,7 @@ from gauntlet.instruments.mock_psu import MockPsu
 from gauntlet.instruments.uvc_camera import UvcCamera
 
 __all__ = [
+    "AlviumCamera",
     "Di2008Daq",
     "Fx2Logic",
     "Hm310tPsu",

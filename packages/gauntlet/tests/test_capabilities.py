@@ -201,3 +201,30 @@ class TestClaimForRun:
         release()
         release()  # does not raise, and does not re-disown anything meaningful
         assert camera.owned() is False
+
+
+class _Closable(_Provider):
+    """A provider that records being closed."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(name)
+        self.closed = 0
+
+    def close(self) -> None:
+        self.closed += 1
+
+
+class TestClosing:
+    def test_every_provider_that_holds_a_device_is_released(self) -> None:
+        registry = CapabilityRegistry()
+        camera = _Closable("camera")
+        psu = _Closable("psu")
+        registry.register(camera)
+        registry.register(psu)
+        registry.close_all()
+        assert (camera.closed, psu.closed) == (1, 1)
+
+    def test_a_provider_with_nothing_to_release_is_left_alone(self) -> None:
+        registry = CapabilityRegistry()
+        registry.register(_Provider("daq"))
+        registry.close_all()

@@ -229,6 +229,20 @@ class CapabilityRegistry:
 
         return _release
 
+    def close_all(self) -> None:
+        """Release every provider's device, for a process that is shutting down.
+
+        A device is normally released when the process dies, but a driver
+        holding a library's own handle may not survive being torn down that
+        way: the GenTL layer the Allied Vision camera is reached through
+        faults inside its own teardown and takes the process down with it.
+        Closing deliberately is what avoids that.
+        """
+        for provider in self._providers.values():
+            release = getattr(provider, "close", None)
+            if callable(release):
+                release()
+
     def environment(self, required: list[str]) -> dict[str, str]:
         """Grant every requirement and flatten the result into environment variables."""
         env: dict[str, str] = {}

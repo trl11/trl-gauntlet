@@ -23,6 +23,30 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         $(sed -e 's/#.*//' /tmp/dependencies.txt | xargs) && \
     rm -f /tmp/dependencies.txt
 
+# The GenTL transport layer the Allied Vision cameras are reached through.
+# VmbPy is on PyPI and carries VmbC itself, but no transport layer, and without
+# one it starts up with nothing on the bus. Only the USB layer is taken: the
+# same directory ships a camera simulator that enumerates three cameras that do
+# not exist, which would put invented hardware in front of an operator who
+# asked for none.
+#
+# GENICAM_GENTL64_PATH is the GenICam standard's own variable and is what VmbC
+# searches, so setting it here is what makes the layer findable from any
+# process in the container.
+ARG VIMBAX_VERSION=2025-3
+ARG VIMBAX_SHA256=a372bc5c4859dca0a2595ddc1331966d3265ffc0cbd86a19851b34f92ff6e922
+ENV GENICAM_GENTL64_PATH=/opt/vimbax/cti
+RUN set -eux; \
+    archive=/tmp/vimbax.tar.gz; \
+    curl -fsSL -o "$archive" \
+        "https://downloads.alliedvision.com/VimbaX/VimbaX_Setup-${VIMBAX_VERSION}-Linux64.tar.gz"; \
+    echo "${VIMBAX_SHA256}  $archive" | sha256sum -c -; \
+    mkdir -p ${GENICAM_GENTL64_PATH}; \
+    tar xzf "$archive" -C ${GENICAM_GENTL64_PATH} --strip-components=2 \
+        "VimbaX_${VIMBAX_VERSION}/cti/VimbaUSBTL.cti" \
+        "VimbaX_${VIMBAX_VERSION}/cti/VimbaUSBTL.xml"; \
+    rm -f "$archive"
+
 # Node, for the npm-distributed coding agents below. Bookworm ships a version
 # too old for Claude Code, so it comes from NodeSource.
 ARG NODE_MAJOR=22

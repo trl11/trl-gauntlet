@@ -119,6 +119,15 @@ The DAQ additionally needs the udev rule in `../targets/service/`, without which
 usbfs node stays `root:root` and `dev` can read its descriptors and nothing
 else. Install it on the host, not in here — see the header of the file.
 
+An Allied Vision camera needs the same rule, for the same reason. It is a
+USB3 Vision device rather than a UVC one, so it gets no `/dev/video*` node and
+is reached entirely through usbfs: the whole camera is behind that one node.
+The image installs Vimba X's USB transport layer at `/opt/vimbax/cti` and
+points `GENICAM_GENTL64_PATH` at it, because `vmbpy` carries VmbC but no
+transport layer and starts up with an empty bus without one. Only the USB
+layer is taken — the same directory ships a camera simulator that would
+enumerate three cameras that are not there.
+
 Diagnose a missing instrument on the bus before suspecting the container.
 `lsusb` and `ls -l /dev/ttyUSB* /dev/bus/usb/*/*` say the same thing on both
 sides of the bind; an instrument absent from the host's `lsusb` is cabling.
