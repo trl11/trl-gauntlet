@@ -160,6 +160,9 @@ class AlviumCamera:
                     f"{', '.join(unreadable)}: not writable — install the udev rules with `make install-udev-rules`"
                 )
                 return False
+            # Cleared as well as set, or a camera that has come back is shown
+            # as available beside the reason it once was not.
+            self._unavailable_reason = _NOT_OWNED
             return True
 
     def close(self) -> None:
@@ -284,7 +287,12 @@ class AlviumCamera:
         ]
 
     def state(self) -> dict[str, Any]:
-        """The format in force, the temperatures, and the last snapshot.
+        """What backs the capability, the format in force, and the last snapshot.
+
+        ``driver`` is here rather than only in ``describe()`` because a suite
+        sees the capability and not the instrument: several drivers answer
+        ``camera``, and one written for this one has no other way to find out
+        that a webcam is what it was granted.
 
         No frame is taken to answer this: the panel polls it, and a poll that
         captured would run the camera whenever the page was open. The
@@ -293,6 +301,7 @@ class AlviumCamera:
         """
         with self._lock:
             return {
+                "driver": "alvium",
                 "format": dict(self._format),
                 "last_frame": dict(self._last_frame),
                 "node": self._identity.get("node", ""),
@@ -360,16 +369,23 @@ class AlviumCamera:
         return {"reset": True}
 
     def _connect(self) -> bool:
-        """Open a camera if one is not open already, at most once per interval."""
+        """Open a camera if one is not open already, at most once per interval.
+
+        The interval holds off repeated *failures*, so the panel's poll does
+        not start a transport layer several times a second while nothing is
+        there. A probe that succeeded does not arm it: releasing the latching
+        key and pressing it again has to answer at once, and it is also how a
+        run reclaims a camera it has just rebooted.
+        """
         if self._camera is not None:
             return True
         now = self._clock()
         if now - self._last_probe < self._probe_interval_s:
             return False
-        self._last_probe = now
 
         opened = self._open()
         if opened is None:
+            self._last_probe = now
             return False
         vmb, camera = opened
         serial = ""
@@ -383,6 +399,7 @@ class AlviumCamera:
             # still readable, so it is what the operator is told.
             named = f"{serial}: " if serial else ""
             self._unavailable_reason = f"{named}{exc}{_thermal_note(camera)}"
+            self._last_probe = now
             _leave(camera)
             _leave(vmb)
             return False
@@ -442,10 +459,19 @@ class AlviumCamera:
 
         The pixel format is set rather than accepted, because the encoder is
         handed packed RGB and a camera left on whatever it booted with may be
-        sending Bayer or mono. Everything read here is read once: it does not
-        change while the camera is owned, and a panel poll must not pay for it.
+        sending Bayer or mono.
+
+        Exposure and gain are handed to the camera for the same reason. It
+        boots with both fixed — 5 ms and no gain — which is a black frame in
+        any room that is not brightly lit, and there is no exposure command
+        here for an operator to correct it with. `reset` restores those
+        defaults, so this is set on every connect rather than once.
+
+        Everything read here is read once: it does not change while the camera
+        is owned, and a panel poll must not pay for it.
         """
         camera.set_pixel_format(_PIXEL_FORMAT)
+        _meter(camera)
         self._format = {
             "height": int(camera.get_feature_by_name("Height").get()),
             "payload_bytes": int(camera.get_feature_by_name("PayloadSize").get()),
@@ -466,6 +492,7 @@ class AlviumCamera:
         vmb, self._vmb = self._vmb, None
         self._format = {}
         self._temperature = {}
+        self._unavailable_reason = _NOT_OWNED
         if camera is not None:
             _leave(camera)
         if vmb is not None:
@@ -524,7 +551,7 @@ class AlviumCamera:
             if status != "Complete":
                 raise CommandRejected(f"camera: frame arrived {status.lower()}")
             width, height = int(frame.get_width()), int(frame.get_height())
-            pixels, out_width, out_height = scale_rgb(bytes(frame.get_buffer()), width, height, max_width=max_width)
+            buffer = bytes(frame.get_buffer())
         except _VMB_ERRORS as exc:
             # A camera that has been unplugged, or one the firmware has shut
             # down over temperature, answers every grab the same way. Dropping
@@ -532,7 +559,11 @@ class AlviumCamera:
             self._disconnect()
             raise CommandRejected(f"camera: {exc}") from exc
 
+        # Separate from the grab: what the encoder makes of a frame is not the
+        # camera failing, so a short buffer is a rejected command rather than
+        # a fault that drops the connection.
         try:
+            pixels, out_width, out_height = scale_rgb(buffer, width, height, max_width=max_width)
             measured: dict[str, Any] = dict(measure(pixels, out_width, out_height))
             payload = encode_jpeg(pixels, out_width, out_height) if lossy else encode_png(pixels, out_width, out_height)
         except ImageError as exc:
@@ -551,6 +582,20 @@ class AlviumCamera:
             "source": {"width": width, "height": height, "pixel_format": self._format.get("pixel_format", "")},
             **self._last_frame,
         }
+
+
+def _meter(camera: Any) -> None:
+    """Let the camera choose its own exposure and gain.
+
+    A camera that cannot is left as it is: the frame it produces is still
+    worth having, and a bench lit well enough for the boot default does not
+    need this.
+    """
+    for name in ("ExposureAuto", "GainAuto"):
+        try:
+            camera.get_feature_by_name(name).set("Continuous")
+        except _VMB_ERRORS as exc:
+            log.debug("%s: %s", name, exc)
 
 
 def _temperatures(camera: Any) -> dict[str, Any]:
@@ -606,8 +651,10 @@ def _width_arg(args: dict[str, Any], limit: int) -> int:
 
     The panel sends the name of a preset and a suite sends a number, so both
     reach the same setting. Absent, or the widest preset, means no cap at all.
-    `limit` is the width the camera is set to, since capping above the frame's
-    own width would do nothing.
+    `limit` is the width the camera is set to. Asking for more than that is
+    the same as asking for the whole frame rather than an error: the panel
+    offers a fixed list of presets and a suite names a number, and neither can
+    know how wide the camera on this bench is.
     """
     value = args.get("max_width")
     if value is None or value == "" or value == _FULL_RES_CHOICE:
@@ -619,6 +666,6 @@ def _width_arg(args: dict[str, Any], limit: int) -> int:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise CommandRejected("camera: 'max_width' must be a number")
     width = int(value)
-    if not _MIN_WIDTH <= width <= limit:
-        raise CommandRejected(f"camera: 'max_width' must be between {_MIN_WIDTH} and {limit}")
-    return width
+    if width < _MIN_WIDTH:
+        raise CommandRejected(f"camera: 'max_width' must be at least {_MIN_WIDTH}")
+    return _FULL_RES if width >= limit else width

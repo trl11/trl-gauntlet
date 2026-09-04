@@ -92,7 +92,10 @@ class CameraDoseProfile(BaseModel):
         default=960,
         ge=16,
         le=4512,
-        description="Width to scale each still to. The height follows the aspect ratio.",
+        description=(
+            "Width to scale each still to. Anything at or above the camera's own width takes "
+            "the whole frame. The height follows the aspect ratio."
+        ),
     )
     baseline_frames: int = Field(
         default=5,

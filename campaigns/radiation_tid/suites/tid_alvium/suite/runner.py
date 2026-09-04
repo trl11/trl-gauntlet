@@ -26,6 +26,7 @@ measurement was lost.
 from __future__ import annotations
 
 import time
+from typing import Any
 
 from gauntlet_sdk import (
     AnomalyLog,
@@ -63,6 +64,10 @@ _PROBE = "camera"
 # own complaint rather than a threshold chosen here.
 _THERMAL_OK = "OK"
 
+# What the driver for this camera calls itself in its state, which is how a
+# suite tells it from any other camera answering the same capability.
+_ALVIUM = "alvium"
+
 
 def _setup(ctx: SuiteContext) -> None:
     """Take the camera and record what it is, so the run names its own part."""
@@ -88,13 +93,36 @@ def _setup(ctx: SuiteContext) -> None:
     except CameraError as exc:
         warn(f"{granted.instance_id}: could not read the camera's state: {exc}")
         return
+    _is_alvium(state)
     form = state.get("format") or {}
-    heat = camera.temperature()
+    heat = _temperature(camera)
     info(
         f"{granted.instance_id}: {state.get('serial', '?')} "
         f"{form.get('width', '?')}x{form.get('height', '?')} {form.get('pixel_format', '?')}, "
         f"sensor {heat.sensor_c:.1f}C, scaling stills to {profile.max_width}px wide"
     )
+
+
+def _is_alvium(state: dict[str, Any]) -> None:
+    """Stop the run unless an Allied Vision camera is what was granted.
+
+    Several drivers answer the ``camera`` capability and the operator's
+    ``camera_device`` setting decides which. `"auto"` takes a capture node
+    when no Allied Vision camera was on the bus at scan time, so a bench with
+    a webcam in it can hand this suite the webcam — which would measure
+    something real, report it as the camera under test, and be wrong about
+    every one of the readings this suite exists for.
+
+    Checked before anything else, because a wrong camera is not a bad result:
+    it is a run that should not have started.
+    """
+    driver = str(state.get("driver", ""))
+    if driver != _ALVIUM:
+        raise RuntimeError(
+            f"the camera capability is backed by {driver or 'another driver'}, not an Allied Vision "
+            f"camera ({state.get('node') or 'unknown device'}). Set camera_device to the camera's "
+            f"serial to pin it, then rescan the instruments."
+        )
 
 
 def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:

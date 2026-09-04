@@ -89,14 +89,18 @@ def _camera(device: str, frame_format: str = "auto") -> CapabilityProvider | Non
     it is an instrument somebody attached deliberately, where a capture node
     is whatever the host happens to have, a built-in webcam included.
 
+    A named Allied Vision camera is registered whether or not it answers, the
+    way a named port is for every other instrument: the operator said there is
+    one there, so its absence is reported through `unavailable_reason` rather
+    than hidden. Only `"auto"` falls through to a capture node.
+
     Registering it never opens it: `available()` only looks at sysfs, and
     nothing owns the device until an operator or a run does.
     """
     if not device:
         return None
     if device != "auto" and not device.startswith("/"):
-        alvium = AlviumCamera(serial_filter=device)
-        return alvium if alvium.available() else None
+        return AlviumCamera(serial_filter=device)
     if device == "auto":
         alvium = AlviumCamera()
         if alvium.available():

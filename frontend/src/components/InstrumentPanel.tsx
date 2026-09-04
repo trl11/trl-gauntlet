@@ -257,10 +257,13 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
   // rather than on a display of their own.
   const pinned = (instrument.readouts ?? []).filter((entry) => entry.role === "viewer");
   // Commands the provider pinned there too, drawn in the same row as the
-  // viewer's modes rather than as cards down in the deck.
-  const viewerActions = instrument.commands.filter(
-    (command) => command !== viewer && command.role === "viewer"
-  );
+  // viewer's modes rather than as cards down in the deck. Only when there is
+  // a viewer to sit in: without one they stay in the deck, because a command
+  // the panel drew nowhere would be a command the operator cannot reach.
+  const viewerActions =
+    viewer === null
+      ? []
+      : instrument.commands.filter((command) => command !== viewer && command.role === "viewer");
 
   useEffect(() => {
     setSettings(Object.fromEntries(presets.map((field) => [field.name, field.choices[0]])));
@@ -506,7 +509,10 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
                   <Button
                     className="instrument-panel__mode"
                     color="transparent"
-                    disabled={disabled}
+                    // Locked while a run holds the instrument, the way its
+                    // latching key is: these drive the device the run is
+                    // measuring through.
+                    disabled={disabled || inUse}
                     key={command.name}
                     onClick={() => onCommand(command.name, {})}
                     size="small"

@@ -7,7 +7,7 @@ from gauntlet_sdk import IterationOutcome
 from pydantic import ValidationError
 from suite.camera import Snapshot, Temperature
 from suite.profile import CameraCheckProfile
-from suite.runner import _evaluate, _fault
+from suite.runner import _evaluate, _fault, _is_alvium
 
 COOL = Temperature(mainboard_c=30.0, sensor_c=32.0, status="OK")
 
@@ -39,6 +39,22 @@ class TestProfile:
     def test_a_brightness_window_with_nothing_inside_it_is_refused(self) -> None:
         with pytest.raises(ValidationError):
             CameraCheckProfile(min_mean_luma=200, max_mean_luma=100)
+
+
+class TestWhatAnsweredTheCapability:
+    def test_an_allied_vision_camera_is_what_the_run_wants(self) -> None:
+        _is_alvium({"driver": "alvium", "serial": "0GL7P"})
+
+    def test_a_capture_node_is_refused_by_name(self) -> None:
+        # `camera_device: auto` hands over a webcam when no Allied Vision
+        # camera was on the bus at scan time, and the run would otherwise
+        # measure it and report it as the camera under test.
+        with pytest.raises(RuntimeError, match="not an Allied Vision camera"):
+            _is_alvium({"driver": "uvc", "node": "/dev/video0"})
+
+    def test_a_driver_that_says_nothing_is_refused_too(self) -> None:
+        with pytest.raises(RuntimeError, match="another driver"):
+            _is_alvium({"node": "/dev/video0"})
 
 
 class TestFault:

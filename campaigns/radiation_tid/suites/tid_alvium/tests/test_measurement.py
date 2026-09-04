@@ -9,7 +9,7 @@ from suite import mock
 from suite.camera import CameraError
 from suite.mock import MockCamera
 from suite.profile import CameraDoseProfile, PassCriteria
-from suite.runner import _evaluate
+from suite.runner import _evaluate, _is_alvium
 
 
 def outcome(success: bool) -> IterationOutcome:
@@ -30,6 +30,15 @@ class TestProfile:
 
     def test_a_duration_of_zero_is_a_session_the_operator_ends(self) -> None:
         assert CameraDoseProfile(duration_s=0).duration_s == 0
+
+
+class TestWhatAnsweredTheCapability:
+    def test_an_allied_vision_camera_is_what_the_run_wants(self) -> None:
+        _is_alvium({"driver": "alvium", "serial": "0GL7P"})
+
+    def test_a_capture_node_is_refused_before_a_beam_slot_is_spent(self) -> None:
+        with pytest.raises(RuntimeError, match="not an Allied Vision camera"):
+            _is_alvium({"driver": "uvc", "node": "/dev/video0"})
 
 
 class TestVerdict:

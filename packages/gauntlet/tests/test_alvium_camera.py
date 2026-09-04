@@ -148,6 +148,8 @@ class _FakeCamera:
             "DeviceTemperature": _Temperature(selector, {"Sensor": 30.6, "Mainboard": 32.7}),
             "DeviceTemperatureSelector": selector,
             "DeviceTemperatureStatus": _Feature("OK"),
+            "ExposureAuto": _Feature("Off", entries=("Off", "Once", "Continuous")),
+            "GainAuto": _Feature("Off", entries=("Off", "Once", "Continuous")),
             "Height": _Feature(height),
             "PayloadSize": _Feature(width * height * 3),
             "DeviceReset": _Command(),
@@ -271,6 +273,24 @@ class TestAvailability:
 
 
 class TestOwning:
+    def test_the_key_answers_at_once_after_the_camera_was_released(self) -> None:
+        # The probe interval holds off failures so the panel's poll does not
+        # start a transport layer several times a second. A camera that just
+        # opened is not one of those, and an operator toggling the key would
+        # otherwise be refused with no reason to show.
+        clock = _Clock()
+        camera = camera_with(_FakeSystem(_FakeCamera()), clock=clock)
+        assert camera.own() is True
+        camera.disown()
+        assert camera.own() is True
+        assert camera.describe()["unavailable_reason"] == ""
+
+    def test_a_released_camera_says_it_is_not_owned_rather_than_nothing(self) -> None:
+        camera = camera_with(_FakeSystem(_FakeCamera()))
+        camera.own()
+        camera.disown()
+        assert camera.describe()["unavailable_reason"] == "not owned"
+
     def test_owning_opens_the_camera_and_settles_the_format(self) -> None:
         fake = _FakeCamera()
         camera = camera_with(_FakeSystem(fake))
@@ -361,6 +381,24 @@ class TestOwning:
         assert camera.own() is True
         assert camera.own() is True
         assert system.entered == 1
+
+
+class TestMetering:
+    def test_the_camera_is_told_to_meter_itself(self) -> None:
+        # It boots on a fixed 5ms and no gain, which is a black frame in any
+        # room that is not brightly lit, and there is no exposure command for
+        # an operator to correct it with.
+        fake = _FakeCamera()
+        camera = camera_with(_FakeSystem(fake))
+        camera.own()
+        assert fake.features["ExposureAuto"].value == "Continuous"
+        assert fake.features["GainAuto"].value == "Continuous"
+
+    def test_a_camera_that_cannot_meter_itself_still_opens(self) -> None:
+        fake = _FakeCamera()
+        fake.features["ExposureAuto"].error = vmbpy.VmbFeatureError("no such feature")
+        camera = camera_with(_FakeSystem(fake))
+        assert camera.own() is True
 
 
 class TestCommands:
@@ -485,11 +523,19 @@ class TestSnapshot:
         assert result["sharpness"] == 0.0
         assert camera.state()["snapshots"] == 1
 
-    def test_a_width_wider_than_the_frame_is_rejected(self) -> None:
+    def test_a_width_wider_than_the_frame_is_the_whole_frame(self) -> None:
+        # The panel offers a fixed list of presets and cannot know how wide
+        # this camera is, so the widest of them has to mean "all of it".
         camera = camera_with(_FakeSystem(_FakeCamera(width=128, height=64)))
         camera.own()
-        with pytest.raises(CommandRejected, match="between 16 and 128"):
-            camera.command("snapshot", {"max_width": 9000})
+        result = camera.command("snapshot", {"max_width": 9000})
+        assert png_size(base64.b64decode(result["image_base64"])) == (128, 64)
+
+    def test_a_width_below_what_is_worth_encoding_is_rejected(self) -> None:
+        camera = camera_with(_FakeSystem(_FakeCamera()))
+        camera.own()
+        with pytest.raises(CommandRejected, match="at least 16"):
+            camera.command("snapshot", {"max_width": 4})
 
     def test_a_width_that_is_not_a_number_is_rejected(self) -> None:
         camera = camera_with(_FakeSystem(_FakeCamera()))
@@ -591,6 +637,16 @@ class TestDetection:
         provider = registry.provider("camera")
         assert provider is not None
         assert provider.describe()["driver"] == "uvc"
+
+    def test_a_named_camera_stays_registered_when_it_does_not_answer(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # The operator said there is one there, so its absence is a fault to
+        # show rather than an instrument to hide.
+        monkeypatch.setattr("gauntlet.instruments.detect.AlviumCamera", _absent_alvium)
+        registry = CapabilityRegistry()
+        detect_instruments(registry, Settings(camera_device=_SERIAL, psu_port="", daq_serial=""))
+        provider = registry.provider("camera")
+        assert provider is not None
+        assert provider.describe()["driver"] == "alvium"
 
     def test_a_serial_names_an_allied_vision_camera(self, monkeypatch: pytest.MonkeyPatch) -> None:
         taken: list[str] = []
