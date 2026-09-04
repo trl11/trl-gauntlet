@@ -37,3 +37,10 @@ members:
     notes: Stills from the bench camera on a fixed period, over UVC. The bench one
       is a GMSL sensor behind a GMSL-to-USB adapter, which arrives as an ordinary
       capture device.
+  - suite: alvium_camera
+    profile: bench.yaml
+    notes: Five stills from the Allied Vision camera, judged for brightness, detail
+      and repeats — eight seconds to answer whether the camera works. It is USB3
+      Vision rather than UVC, so it has no capture node and gmsl_camera cannot see
+      it at all; the two are the same question asked of the two kinds of camera.
+      The radiation campaign's tid_alvium runs the same checks for hours.

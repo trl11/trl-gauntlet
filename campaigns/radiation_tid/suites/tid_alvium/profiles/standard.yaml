@@ -1,0 +1,26 @@
+description: >
+  The beam-line profile. One still every thirty seconds for as long as the
+  exposure lasts, measuring brightness, edge detail and both temperatures, and
+  keeping every frame. Nothing is gated tightly: the first exposures are for
+  characterisation, and a floor set before the part has been measured would
+  only encode a guess. Tighten `pass_criteria` and the drift limits once a
+  baseline run exists.
+driver: real
+duration_s: 28800.0
+sample_period_s: 30.0
+max_width: 960
+
+baseline_frames: 5
+max_luma_drift: 40
+max_sharpness_drop: 0.5
+max_identical_frames: 3
+max_sensor_c: 85
+
+recovery:
+  enabled: true
+  after_failures: 3
+  settle_s: 10
+  max_resets: 20
+
+pass_criteria:
+  require_measurement: true

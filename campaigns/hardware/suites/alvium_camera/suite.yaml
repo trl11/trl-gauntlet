@@ -1,0 +1,85 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
+apiVersion: 1
+key: alvium_camera
+title: Alvium Camera Check
+category: hardware
+description: >
+  Does the Allied Vision camera on this bench work. Takes a handful of stills
+  and judges each one for brightness, edge detail and whether it differs from
+  the frame before it, recording the sensor temperature alongside. A few
+  seconds answers the question; for a camera that has to be characterised
+  rather than checked, the radiation campaign's tid_alvium runs the same
+  checks for hours and recovers the camera when it stops answering.
+
+setup: |
+  The camera is a USB3 Vision device, not a UVC one, so it has no /dev/video*
+  node and the whole of it is reached through usbfs. That needs the udev rule
+  in targets/service/, installed with `make install-udev-rules`, and a GenTL
+  transport layer on GENICAM_GENTL64_PATH — the devcontainer carries one, a
+  bare bench does not.
+
+  Set camera_device to `auto` and the driver takes an Allied Vision camera
+  ahead of any capture node, or to the camera's serial to pin one bench
+  camera among several.
+
+  The housing is the camera's heatsink. In free air it reaches its limit in
+  minutes and the firmware shuts the image path down, which does not look like
+  heat: the camera stays on the bus answering for its serial while every
+  acquisition feature reports itself unreadable. Mount it to something before
+  reading a failure as a broken camera.
+
+exec:
+  command: ["python", "-m", "suite.cli"]
+  args:
+    profile: --profile
+    run_dir: --run-dir
+    target: --target
+    unit_serial: --unit-serial
+  profile_schema_command: ["python", "-m", "suite.cli", "--print-profile-schema"]
+
+profiles: ./profiles
+conformance_profile: mock.yaml
+
+produces: [events, frames, junit, manifest, metrics, summary, verdict]
+requires: [camera]
+
+supports:
+  target: false
+  unit_serial: true
+
+default_metrics: [camera.mean_luma, camera.sharpness, camera.sensor_c]
+
+overrides:
+  - name: frames
+    flag: --frames
+    type: integer
+    label: Frames
+    minimum: 1
+    maximum: 100
+    help: How many stills to take before deciding.
+  - name: sample_period_s
+    flag: --sample-period-s
+    type: number
+    label: Sample period
+    unit: s
+    minimum: 0.25
+    help: >
+      Seconds between stills. A real camera is held at or above 1s: the
+      sensor sends RGB already, but scaling and encoding a 4K frame in pure
+      Python still costs a large fraction of a second.
+  - name: max_width
+    flag: --max-width
+    type: integer
+    label: Snapshot width
+    unit: px
+    minimum: 16
+    maximum: 4512
+    help: >
+      Width to scale each still to. The camera's own width is used when this
+      is larger than it; the height follows the aspect ratio.
+  - name: driver
+    flag: --driver
+    type: string
+    label: Driver
+    choices: [real, mock]
+    help: mock synthesises frames and contacts no instrument.

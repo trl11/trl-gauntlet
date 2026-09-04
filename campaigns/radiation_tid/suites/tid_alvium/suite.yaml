@@ -1,0 +1,97 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
+apiVersion: 1
+key: tid_alvium
+title: Alvium Camera Sensor
+category: radiation
+description: >
+  Total ionising dose characterisation of the camera. Each tick reads both
+  temperatures, takes one still and keeps it, and measures brightness, edge
+  detail and how far the frame has drifted from the baseline the run opened
+  with. The session never aborts: a camera that darkens, goes soft, freezes,
+  overheats, leaves the bus or comes back is recorded rather than lost, and a
+  camera that stops answering is rebooted and reclaimed on its own.
+
+setup: |
+  The camera is the only thing in the beam. Everything else — the transport
+  layer, Gauntlet, this suite — is on the lab host outside it, at the far end
+  of the USB cable.
+
+  The camera has no /dev/video* node. It is USB3 Vision, reached entirely
+  through usbfs by a GenTL transport layer, so the bench needs the udev rule
+  installed with `make install-udev-rules` and a layer on
+  GENICAM_GENTL64_PATH. Run the hardware campaign's alvium_camera against the
+  camera before the beam is on; it is the cheapest way to catch either being
+  absent.
+
+  Heat is the thing to get right before a dose run, because it counterfeits the
+  failure being looked for. The housing is the camera's heatsink: unmounted it
+  reaches its limit in about twenty minutes, and past it the firmware shuts the
+  image path down and latches until the camera restarts. A shut-down camera
+  stays on the bus answering for its serial while every acquisition feature
+  reports itself unreadable, which reads exactly like a part that has died of
+  dose. Mount the housing to something with mass, and read the sensor
+  temperature charted beside the measurements before believing a failure.
+
+  The suite reboots the camera itself when it stops answering, which is what
+  `reset` is for and why unplugging — the only other recovery — does not have
+  to reach inside the chamber.
+
+      +--------------+   USB3    +--------------+
+      |   Gauntlet   |<--------->|    Alvium    |
+      |   lab host   |   usbfs   |    camera    |
+      +--------------+           +--------------+
+       outside the beam           under the beam
+
+exec:
+  command: ["python", "-m", "suite.cli"]
+  args:
+    profile: --profile
+    run_dir: --run-dir
+    target: --target
+    unit_serial: --unit-serial
+  profile_schema_command: ["python", "-m", "suite.cli", "--print-profile-schema"]
+
+profiles: ./profiles
+conformance_profile: smoke.yaml
+
+produces: [events, frames, junit, manifest, metrics, summary, verdict]
+requires: [camera]
+
+supports:
+  target: false
+  unit_serial: true
+
+# Charted on the Metrics tab and columned on the Iterations tab before the
+# operator picks their own. Edge detail is what sags first as the sensor picks
+# up dark current and the image loses contrast; brightness drifts next. The
+# sensor temperature is charted with them because it moves both, and a run read
+# without it can put a thermal fault down to dose.
+default_metrics: [camera.mean_luma, camera.sharpness, camera.sensor_c, camera.luma_drift]
+
+overrides:
+  - name: duration_s
+    flag: --duration-s
+    type: number
+    label: Duration
+    unit: s
+    # Zero is a duration: it gives the loop no end of its own and the suite
+    # samples until the operator stops the run, which is what `continuous.yaml`
+    # ships.
+    minimum: 0
+  - name: sample_period_s
+    flag: --sample-period-s
+    type: number
+    label: Sample period
+    unit: s
+  - name: max_width
+    flag: --max-width
+    type: integer
+    label: Snapshot width
+    unit: px
+    minimum: 16
+    maximum: 4512
+  - name: driver
+    flag: --driver
+    type: string
+    label: Driver
+    choices: [real, mock]

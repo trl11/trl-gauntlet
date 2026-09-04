@@ -1,0 +1,5 @@
+description: No camera required. What `gauntlet verify --run` executes.
+driver: mock
+frames: 3
+sample_period_s: 0.25
+max_width: 320

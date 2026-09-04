@@ -1,0 +1,14 @@
+description: >
+  Five stills from the real camera, one every one and a half seconds, scaled
+  to 960px wide. The brightness window and the sharpness floor are set wide
+  enough to pass any lit scene, so a failure here is the camera or the bench
+  rather than the thresholds.
+driver: real
+frames: 5
+sample_period_s: 1.5
+max_width: 960
+min_mean_luma: 4
+max_mean_luma: 250
+min_sharpness: 0.5
+max_identical_frames: 1
+max_sensor_c: 85
