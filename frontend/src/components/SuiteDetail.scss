@@ -53,6 +53,26 @@
     white-space: pre;
   }
 
+  &__downloads {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 0;
+    margin: 0;
+    font-size: 13px;
+    list-style: none;
+    color: $trl-light-gray;
+
+    a {
+      font-family: $font-mono;
+      color: $indicator-blue;
+    }
+
+    span {
+      color: $trl-gray;
+    }
+  }
+
   &__blocked {
     padding: 10px 12px;
     font-size: 13px;

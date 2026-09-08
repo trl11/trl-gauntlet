@@ -69,6 +69,11 @@ supports:
 
 default_metrics: [events.total, stream.beats, stream.clock_ppm]
 
+downloads:
+  - path: firmware/pmu3_firmware.hex
+    label: PMU3 firmware
+    description: The image the part under test is programmed with, for tools/bench/pic_flash.py.
+
 overrides:
   - name: duration_s
     flag: --duration-s

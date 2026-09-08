@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict
 
 from gauntlet.conformance import verify_suite
@@ -228,3 +229,24 @@ async def post_verify(request: Request, key: str, execute: bool = False) -> dict
     """Run the conformance checks against a suite."""
     suite = _suite_or_404(request, key)
     return verify_suite(suite.directory, execute=execute).to_dict()
+
+
+@router.get("/suites/{key}/downloads/{relative:path}")
+async def get_download(request: Request, key: str, relative: str) -> FileResponse:
+    """One file the suite declared in ``downloads``.
+
+    Only a declared path is served. Resolving whatever was asked for inside
+    the suite directory would turn every suite into a file server for its own
+    source, and a suite's directory holds its profiles and its code.
+    """
+    suite = _suite_or_404(request, key)
+    if not any(entry.path == relative for entry in suite.manifest.downloads):
+        raise HTTPException(status_code=404, detail=f"suite {key!r} offers no download {relative!r}")
+    target = (suite.directory / relative).resolve()
+    try:
+        target.relative_to(suite.directory.resolve())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="path escapes the suite directory") from exc
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail=f"declared download is missing: {relative}")
+    return FileResponse(target, filename=target.name)

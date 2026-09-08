@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Badge, Button } from "@trl11/components/ui";
 import clsx from "clsx";
 
+import { suiteDownloadUrl } from "@api/client";
 import type { Suite, VerifyReport } from "@api/types";
 
 import { linkify } from "../utils/linkify";
@@ -63,6 +64,19 @@ const SuiteDetail: React.FC<SuiteDetailProps> = ({
             )
           )}
         </pre>
+      )}
+
+      {suite.downloads.length > 0 && (
+        <ul className="suite-detail__downloads">
+          {suite.downloads.map((download) => (
+            <li key={download.path}>
+              <a download href={suiteDownloadUrl(suite.key, download.path)}>
+                {download.label || download.path.split("/").pop()}
+              </a>
+              {download.description && <span> {download.description}</span>}
+            </li>
+          ))}
+        </ul>
       )}
 
       {unmet.length > 0 && (

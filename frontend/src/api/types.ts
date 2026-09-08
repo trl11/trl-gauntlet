@@ -114,6 +114,15 @@ export interface SuiteSupports {
   unit_serial: boolean;
 }
 
+/** One file a suite offers the operator, served from its directory. */
+export interface SuiteDownload {
+  description: string;
+  /** What to call it. Empty falls back to the filename. */
+  label: string;
+  /** Relative to the suite directory, and the path the endpoint takes. */
+  path: string;
+}
+
 /** One profile file offered for a suite. */
 export interface SuiteProfile {
   description: string;
@@ -132,6 +141,7 @@ export interface Suite {
   default_metrics: string[];
   description: string;
   directory: string;
+  downloads: SuiteDownload[];
   exec: SuiteExec;
   key: string;
   overrides: SuiteOverride[];

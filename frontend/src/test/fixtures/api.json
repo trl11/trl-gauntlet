@@ -1444,7 +1444,8 @@
       "target": false,
       "unit_serial": true
     },
-    "title": "System \u2014 Linux Stats"
+    "title": "System \u2014 Linux Stats",
+    "downloads": []
   },
   "suites": {
     "errors": [],
@@ -1539,7 +1540,8 @@
           "target": true,
           "unit_serial": true
         },
-        "title": "CAN Bus Link"
+        "title": "CAN Bus Link",
+        "downloads": []
       },
       {
         "apiVersion": 1,
@@ -1631,7 +1633,8 @@
           "target": true,
           "unit_serial": true
         },
-        "title": "Ethernet Throughput"
+        "title": "Ethernet Throughput",
+        "downloads": []
       },
       {
         "apiVersion": 1,
@@ -1723,7 +1726,8 @@
           "target": true,
           "unit_serial": true
         },
-        "title": "Example \u2014 Sampled Loop"
+        "title": "Example \u2014 Sampled Loop",
+        "downloads": []
       },
       {
         "apiVersion": 1,
@@ -1790,7 +1794,8 @@
           "target": true,
           "unit_serial": false
         },
-        "title": "Example \u2014 Shell Script"
+        "title": "Example \u2014 Shell Script",
+        "downloads": []
       },
       {
         "apiVersion": 1,
@@ -1882,7 +1887,8 @@
           "target": true,
           "unit_serial": true
         },
-        "title": "Hardware Trigger"
+        "title": "Hardware Trigger",
+        "downloads": []
       },
       {
         "apiVersion": 1,
@@ -1974,7 +1980,8 @@
           "target": true,
           "unit_serial": true
         },
-        "title": "Piezo Motion"
+        "title": "Piezo Motion",
+        "downloads": []
       },
       {
         "apiVersion": 1,
@@ -2066,7 +2073,8 @@
           "target": true,
           "unit_serial": true
         },
-        "title": "RS422 Link"
+        "title": "RS422 Link",
+        "downloads": []
       },
       {
         "apiVersion": 1,
@@ -2179,7 +2187,8 @@
           "target": true,
           "unit_serial": true
         },
-        "title": "SSD Endurance"
+        "title": "SSD Endurance",
+        "downloads": []
       },
       {
         "apiVersion": 1,
@@ -2355,7 +2364,8 @@
           "target": false,
           "unit_serial": true
         },
-        "title": "System \u2014 Linux Stats"
+        "title": "System \u2014 Linux Stats",
+        "downloads": []
       }
     ]
   },

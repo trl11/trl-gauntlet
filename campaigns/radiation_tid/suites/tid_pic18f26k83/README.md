@@ -52,6 +52,11 @@ string it answers the console with, so the image and the board are compared on
 the same string. Updating the image is overwriting that file, keeping the name,
 and reflashing the parts on the bench.
 
+The suite declares it in `downloads`, so the Tests page offers it as a link and
+a rig can be programmed from the machine already in front of it — the image
+ships inside the deb, the Docker image and the desktop app, all three of which
+carry the whole `campaigns/` tree.
+
     tools/bench/pic_flash.py                # flash the committed image, then read it back
     tools/bench/pic_flash.py --build        # build from the submodule first
     tools/bench/pic_flash.py --verify-only  # just ask the board what it is running

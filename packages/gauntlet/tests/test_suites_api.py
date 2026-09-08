@@ -221,3 +221,56 @@ class TestUnreadableFiles:
             assert client.delete("/api/suites/alpha/profiles/mine.yaml").status_code == 500
         finally:
             directory.chmod(0o700)
+
+
+@pytest.fixture
+def download_suite(client, make_suite, suite_root):
+    """A suite offering one declared download, already discovered."""
+    make_suite(
+        "gamma",
+        downloads=[{"path": "files/image.hex", "label": "Firmware", "description": "What the part runs."}],
+    )
+    files = suite_root / "gamma" / "files"
+    files.mkdir()
+    (files / "image.hex").write_bytes(b":00000001FF\n")
+    client.post("/api/suites/rescan")
+    return suite_root / "gamma"
+
+
+def test_a_declared_download_is_served_with_its_own_name(client, download_suite):
+    response = client.get("/api/suites/gamma/downloads/files/image.hex")
+    assert response.status_code == 200
+    assert response.content == b":00000001FF\n"
+    assert "image.hex" in response.headers["content-disposition"]
+
+
+def test_the_catalog_carries_what_a_suite_offers(client, download_suite):
+    entry = client.get("/api/suites/gamma").json()
+    assert entry["downloads"] == [
+        {"path": "files/image.hex", "label": "Firmware", "description": "What the part runs."}
+    ]
+
+
+def test_a_file_the_suite_did_not_declare_is_not_served(client, download_suite):
+    # A suite directory holds its profiles and its code, so serving whatever
+    # was asked for would turn every suite into a file server for its source.
+    assert client.get("/api/suites/gamma/downloads/suite.yaml").status_code == 404
+    assert client.get("/api/suites/gamma/downloads/run.sh").status_code == 404
+
+
+def test_a_path_leaving_the_suite_directory_is_refused(client, download_suite):
+    assert client.get("/api/suites/gamma/downloads/../../../etc/passwd").status_code == 404
+
+
+def test_a_declared_download_that_is_missing_is_reported(client, download_suite):
+    (download_suite / "files" / "image.hex").unlink()
+    response = client.get("/api/suites/gamma/downloads/files/image.hex")
+    assert response.status_code == 404
+    assert "missing" in response.json()["detail"]
+
+
+def test_a_suite_offering_nothing_serves_nothing(client, make_suite):
+    make_suite("delta")
+    client.post("/api/suites/rescan")
+    assert client.get("/api/suites/delta").json()["downloads"] == []
+    assert client.get("/api/suites/delta/downloads/suite.yaml").status_code == 404

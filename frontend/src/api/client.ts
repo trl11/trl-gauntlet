@@ -54,6 +54,12 @@ export function apiUrl(path: string): string {
   return `${API_BASE}${path}`;
 }
 
+/** Absolute URL for one of a suite's declared downloads. */
+export function suiteDownloadUrl(key: string, path: string): string {
+  const encoded = path.split("/").map(encodeURIComponent).join("/");
+  return apiUrl(`/api/suites/${encodeURIComponent(key)}/downloads/${encoded}`);
+}
+
 /** A non-2xx response, or a request that never reached the backend. */
 export class ApiError extends Error {
   /** HTTP status, or 0 when the request failed before a response arrived. */
