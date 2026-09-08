@@ -149,6 +149,7 @@ class _FakeCamera:
             "DeviceTemperatureSelector": selector,
             "DeviceTemperatureStatus": _Feature("OK"),
             "ExposureAuto": _Feature("Off", entries=("Off", "Once", "Continuous")),
+            "ExposureTime": _Feature(5005.5, span=(70.0, 9_999_977.0)),
             "GainAuto": _Feature("Off", entries=("Off", "Once", "Continuous")),
             "Height": _Feature(height),
             "PayloadSize": _Feature(width * height * 3),
@@ -383,6 +384,54 @@ class TestOwning:
         assert system.entered == 1
 
 
+class TestExposure:
+    def test_pinning_it_reads_back_what_the_camera_settled_on(self) -> None:
+        fake = _FakeCamera()
+        camera = camera_with(_FakeSystem(fake))
+        camera.own()
+        assert camera.command("set_exposure", {"exposure_us": 45_000}) == {"exposure_us": 45_000.0}
+        assert camera.state()["format"]["exposure_us"] == 45_000.0
+
+    def test_pinning_it_takes_both_kinds_of_metering_off_the_camera(self) -> None:
+        # Gain left on auto compensates for a sensor that is dimming just as
+        # exposure does, which is what a dose run is there to record.
+        fake = _FakeCamera()
+        camera = camera_with(_FakeSystem(fake))
+        camera.own()
+        camera.command("set_exposure", {"exposure_us": 45_000})
+        assert fake.features["ExposureAuto"].value == "Off"
+        assert fake.features["GainAuto"].value == "Off"
+        assert camera.state()["format"]["exposure_auto"] == "Off"
+
+    def test_a_pinned_exposure_is_reported_through_the_state_a_write_answers_with(self) -> None:
+        # A suite drives this through the capability, which answers anything
+        # but a snapshot with the state rather than the command's own reply.
+        camera = camera_with(_FakeSystem(_FakeCamera()))
+        camera.own()
+        answered = camera.write({"command": "set_exposure", "args": {"exposure_us": 45_000}})
+        assert answered["format"]["exposure_us"] == 45_000.0
+
+    def test_metering_can_be_handed_back_without_releasing_the_camera(self) -> None:
+        fake = _FakeCamera()
+        camera = camera_with(_FakeSystem(fake))
+        camera.own()
+        camera.command("set_exposure", {"exposure_us": 45_000})
+        camera.command("set_auto_exposure", {})
+        assert fake.features["ExposureAuto"].value == "Continuous"
+
+    def test_a_value_outside_the_range_is_rejected(self) -> None:
+        camera = camera_with(_FakeSystem(_FakeCamera()))
+        camera.own()
+        with pytest.raises(CommandRejected, match="between"):
+            camera.command("set_exposure", {"exposure_us": 20_000_000})
+
+    def test_a_value_that_is_not_a_number_is_rejected(self) -> None:
+        camera = camera_with(_FakeSystem(_FakeCamera()))
+        camera.own()
+        with pytest.raises(CommandRejected, match="must be a number"):
+            camera.command("set_exposure", {"exposure_us": "bright"})
+
+
 class TestMetering:
     def test_the_camera_is_told_to_meter_itself(self) -> None:
         # It boots on a fixed 5ms and no gain, which is a black frame in any
@@ -394,6 +443,17 @@ class TestMetering:
         assert fake.features["ExposureAuto"].value == "Continuous"
         assert fake.features["GainAuto"].value == "Continuous"
 
+    def test_a_reopened_camera_meters_for_itself_again(self) -> None:
+        # `reset` restores the boot defaults and so does a fresh connect, so a
+        # run that pinned an exposure has to pin it again.
+        fake = _FakeCamera()
+        camera = camera_with(_FakeSystem(fake))
+        camera.own()
+        camera.command("set_exposure", {"exposure_us": 45_000})
+        camera.disown()
+        camera.own()
+        assert camera.state()["format"]["exposure_auto"] == "Continuous"
+
     def test_a_camera_that_cannot_meter_itself_still_opens(self) -> None:
         fake = _FakeCamera()
         fake.features["ExposureAuto"].error = vmbpy.VmbFeatureError("no such feature")
@@ -404,10 +464,22 @@ class TestMetering:
 class TestCommands:
     def test_the_same_commands_are_offered_owned_or_not(self) -> None:
         camera = camera_with(_FakeSystem(_FakeCamera()))
-        offered = ["set_owned", "reset", "snapshot"]
+        offered = ["set_owned", "reset", "set_exposure", "set_auto_exposure", "snapshot"]
         assert [row["name"] for row in camera.commands()] == offered
         camera.own()
         assert [row["name"] for row in camera.commands()] == offered
+
+    def test_the_two_exposure_keys_share_one_dial(self) -> None:
+        camera = camera_with(_FakeSystem(_FakeCamera()))
+        rows = {row["name"]: row for row in camera.commands()}
+        assert rows["set_exposure"]["group"] == rows["set_auto_exposure"]["group"]
+        assert rows["set_auto_exposure"]["fields"] == []
+
+    def test_the_exposure_dial_is_the_range_the_camera_reports(self) -> None:
+        camera = camera_with(_FakeSystem(_FakeCamera()))
+        camera.own()
+        field = next(row for row in camera.commands() if row["name"] == "set_exposure")["fields"][0]
+        assert (field["min"], field["max"]) == (70.0, 9_999_977.0)
 
     def test_the_reboot_sits_with_the_viewer_rather_than_in_the_deck(self) -> None:
         camera = camera_with(_FakeSystem(_FakeCamera()))

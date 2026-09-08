@@ -81,6 +81,23 @@ class Camera:
         """
         self._post({"command": "reset", "args": {}})
 
+    def set_exposure(self, exposure_us: float) -> float:
+        """Pin how long the sensor integrates, and return what it settled on.
+
+        Pinning takes metering off the camera. A run measuring a sensor that
+        is dimming has to: metering left on compensates for exactly the change
+        being recorded.
+        """
+        payload = self._post({"command": "set_exposure", "args": {"exposure_us": exposure_us}})
+        # The capability answers anything but a snapshot with the whole state,
+        # so what the camera settled on is in the format rather than at the top.
+        form = payload.get("format")
+        return _number(form.get("exposure_us")) if isinstance(form, dict) else 0.0
+
+    def set_auto_exposure(self) -> None:
+        """Hand metering back to the camera."""
+        self._post({"command": "set_auto_exposure", "args": {}})
+
     def snapshot(self, *, max_width: int) -> Snapshot:
         """Take one still and return it with its measurements.
 

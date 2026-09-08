@@ -90,6 +90,16 @@ overrides:
     unit: px
     minimum: 16
     maximum: 4512
+  - name: exposure_us
+    flag: --exposure-us
+    type: number
+    label: Exposure
+    unit: us
+    minimum: 0
+    help: >
+      Exposure to pin the camera at. Zero leaves the camera metering for
+      itself, which copes with whatever the scene is but compensates for a
+      sensor that is dimming.
   - name: driver
     flag: --driver
     type: string

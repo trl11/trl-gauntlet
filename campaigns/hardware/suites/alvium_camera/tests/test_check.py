@@ -57,6 +57,15 @@ class TestWhatAnsweredTheCapability:
             _is_alvium({"node": "/dev/video0"})
 
 
+class TestExposureSetting:
+    def test_it_is_left_to_the_camera_by_default(self) -> None:
+        assert CameraCheckProfile().exposure_us == 0
+
+    def test_a_negative_exposure_is_refused(self) -> None:
+        with pytest.raises(ValidationError):
+            CameraCheckProfile(exposure_us=-1)
+
+
 class TestFault:
     def test_a_lit_scene_is_fine(self) -> None:
         assert _fault(still(), COOL, 0, CameraCheckProfile()) == ""

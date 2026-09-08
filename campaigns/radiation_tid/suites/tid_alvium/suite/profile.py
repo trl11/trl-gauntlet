@@ -97,6 +97,15 @@ class CameraDoseProfile(BaseModel):
             "the whole frame. The height follows the aspect ratio."
         ),
     )
+    exposure_us: float = Field(
+        default=0.0,
+        ge=0,
+        description=(
+            "Exposure to pin the camera at, in microseconds. Zero leaves the camera metering "
+            "for itself, which copes with whatever the scene is but compensates for a sensor "
+            "that is dimming — so a run measuring that has to pin a value."
+        ),
+    )
     baseline_frames: int = Field(
         default=5,
         ge=1,

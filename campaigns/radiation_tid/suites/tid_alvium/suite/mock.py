@@ -47,6 +47,7 @@ class MockCamera:
         self._ticks = 0
         self._width = width
         self._working_until = 0
+        self.exposure_us = 0.0
 
     def own(self) -> None:
         """Take the camera, which a shut-down one refuses the way a real one does."""
@@ -58,6 +59,13 @@ class MockCamera:
         self._frozen = None
         self._shut_down = False
         self._working_until = self._ticks + _RECOVERY_TICKS
+
+    def set_exposure(self, exposure_us: float) -> float:
+        """Take a pinned exposure, which a real camera quantises and reads back."""
+        if self._shut_down:
+            raise CameraError("set_exposure: camera is unavailable: the image path has shut down")
+        self.exposure_us = exposure_us
+        return exposure_us
 
     def snapshot(self, *, max_width: int) -> Snapshot:
         """One still, or the failure the accumulated ticks have earned."""

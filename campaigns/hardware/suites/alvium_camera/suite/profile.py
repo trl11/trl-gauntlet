@@ -50,6 +50,15 @@ class CameraCheckProfile(BaseModel):
             "the whole frame. The height follows the aspect ratio."
         ),
     )
+    exposure_us: float = Field(
+        default=0.0,
+        ge=0,
+        description=(
+            "Exposure to pin the camera at, in microseconds. Zero leaves the camera metering "
+            "for itself, which copes with whatever the scene is but compensates for a sensor "
+            "that is dimming — so a run measuring that has to pin a value."
+        ),
+    )
     min_mean_luma: float = Field(
         default=4.0,
         ge=0,

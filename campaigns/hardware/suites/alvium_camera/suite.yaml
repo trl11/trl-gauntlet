@@ -77,6 +77,16 @@ overrides:
     help: >
       Width to scale each still to. Anything at or above the camera's own
       width takes the whole frame; the height follows the aspect ratio.
+  - name: exposure_us
+    flag: --exposure-us
+    type: number
+    label: Exposure
+    unit: us
+    minimum: 0
+    help: >
+      Exposure to pin the camera at. Zero leaves the camera metering for
+      itself, which copes with whatever the scene is but compensates for a
+      sensor that is dimming.
   - name: driver
     flag: --driver
     type: string

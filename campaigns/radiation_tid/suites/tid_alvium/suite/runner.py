@@ -94,6 +94,12 @@ def _setup(ctx: SuiteContext) -> None:
         warn(f"{granted.instance_id}: could not read the camera's state: {exc}")
         return
     _is_alvium(state)
+    _meter(camera, profile)
+    if profile.exposure_us <= 0:
+        warn(
+            "exposure is left on the camera's own metering, which compensates for the sensor "
+            "dimming — the very thing this run measures. Pin exposure_us before an exposure."
+        )
     form = state.get("format") or {}
     heat = _temperature(camera)
     info(
@@ -123,6 +129,22 @@ def _is_alvium(state: dict[str, Any]) -> None:
             f"camera ({state.get('node') or 'unknown device'}). Set camera_device to the camera's "
             f"serial to pin it, then rescan the instruments."
         )
+
+
+def _meter(camera: Camera, profile: Any) -> None:
+    """Pin the exposure the profile asked for, or leave the camera metering.
+
+    A camera opens metering for itself, and `reset` puts it back that way, so
+    a pinned exposure has to be applied whenever the connection is new.
+    """
+    if profile.exposure_us <= 0:
+        return
+    try:
+        settled = camera.set_exposure(profile.exposure_us)
+    except CameraError as exc:
+        warn(f"could not pin the exposure at {profile.exposure_us:.0f}us: {exc}")
+        return
+    info(f"exposure pinned at {settled:.0f}us")
 
 
 def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
@@ -267,6 +289,10 @@ def _recover(ctx: SuiteContext, ictx: IterationContext, misses: int) -> None:
     except CameraError as exc:
         warn(f"the camera did not come back: {exc}")
         return
+    # A reboot restores the camera's own metering, so a run that pinned an
+    # exposure has to pin it again or the rest of the session is measured
+    # against a different one.
+    _meter(camera, profile)
     # Cleared so the frozen-frame check starts again rather than comparing the
     # first frame after the reboot with the last one before it.
     ctx.extras[_PREVIOUS] = None

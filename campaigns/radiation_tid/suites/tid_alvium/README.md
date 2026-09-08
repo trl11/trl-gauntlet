@@ -46,6 +46,27 @@ again — up to `recovery.max_resets` times, after which a camera that is not
 coming back is left alone and recorded. Unplugging is the only other recovery
 and is no use to a camera inside a chamber.
 
+## Pin the exposure before the beam
+
+`standard.yaml` and `continuous.yaml` set `exposure_us`, and they have to.
+
+The camera's own metering compensates for a sensor that is dimming — which is
+the change this run exists to record. Left on, `camera.luma_drift` reads flat
+through a part that is visibly degrading, and the run measures the camera's
+opinion of the scene rather than the scene. The suite warns in the log when
+`exposure_us` is zero, and does not stop, because a bench run with metering on
+is a reasonable thing to do.
+
+Get the number from a `bench.yaml` run, which leaves metering to the camera:
+read the exposure it settles on off the instrument panel, then pin that. The
+shipped default of 5000 us is the camera's own boot value and is a black frame
+in a room that is not brightly lit — it is a placeholder, not a recommendation.
+
+A pinned exposure lasts as long as the connection. Rebooting the camera
+restores its boot defaults, so the suite pins the value again after every
+recovery; a session measured half at one exposure and half at another measures
+nothing.
+
 ## What each tick measures
 
 | Reading | Metric | What it says |

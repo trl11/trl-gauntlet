@@ -65,6 +65,16 @@ _FULL_RES_CHOICE = "Full"
 _MIN_WIDTH = 16
 _WIDTH_CHOICES = (_FULL_RES_CHOICE, "1920", "960", "480")
 
+# The 1800 U-2040c's own range is 70us to 10s. Replaced by what the camera
+# reports as soon as one is open, so the panel's dial matches the device
+# rather than this file.
+_EXPOSURE_MIN_US = 1.0
+_EXPOSURE_MAX_US = 10_000_000.0
+
+# What the camera calls metering it does for itself.
+_AUTO_ON = "Continuous"
+_AUTO_OFF = "Off"
+
 _FRAME_TIMEOUT_MS = 20_000
 
 _NOT_OWNED = "not owned"
@@ -130,6 +140,7 @@ class AlviumCamera:
         self._last_probe = clock() - probe_interval_s
         self._identity: dict[str, str] = {}
         self._format: dict[str, Any] = {}
+        self._exposure_range = (_EXPOSURE_MIN_US, _EXPOSURE_MAX_US)
         self._last_frame: dict[str, Any] = {}
         self._snapshots = 0
         self._unavailable_reason = _NOT_OWNED
@@ -196,6 +207,10 @@ class AlviumCamera:
                 return self._reset()
             if self._camera is None:
                 raise CommandRejected("camera is not owned: own it before driving it")
+            if name == "set_exposure":
+                return self._set_exposure(args)
+            if name == "set_auto_exposure":
+                return self._set_auto_exposure()
             if name == "snapshot":
                 return self._snapshot(args)
             raise CommandRejected(f"camera has no command {name!r}")
@@ -207,7 +222,11 @@ class AlviumCamera:
         camera. The others are offered whether or not it is open, so the panel
         draws the same controls throughout and a camera the firmware has shut
         down can still be rebooted.
+
+        The two exposure commands share a group, so the panel draws one dial
+        with a key each side of it: pin the value, or hand metering back.
         """
+        minimum, maximum = self._exposure_range
         return [
             {
                 "name": "set_owned",
@@ -221,6 +240,26 @@ class AlviumCamera:
                 # Reached while looking at the picture that stopped arriving,
                 # so it sits with the viewer's own controls.
                 "role": "viewer",
+            },
+            {
+                "name": "set_exposure",
+                "label": "Set Exposure",
+                "group": "exposure",
+                "fields": [
+                    command_field(
+                        "exposure_us",
+                        "Exposure",
+                        maximum=maximum,
+                        minimum=minimum,
+                        unit="us",
+                    ),
+                ],
+            },
+            {
+                "name": "set_auto_exposure",
+                "label": "Auto",
+                "group": "exposure",
+                "fields": [],
             },
             {
                 "name": "snapshot",
@@ -281,6 +320,8 @@ class AlviumCamera:
             readout("format.width", "Width", group="Format", role="summary", unit="px"),
             readout("format.height", "Height", group="Format", role="summary", unit="px"),
             readout("format.pixel_format", "Pixel format", group="Format", role="summary"),
+            readout("format.exposure_us", "Exposure", group="Format", precision=0, role="summary", unit="us"),
+            readout("format.exposure_auto", "Metering", group="Format", role="summary"),
             readout("last_frame.mean_luma", "Brightness", group="Last snapshot", precision=1),
             readout("last_frame.sharpness", "Sharpness", group="Last snapshot", precision=2),
             readout("snapshots", "Snapshots", role="viewer"),
@@ -334,6 +375,53 @@ class AlviumCamera:
         else:
             self._disconnect()
         return {"owned": enabled}
+
+    def _set_exposure(self, args: dict[str, Any]) -> dict[str, Any]:
+        """``set_exposure``: pin how long the sensor integrates, in microseconds.
+
+        Pinning means taking metering off the camera, so this turns off auto
+        exposure *and* auto gain before setting the value. A run measuring a
+        sensor that is dimming has to have both: either one left on
+        compensates for exactly the change being recorded, and the drift reads
+        flat through a part that is visibly degrading.
+        """
+        minimum, maximum = self._exposure_range
+        value = args.get("exposure_us")
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise CommandRejected("camera: 'exposure_us' must be a number")
+        if not minimum <= value <= maximum:
+            raise CommandRejected(f"camera: 'exposure_us' must be between {minimum} and {maximum}")
+        camera = self._camera
+        if camera is None:
+            raise CommandRejected("camera is unavailable: not open")
+        try:
+            for name in ("ExposureAuto", "GainAuto"):
+                camera.get_feature_by_name(name).set(_AUTO_OFF)
+            exposure = camera.get_feature_by_name("ExposureTime")
+            exposure.set(float(value))
+            # Read back rather than kept, because the camera quantises what it
+            # is given and the operator is shown what it settled on.
+            self._format["exposure_us"] = float(exposure.get())
+            self._format["exposure_auto"] = _AUTO_OFF
+        except _VMB_ERRORS as exc:
+            raise CommandRejected(f"camera: {exc}") from exc
+        return {"exposure_us": self._format["exposure_us"]}
+
+    def _set_auto_exposure(self) -> dict[str, Any]:
+        """``set_auto_exposure``: hand metering back to the camera.
+
+        Where a camera opens, so this is the way back from a pinned exposure
+        without releasing the device.
+        """
+        camera = self._camera
+        if camera is None:
+            raise CommandRejected("camera is unavailable: not open")
+        self._format["exposure_auto"] = _meter(camera)
+        try:
+            self._format["exposure_us"] = float(camera.get_feature_by_name("ExposureTime").get())
+        except _VMB_ERRORS as exc:
+            raise CommandRejected(f"camera: {exc}") from exc
+        return {"exposure_auto": self._format["exposure_auto"]}
 
     def _reset(self) -> dict[str, Any]:
         """``reset``: reboot the camera's firmware.
@@ -461,18 +549,27 @@ class AlviumCamera:
         handed packed RGB and a camera left on whatever it booted with may be
         sending Bayer or mono.
 
-        Exposure and gain are handed to the camera for the same reason. It
-        boots with both fixed — 5 ms and no gain — which is a black frame in
-        any room that is not brightly lit, and there is no exposure command
-        here for an operator to correct it with. `reset` restores those
-        defaults, so this is set on every connect rather than once.
+        Metering is handed to the camera for the same reason. It boots with
+        exposure and gain both fixed — 5 ms and none — which is a black frame
+        in any room that is not brightly lit, so opening a camera and finding
+        nothing in the picture would be the ordinary case. `reset` restores
+        those defaults, which is why this runs on every connect.
 
-        Everything read here is read once: it does not change while the camera
-        is owned, and a panel poll must not pay for it.
+        A pinned exposure therefore lasts as long as the connection and no
+        longer: `set_exposure` overrides this, and releasing the camera or
+        rebooting it hands metering back. A run that pins one has to pin it
+        again after it recovers a camera.
+
+        Everything else read here is read once: it does not change while the
+        camera is owned, and a panel poll must not pay for it.
         """
         camera.set_pixel_format(_PIXEL_FORMAT)
-        _meter(camera)
+        metering = _meter(camera)
+        exposure = camera.get_feature_by_name("ExposureTime")
+        self._exposure_range = (float(exposure.get_range()[0]), float(exposure.get_range()[1]))
         self._format = {
+            "exposure_auto": metering,
+            "exposure_us": float(exposure.get()),
             "height": int(camera.get_feature_by_name("Height").get()),
             "payload_bytes": int(camera.get_feature_by_name("PayloadSize").get()),
             "pixel_format": camera.get_pixel_format().name,
@@ -584,18 +681,23 @@ class AlviumCamera:
         }
 
 
-def _meter(camera: Any) -> None:
-    """Let the camera choose its own exposure and gain.
+def _meter(camera: Any) -> str:
+    """Let the camera choose its own exposure and gain, and say what it is on.
 
-    A camera that cannot is left as it is: the frame it produces is still
-    worth having, and a bench lit well enough for the boot default does not
-    need this.
+    A camera that cannot is left as it is and answers with an empty string:
+    the frame it produces is still worth having, and a bench lit well enough
+    for the boot default does not need this.
     """
     for name in ("ExposureAuto", "GainAuto"):
         try:
-            camera.get_feature_by_name(name).set("Continuous")
+            camera.get_feature_by_name(name).set(_AUTO_ON)
         except _VMB_ERRORS as exc:
             log.debug("%s: %s", name, exc)
+    try:
+        return str(camera.get_feature_by_name("ExposureAuto").get())
+    except _VMB_ERRORS as exc:
+        log.debug("ExposureAuto: %s", exc)
+        return ""
 
 
 def _temperatures(camera: Any) -> dict[str, Any]:

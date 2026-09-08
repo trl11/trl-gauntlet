@@ -10,6 +10,12 @@ duration_s: 28800.0
 sample_period_s: 30.0
 max_width: 960
 
+# Pinned, because the camera's own metering compensates for a sensor that is
+# dimming and would flatten the drift this run exists to record. Set from a
+# bench run against the scene the exposure will actually watch: this is the
+# camera's default, and it is a black frame in a room that is not brightly lit.
+exposure_us: 5000
+
 baseline_frames: 5
 max_luma_drift: 40
 max_sharpness_drop: 0.5

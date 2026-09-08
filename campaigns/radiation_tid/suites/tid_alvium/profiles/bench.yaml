@@ -7,6 +7,9 @@ driver: real
 duration_s: 120.0
 sample_period_s: 10.0
 max_width: 960
+# Left to the camera, so a bench run shows what the scene needs. Read the
+# exposure it settles on off the panel and pin that in standard.yaml.
+exposure_us: 0
 
 baseline_frames: 3
 max_luma_drift: 40

@@ -45,6 +45,26 @@ the run before the shutdown does it for you.
 Recovery is **Reboot Camera** in the instrument panel, beside the snapshot
 controls. Unplugging works too, and is no use to a camera inside a chamber.
 
+## Exposure
+
+The camera boots on a fixed 5 ms with no gain and no auto, which is a black
+frame in any room that is not brightly lit. Gauntlet hands metering back to the
+camera whenever it opens one, so the default `exposure_us: 0` leaves it to cope
+with whatever the room is — which is what a check of *whether the camera works*
+wants.
+
+Set `exposure_us` to pin it instead. Pinning takes metering off the camera, so
+the still is of the scene rather than of the camera's opinion of the scene.
+
+A pinned exposure lasts as long as the connection and no longer: releasing the
+camera or rebooting it hands metering back. **Rebooting the Alvium restores its
+boot defaults**, which is why the dose fork pins its exposure again after every
+recovery.
+
+If a bench run takes far longer than the profile asks for, look at the exposure
+the camera settled on. In a dark room it will go to several seconds a frame,
+and the sample loop simply runs late behind it.
+
 ## What a still has to be to pass
 
 Each tick takes one, writes it into `frames/`, and judges it four ways. Every

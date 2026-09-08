@@ -7,6 +7,9 @@ driver: real
 frames: 5
 sample_period_s: 1.5
 max_width: 960
+# Zero leaves the camera metering for itself, which is what a check of whether
+# the camera works wants: it copes with whatever the room is.
+exposure_us: 0
 min_mean_luma: 4
 max_mean_luma: 250
 min_sharpness: 0.5

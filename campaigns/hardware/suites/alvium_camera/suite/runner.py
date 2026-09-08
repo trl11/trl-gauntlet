@@ -80,6 +80,7 @@ def _setup(ctx: SuiteContext) -> None:
         warn(f"{granted.instance_id}: could not read the camera's state: {exc}")
         return
     _is_alvium(state)
+    _meter(camera, profile)
     form = state.get("format") or {}
     info(
         f"{granted.instance_id}: {state.get('serial', '?')} "
@@ -108,6 +109,22 @@ def _is_alvium(state: dict[str, Any]) -> None:
             f"camera ({state.get('node') or 'unknown device'}). Set camera_device to the camera's "
             f"serial to pin it, then rescan the instruments."
         )
+
+
+def _meter(camera: Camera, profile: Any) -> None:
+    """Pin the exposure the profile asked for, or leave the camera metering.
+
+    A camera opens metering for itself, and `reset` puts it back that way, so
+    a pinned exposure has to be applied whenever the connection is new.
+    """
+    if profile.exposure_us <= 0:
+        return
+    try:
+        settled = camera.set_exposure(profile.exposure_us)
+    except CameraError as exc:
+        warn(f"could not pin the exposure at {profile.exposure_us:.0f}us: {exc}")
+        return
+    info(f"exposure pinned at {settled:.0f}us")
 
 
 def _mock_snapshot(ctx: SuiteContext, profile: CameraCheckProfile) -> Snapshot:

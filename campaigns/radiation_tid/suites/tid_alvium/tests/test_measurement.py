@@ -41,6 +41,26 @@ class TestWhatAnsweredTheCapability:
             _is_alvium({"driver": "uvc", "node": "/dev/video0"})
 
 
+class TestExposureSetting:
+    def test_a_pinned_exposure_survives_a_reboot(self) -> None:
+        # A reboot restores the camera's own metering, and a session measured
+        # half at one exposure and half at another measures nothing.
+        camera = MockCamera()
+        camera.set_exposure(20_000)
+        camera.reset()
+        assert camera.exposure_us == 20_000
+        camera.set_exposure(20_000)
+        assert camera.exposure_us == 20_000
+
+    def test_a_shut_down_camera_will_not_take_one(self) -> None:
+        camera = MockCamera()
+        with pytest.raises(CameraError):
+            for _ in range(mock.DROPOUT_ONSET + 1):
+                camera.snapshot(max_width=160)
+        with pytest.raises(CameraError):
+            camera.set_exposure(20_000)
+
+
 class TestVerdict:
     def test_a_session_that_took_no_still_is_not_a_pass(self) -> None:
         assert _evaluate([outcome(False)], CameraDoseProfile()) == (False, "no still arrived in the whole session")
