@@ -5,6 +5,8 @@ import clsx from "clsx";
 
 import type { Suite, VerifyReport } from "@api/types";
 
+import { linkify } from "../utils/linkify";
+
 import "./SuiteDetail.scss";
 
 /** Props for {@link SuiteDetail}. */
@@ -49,7 +51,19 @@ const SuiteDetail: React.FC<SuiteDetailProps> = ({
 
       {suite.description && <p className="suite-detail__description">{suite.description}</p>}
 
-      {suite.setup && <pre className="suite-detail__setup">{suite.setup}</pre>}
+      {suite.setup && (
+        <pre className="suite-detail__setup">
+          {linkify(suite.setup).map((part, index) =>
+            part.href ? (
+              <a key={index} href={part.href} rel="noreferrer" target="_blank">
+                {part.text}
+              </a>
+            ) : (
+              part.text
+            )
+          )}
+        </pre>
+      )}
 
       {unmet.length > 0 && (
         <p className="suite-detail__blocked" role="status">
