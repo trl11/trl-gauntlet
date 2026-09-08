@@ -81,6 +81,26 @@ class SupportsSpec(BaseModel):
     unit_serial: bool = False
 
 
+class DownloadSpec(BaseModel):
+    """One file the suite offers the operator, named relative to its directory.
+
+    Gauntlet serves it and the UI links to it, so a bench gets what it needs
+    from the machine already in front of it rather than from a repository it
+    may not have. The path is resolved inside the suite directory and refused
+    if it escapes.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    path: str = Field(
+        min_length=1,
+        max_length=200,
+        description="Relative to the suite directory. No leading slash, no `..`.",
+    )
+    label: str = Field(default="", max_length=80, description="What to call it. Defaults to the filename.")
+    description: str = Field(default="", max_length=200, description="One line on what it is for.")
+
+
 class SuiteManifest(BaseModel):
     """A ``suite.yaml``. The entire registration surface for a suite."""
 
@@ -121,6 +141,13 @@ class SuiteManifest(BaseModel):
             "Metric series names charted and columned by default on a run's Metrics and "
             "Iterations tabs, before the operator picks their own. Falls back to the first "
             "few series reported when empty."
+        ),
+    )
+    downloads: list[DownloadSpec] = Field(
+        default_factory=list,
+        description=(
+            "Files inside the suite directory Gauntlet offers the operator, for things a "
+            "bench needs before a run: a firmware image, a wiring diagram, a datasheet."
         ),
     )
 

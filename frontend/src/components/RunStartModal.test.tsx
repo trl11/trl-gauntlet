@@ -44,6 +44,7 @@ function suite(partial: Partial<Suite> = {}): Suite {
     conformance_profile: "mock.yaml",
     default_metrics: [],
     description: "Chamber profile with per-segment pass/fail.",
+    downloads: [],
     directory: "/suites/thermal_cycle",
     exec: {
       args: {},

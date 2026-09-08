@@ -80,6 +80,23 @@ false. A `string` override with `choices` renders as a select and rejects
 values outside the list. A `number` or `integer` override may carry `minimum`
 and `maximum`, which bound the form control and reject a value outside them.
 
+`downloads` names files inside the suite directory that Gauntlet serves and
+the Tests page offers as links, for what a bench needs before a run: a firmware
+image to program a part with, a wiring diagram, a datasheet. Only a declared
+path is served — a suite directory holds its profiles and its code, so
+resolving whatever was asked for would turn every suite into a file server for
+its own source.
+
+```yaml
+downloads:
+  - path: firmware/image.hex
+    label: Device firmware
+    description: What the part under test is programmed with.
+```
+
+Each is fetched from `GET /api/suites/{key}/downloads/{path}`. `label`
+defaults to the filename.
+
 `requires` lists capabilities the suite needs. Gauntlet checks each against its
 capability registry before spawning and rejects the run when one is
 unavailable. Granted capabilities arrive as environment variables addressing

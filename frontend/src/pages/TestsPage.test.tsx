@@ -38,6 +38,7 @@ function suite(partial: Partial<Suite> & { key: string; title: string }): Suite 
     conformance_profile: "",
     default_metrics: [],
     description: "",
+    downloads: [],
     directory: `/suites/${partial.key}`,
     exec: {
       args: {},

@@ -4,15 +4,49 @@ key: tid_pic18f26k83
 title: PIC18F26K83 Microcontroller
 category: radiation
 description: >
-  Total ionising dose characterisation of the PIC18F26K83-E/SS on TBD. The
-  software approach is not yet defined for this component. Placeholder: the
-  measurement is not implemented yet.
+  Total ionising dose characterisation of the PIC18F26K83-E/SS running PMU3.
+  Each tick drains the firmware's own '@' telemetry stream off the debug UART
+  and accounts for three things: the liveness beat, whose absence is the
+  measurement; the detections the firmware's counters record; and the board's
+  millisecond clock against the host's, which is its oscillator.
 
 setup: |
-  The bench is not defined yet. Nobody has chosen the test vehicle, and no
-  software approach is decided. The host will be a Jetson or a Linux laptop.
-  There is nothing wired to describe until then, and the suite runs and
-  passes without hardware.
+  Program the part before the campaign, not before each run. This suite reads
+  a part that is already executing; it never flashes one.
+
+    1. Get the firmware. The image is in the tree, at firmware/pmu3_firmware.hex
+       beside this suite, and its source is
+       https://github.com/trl11/trl-pmu-firmware
+    2. Program it, and confirm the part answers afterwards:
+         tools/bench/pic_flash.py
+       Flashing needs MPLAB X for its ipecmd; a rig needs nothing else.
+       --build builds from the submodule first, which needs XC8 as well.
+    3. Run bench.yaml. Every run reads the version back off the board and
+       records it against the image's SHA-256, so a part running something
+       else is reported rather than measured quietly.
+
+  Then the debug UART, and nothing else. The console is 115200 8N1 — a PKOB4
+  on a Curiosity HPC bridges the target's UART to a CDC-ACM node, and a TTL
+  serial cable on the same pins arrives as a ttyUSB. The suite finds the port
+  itself when `console.device` is `auto`, by asking each candidate whether a
+  board answers on it rather than by counting what is attached. The cable's
+  TX goes to the PIC's RC7 and its RX to RC5.
+
+  The frame stream is off at boot and the suite turns it on, reading the
+  state first so a board that already had it on is not toggled off.
+
+      +----------------+          +----------------+
+      |      Host      |   USB    |   programmer   |  ICSP, before the run
+      |  /dev/ttyACM0  |<-------->|   + console    |------------------------+
+      +----------------+  115200  +----------------+                        |
+                                          | UART 8N1                        v
+                                          |                        +-----------------+
+                                          +----------------------->|  PIC18F26K83    |
+                                                                   |  running PMU3   |
+                                                                   +-----------------+
+
+  README.md is the whole design. The supply, the bridge and the analyzer are
+  not wired yet, and the four measurements that need them are not taken.
 
 exec:
   command: ["python", "-m", "suite.cli"]
@@ -30,8 +64,15 @@ produces: [events, junit, manifest, metrics, summary, verdict]
 requires: []
 
 supports:
-  target: true
+  target: false
   unit_serial: true
+
+default_metrics: [events.total, stream.beats, stream.clock_ppm]
+
+downloads:
+  - path: firmware/pmu3_firmware.hex
+    label: PMU3 firmware
+    description: The image the part under test is programmed with, for tools/bench/pic_flash.py.
 
 overrides:
   - name: duration_s
@@ -39,8 +80,20 @@ overrides:
     type: number
     label: Duration
     unit: s
+    # Zero is a duration: it gives the loop no end of its own and the suite
+    # samples until the operator stops the run, which is what `continuous.yaml`
+    # ships. A floor of 1 would reject the value that profile seeds the form
+    # with.
+    minimum: 0
   - name: sample_period_s
     flag: --sample-period-s
     type: number
     label: Sample period
     unit: s
+    minimum: 0.1
+  - name: driver
+    flag: --driver
+    type: string
+    label: Driver
+    choices: [real, mock]
+    help: mock synthesises the frame stream and opens no port.

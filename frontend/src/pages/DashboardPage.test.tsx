@@ -100,6 +100,7 @@ function suite(): Suite {
     conformance_profile: "standard",
     default_metrics: [],
     description: "Cycle the chamber.",
+    downloads: [],
     directory: "/suites/thermal_cycle",
     exec: {
       args: {},

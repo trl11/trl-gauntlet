@@ -6,3 +6,7 @@
 	path = extras/trl-ui-kit
 	url = git@github.com:trl11/trl-ui-kit.git
 	branch = dev
+[submodule "extras/trl-pmu-firmware"]
+	path = extras/trl-pmu-firmware
+	url = git@github.com:trl11/trl-pmu-firmware.git
+	branch = main

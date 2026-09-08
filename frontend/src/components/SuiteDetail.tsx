@@ -3,7 +3,10 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Badge, Button } from "@trl11/components/ui";
 import clsx from "clsx";
 
+import { suiteDownloadUrl } from "@api/client";
 import type { Suite, VerifyReport } from "@api/types";
+
+import { linkify } from "../utils/linkify";
 
 import "./SuiteDetail.scss";
 
@@ -49,7 +52,32 @@ const SuiteDetail: React.FC<SuiteDetailProps> = ({
 
       {suite.description && <p className="suite-detail__description">{suite.description}</p>}
 
-      {suite.setup && <pre className="suite-detail__setup">{suite.setup}</pre>}
+      {suite.setup && (
+        <pre className="suite-detail__setup">
+          {linkify(suite.setup).map((part, index) =>
+            part.href ? (
+              <a key={index} href={part.href} rel="noreferrer" target="_blank">
+                {part.text}
+              </a>
+            ) : (
+              part.text
+            )
+          )}
+        </pre>
+      )}
+
+      {suite.downloads.length > 0 && (
+        <ul className="suite-detail__downloads">
+          {suite.downloads.map((download) => (
+            <li key={download.path}>
+              <a download href={suiteDownloadUrl(suite.key, download.path)}>
+                {download.label || download.path.split("/").pop()}
+              </a>
+              {download.description && <span> {download.description}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
 
       {unmet.length > 0 && (
         <p className="suite-detail__blocked" role="status">

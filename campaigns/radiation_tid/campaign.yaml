@@ -56,7 +56,13 @@ members:
   host: Jetson or Linux laptop
   fixture: 9-1
   profile: standard.yaml
-  notes: TBD - test vehicle, host and software approach are not yet defined.
+  notes: The part runs PMU3, whose firmware carries a telemetry stream written for
+    a radiation campaign, so the suite reads the part's own detectors, reset history
+    and time base over the debug UART alone. That half is implemented. The supply,
+    the I2C bridge and the logic analyzer are not wired yet and the six analog and
+    timing measurements that need them are not taken. Test vehicle is still open -
+    the whole board must not be in the beam, so it wants a carrier holding the
+    SSOP-28 part alone. See the suite's README.md.
 - suite: tid_alvium
   component: ALVIUM 1800 U-2040c
   test_vehicle: Alvium 1800 U-2040c
