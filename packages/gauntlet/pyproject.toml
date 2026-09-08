@@ -19,6 +19,7 @@ dependencies = [
     "pyusb>=1.2",
     "pyyaml>=6.0",
     "uvicorn[standard]>=0.27",
+    "vmbpy>=1.2",
 ]
 
 [project.optional-dependencies]

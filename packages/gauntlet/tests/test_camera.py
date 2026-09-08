@@ -458,6 +458,9 @@ class TestDetection:
         assert registry.provider("camera") is None
 
     def test_a_camera_that_does_not_answer_is_not_registered(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # An Allied Vision camera on the bench's own bus would otherwise be
+        # registered here, and this is about the capture-node driver.
+        monkeypatch.setattr("gauntlet.instruments.detect.AlviumCamera", _absent_camera)
         monkeypatch.setattr("gauntlet.instruments.detect.UvcCamera", _absent_camera)
         registry = CapabilityRegistry()
         detect_instruments(registry, Settings(camera_device="auto", psu_port="", daq_serial=""))

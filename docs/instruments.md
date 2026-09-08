@@ -17,6 +17,7 @@ declares about itself; naming an instrument anywhere else is a defect.
 | `psu` | Hanmatek HM310T, `instruments/hm310t_psu.py` | Modbus RTU on a USB serial port, 9600 8N1, slave 1 |
 | `daq` | DATAQ DI-2008, `instruments/di2008_daq.py` | vendor bulk-USB protocol, claimed through usbfs |
 | `camera` | any UVC camera, `instruments/uvc_camera.py` | V4L2 ioctls on a `/dev/video*` node, memory-mapped capture |
+| `camera` | any Allied Vision camera, `instruments/alvium_camera.py` | USB3 Vision through a GenTL transport layer, claimed over usbfs |
 | `i2c` | Silicon Labs CP2112, `instruments/cp2112_i2c.py` | `I2C_RDWR` on the `i2c-dev` node the kernel's own `hid-cp2112` driver adapts it to |
 | `logic` | any Cypress FX2LP eight-channel analyzer, `instruments/fx2_logic.py` | vendor bulk-USB, claimed through usbfs, once sigrok's fx2lafw is loaded into it |
 | `chamber` | nothing | simulation only |
@@ -72,6 +73,42 @@ Two different permission failures are told apart, because the fix differs:
 `EACCES` is the account not being in the `video` group, and `EPERM` on a node
 that is plainly there is a container's device cgroup lacking a rule for char
 major 81.
+
+### The camera that has no node
+
+An Allied Vision camera is USB3 Vision rather than UVC. The kernel binds no
+driver to it and it gets no `/dev/video*` node, so the driver above cannot see
+it at all: descriptors, registers and pixels all reach it through its one
+usbfs node, which is why it needs the udev rule the DAQ needs. Talking to it
+is `vmbpy` plus a GenTL transport layer that VmbC loads from
+`GENICAM_GENTL64_PATH`. The wheel carries VmbC and no layer, so a bench that
+never installed one finds no cameras rather than failing; the devcontainer
+installs the USB layer at `/opt/vimbax/cti`.
+
+Presence is read from sysfs rather than by starting the transport layer, which
+would touch every camera on the bus on every panel poll. A node that is there
+but cannot be opened says so, naming `make install-udev-rules`, because that
+is the whole fix.
+
+It sends RGB already, debayered on the sensor board, so the frame is
+subsampled to the width asked for and written straight out — there is nothing
+to convert. The format is set on connect rather than accepted, since a camera
+left as it booted may be sending Bayer or mono.
+
+Both temperatures it reports are readouts, and the sensor is the one to watch.
+Past its limit the firmware shuts the image path down: the camera stays on the
+bus and still answers for its serial, its firmware and its temperature, while
+`Width`, `PixelFormat` and every acquisition feature report
+themselves unreadable. The access error alone says nothing about why, so the
+temperature is read when a connection fails and put beside it. An Alvium in
+free air reaches that limit in minutes; the housing is its heatsink and has to
+be mounted to something.
+
+The shutdown latches until the camera restarts, which is what `reset` is for:
+it reboots the firmware, and the camera leaves the bus for about a second and
+comes back on a new bus address with the latch cleared. Without it the only
+recovery is unplugging the camera, which is not available to an operator whose
+camera is inside a chamber.
 
 ### What the link reports, behind a GMSL adapter
 
@@ -179,8 +216,8 @@ it.
 | Setting | Meaning |
 |---|---|
 | `psu_port`, `daq_serial`, `i2c_serial`, `logic_serial` | `"auto"` probes, `""` does not look at all, anything else is the serial port or USB serial number to use. Most analyzer boards carry no serial number, so `"auto"` takes the first on the bus |
-| `camera_device` | `"auto"` registers so long as any `/dev/video*` node exists, `""` does not look at all, anything else is the node to register. Which node actually streams, and whether it carries a format the encoder can write, is not settled until something owns it — see [Owning a device](#owning-a-device) |
-| `camera_format` | `"auto"` reads a frame to decide what it really carries, or name `yuyv` or `raw10_rggb` to state it. A GMSL adapter reports YUYV over UVC while sending raw sensor data, and the UVC format code cannot tell them apart |
+| `camera_device` | `"auto"` prefers an Allied Vision camera when one is on the bus and otherwise registers so long as any `/dev/video*` node exists, `""` does not look at all, a `/dev/video*` path is the node to register, and anything else names an Allied Vision camera by serial. Which node actually streams, and whether it carries a format the encoder can write, is not settled until something owns it — see [Owning a device](#owning-a-device) |
+| `camera_format` | `"auto"` reads a frame to decide what it really carries, or name `yuyv` or `raw10_rggb` to state it. A GMSL adapter reports YUYV over UVC while sending raw sensor data, and the UVC format code cannot tell them apart. It settles the UVC driver only; a USB3 Vision camera states its format itself |
 | `logic_firmware` | Where fx2lafw is. `"auto"` searches the directories `sigrok-firmware-fx2lafw` installs into; a file or a directory names it instead |
 | `simulated_instruments` | Names the instruments to simulate instead of probing for. Empty by default |
 

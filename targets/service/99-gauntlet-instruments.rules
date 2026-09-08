@@ -37,3 +37,11 @@ SUBSYSTEM=="usb", ATTRS{idVendor}=="1d50", ATTRS{idProduct}=="608c", MODE="0660"
 # whose default permissions are the same root:root 0664 as any other usbfs
 # node, so it needs a rule here too.
 SUBSYSTEM=="i2c-dev", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea90", MODE="0660", GROUP="dialout"
+
+# Allied Vision USB3 Vision cameras (Alvium 1800 U and the rest). These are not
+# UVC and get no /dev/video* node: the GenTL transport layer claims the device
+# through usbfs and streams over it, so the whole camera is reached through
+# this one node. 0001 is a camera running normally, ff01 the same camera in
+# firmware update mode, which answers on the bus under a different id.
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1ab2", ATTRS{idProduct}=="0001", MODE="0660", GROUP="dialout"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="1ab2", ATTRS{idProduct}=="ff01", MODE="0660", GROUP="dialout"

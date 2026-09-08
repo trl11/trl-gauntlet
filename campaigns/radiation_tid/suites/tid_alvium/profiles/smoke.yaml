@@ -1,0 +1,8 @@
+description: Fast smoke run, no hardware. What `gauntlet verify --run` executes.
+driver: mock
+duration_s: 2.0
+sample_period_s: 0.25
+max_width: 160
+baseline_frames: 2
+recovery:
+  settle_s: 0

@@ -21,6 +21,7 @@ from collections.abc import Callable
 
 from gauntlet.capabilities.registry import CapabilityProvider, CapabilityRegistry
 from gauntlet.config import Settings
+from gauntlet.instruments.alvium_camera import AlviumCamera
 from gauntlet.instruments.cp2112_i2c import Cp2112I2c, candidate_adapters
 from gauntlet.instruments.di2008_daq import Di2008Daq
 from gauntlet.instruments.fx2_logic import Fx2Logic
@@ -79,14 +80,31 @@ def _close(provider: CapabilityProvider) -> None:
 
 
 def _camera(device: str, frame_format: str = "auto") -> CapabilityProvider | None:
-    """The camera, if one is asked for and a candidate node is present.
+    """The camera, if one is asked for and a candidate is present.
 
-    Registering it never opens it: `available()` only checks the filesystem,
-    so "auto" is passed through as an empty device rather than probed for
-    here, and nothing owns the node until an operator or a run does.
+    Two drivers answer this capability and the setting says which. A
+    ``/dev/video*`` path is a UVC camera; anything else names an Allied
+    Vision camera by serial, because a USB3 Vision camera has no node to
+    name. ``"auto"`` prefers an Allied Vision camera when one is on the bus:
+    it is an instrument somebody attached deliberately, where a capture node
+    is whatever the host happens to have, a built-in webcam included.
+
+    A named Allied Vision camera is registered whether or not it answers, the
+    way a named port is for every other instrument: the operator said there is
+    one there, so its absence is reported through `unavailable_reason` rather
+    than hidden. Only `"auto"` falls through to a capture node.
+
+    Registering it never opens it: `available()` only looks at sysfs, and
+    nothing owns the device until an operator or a run does.
     """
     if not device:
         return None
+    if device != "auto" and not device.startswith("/"):
+        return AlviumCamera(serial_filter=device)
+    if device == "auto":
+        alvium = AlviumCamera()
+        if alvium.available():
+            return alvium
     camera = UvcCamera(device="" if device == "auto" else device, frame_format=frame_format)
     if camera.available():
         return camera

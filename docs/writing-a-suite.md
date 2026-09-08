@@ -107,7 +107,7 @@ it is in flight.
 
 | Name | What it gives a suite |
 |---|---|
-| `camera` | Still images from a USB camera, one per `snapshot`, each measured for brightness and sharpness. Behind a GMSL adapter it also reports the link's lock state and error counters. |
+| `camera` | Still images from a USB camera, one per `snapshot`, each measured for brightness and sharpness. Behind a GMSL adapter it also reports the link's lock state and error counters; an Allied Vision camera reports both its temperatures instead, and takes a `reset` that reboots it. |
 | `chamber` | A temperature setpoint and a reading. Simulation only — there is no driver for real hardware. |
 | `daq` | Eight analog inputs, each a voltage range or a thermocouple type, read a scan at a time. |
 | `i2c` | An I2C bridge a suite drives itself: `write`, `read`, `write_read` and a bus `scan`, with no fixed device on the other end. |

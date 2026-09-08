@@ -57,6 +57,17 @@ members:
   fixture: 9-1
   profile: standard.yaml
   notes: TBD - test vehicle, host and software approach are not yet defined.
+- suite: tid_alvium
+  component: ALVIUM 1800 U-2040c
+  test_vehicle: Alvium 1800 U-2040c
+  host: Gauntlet lab host, over USB3
+  fixture: TBD
+  profile: standard.yaml
+  notes: The camera is the whole test vehicle - it hangs off the lab host on a USB
+    cable with nothing between. Fixture is not yet chosen; the housing is the
+    camera's heatsink and has to be mounted to something with mass, or it shuts its
+    image path down within about twenty minutes and the fault reads as dose. Run the
+    hardware campaign's alvium_camera against it before the first exposure.
 - suite: tid_ssd
   component: TBD
   test_vehicle: TBD

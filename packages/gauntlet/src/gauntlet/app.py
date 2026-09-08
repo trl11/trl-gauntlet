@@ -44,6 +44,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(instance: FastAPI) -> AsyncIterator[None]:
         instance.state.supervisor.attach_loop(asyncio.get_running_loop())
         yield
+        instance.state.capabilities.close_all()
 
     app = FastAPI(
         title="Gauntlet",
