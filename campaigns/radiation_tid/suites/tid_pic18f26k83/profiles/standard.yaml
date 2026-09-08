@@ -1,3 +1,4 @@
-description: TBD — the beam-line profile for the PIC18F26K83-E/SS.
+description: The beam-line profile — five minutes at one dose step.
+driver: real
 duration_s: 300.0
-sample_period_s: 1.0
+sample_period_s: 2.0
