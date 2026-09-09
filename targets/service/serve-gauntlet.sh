@@ -88,6 +88,15 @@ export GENICAM_GENTL64_PATH=${GENICAM_GENTL64_PATH:-/opt/vimbax/cti}
 export GAUNTLET_SUITE_PATH=${GAUNTLET_SUITE_PATH:-$bundle/suites}
 export GAUNTLET_CAMPAIGN_PATH=${GAUNTLET_CAMPAIGN_PATH:-$bundle/campaigns}
 
+# The engineering key the SSH suites log into a unit under test with. It sits
+# beside this script rather than inside the bundle, so unpacking a new AppImage
+# over the old one does not take it with it. Named only when it is there: a key
+# path that does not exist fails those suites outright, where saying nothing
+# leaves them the operator's own key to fall back to.
+if [ -f "$HERE/keys/id_ed_saver_eng_key" ]; then
+	export GAUNTLET_SSH_KEY=${GAUNTLET_SSH_KEY:-$HERE/keys/id_ed_saver_eng_key}
+fi
+
 # `-s` for the reason the desktop shell passes it: the bundle carries
 # everything it imports, and a stray copy of one of those in ~/.local must not
 # be read ahead of its own. No host or port is named here, so the application's
