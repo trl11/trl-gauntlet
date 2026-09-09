@@ -1,6 +1,18 @@
 @use "@trl11/styles/theme.scss" as *;
 @use "@styles/display";
 
+// A reading is drawn at this height, and one character of it is a cell from a
+// 12 by 20 viewBox plus the gap to the next, so its width follows from how
+// many characters it has. The unit rides beside the figures.
+$reading-height: 22px;
+$character-width: $reading-height * 12 * 0.05 + 2px;
+$unit-width: 20px;
+
+// No narrower than this however short the readings are, so a display of
+// dashes still gives its labels a column to be read in rather than packing
+// six of them across and cutting every one short.
+$reading-min: 84px;
+
 // The tile is the display: one pane of glass with its label on it, rather
 // than a card holding a second box.
 .instrument-tile {
@@ -74,9 +86,26 @@
   // Readings sit two to a row at the width of one column and four at the
   // width of two, so a display stands as tall as the figures beside it and no
   // taller whether it holds three readings or eight.
+  //
+  // The track is as wide as the longest reading, which the tile counts the
+  // characters of: a display cannot wrap or shrink, so a track narrower than
+  // its reading is one the figures paint out of, over the reading beside them.
+  // A reading wider than the whole tile takes the row to itself instead of
+  // widening the grid past its column.
   &__display {
+    --reading-characters: 4;
+
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+    grid-template-columns: repeat(
+      auto-fit,
+      minmax(
+        min(
+          100%,
+          max($reading-min, calc(var(--reading-characters) * #{$character-width} + #{$unit-width}))
+        ),
+        1fr
+      )
+    );
     gap: 10px 12px;
   }
 
@@ -88,7 +117,7 @@
     min-width: 0;
 
     .seven-segment {
-      height: 22px;
+      height: $reading-height;
       font-size: 14px;
     }
   }
