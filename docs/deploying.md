@@ -99,15 +99,32 @@ alongside the udev rules — the same one root step, rather than a second one.
 Every port from 80 up becomes bindable by any local user, which on a
 single-operator bench is nobody new.
 
-## The one instrument that needs a third-party driver
+A second host setting belongs to the camera rather than the page.
+[`60-gauntlet-usbfs.conf`](../targets/service/tmpfiles/60-gauntlet-usbfs.conf)
+raises `usbfs_memory_mb` from the kernel's 16 MB to 1000, because a single
+frame off a USB3 Vision camera is larger than the default and the transport
+layer cannot queue one whole: the camera opens, reports its format, and then
+every grab arrives incomplete. It is a `tmpfiles.d` rule rather than a sysctl
+because the setting is a module parameter under `/sys/module`, which `sysctl`
+does not reach, and `usbcore` is built into Ubuntu's kernel, so a `modprobe.d`
+option would not be read either.
+
+## The two instruments that need third-party code
 
 An NI acquisition unit is reached through a kernel module and a shared library
 that NI distributes from its own repositories, for Ubuntu and RHEL rather than
 for every distribution. Nothing here carries it, so `setup-host.sh` installs
-it — the one thing that script fetches rather than places — along with NI's
+it — one of two things that script fetches rather than places — along with NI's
 gRPC device server, which is how Gauntlet reaches the driver from a container.
 
-Both steps turn on NI hardware being on the bus, so a bench without any
+An Allied Vision camera is the other. It is reached through a GenTL transport
+layer, and the `vmbpy` wheel in the bundle carries VmbC and no layer, so a
+bench with none finds no cameras at all. `setup-host.sh` fetches Vimba X and
+keeps the USB layer out of it, at `/opt/vimbax/cti` — the same path the
+devcontainer uses, so a suite developed there runs unchanged on a bench.
+`serve-gauntlet.sh` points `GENICAM_GENTL64_PATH` at it.
+
+All of it turns on the hardware being on the bus, so a bench without any
 downloads nothing. The driver needs a reboot before it works, and the script
 says so rather than rebooting. A bench that skipped it shows the instrument as
 unavailable with the reason, and every other instrument is unaffected.
@@ -196,7 +213,8 @@ the script says so as it happens. The sysctl that allows it is installed in the
 step after.
 
 `sudo` on the rig will ask for a password, two or three times. There is no way
-around that: the udev rules, the groups and the sysctl all need root there,
+around that: the udev rules, the groups, the sysctl, the usbfs limit and the
+vendor code all need root there,
 which is the same reason `deploy` prints the rules command rather than running
 it.
 

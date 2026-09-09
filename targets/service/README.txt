@@ -39,21 +39,26 @@ instruments over raw USB, and those device nodes are owned by root until a
 udev rule says otherwise, so without this the application starts and reports
 the instrument as unavailable with a permission error. The script installs the
 rules beside it, applies them to whatever is already plugged in, and adds you
-to the `dialout` and `video` groups.
+to the `dialout` and `video` groups. It also raises usbfs_memory_mb, which is
+what lets a USB3 Vision camera's frames arrive whole.
 
-It does one more thing, and only when NI hardware is plugged in: an NI
+It does two more things, and each only when that hardware is plugged in. An NI
 acquisition unit needs National Instruments' own driver, which cannot be
 shipped here, so the script fetches and installs it along with NI's gRPC
 device server. That driver needs a reboot before it works and the script says
-so. A bench with no NI hardware on the bus downloads none of it.
+so. An Allied Vision camera needs a GenTL transport layer, which cannot be
+shipped here either, so the script fetches Vimba X and keeps the USB layer out
+of it. A bench with neither on the bus downloads none of it.
 
 A bench supply on a USB serial port needs no rule of its own. The kernel
 already creates /dev/ttyUSB* owned by `dialout`, which is why only the raw-USB
 instruments have rules here — and why brltty taking the adapter is enough to
 hide one.
 
-A camera is the same case. uvcvideo creates /dev/video* owned by `video`, so
-it needs the group and no rule. That group is empty on a fresh Ubuntu, which
+A UVC camera is the same case. uvcvideo creates /dev/video* owned by `video`,
+so it needs the group and no rule. An Allied Vision camera is not: it is USB3
+Vision, gets no /dev/video* at all, and is reached through usbfs like the DAQ,
+so it has a rule of its own and needs the transport layer above. That group is empty on a fresh Ubuntu, which
 is why a camera the kernel has detected can still refuse to open: the desktop
 session reaches it through an ACL that a service account does not get.
 

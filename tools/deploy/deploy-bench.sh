@@ -12,9 +12,9 @@
 # a service that comes back after a reboot. Rerunning it on a bench that is
 # already deployed is how that bench is updated.
 #
-# The udev rules are not installed here. They need root on the bench, which
-# means a password prompt this cannot answer, so the rules are copied over and
-# the command to install them is printed at the end.
+# The host setup is not run here. It needs root on the bench, which means a
+# password prompt this cannot answer, so everything it installs is copied over
+# and the command to run it is printed at the end.
 
 set -eu
 
@@ -42,12 +42,13 @@ fail() {
 # The AppImage is what is served; the rest is what turns it into a service and
 # what the operator reads. The deb, the wheels and the image are for other
 # ways of installing and are deliberately not sent.
-sent="README.txt blinky.png gauntlet-homepage.service gauntlet.service homepage.html install-service.sh polkit serve-gauntlet.sh serve-homepage.py setup-bench.sh setup-host.sh 60-gauntlet-unprivileged-ports.conf 99-gauntlet-instruments.rules"
+sent="README.txt blinky.png gauntlet-homepage.service gauntlet.service homepage.html install-service.sh polkit serve-gauntlet.sh serve-homepage.py setup-bench.sh setup-host.sh tmpfiles 60-gauntlet-unprivileged-ports.conf 99-gauntlet-instruments.rules"
 
 appimage=$(ls "$DIST"/gauntlet-*.AppImage 2>/dev/null | head -1 || true)
 [ -n "$appimage" ] || fail "no gauntlet-*.AppImage in $DIST; run make build first"
 for file in $sent; do
-	# `polkit` is a directory of rules rather than a file, so both shapes count.
+	# `polkit` and `tmpfiles` are directories rather than files, so both
+	# shapes count.
 	[ -s "$DIST/$file" ] || [ -d "$DIST/$file" ] ||
 		fail "$DIST/$file is missing; run make build first"
 done
@@ -66,5 +67,7 @@ ssh "$BENCH" "cd $REMOTE_DIR && ./install-service.sh"
 
 echo
 say "deployed"
-note "the udev rules were copied but not installed; they need root there:"
+note "the host setup was copied but not run; it needs root there:"
 note "  ssh -t $BENCH 'sudo $REMOTE_DIR/setup-host.sh'"
+note "that installs the udev rules, raises the usbfs buffer limit, and fetches"
+note "the vendor code for whichever instruments are on the bus"

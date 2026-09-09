@@ -65,6 +65,13 @@ PAGE_BANNER    := $(PAGE)/blinky.png
 PAGE_SERVE     := $(PAGE)/serve-homepage.py
 PAGE_UNIT      := $(PAGE)/gauntlet-homepage.service
 PORT_SYSCTL    := $(SERVICE)/60-gauntlet-unprivileged-ports.conf
+# And what raises the usbfs buffer limit the camera's frames arrive in, which
+# is a module parameter rather than a sysctl and so is written by tmpfiles.
+USBFS_TMPFILE  := $(SERVICE)/tmpfiles/60-gauntlet-usbfs.conf
+# The GenTL transport layer an Allied Vision camera is reached through. The
+# vmbpy wheel carries VmbC and no layer, so a bench installs one out here and
+# the devcontainer installs the same one at the same path.
+VIMBAX_CTI     := /opt/vimbax/cti
 # And what lets the operator power the bench down from the UI. logind refuses
 # that to a user with no session, which is what a lingering user manager is.
 POLKIT_RULES   := $(SERVICE)/polkit/50-gauntlet-power.pkla

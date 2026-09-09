@@ -79,6 +79,12 @@ fi
 # the suite root is named all the same, so a service started in a directory
 # that happens to hold a `suites/` does not discover what is in it.
 export GAUNTLET_DATA_DIR=${GAUNTLET_DATA_DIR:-$HOME/.config/gauntlet}
+# Where VmbC looks for a GenTL transport layer, which is how an Allied Vision
+# camera is reached. The wheel in the bundle carries VmbC and no layer, so the
+# layer belongs to the host and `setup-host.sh` installs it here. Naming it
+# when there is none costs nothing: VmbC then finds no camera, which is what
+# the panel reports.
+export GENICAM_GENTL64_PATH=${GENICAM_GENTL64_PATH:-/opt/vimbax/cti}
 export GAUNTLET_SUITE_PATH=${GAUNTLET_SUITE_PATH:-$bundle/suites}
 export GAUNTLET_CAMPAIGN_PATH=${GAUNTLET_CAMPAIGN_PATH:-$bundle/campaigns}
 
