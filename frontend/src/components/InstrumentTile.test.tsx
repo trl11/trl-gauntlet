@@ -44,6 +44,20 @@ function channels(count: number): Instrument {
   });
 }
 
+/** The same channels reported to a microvolt, which spells eight characters. */
+function microvolts(count: number): Instrument {
+  const entry = channels(count);
+  return {
+    ...entry,
+    readouts: (entry.readouts ?? []).map((readout) => ({ ...readout, precision: 6 })),
+    state: {
+      channels: Object.fromEntries(
+        Array.from({ length: count }, (_, at) => [String(at + 1), { value: 0.624362 }])
+      ),
+    },
+  };
+}
+
 function draw(entry: Instrument) {
   return render(
     <MemoryRouter>
@@ -109,6 +123,17 @@ describe("InstrumentTile", () => {
   it("stays one column wide while its readings fit", () => {
     const { container } = draw(channels(4));
     expect(container.querySelector(".instrument-tile--wide")).toBeNull();
+  });
+
+  it("takes a second column for readings too wide to sit side by side", () => {
+    const { container } = draw(microvolts(4));
+    expect(container.querySelector(".instrument-tile--wide")).not.toBeNull();
+  });
+
+  it("sizes the display's tracks by its longest reading", () => {
+    const { container } = draw(microvolts(4));
+    const display = container.querySelector(".instrument-tile__display") as HTMLElement;
+    expect(display.style.getPropertyValue("--reading-characters")).toBe("8");
   });
 
   it("opens the instruments page, where the instrument can be driven", () => {

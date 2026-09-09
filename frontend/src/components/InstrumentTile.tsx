@@ -20,6 +20,17 @@ const MAX_READINGS = 8;
  */
 const WIDE_READINGS = 4;
 
+/**
+ * Characters past which a reading is too wide to sit beside another.
+ *
+ * A reading is drawn at a fixed height, so its width follows from how many
+ * characters it has. Two of six or fewer fit across one column of the grid;
+ * an acquisition unit reporting microvolts spells eight, and two of those do
+ * not, so the tile takes the second column rather than leaving one figure
+ * painted over the next.
+ */
+const WIDE_CHARACTERS = 6;
+
 /** Props for {@link InstrumentTile}. */
 export interface InstrumentTileProps {
   /** The instrument to draw, as the API reported it. */
@@ -64,13 +75,16 @@ function tileReadouts(instrument: Instrument): InstrumentReadout[] {
  */
 export const InstrumentTile: React.FC<InstrumentTileProps> = ({ instrument }) => {
   const readouts = tileReadouts(instrument);
+  const readings = readouts.map((readout) =>
+    readingText(valueAt(instrument.state, readout.key), readout.precision)
+  );
+  const characters = Math.max(1, ...readings.map((reading) => reading.length));
+  const wide =
+    readouts.length > WIDE_READINGS || (readouts.length > 1 && characters > WIDE_CHARACTERS);
 
   return (
     <Link
-      className={clsx(
-        "instrument-tile",
-        readouts.length > WIDE_READINGS && "instrument-tile--wide"
-      )}
+      className={clsx("instrument-tile", wide && "instrument-tile--wide")}
       to="/instruments"
       aria-label={`${instrument.name}, ${instrument.available ? "available" : "unavailable"}`}
     >
@@ -89,13 +103,15 @@ export const InstrumentTile: React.FC<InstrumentTileProps> = ({ instrument }) =>
       </div>
 
       {instrument.available ? (
-        <div className="instrument-tile__display">
+        <div
+          className="instrument-tile__display"
+          // The column has to be as wide as the longest reading, which is only
+          // known here: the display draws it at a fixed height and cannot wrap.
+          style={{ "--reading-characters": characters } as React.CSSProperties}
+        >
           {readouts.map((readout, index) => (
             <div className="instrument-tile__reading" key={readout.key}>
-              <SevenSegment
-                tone={toneFor(index, readouts.length)}
-                value={readingText(valueAt(instrument.state, readout.key), readout.precision)}
-              />
+              <SevenSegment tone={toneFor(index, readouts.length)} value={readings[index]} />
               {readout.unit && <span className="instrument-tile__unit">{readout.unit}</span>}
               <span className="instrument-tile__label">{readout.label}</span>
             </div>
