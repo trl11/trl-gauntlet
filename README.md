@@ -63,8 +63,8 @@ one key jumps between pages.
 |---|---|
 | Dashboard | Active runs with live progress, host CPU/memory/disk, instrument availability, pass-and-fail counts over the last day and week, the ten most recent runs, and a launcher. |
 | Tests | Every discovered suite by category. Pick one to see its profiles, declared overrides, artifacts it produces and capabilities it requires. A profile can be edited against its schema, diffed against the file on disk, duplicated or deleted. Rescan re-reads the suite roots; Verify runs the contract check. |
-| History | Every recorded run, filtered by suite, unit, status and date range, sorted and paged on the server. Rows expand to their details and can be exported as CSV. |
-| Run | One run. Verdict and phases, live log, metric charts, per-iteration table, artifact list, and notes. Live runs stream over SSE and can be stopped or aborted. |
+| History | Every recorded run, filtered by suite, unit, status and date range, sorted and paged on the server. Rows expand to their details and can be exported as CSV. A run archived by another instance is imported here. |
+| Run | One run. Verdict and phases, live log, metric charts, per-iteration table, artifact list, and notes. Live runs stream over SSE and can be stopped or aborted; a finished one exports as a single archive another Gauntlet can import. |
 | Units | Everything that has been on the bench, with run counts and outcomes. Open one for its history and notes; rename it, and its runs follow; forget it, and the runs stay. |
 | Instruments | One panel per registered instrument, generated from what that provider declares: its state as rows, each of its commands as a form. Scan re-probes availability. |
 | Settings | Service configuration, paths, suite-discovery errors, versions, and static host facts. |

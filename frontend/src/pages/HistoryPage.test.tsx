@@ -4,12 +4,14 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "@api/client";
 import type { RunRow, Verdict } from "@api/types";
 
 import HistoryPage from "./HistoryPage";
 import { pending } from "../test/queries";
 
 const deleteRun = vi.fn();
+const importRun = vi.fn();
 const getRunVerdict = vi.fn();
 const listRuns = vi.fn();
 const listSuites = vi.fn();
@@ -20,6 +22,7 @@ vi.mock("@api/client", async (importOriginal) => {
   return {
     ...actual,
     deleteRun: (...args: unknown[]) => deleteRun(...args),
+    importRun: (...args: unknown[]) => importRun(...args),
     getRunVerdict: (...args: unknown[]) => getRunVerdict(...args),
     listRuns: (...args: unknown[]) => listRuns(...args),
     listSuites: () => listSuites(),
@@ -85,6 +88,7 @@ function renderHistory(url = "/history") {
 
 beforeEach(() => {
   deleteRun.mockResolvedValue(undefined);
+  importRun.mockResolvedValue(run({ run_id: "r9" }));
   getRunVerdict.mockResolvedValue(verdict());
   listRuns.mockResolvedValue({
     runs: [run(), run({ run_id: "r2", started_at: "2026-02-02T10:00:00Z", status: "failed" })],
@@ -264,5 +268,43 @@ describe("HistoryPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not delete 1 run");
+  });
+});
+
+describe("HistoryPage importing", () => {
+  /** Hand the file picker an archive, the way an operator does. */
+  async function choose(name = "r9.gauntlet-run.zip") {
+    renderHistory();
+    const picker = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await userEvent.upload(picker, new File(["PK"], name, { type: "application/zip" }));
+  }
+
+  it("sends the chosen archive to the server", async () => {
+    await choose();
+
+    await waitFor(() => expect(importRun).toHaveBeenCalled());
+    expect(importRun.mock.calls[0][1]).toBe(false);
+    expect(await screen.findByText("Imported run r9.")).toBeInTheDocument();
+  });
+
+  it("offers to replace a run this instance already has", async () => {
+    importRun.mockRejectedValueOnce(
+      new ApiError(409, "run 'r9' is already here", "/api/runs/import")
+    );
+    await choose();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+
+    await waitFor(() => expect(importRun).toHaveBeenCalledTimes(2));
+    expect(importRun.mock.calls[1][1]).toBe(true);
+  });
+
+  it("reports an archive the server would not read", async () => {
+    importRun.mockRejectedValue(
+      new ApiError(422, "not a readable zip archive", "/api/runs/import")
+    );
+    await choose("not-really.zip");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("not a readable zip archive");
   });
 });

@@ -9,4 +9,13 @@
     font-size: 13px;
     color: $indicator-red;
   }
+
+  &__imported {
+    font-size: 13px;
+    color: $trl-gray;
+  }
+
+  &__archive {
+    display: none;
+  }
 }

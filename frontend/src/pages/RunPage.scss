@@ -20,10 +20,20 @@
     gap: 10px;
     flex-wrap: wrap;
 
-    // A finished run cannot be stopped or aborted, and its two buttons say so
+    // A run being stopped cannot be stopped again, and its two buttons say so
     // more plainly than the kit's own disabled dimming does.
     button:disabled {
       opacity: 0.35;
+    }
+  }
+
+  &__export {
+    font-size: 13px;
+    color: $indicator-blue;
+    text-decoration: none;
+
+    &:hover {
+      filter: brightness(1.2);
     }
   }
 

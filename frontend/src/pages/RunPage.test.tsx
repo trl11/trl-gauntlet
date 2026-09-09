@@ -33,6 +33,7 @@ vi.mock("@api/client", () => ({
   listRunNotes: vi.fn(),
   listSuites: vi.fn(),
   runEventsUrl: (runId: string) => `/api/runs/${runId}/events`,
+  runExportUrl: (runId: string) => `/api/runs/${runId}/export`,
   stopRun: vi.fn(),
 }));
 
@@ -200,6 +201,20 @@ describe("RunPage", () => {
     await screen.findByRole("heading", { name: "thermal_cycle" });
     expect(screen.queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Abort" })).not.toBeInTheDocument();
+  });
+
+  it("offers a finished run as an archive", async () => {
+    renderPage();
+    const link = await screen.findByRole("link", { name: "Export run" });
+    expect(link).toHaveAttribute("href", "/api/runs/run-1/export");
+    expect(link).toHaveAttribute("download");
+  });
+
+  it("does not offer to export a run that is still writing artifacts", async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...FINISHED, status: "running", ended_at: null });
+    renderPage();
+    await screen.findByRole("button", { name: "Stop" });
+    expect(screen.queryByRole("link", { name: "Export run" })).not.toBeInTheDocument();
   });
 
   it("stops a live run once the operator confirms", async () => {

@@ -5,6 +5,8 @@ import "./ListToolbar.scss";
 
 /** Props for {@link ListToolbar}. */
 export interface ListToolbarProps {
+  /** Controls offered whatever is selected, such as an import. */
+  actions?: React.ReactNode;
   /** The filter control, typically a ui-kit `FilterMenu`. */
   filter: React.ReactNode;
   /** Row/page status text, shown beside the filter. */
@@ -18,6 +20,7 @@ export interface ListToolbarProps {
 
 /** A bar pairing a filter control with batch actions that appear once something is selected. */
 export const ListToolbar: React.FC<ListToolbarProps> = ({
+  actions,
   filter,
   status,
   selectedCount,
@@ -35,6 +38,7 @@ export const ListToolbar: React.FC<ListToolbarProps> = ({
           {batchActions}
         </div>
       )}
+      {actions}
       {filter}
     </div>
   </div>

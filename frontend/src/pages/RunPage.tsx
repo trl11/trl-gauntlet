@@ -16,6 +16,7 @@ import {
   listArtifacts,
   listRunNotes,
   listSuites,
+  runExportUrl,
   stopRun,
 } from "@api/client";
 import ArtifactList from "@components/ArtifactList";
@@ -238,16 +239,35 @@ export const RunPage: React.FC = () => {
       <PageHeader
         title={detail.suite}
         actions={
-          live && (
-            <div className="run-page__actions">
-              <Button color="amber" disabled={control.isPending} onClick={() => setPending("stop")}>
-                Stop
-              </Button>
-              <Button color="red" disabled={control.isPending} onClick={() => setPending("abort")}>
-                Abort
-              </Button>
-            </div>
-          )
+          <div className="run-page__actions">
+            {live ? (
+              <>
+                <Button
+                  color="amber"
+                  disabled={control.isPending}
+                  onClick={() => setPending("stop")}
+                >
+                  Stop
+                </Button>
+                <Button
+                  color="red"
+                  disabled={control.isPending}
+                  onClick={() => setPending("abort")}
+                >
+                  Abort
+                </Button>
+              </>
+            ) : (
+              <a
+                className="run-page__export"
+                href={runExportUrl(runId)}
+                download
+                title="The run directory, its result and its notes, as one archive another Gauntlet can import"
+              >
+                Export run
+              </a>
+            )}
+          </div>
         }
       >
         <span className="run-page__id">{detail.run_id}</span>
