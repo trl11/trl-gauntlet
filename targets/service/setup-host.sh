@@ -14,11 +14,12 @@
 # gives a camera a /dev/video* owned by video. Those want the membership alone,
 # which is why the groups granted here are more than the rules mention.
 #
-# One instrument is not claimed that way and so is not covered by a rule: an NI
-# acquisition unit is driven by National Instruments' own kernel driver, which
-# is not on this host and cannot be shipped with Gauntlet. When one is plugged
-# in, this installs it, and the gRPC device server that lets Gauntlet reach it
-# from a container. A host with no NI hardware on the bus is left alone.
+# Two instruments need more than a rule, and both are driven by vendor code
+# that cannot ship with Gauntlet. An NI acquisition unit needs National
+# Instruments' own kernel driver and the gRPC device server that lets Gauntlet
+# reach it from a container. An Allied Vision camera needs a GenTL transport
+# layer, because the vmbpy wheel carries VmbC and no layer. Each is installed
+# when its hardware is on the bus, and a host with neither downloads neither.
 #
 # It belongs to the host the instruments are plugged into. A container sees
 # whatever the host's rules decided and cannot set it, so running this inside
@@ -26,14 +27,16 @@
 #
 # Every `*.rules` file beside this script is installed, so a rule added to the
 # release is picked up without this script changing, every `*.conf` goes to
-# /etc/sysctl.d the same way, and every `*.pkla` under `polkit/` goes to
-# polkit's local authority directory.
+# /etc/sysctl.d the same way, every `*.conf` under `tmpfiles/` goes to
+# /etc/tmpfiles.d, and every `*.pkla` under `polkit/` goes to polkit's local
+# authority directory.
 
 set -eu
 
 HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 RULES_DIR=/etc/udev/rules.d
 SYSCTL_DIR=/etc/sysctl.d
+TMPFILES_DIR=/etc/tmpfiles.d
 POLKIT_DIR=/etc/polkit-1/localauthority/50-local.d
 # Every group an instrument node is owned by: dialout for the raw-USB nodes the
 # rules regroup and for the serial adapters, video for the camera nodes.
@@ -66,9 +69,37 @@ NI_GRPC_NEW_VERSION=v2.19.0
 NI_GRPC_NEW_ASSET=ni-grpc-device-server-linux-glibc2_38-x64.tar.gz
 NI_GRPC_NEW_SHA256=34d735c74914e35f286b0e14f3d90993e88f2de93a0833262c9567300481dc88
 
+# Allied Vision's USB vendor id, which decides whether the transport layer
+# below is installed. 0001 is a camera and ff01 the same camera with its
+# firmware being written; either says one belongs to this bench.
+AV_VENDOR=1ab2
+
+# Where Allied Vision publishes Vimba X, and the release to take. Only the USB
+# transport layer is kept: it is the whole of what VmbC is missing, and the
+# rest of the package is a viewer and an SDK a bench has no use for. The same
+# version and path as the devcontainer installs, so a suite developed there
+# runs unchanged out here.
+VIMBAX_VERSION=2025-3
+VIMBAX_SHA256=a372bc5c4859dca0a2595ddc1331966d3265ffc0cbd86a19851b34f92ff6e922
+VIMBAX_URL=https://downloads.alliedvision.com/VimbaX/VimbaX_Setup-${VIMBAX_VERSION}-Linux64.tar.gz
+VIMBAX_CTI=/opt/vimbax/cti
+
 fail() {
 	echo "setup-host: $*" >&2
 	exit 1
+}
+
+# Both vendor downloads below need curl, which a bare Ubuntu does not have.
+# Installed rather than demanded: this script is the one root step a bench
+# gets, and sending someone back to apt for a five hundred kilobyte package
+# helps nobody.
+ensure_curl() {
+	command -v curl >/dev/null 2>&1 && return 0
+	command -v apt-get >/dev/null 2>&1 || fail "no curl and no apt-get to install it with"
+	echo "    installing curl, which the download needs"
+	DEBIAN_FRONTEND=noninteractive apt-get update -qq
+	DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl >/dev/null
+	command -v curl >/dev/null 2>&1 || fail "curl is still not installed"
 }
 
 [ "$(id -u)" = 0 ] || fail "run me as root: sudo $0"
@@ -107,6 +138,24 @@ if [ -n "$sysctls" ]; then
 	echo "    net.ipv4.ip_unprivileged_port_start = $(sysctl -n net.ipv4.ip_unprivileged_port_start 2>/dev/null || echo '?')"
 fi
 
+# What raises the usbfs buffer limit a USB3 Vision frame arrives in. A module
+# parameter rather than a sysctl, so it is written by tmpfiles instead.
+# Optional the same way: a release from before the camera existed ships none.
+tmpfiles=$(find "$HERE/tmpfiles" -maxdepth 1 -name '*.conf' 2>/dev/null | sort)
+if [ -n "$tmpfiles" ]; then
+	echo "==> installing tmpfiles settings into $TMPFILES_DIR"
+	mkdir -p "$TMPFILES_DIR"
+	for conf in $tmpfiles; do
+		install -m 644 "$conf" "$TMPFILES_DIR/"
+		echo "    $(basename "$conf")"
+	done
+	# Applies now as well as at the next boot, for the same reason the sysctl
+	# is applied now: a camera should work without the bench rebooting first.
+	systemd-tmpfiles --create >/dev/null 2>&1 ||
+		echo "    could not apply them now; they take effect at the next boot"
+	echo "    usbfs_memory_mb = $(cat /sys/module/usbcore/parameters/usbfs_memory_mb 2>/dev/null || echo '?')"
+fi
+
 # What lets the operator power the bench down from the UI. logind allows that
 # without a password only for a user with an active local session, and a rig
 # serves from a lingering user manager that has none. Optional, like the
@@ -125,14 +174,14 @@ if [ -n "$polkit_rules" ]; then
 	echo "    the rig can now be powered off from its UI"
 fi
 
-# ------------------------------------------------------------------ NI-DAQmx
+# -------------------------------------------------------------- vendor code
 
-# Is there NI hardware on this bus. Everything below turns on this: a bench
-# with none downloads nothing and installs nothing.
-ni_present() {
+# Is a device of this vendor on the bus. Both vendor installs below turn on
+# it: a bench without the hardware downloads nothing and installs nothing.
+vendor_present() {
 	for device in /sys/bus/usb/devices/*; do
 		[ -r "$device/idVendor" ] || continue
-		[ "$(tr 'A-F' 'a-f' < "$device/idVendor")" = "$NI_VENDOR" ] && return 0
+		[ "$(tr 'A-F' 'a-f' < "$device/idVendor")" = "$1" ] && return 0
 	done
 	return 1
 }
@@ -155,7 +204,7 @@ ni_grpc_release() {
 	fi
 }
 
-if ! ni_present; then
+if ! vendor_present $NI_VENDOR; then
 	echo "==> no NI hardware on the bus, so NI-DAQmx is not installed"
 	echo "    plug the chassis in and run this again to install it"
 else
@@ -163,7 +212,7 @@ else
 	. /etc/os-release 2>/dev/null || fail "no /etc/os-release, so this host cannot be identified"
 	[ "${ID:-}" = ubuntu ] ||
 		fail "NI packages its driver for Ubuntu, RHEL and openSUSE; this is ${ID:-unknown}, so install it by hand"
-	command -v curl >/dev/null 2>&1 || fail "no curl, which the NI downloads need"
+	ensure_curl
 
 	work=$(mktemp -d)
 	# Both downloads are large and neither is wanted afterwards.
@@ -252,6 +301,39 @@ UNIT
 	# run, and a server already up would otherwise keep the one it read.
 	systemctl restart ni-grpc-device-server.service
 	echo "    Gauntlet reaches it with daq_serial: \"daqmx://$(hostname):$NI_GRPC_PORT\""
+
+	rm -rf "$work"
+	trap - EXIT INT TERM
+fi
+
+# -------------------------------------------------------------- Vimba X
+
+if ! vendor_present $AV_VENDOR; then
+	echo "==> no Allied Vision camera on the bus, so no transport layer is installed"
+	echo "    plug the camera in and run this again to install it"
+elif [ -n "$(find "$VIMBAX_CTI" -maxdepth 1 -name '*.cti' 2>/dev/null)" ]; then
+	echo "==> the GenTL transport layer is already installed in $VIMBAX_CTI"
+else
+	echo "==> an Allied Vision camera is on the bus"
+	ensure_curl
+
+	work=$(mktemp -d)
+	trap 'rm -rf "$work"' EXIT INT TERM
+
+	echo "    fetching Vimba X $VIMBAX_VERSION"
+	curl -fsSL -o "$work/vimbax.tar.gz" "$VIMBAX_URL"
+	echo "$VIMBAX_SHA256  $work/vimbax.tar.gz" | sha256sum -c - >/dev/null ||
+		fail "the Vimba X download does not match its published checksum"
+	mkdir -p "$VIMBAX_CTI"
+	# Only the USB layer and its descriptor, out of a package that is mostly a
+	# viewer and an SDK. VmbC loads a layer by reading the directory, so the
+	# two files landing there is the whole install.
+	tar xzf "$work/vimbax.tar.gz" -C "$VIMBAX_CTI" --strip-components=2 \
+		"VimbaX_${VIMBAX_VERSION}/cti/VimbaUSBTL.cti" \
+		"VimbaX_${VIMBAX_VERSION}/cti/VimbaUSBTL.xml"
+	chmod 644 "$VIMBAX_CTI/VimbaUSBTL.xml"
+	chmod 755 "$VIMBAX_CTI/VimbaUSBTL.cti"
+	echo "    installed the USB transport layer in $VIMBAX_CTI"
 
 	rm -rf "$work"
 	trap - EXIT INT TERM

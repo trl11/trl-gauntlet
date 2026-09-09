@@ -22,12 +22,13 @@ operator rather than for someone changing this.
 | `gauntlet.service` | The backend's systemd user unit |
 | `serve-gauntlet.sh` | What that unit runs |
 | `homepage/` | The landing page, its banner, the server for it and its unit |
-| `setup-host.sh` | The udev rules and groups, for a bench installing by hand, plus NI's driver when NI hardware is on the bus |
+| `setup-host.sh` | The udev rules, groups and host settings, for a bench installing by hand, plus the vendor code for whichever instruments are on the bus |
 | `setup-bench.sh` | That plus the packages a fresh bench needs |
 | `install-service.sh` | Both units, for a bench that has the AppImage rather than the package |
 | `README.txt` | The release note, described above |
 | `99-gauntlet-instruments.rules` | usbfs nodes to a group the operator is in |
 | `60-gauntlet-unprivileged-ports.conf` | Lets a user unit bind port 80 |
+| `tmpfiles/60-gauntlet-usbfs.conf` | Raises the usbfs buffer limit a camera frame arrives in |
 
 Everything but the Makefile, `package/` and this file also ships loose in
 `dist/`, put there by `make -C ../app host-setup`. The deb is one way to
@@ -44,10 +45,16 @@ install them and copying them to a bench is the other.
 | `/usr/lib/systemd/user` | Both units |
 | `/usr/lib/udev/rules.d` | The instrument rules |
 | `/usr/lib/sysctl.d` | The unprivileged-port setting |
+| `/usr/lib/tmpfiles.d` | The usbfs buffer limit |
 
 `postinst` does the root half of a bench setup that a bundle could never do for
 itself: reloading udev and applying it to what is already plugged in, applying
-the sysctl, and adding whoever ran the install to `dialout` and `video`.
+the sysctl and the usbfs limit, and adding whoever ran the install to
+`dialout` and `video`.
+
+It does not fetch the vendor code an NI unit or an Allied Vision camera needs.
+That is `setup-host.sh`, because it depends on what is on the bus and dpkg
+must not reach the network.
 
 It starts nothing. Both units are systemd **user** units, because the udev
 rules grant the instruments to the operator's groups rather than to root's, and

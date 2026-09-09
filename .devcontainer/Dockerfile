@@ -33,6 +33,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # GENICAM_GENTL64_PATH is the GenICam standard's own variable and is what VmbC
 # searches, so setting it here is what makes the layer findable from any
 # process in the container.
+#
+# A bench installs the same layer at the same path, from `setup-host.sh`, which
+# carries this version and checksum too. Change one and change the other, or a
+# suite developed here meets a different layer out there.
 ARG VIMBAX_VERSION=2025-3
 ARG VIMBAX_SHA256=a372bc5c4859dca0a2595ddc1331966d3265ffc0cbd86a19851b34f92ff6e922
 ENV GENICAM_GENTL64_PATH=/opt/vimbax/cti
