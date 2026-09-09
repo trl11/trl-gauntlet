@@ -41,6 +41,12 @@ the instrument as unavailable with a permission error. The script installs the
 rules beside it, applies them to whatever is already plugged in, and adds you
 to the `dialout` and `video` groups.
 
+It does one more thing, and only when NI hardware is plugged in: an NI
+acquisition unit needs National Instruments' own driver, which cannot be
+shipped here, so the script fetches and installs it along with NI's gRPC
+device server. That driver needs a reboot before it works and the script says
+so. A bench with no NI hardware on the bus downloads none of it.
+
 A bench supply on a USB serial port needs no rule of its own. The kernel
 already creates /dev/ttyUSB* owned by `dialout`, which is why only the raw-USB
 instruments have rules here — and why brltty taking the adapter is enough to
@@ -108,7 +114,8 @@ This is the whole thing for a machine that should serve Gauntlet all the time,
 rather than only while someone has the application open. The package carries
 the application, its Python, every test suite, the landing page below and the
 udev rules above, and installing it does the root half of the setup for you —
-so on a bench installed this way, setup-host.sh has nothing left to do.
+so on a bench installed this way, setup-host.sh has nothing left to do unless
+there is NI hardware on it, which the package does not carry a driver for.
 
 The two commands after it are yours to run because the service runs as you,
 not as root: the udev rules grant the instruments to your groups and not to

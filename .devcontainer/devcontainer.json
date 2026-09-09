@@ -62,7 +62,13 @@
   // fails with EPERM. Being in the owning group is the other half: the rule
   // says the container may open the major, the group says the account may
   // open the file, and the camera needs both.
+  //
+  // The NI acquisition unit is the exception to all of the above: it is not a
+  // character device and no rule reaches it. Its driver runs on the host and
+  // is spoken to over TCP, so what this container needs is a name for the
+  // host, which --add-host gives it as host.docker.internal.
   "runArgs": [
+    "--add-host=host.docker.internal:host-gateway",
     "--device-cgroup-rule=c 81:* rmw",
     "--device-cgroup-rule=c 89:* rmw",
     "--device-cgroup-rule=c 166:* rmw",

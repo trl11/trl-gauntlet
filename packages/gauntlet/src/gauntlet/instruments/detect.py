@@ -17,6 +17,7 @@ Detection runs at startup and again on every operator scan.
 from __future__ import annotations
 
 import logging
+import socket
 from collections.abc import Callable
 
 from gauntlet.capabilities.registry import CapabilityProvider, CapabilityRegistry
@@ -32,9 +33,26 @@ from gauntlet.instruments.mock_daq import MockDaq
 from gauntlet.instruments.mock_i2c import MockI2c
 from gauntlet.instruments.mock_logic import MockLogic
 from gauntlet.instruments.mock_psu import MockPsu
+from gauntlet.instruments.ni_daqmx import NiDaqmxDaq, parse_target
 from gauntlet.instruments.uvc_camera import UvcCamera
 
 log = logging.getLogger("gauntlet.instruments.detect")
+
+# What marks a ``daq`` setting as naming an NI-DAQmx device rather than a
+# DI-2008 serial number.
+_DAQMX_PREFIX = "daqmx:"
+
+# The one gRPC device server address worth looking for. NI's driver is a kernel
+# module, so Gauntlet in a container has none of its own and reaches the host's
+# through this; the devcontainer publishes the host under this name. It is a
+# fixed property of running in a container rather than a bench someone had to
+# configure, which is what makes it findable where another address is not.
+_DAQMX_SERVER = "host.docker.internal:31763"
+
+# Longest a probe of that address may block. A ceiling rather than a cost: an
+# unknown name fails in the resolver and a closed port is refused at once, so a
+# bench with no server there pays neither.
+_PROBE_TIMEOUT_S = 0.25
 
 
 def detect_instruments(registry: CapabilityRegistry, settings: Settings) -> None:
@@ -112,14 +130,43 @@ def _camera(device: str, frame_format: str = "auto") -> CapabilityProvider | Non
 
 
 def _daq(serial: str) -> CapabilityProvider | None:
+    """The acquisition unit, if one is asked for and one answers.
+
+    Two drivers answer this capability and the setting says which. A
+    ``daqmx:`` prefix names something NI-DAQmx knows — a device by its DAQmx
+    name, or a gRPC device server and optionally a device on it; anything else
+    is a DI-2008 USB serial number. The prefix is what tells them apart,
+    because a DAQmx device name and a USB serial number are both bare strings
+    and neither can be recognised on sight.
+
+    ``"auto"`` probes the DI-2008 first and falls through to the local
+    NI-DAQmx, so a bench that has always had a DI-2008 keeps it when an NI
+    module is added beside it. Last it tries the gRPC device server on the
+    container's host, which is the only address it looks for and the only way
+    an NI module is reachable from inside a container at all. Any other server
+    is named in the setting: an address in general is somewhere to connect
+    rather than something to find.
+    """
     if not serial:
         return None
+    if serial.startswith(_DAQMX_PREFIX):
+        return NiDaqmxDaq(target=parse_target(serial[len(_DAQMX_PREFIX) :]))
     if serial != "auto":
         return Di2008Daq(serial_filter=serial)
     daq = Di2008Daq()
     if daq.available():
         return daq
     _close(daq)
+    module = NiDaqmxDaq()
+    if module.available():
+        return module
+    _close(module)
+    if not _listening(_DAQMX_SERVER):
+        return None
+    module = NiDaqmxDaq(target=parse_target(f"//{_DAQMX_SERVER}"))
+    if module.available():
+        return module
+    _close(module)
     return None
 
 
@@ -140,6 +187,20 @@ def _i2c(serial: str) -> CapabilityProvider | None:
             return bridge
         _close(bridge)
     return None
+
+
+def _listening(address: str) -> bool:
+    """Is anything accepting connections at ``host:port``.
+
+    Asked before building a provider for a server, so a scan on a bench that
+    has none neither blocks nor logs a driver error it can do nothing about.
+    """
+    host, _, port = address.partition(":")
+    try:
+        with socket.create_connection((host, int(port)), _PROBE_TIMEOUT_S):
+            return True
+    except OSError:
+        return False
 
 
 def _drop(registry: CapabilityRegistry, name: str) -> None:

@@ -7,6 +7,7 @@ hardware attached.
 from __future__ import annotations
 
 import ctypes
+import socket
 import struct
 from typing import Any, ClassVar
 
@@ -34,6 +35,37 @@ from gauntlet.instruments.hm310t_psu import (
     read_request,
     write_request,
 )
+from gauntlet.instruments.ni_daqmx import NiDaqmxDaq, NiDaqmxError
+
+
+def _no_module(_: str) -> Any:
+    """No NI-DAQmx device, whatever is plugged into the machine running this."""
+    raise NiDaqmxError("NI-DAQmx lists no analog input device")
+
+
+class _NiModule:
+    """An NI-DAQmx module that answers, reduced to what the driver asks it."""
+
+    def channels(self) -> tuple[str, ...]:
+        return ("ai0",)
+
+    def close(self) -> None:
+        return None
+
+    def identity(self) -> dict[str, str]:
+        return {"chassis": "cDAQ1", "model": "NI 9238", "serial": "01AB23CD"}
+
+    def name(self) -> str:
+        return "cDAQ1Mod1"
+
+    def rate_limits(self) -> tuple[float, float]:
+        return (1613.0, 50000.0)
+
+    def read(self, channels: tuple[tuple[str, float], ...], rate_hz: float, samples: int) -> list[list[float]]:
+        return [[0.0] for _ in channels]
+
+    def voltage_ranges(self) -> tuple[float, ...]:
+        return (0.5,)
 
 
 class _Clock:
@@ -1416,9 +1448,71 @@ class TestDetectionChoices:
         # running the tests: probing for real passes only where no DI-2008 is
         # attached, which is the one bench this suite most needs to pass on.
         monkeypatch.setattr(detect, "Di2008Daq", lambda **kwargs: Di2008Daq(open_transport=refuse, **kwargs))
+        # And no NI module either, for the same reason: "auto" falls through to
+        # NI-DAQmx, which on a bench that has the driver would answer for real.
+        monkeypatch.setattr(detect, "NiDaqmxDaq", lambda **kwargs: NiDaqmxDaq(open_module=_no_module, **kwargs))
+        # And no server on the host either, rather than whatever is listening
+        # on the machine running the tests.
+        monkeypatch.setattr(detect, "_listening", lambda _: False)
         registry = CapabilityRegistry()
         detect_instruments(registry, self._settings(tmp_path, daq_serial="auto"))
         assert registry.provider("daq") is None
+
+    def test_auto_finds_a_module_through_the_server_on_the_container_host(
+        self, monkeypatch: Any, tmp_path: Any
+    ) -> None:
+        """A container has no local driver, so the host's server is the one it can reach."""
+        from gauntlet.instruments import detect
+
+        def refuse(_: str) -> Any:
+            raise Di2008Error("no DI-2008 on the USB bus")
+
+        def build(**kwargs: Any) -> Any:
+            target = kwargs.get("target")
+            opener = (lambda _: _NiModule()) if target is not None and target.server else _no_module
+            return NiDaqmxDaq(open_module=opener, **kwargs)
+
+        monkeypatch.setattr(detect, "Di2008Daq", lambda **kwargs: Di2008Daq(open_transport=refuse, **kwargs))
+        monkeypatch.setattr(detect, "NiDaqmxDaq", build)
+        monkeypatch.setattr(detect, "_listening", lambda _: True)
+        registry = CapabilityRegistry()
+        detect_instruments(registry, self._settings(tmp_path, daq_serial="auto"))
+        daq = registry.provider("daq")
+        assert daq is not None
+        assert daq.describe()["model"] == "NI 9238"
+        assert detect._DAQMX_SERVER in daq.connection()
+
+    def test_auto_does_not_build_a_server_provider_when_nothing_is_listening(
+        self, monkeypatch: Any, tmp_path: Any
+    ) -> None:
+        """The address is probed before a provider is built, so a bench without one pays nothing."""
+        from gauntlet.instruments import detect
+
+        def refuse(_: str) -> Any:
+            raise Di2008Error("no DI-2008 on the USB bus")
+
+        targets: list[Any] = []
+
+        def build(**kwargs: Any) -> Any:
+            targets.append(kwargs.get("target"))
+            return NiDaqmxDaq(open_module=_no_module, **kwargs)
+
+        monkeypatch.setattr(detect, "Di2008Daq", lambda **kwargs: Di2008Daq(open_transport=refuse, **kwargs))
+        monkeypatch.setattr(detect, "NiDaqmxDaq", build)
+        monkeypatch.setattr(detect, "_listening", lambda _: False)
+        registry = CapabilityRegistry()
+        detect_instruments(registry, self._settings(tmp_path, daq_serial="auto"))
+        assert registry.provider("daq") is None
+        assert [t for t in targets if t is not None and t.server] == []
+
+    def test_a_closed_port_is_not_listening(self) -> None:
+        """The probe answers for a port nothing holds rather than raising."""
+        from gauntlet.instruments import detect
+
+        with socket.socket() as taken:
+            taken.bind(("127.0.0.1", 0))
+            port = taken.getsockname()[1]
+        assert detect._listening(f"127.0.0.1:{port}") is False
 
     def test_auto_drops_a_psu_when_no_candidate_port_answers(self, monkeypatch: Any, tmp_path: Any) -> None:
         from gauntlet.instruments import detect

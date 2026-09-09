@@ -128,6 +128,32 @@ transport layer and starts up with an empty bus without one. Only the USB
 layer is taken — the same directory ships a camera simulator that would
 enumerate three cameras that are not there.
 
+An NI acquisition unit is not reached through `/dev` at all, so no device rule
+or group applies to it. NI-DAQmx is a kernel module plus a shared library
+installed from NI's own repositories, which package for Ubuntu and RHEL and not
+for the bookworm this image is built on, and the kernel half belongs to the
+host regardless. `System.local()` in here answers `DaqNotFoundError`, which the
+driver reports as an unavailable instrument.
+
+What does work is NI's gRPC device server. `setup-host.sh` installs it on the
+host beside the driver, where it speaks the same API over TCP on port 31763,
+and the unit then works from in here with no NI packages in the image at all —
+only `nidaqmx[grpc]`, which the wheel already depends on.
+
+Nothing has to be configured for it. `daq_serial: "auto"`, the default, probes
+the DI-2008, then the local driver, then `host.docker.internal:31763`, so a
+container on a host that has been set up finds the module by itself. That name
+resolves because `runArgs` carries `--add-host`, and the server is bound to
+every interface for the same reason — one on loopback cannot answer across the
+bridge.
+
+A server anywhere else is named rather than found, which is also how to pin one
+device where a host has several:
+
+```yaml
+daq_serial: "daqmx://bench-2:31763/cDAQ1Mod1"
+```
+
 Diagnose a missing instrument on the bus before suspecting the container.
 `lsusb` and `ls -l /dev/ttyUSB* /dev/bus/usb/*/*` say the same thing on both
 sides of the bind; an instrument absent from the host's `lsusb` is cabling.

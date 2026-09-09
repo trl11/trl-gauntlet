@@ -118,7 +118,7 @@ behind a toggle below 900px. There is no sidebar.
 | Task | Command |
 |---|---|
 | Setup | `make setup` |
-| Set the bench host up: udev rules and group, via `targets/service/setup-host.sh` | `make install-udev-rules` |
+| Set the bench host up: udev rules, group, and NI's driver when NI hardware is present, via `targets/service/setup-host.sh` | `make install-udev-rules` |
 | Report whether those rules reached the instruments | `make udev-check` |
 | Devcontainer | `make dev` / `make dev-stop` |
 | Build the frontend and serve, with auto-reload | `make run` |
