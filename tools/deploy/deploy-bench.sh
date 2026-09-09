@@ -62,6 +62,20 @@ ssh "$BENCH" "mkdir -p $REMOTE_DIR"
 cd "$DIST"
 rsync -a --info=progress2 $sent "$(basename "$appimage")" "$BENCH:$REMOTE_DIR/"
 
+# The key the SSH suites log into a unit under test with. It comes from the
+# submodule rather than from dist/, so a release carries no private key and a
+# tree without the submodule checked out deploys anyway.
+key=$HERE/extras/trl-engineering-keys/saver/id_ed_saver_eng_key
+if [ -f "$key" ]; then
+	say "sending the engineering key"
+	ssh "$BENCH" "mkdir -p $REMOTE_DIR/keys && chmod 700 $REMOTE_DIR/keys"
+	rsync -a "$key" "$key.pub" "$BENCH:$REMOTE_DIR/keys/"
+	ssh "$BENCH" "chmod 600 $REMOTE_DIR/keys/id_ed_saver_eng_key"
+else
+	say "no engineering key in extras/trl-engineering-keys"
+	note "the suites that reach a unit over SSH will fall back to the bench's own key"
+fi
+
 say "installing the service on $BENCH"
 ssh "$BENCH" "cd $REMOTE_DIR && ./install-service.sh"
 

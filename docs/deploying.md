@@ -71,6 +71,22 @@ not a system one. Two reasons, and both matter:
 systemd start the unit at boot instead of at the next login. Without it a rig
 that reboots unattended comes back with nothing serving.
 
+## The engineering key
+
+The suites that reach a unit under test over SSH — `ssd`, `tid_ssd` and
+`tid_lan7430` — log in with the engineering key from the
+`extras/trl-engineering-keys` submodule. On a machine with the repository they
+find it in the tree. A bench has no tree, and no bundle carries the key, so
+[`deploy-bench.sh`](../tools/deploy/deploy-bench.sh) sends it to `keys/` beside
+the scripts and `serve-gauntlet.sh` names it in `GAUNTLET_SSH_KEY` for the runs
+the service starts.
+
+It sits beside the scripts rather than in the bundle because the bundle is
+replaced wholesale: unpacking a new AppImage deletes the one before it. A bench
+deployed from a tree without the submodule checked out gets no key, and those
+suites fall back to the operator's own — which is a login the unit is unlikely
+to accept, and the failure reads as `Authentication failed` at setup.
+
 ## The landing page
 
 A rig serves Gauntlet on 7100, which is a number someone has to be told. So a
