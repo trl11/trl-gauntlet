@@ -49,6 +49,15 @@ PRODUCT_ID = "0001"
 
 _USB_DEVICES = Path("/sys/bus/usb/devices")
 
+# What the kernel reports for a SuperSpeed link, in Mb/s. A USB3 Vision
+# camera in a USB 2.0 port enumerates and configures normally and then fails
+# every grab, so the negotiated speed is worth reporting on its own.
+_SUPERSPEED_MBPS = 5000
+
+# How much memory usbfs will let a process pin for transfers, in MB. A frame
+# larger than this cannot be queued whole and arrives incomplete.
+_USBFS_LIMIT_MB = Path("/sys/module/usbcore/parameters/usbfs_memory_mb")
+
 # The camera sends RGB already, debayered on the sensor board, so this is the
 # one format the encoder is handed. A camera that cannot produce it is not
 # usable here and says so rather than being opened and left unreadable.
@@ -92,8 +101,8 @@ _VMB_ERRORS = (
 )
 
 
-def candidate_cameras() -> list[tuple[str, Path]]:
-    """Every Allied Vision camera on the bus, as its serial and its usbfs node.
+def candidate_cameras() -> list[tuple[str, Path, int]]:
+    """Every Allied Vision camera on the bus: serial, usbfs node, link Mb/s.
 
     Read from sysfs rather than by starting a transport layer, so asking
     whether a camera is there costs nothing and disturbs nothing.
@@ -106,7 +115,9 @@ def candidate_cameras() -> list[tuple[str, Path]]:
         number = _attribute(device, "devnum")
         if not bus or not number:
             continue
-        found.append((_attribute(device, "serial"), Path(f"/dev/bus/usb/{int(bus):03d}/{int(number):03d}")))
+        node = Path(f"/dev/bus/usb/{int(bus):03d}/{int(number):03d}")
+        speed = _attribute(device, "speed")
+        found.append((_attribute(device, "serial"), node, int(float(speed)) if speed else 0))
     return found
 
 
@@ -120,7 +131,7 @@ class AlviumCamera:
         *,
         clock: Callable[[], float] = time.monotonic,
         instance: str = "camera0",
-        presence: Callable[[], list[tuple[str, Path]]] = candidate_cameras,
+        presence: Callable[[], list[tuple[str, Path, int]]] = candidate_cameras,
         probe_interval_s: float = 3.0,
         serial_filter: str = "",
         system: Callable[[], Any] = vmbpy.VmbSystem.get_instance,
@@ -165,7 +176,7 @@ class AlviumCamera:
                     f"{self._serial_filter}: not present" if self._serial_filter else _NO_CANDIDATE
                 )
                 return False
-            unreadable = [str(node) for _, node in candidates if not os.access(node, os.R_OK | os.W_OK)]
+            unreadable = [str(node) for _, node, _ in candidates if not os.access(node, os.R_OK | os.W_OK)]
             if len(unreadable) == len(candidates):
                 self._unavailable_reason = (
                     f"{', '.join(unreadable)}: not writable — install the udev rules with `make install-udev-rules`"
@@ -314,6 +325,7 @@ class AlviumCamera:
         """
         return [
             readout("streaming", "Owned", role="summary"),
+            readout("link_mbps", "USB link", role="summary", unit="Mb/s"),
             readout("temperature.sensor", "Sensor", group="Temperature", precision=1, unit="C"),
             readout("temperature.mainboard", "Mainboard", group="Temperature", precision=1, unit="C"),
             readout("temperature.status", "Thermal status", group="Temperature", role="summary"),
@@ -345,6 +357,7 @@ class AlviumCamera:
                 "driver": "alvium",
                 "format": dict(self._format),
                 "last_frame": dict(self._last_frame),
+                "link_mbps": self._link_mbps(),
                 "node": self._identity.get("node", ""),
                 "serial": self._identity.get("serial", ""),
                 "snapshots": self._snapshots,
@@ -497,7 +510,7 @@ class AlviumCamera:
         self._identity = {
             "firmware": str(camera.get_feature_by_name("DeviceFirmwareVersion").get()),
             "model": str(camera.get_model()),
-            "node": str(dict(self._matching()).get(serial, "")),
+            "node": next((str(node) for found, node, _ in self._matching() if found == serial), ""),
             "serial": serial,
         }
         self._unavailable_reason = ""
@@ -595,12 +608,22 @@ class AlviumCamera:
         if vmb is not None:
             _leave(vmb)
 
-    def _matching(self) -> list[tuple[str, Path]]:
+    def _matching(self) -> list[tuple[str, Path, int]]:
         """The cameras on the bus this provider would take."""
         candidates = self._presence()
         if not self._serial_filter:
             return candidates
-        return [(serial, node) for serial, node in candidates if serial == self._serial_filter]
+        return [(serial, node, speed) for serial, node, speed in candidates if serial == self._serial_filter]
+
+    def _link_mbps(self) -> int:
+        """How fast the link to the camera negotiated, or 0 with none on the bus.
+
+        Read on every poll rather than kept from the connection, because a
+        camera re-plugged into another port comes back on a new link without
+        the provider being rebuilt.
+        """
+        candidates = self._matching()
+        return candidates[0][2] if candidates else 0
 
     def _read_temperature(self, *, force: bool) -> dict[str, Any]:
         """Both temperature sensors and the thermal status the camera reports.
@@ -646,7 +669,8 @@ class AlviumCamera:
             frame = camera.get_frame(timeout_ms=_FRAME_TIMEOUT_MS)
             status = str(frame.get_status()).rsplit(".", 1)[-1]
             if status != "Complete":
-                raise CommandRejected(f"camera: frame arrived {status.lower()}")
+                note = _grab_note(self._link_mbps(), int(self._format.get("payload_bytes", 0)))
+                raise CommandRejected(f"camera: frame arrived {status.lower()}{note}")
             width, height = int(frame.get_width()), int(frame.get_height())
             buffer = bytes(frame.get_buffer())
         except _VMB_ERRORS as exc:
@@ -725,6 +749,37 @@ def _thermal_note(camera: Any) -> str:
     status = temperatures.pop("status", "")
     readings = ", ".join(f"{name} {value}C" for name, value in temperatures.items())
     return f" ({readings}: {status})" if readings else ""
+
+
+def _grab_note(link_mbps: int, payload_bytes: int) -> str:
+    """Why a frame arrived incomplete, where the host is visibly the cause.
+
+    A camera on a USB 2.0 link, and one whose frame is larger than the usbfs
+    buffer limit, both open and configure normally and then fail every grab.
+    The frame status alone names neither, and both are fixed on the host
+    rather than on the camera.
+    """
+    notes = []
+    if link_mbps and link_mbps < _SUPERSPEED_MBPS:
+        notes.append(
+            f"the camera negotiated a {link_mbps} Mb/s link and USB3 Vision needs "
+            f"{_SUPERSPEED_MBPS} Mb/s: check the port and the cable"
+        )
+    limit = _usbfs_limit_bytes()
+    if limit and payload_bytes > limit:
+        notes.append(
+            f"a {payload_bytes // 1_000_000} MB frame does not fit the "
+            f"{limit // 1_000_000} MB usbfs buffer limit: raise usbfs_memory_mb"
+        )
+    return f" — {'; '.join(notes)}" if notes else ""
+
+
+def _usbfs_limit_bytes() -> int:
+    """How much usbfs will pin for transfers, or 0 where the kernel does not say."""
+    try:
+        return int(_USBFS_LIMIT_MB.read_text().strip()) * 1_000_000
+    except (OSError, ValueError):
+        return 0
 
 
 def _attribute(device: Path, name: str) -> str:

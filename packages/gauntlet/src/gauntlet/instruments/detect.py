@@ -22,7 +22,7 @@ from collections.abc import Callable
 
 from gauntlet.capabilities.registry import CapabilityProvider, CapabilityRegistry
 from gauntlet.config import Settings
-from gauntlet.instruments.alvium_camera import AlviumCamera
+from gauntlet.instruments.alvium_camera import AlviumCamera, candidate_cameras
 from gauntlet.instruments.cp2112_i2c import Cp2112I2c, candidate_adapters
 from gauntlet.instruments.di2008_daq import Di2008Daq
 from gauntlet.instruments.fx2_logic import Fx2Logic
@@ -110,7 +110,11 @@ def _camera(device: str, frame_format: str = "auto") -> CapabilityProvider | Non
     A named Allied Vision camera is registered whether or not it answers, the
     way a named port is for every other instrument: the operator said there is
     one there, so its absence is reported through `unavailable_reason` rather
-    than hidden. Only `"auto"` falls through to a capture node.
+    than hidden. Under `"auto"` a camera that is on the bus counts as the same
+    statement: registering it even when it cannot be opened is what puts the
+    reason on the panel, where dropping it leaves an operator told to check a
+    page with nothing on it. Only a bus with no camera on it falls through to
+    a capture node.
 
     Registering it never opens it: `available()` only looks at sysfs, and
     nothing owns the device until an operator or a run does.
@@ -119,10 +123,8 @@ def _camera(device: str, frame_format: str = "auto") -> CapabilityProvider | Non
         return None
     if device != "auto" and not device.startswith("/"):
         return AlviumCamera(serial_filter=device)
-    if device == "auto":
-        alvium = AlviumCamera()
-        if alvium.available():
-            return alvium
+    if device == "auto" and candidate_cameras():
+        return AlviumCamera()
     camera = UvcCamera(device="" if device == "auto" else device, frame_format=frame_format)
     if camera.available():
         return camera

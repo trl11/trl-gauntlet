@@ -132,13 +132,25 @@ it at all: descriptors, registers and pixels all reach it through its one
 usbfs node, which is why it needs the udev rule the DAQ needs. Talking to it
 is `vmbpy` plus a GenTL transport layer that VmbC loads from
 `GENICAM_GENTL64_PATH`. The wheel carries VmbC and no layer, so a bench that
-never installed one finds no cameras rather than failing; the devcontainer
-installs the USB layer at `/opt/vimbax/cti`.
+never installed one finds no cameras rather than failing. Both the devcontainer
+and `setup-host.sh` install the USB layer at `/opt/vimbax/cti`, and
+`serve-gauntlet.sh` points the variable there, so a suite developed in the
+container meets the same layer on a rig.
 
 Presence is read from sysfs rather than by starting the transport layer, which
-would touch every camera on the bus on every panel poll. A node that is there
-but cannot be opened says so, naming `make install-udev-rules`, because that
-is the whole fix.
+would touch every camera on the bus on every panel poll. A camera on the bus is
+registered whether or not it can be opened, so the panel carries the reason
+rather than the instrument disappearing: a node that is there but cannot be
+opened says so, naming `make install-udev-rules`, because that is the whole
+fix.
+
+Two host faults let a camera open, report its format, and then fail every grab,
+and the frame status names neither, so both are read and put beside it. A
+USB3 Vision camera in a USB 2.0 port negotiates 480 Mb/s where it needs 5000;
+the negotiated speed is a readout of its own, so the panel shows it before
+anything is asked of the camera. And a frame larger than the usbfs buffer
+limit cannot be queued whole — the kernel default is 16 MB against this
+camera's 61 MB frame — so `usbfs_memory_mb` is read and compared.
 
 It sends RGB already, debayered on the sensor board, so the frame is
 subsampled to the width asked for and written straight out — there is nothing

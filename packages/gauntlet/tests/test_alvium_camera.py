@@ -30,6 +30,10 @@ _SERIAL = "0GL7P"
 # opened, so the one node every host has serves.
 _NODE = Path("/dev/null")
 
+# What a camera in a SuperSpeed port negotiates, which is what every test
+# camera is on unless it is testing what happens when it is not.
+_SUPERSPEED = 5000
+
 
 class _Clock:
     """A clock the test moves by hand."""
@@ -218,11 +222,11 @@ class _FakeSystem:
 def camera_with(
     system: _FakeSystem,
     *,
-    present: list[tuple[str, Path]] | None = None,
+    present: list[tuple[str, Path, int]] | None = None,
     **kwargs: Any,
 ) -> AlviumCamera:
     """A driver wired to one stand-in transport layer."""
-    candidates = [(_SERIAL, _NODE)] if present is None else present
+    candidates = [(_SERIAL, _NODE, _SUPERSPEED)] if present is None else present
     return AlviumCamera(presence=lambda: candidates, system=lambda: system, **kwargs)
 
 
@@ -260,7 +264,7 @@ class TestAvailability:
         assert "no Allied Vision camera" in camera.describe()["unavailable_reason"]
 
     def test_a_named_serial_that_is_absent_says_so(self) -> None:
-        camera = camera_with(_FakeSystem(), present=[("OTHER", _NODE)], serial_filter=_SERIAL)
+        camera = camera_with(_FakeSystem(), present=[("OTHER", _NODE, _SUPERSPEED)], serial_filter=_SERIAL)
         assert camera.available() is False
         assert "0GL7P: not present" in camera.describe()["unavailable_reason"]
 
@@ -268,7 +272,7 @@ class TestAvailability:
         node = tmp_path / "unreadable"
         node.write_bytes(b"")
         node.chmod(0o000)
-        camera = camera_with(_FakeSystem(), present=[(_SERIAL, node)])
+        camera = camera_with(_FakeSystem(), present=[(_SERIAL, node, _SUPERSPEED)])
         assert camera.available() is False
         assert "install the udev rules" in camera.describe()["unavailable_reason"]
 
@@ -359,7 +363,7 @@ class TestOwning:
         other = _FakeCamera("OTHER")
         camera = camera_with(
             _FakeSystem(other, wanted),
-            present=[("WANTED", _NODE)],
+            present=[("WANTED", _NODE, _SUPERSPEED)],
             serial_filter="WANTED",
         )
         assert camera.own() is True
@@ -623,6 +627,14 @@ class TestSnapshot:
         with pytest.raises(CommandRejected, match="incomplete"):
             camera.command("snapshot", {})
 
+    def test_an_incomplete_frame_on_a_usb_2_link_says_so(self) -> None:
+        fake = _FakeCamera()
+        fake.frame = _Frame(64, 48, b"", status=vmbpy.FrameStatus.Incomplete)
+        camera = camera_with(_FakeSystem(fake), present=[(_SERIAL, _NODE, 480)])
+        camera.own()
+        with pytest.raises(CommandRejected, match="480 Mb/s link"):
+            camera.command("snapshot", {})
+
     def test_a_camera_that_stops_answering_is_dropped(self) -> None:
         fake = _FakeCamera()
         fake.frame_error = vmbpy.VmbTimeout("no frame")
@@ -694,6 +706,7 @@ class TestState:
 
 class TestDetection:
     def test_a_camera_on_the_bus_wins_over_a_capture_node(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _on_the_bus(monkeypatch, [(_SERIAL, _NODE, _SUPERSPEED)])
         monkeypatch.setattr("gauntlet.instruments.detect.AlviumCamera", _present_alvium)
         registry = CapabilityRegistry()
         detect_instruments(registry, Settings(camera_device="auto", psu_port="", daq_serial=""))
@@ -701,8 +714,20 @@ class TestDetection:
         assert provider is not None
         assert provider.describe()["driver"] == "alvium"
 
-    def test_nothing_on_the_bus_falls_back_to_the_capture_node(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_a_camera_on_the_bus_that_cannot_be_opened_stays_registered(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Dropping it would leave an operator told to check a page with
+        # nothing on it, instead of the reason the camera will not open.
+        _on_the_bus(monkeypatch, [(_SERIAL, _NODE, _SUPERSPEED)])
         monkeypatch.setattr("gauntlet.instruments.detect.AlviumCamera", _absent_alvium)
+        monkeypatch.setattr("gauntlet.instruments.detect.UvcCamera", _present_uvc)
+        registry = CapabilityRegistry()
+        detect_instruments(registry, Settings(camera_device="auto", psu_port="", daq_serial=""))
+        provider = registry.provider("camera")
+        assert provider is not None
+        assert provider.describe()["driver"] == "alvium"
+
+    def test_nothing_on_the_bus_falls_back_to_the_capture_node(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _on_the_bus(monkeypatch, [])
         monkeypatch.setattr("gauntlet.instruments.detect.UvcCamera", _present_uvc)
         registry = CapabilityRegistry()
         detect_instruments(registry, Settings(camera_device="auto", psu_port="", daq_serial=""))
@@ -740,6 +765,11 @@ class TestDetection:
         provider = registry.provider("camera")
         assert provider is not None
         assert provider.describe()["driver"] == "uvc"
+
+
+def _on_the_bus(monkeypatch: pytest.MonkeyPatch, candidates: list[tuple[str, Path, int]]) -> None:
+    """What sysfs is to say is plugged in, for the detection tests."""
+    monkeypatch.setattr("gauntlet.instruments.detect.candidate_cameras", lambda: candidates)
 
 
 def _stub(driver: str, *, present: bool = True) -> Any:
