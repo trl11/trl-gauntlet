@@ -4,6 +4,8 @@
  * Kept beside {@link RunTable} so the table file is only about the table.
  */
 
+import { faNoteSticky } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Link } from "react-router";
 
 import type { RunRow } from "@api/types";
@@ -15,6 +17,7 @@ export type RunTableColumn =
   | "campaign"
   | "duration_s"
   | "fail_reason"
+  | "note_count"
   | "profile"
   | "run_id"
   | "started_at"
@@ -36,6 +39,9 @@ export const COLUMNS: Record<RunTableColumn, ColumnSpec> = {
   campaign: { header: "Campaign", sortable: false },
   duration_s: { header: "Duration", sortable: true, align: "right" },
   fail_reason: { header: "Reason", sortable: false },
+  // Not sortable: the count is read from the notes table per request, so the
+  // index has no column to order by.
+  note_count: { header: "Notes", sortable: false },
   profile: { header: "Profile", sortable: true },
   run_id: { header: "Run", sortable: true },
   started_at: { header: "Started", sortable: true },
@@ -112,6 +118,16 @@ export function renderCell(run: RunRow, column: RunTableColumn): React.ReactNode
       );
     case "fail_reason":
       return <span className="run-table__reason">{run.fail_reason || "-"}</span>;
+    case "note_count": {
+      const notes = run.note_count ?? 0;
+      if (notes === 0) return "-";
+      return (
+        <span className="run-table__notes" aria-label={notes === 1 ? "1 note" : `${notes} notes`}>
+          <FontAwesomeIcon icon={faNoteSticky} aria-hidden="true" />
+          {notes}
+        </span>
+      );
+    }
     case "unit_serial":
       // The row opens the run, so the unit link must not let that click through.
       return run.unit_serial ? (

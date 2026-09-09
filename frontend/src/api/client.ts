@@ -301,6 +301,8 @@ export interface ListRunsParams {
   /** Inclusive upper bound on `started_at`. A bare date covers the whole day. */
   before?: string | null;
   direction?: "asc" | "desc";
+  /** Keep only the runs an operator has written a note against. */
+  has_notes?: boolean | null;
   limit?: number;
   offset?: number;
   /** Column to order by. Anything the index does not know falls back to `started_at`. */

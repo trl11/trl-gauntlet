@@ -26,6 +26,7 @@ const COLUMNS: RunTableColumn[] = [
   "campaign",
   "profile",
   "unit_serial",
+  "note_count",
   "status",
 ];
 
@@ -97,6 +98,7 @@ export const HistoryPage: React.FC = () => {
   const filters: Filters = {
     after: params.get("after") || "all",
     before: params.get("before") || "all",
+    notes: params.get("notes") || "all",
     status: params.get("status") || "all",
     suite: params.get("suite") || "all",
     unit: params.get("unit") || "all",
@@ -126,6 +128,8 @@ export const HistoryPage: React.FC = () => {
     after: filters.after === "all" ? null : String(filters.after),
     before: filters.before === "all" ? null : String(filters.before),
     direction,
+    // Null rather than false, so a listing nobody filtered asks for nothing.
+    has_notes: filters.notes === "with" ? true : null,
     limit: size,
     offset: (page - 1) * size,
     sort,
@@ -186,6 +190,13 @@ export const HistoryPage: React.FC = () => {
                 ],
               },
               { id: "status", options: RUN_STATUS_OPTIONS },
+              {
+                id: "notes",
+                options: [
+                  { value: "all", label: "Any notes" },
+                  { value: "with", label: "With notes" },
+                ],
+              },
               {
                 id: "unit",
                 options: [

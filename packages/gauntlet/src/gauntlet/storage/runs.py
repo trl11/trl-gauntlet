@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from gauntlet.storage.notes import NOTES_SCHEMA, SUBJECT_RUN
+
 RUNS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
     run_id      TEXT PRIMARY KEY,
@@ -69,7 +71,8 @@ class RunFilters:
 
     ``after`` and ``before`` are inclusive bounds compared against
     ``started_at``. Both are ISO 8601, which sorts lexicographically, so a bare
-    date such as ``2026-08-03`` bounds a whole day.
+    date such as ``2026-08-03`` bounds a whole day. ``has_notes`` keeps only the
+    runs an operator has written a note against.
     """
 
     suite: str | None = None
@@ -77,6 +80,7 @@ class RunFilters:
     status: tuple[str, ...] = ()
     after: str | None = None
     before: str | None = None
+    has_notes: bool = False
 
 
 def _where(filters: RunFilters) -> tuple[str, list[Any]]:
@@ -100,6 +104,9 @@ def _where(filters: RunFilters) -> tuple[str, list[Any]]:
         # string that starts with it.
         clauses.append("started_at <= ?")
         params.append(filters.before + "\uffff")
+    if filters.has_notes:
+        clauses.append("EXISTS (SELECT 1 FROM notes WHERE subject_kind = ? AND subject_id = runs.run_id)")
+        params.append(SUBJECT_RUN)
     return (f"WHERE {' AND '.join(clauses)}" if clauses else "", params)
 
 
@@ -144,7 +151,9 @@ class RunsIndex:
         path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
-        self._conn.executescript(RUNS_SCHEMA)
+        # The notes table belongs to `NotesIndex` and shares this database, so
+        # filtering on whether a run has notes reads it through this connection.
+        self._conn.executescript(RUNS_SCHEMA + NOTES_SCHEMA)
         self._conn.commit()
         self._lock = threading.Lock()
 

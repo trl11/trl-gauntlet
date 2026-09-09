@@ -117,6 +117,24 @@ describe("renderCell", () => {
     );
   });
 
+  it("counts the notes a run carries", () => {
+    cell("note_count", run({ note_count: 3 }));
+    expect(screen.getByLabelText("3 notes").textContent).toBe("3");
+  });
+
+  it("names a single note in the singular", () => {
+    cell("note_count", run({ note_count: 1 }));
+    expect(screen.getByLabelText("1 note")).toBeInTheDocument();
+  });
+
+  it("shows a dash for a run nobody has written a note against", () => {
+    expect(cell("note_count", run({ note_count: 0 })).container.textContent).toBe("-");
+  });
+
+  it("shows a dash when the server sent no count at all", () => {
+    expect(cell("note_count").container.textContent).toBe("-");
+  });
+
   it("links a unit to its page", () => {
     cell("unit_serial", run({ unit_serial: "SN/1" }));
     expect(screen.getByRole("link", { name: "SN/1" })).toHaveAttribute("href", "/units/SN%2F1");

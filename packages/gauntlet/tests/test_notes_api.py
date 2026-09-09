@@ -73,3 +73,60 @@ class TestUnknownSubjects:
         assert client.get("/api/runs/nope/notes").status_code == 404
         assert client.post("/api/runs/nope/notes", json={"body": "hi"}).status_code == 404
         assert client.delete("/api/runs/nope/notes/1").status_code == 404
+
+
+class TestNoteCounts:
+    """What a listing says about the notes a run carries."""
+
+    def test_a_run_without_notes_counts_none(self, client, subjects) -> None:
+        assert client.get("/api/runs").json()["runs"][0]["note_count"] == 0
+
+    def test_a_listing_counts_each_run_its_own_notes(self, client, subjects, add_run) -> None:
+        add_run("r2")
+        client.post(subjects["run"], json={"body": "one"})
+        client.post(subjects["run"], json={"body": "two"})
+        counts = {row["run_id"]: row["note_count"] for row in client.get("/api/runs").json()["runs"]}
+        assert counts == {"r1": 2, "r2": 0}
+
+    def test_one_run_counts_its_notes(self, client, subjects) -> None:
+        client.post(subjects["run"], json={"body": "one"})
+        assert client.get("/api/runs/r1").json()["note_count"] == 1
+
+    def test_a_unit_note_is_not_counted_on_the_run(self, client, subjects) -> None:
+        client.post(subjects["unit"], json={"body": "on the unit"})
+        assert client.get("/api/runs/r1").json()["note_count"] == 0
+
+    def test_a_deleted_note_stops_counting(self, client, subjects) -> None:
+        note_id = client.post(subjects["run"], json={"body": "one"}).json()["id"]
+        client.delete(f"{subjects['run']}/{note_id}")
+        assert client.get("/api/runs/r1").json()["note_count"] == 0
+
+    def test_a_unit_history_counts_them_too(self, client, subjects) -> None:
+        client.post(subjects["run"], json={"body": "one"})
+        history = client.get("/api/units/SN1/history").json()
+        assert [row["note_count"] for row in history["runs"]] == [1]
+
+
+class TestFilteringByNotes:
+    def test_only_runs_with_notes_are_listed(self, client, subjects, add_run) -> None:
+        add_run("r2")
+        client.post(subjects["run"], json={"body": "one"})
+        listed = client.get("/api/runs", params={"has_notes": "true"}).json()
+        assert [row["run_id"] for row in listed["runs"]] == ["r1"]
+        assert listed["total"] == 1
+
+    def test_without_the_filter_every_run_is_listed(self, client, subjects, add_run) -> None:
+        add_run("r2")
+        client.post(subjects["run"], json={"body": "one"})
+        assert client.get("/api/runs").json()["total"] == 2
+
+    def test_the_filter_holds_alongside_another(self, client, subjects, add_run) -> None:
+        add_run("r2", suite="beta")
+        client.post(subjects["run"], json={"body": "one"})
+        client.post("/api/runs/r2/notes", json={"body": "two"})
+        listed = client.get("/api/runs", params={"has_notes": "true", "suite": "beta"}).json()
+        assert [row["run_id"] for row in listed["runs"]] == ["r2"]
+
+    def test_a_unit_note_does_not_bring_its_run_in(self, client, subjects) -> None:
+        client.post(subjects["unit"], json={"body": "on the unit"})
+        assert client.get("/api/runs", params={"has_notes": "true"}).json()["runs"] == []

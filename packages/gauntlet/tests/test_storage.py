@@ -65,6 +65,19 @@ class TestRunsIndex:
     def test_deleting_an_unknown_run_is_none(self, runs: RunsIndex) -> None:
         assert runs.delete("nope") is None
 
+    def test_filtering_on_notes_keeps_only_the_runs_that_have_one(self, notes: NotesIndex, runs: RunsIndex) -> None:
+        runs.upsert(_run("r1", minute=0, serial="SN1"))
+        runs.upsert(_run("r2", minute=1, serial="SN1"))
+        notes.add(SUBJECT_RUN, "r1", "swapped the cable")
+        filters = RunFilters(has_notes=True)
+        assert [row.run_id for row in runs.list(filters)] == ["r1"]
+        assert runs.count(filters) == 1
+
+    def test_a_note_against_a_unit_of_the_same_name_is_not_a_run_note(self, notes: NotesIndex, runs: RunsIndex) -> None:
+        runs.upsert(_run("r1", minute=0, serial="SN1"))
+        notes.add(SUBJECT_UNIT, "r1", "on the unit")
+        assert runs.list(RunFilters(has_notes=True)) == []
+
 
 class TestNotesIndex:
     def test_add_then_list(self, notes: NotesIndex) -> None:
