@@ -121,8 +121,8 @@ def run_suite(
     snapshot_profile(env.profile_path, run_dir)
 
     sample_period_s = float(spec.sample_period_seconds(profile))
-    jsonl = JsonlSink(run_dir / "metrics.jsonl")
     events = EventsSink(run_dir / "events.sqlite")
+    jsonl = JsonlSink(run_dir / "metrics.jsonl", mirror=events.record)
     junit = JUnitSink(run_dir / "junit.xml", suite_name=spec.name)
 
     ctx = SuiteContext(
@@ -154,7 +154,6 @@ def run_suite(
 
     runner = IterationRunner(_iterate, **runner_kwargs)
     runner.add_sink(jsonl)
-    runner.add_sink(events)
     runner.add_sink(junit)
     runner.add_end_sink(junit.bind())
 

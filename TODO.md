@@ -28,8 +28,8 @@ the error the catalog collects. Two campaigns shipping the same suite key is
 reported and then the second is ignored.
 
 **Some TID suites are still placeholders.** `tid_lan7430`, `tid_max96793`,
-`tid_max96792` and `tid_ads7138` measure. The rest — `tid_asm330lhb`,
-`tid_tmp100` and `tid_pic18f26k83` — render from the python template: they run,
+`tid_max96792` and `tid_ads7138` measure. The rest — `tid_tmp100` and
+`tid_pic18f26k83` — render from the python template: they run,
 write a verdict and pass without hardware, and measure nothing at all. Each
 `runner.py` opens with the component, test vehicle, host and fixture it is for,
 and the measurements it has to grow into, so a green `radiation_tid` says only

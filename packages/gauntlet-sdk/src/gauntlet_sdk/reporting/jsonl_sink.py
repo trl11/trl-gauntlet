@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
@@ -23,13 +24,17 @@ class JsonlSink:
     :meth:`write_live` and :meth:`write_anomaly` write the two non-iteration
     record kinds, neither of which affects the pass/fail counters.
 
+    ``mirror`` is handed every record this writes, whatever its kind, so a
+    second sink stays in step with the file without each caller holding both.
+
     Thread-safe.
     """
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, mirror: Callable[[dict[str, Any]], None] | None = None) -> None:
         self._path = path
         self._path.parent.mkdir(parents=True, exist_ok=True)
         self._fh = self._path.open("a", buffering=1, encoding="utf-8")
+        self._mirror = mirror
         self._lock = threading.Lock()
 
     @property
@@ -43,18 +48,7 @@ class JsonlSink:
                 self._fh = None  # type: ignore[assignment]
 
     def __call__(self, outcome: IterationOutcome, ctx: IterationContext) -> None:
-        self._write(
-            {
-                "kind": "iteration",
-                "iteration": ctx.iteration,
-                "timestamp": time.time(),
-                "elapsed_run_s": ctx.elapsed_run_s,
-                "success": outcome.success,
-                "reason": outcome.reason,
-                "metrics": json_safe(outcome.metrics),
-                "phases": [json_safe(asdict(p)) for p in outcome.phase_records],
-            }
-        )
+        self._write(iteration_record(outcome, ctx))
 
     def write_live(self, metrics: dict[str, Any], *, elapsed_run_s: float | None = None) -> None:
         """Record telemetry sampled outside an iteration."""
@@ -84,6 +78,22 @@ class JsonlSink:
             if self._fh is None:
                 return
             self._fh.write(json.dumps(record) + "\n")
+            if self._mirror is not None:
+                self._mirror(record)
+
+
+def iteration_record(outcome: IterationOutcome, ctx: IterationContext) -> dict[str, Any]:
+    """The record one iteration writes, shared by every sink that stores it."""
+    return {
+        "kind": "iteration",
+        "iteration": ctx.iteration,
+        "timestamp": time.time(),
+        "elapsed_run_s": ctx.elapsed_run_s,
+        "success": outcome.success,
+        "reason": outcome.reason,
+        "metrics": json_safe(outcome.metrics),
+        "phases": [json_safe(asdict(p)) for p in outcome.phase_records],
+    }
 
 
 def json_safe(value: Any) -> Any:
