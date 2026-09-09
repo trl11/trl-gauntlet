@@ -211,12 +211,17 @@ into its RAM over USB. Until that is in it the board answers only its
 bootloader, so `instruments/fx2_logic.py` loads it and then speaks its
 protocol, both taken from libsigrok's `src/hardware/fx2lafw` and `src/ezusb.c`.
 
-**The firmware is sigrok's and is not shipped here.** `logic_firmware` says
-where it is: `"auto"` searches the directories `sigrok-firmware-fx2lafw`
-installs into, and a path names a file or a directory to load it from instead.
-A board with no image to load is registered anyway and reports which file it
-wanted, because "install this package" is a fault to show rather than
-something to hide.
+**The firmware is sigrok's and is not shipped here.** It is GPL and this is
+not, so the image comes from the distribution: `sigrok-firmware-fx2lafw` is in
+`dependencies.txt`, which the devcontainer installs at image build time and a
+bare development host installs the same way. `logic_firmware` says where it is:
+`"auto"` searches the directories that package installs into, and a path names
+a file or a directory to load it from instead. A board with no image to load is
+registered anyway and reports which file it wanted, because "install this
+package" is a fault to show rather than something to hide.
+
+Loading renumerates the board, so the scan that loads it sees it leave the bus
+and drops it. The next scan finds it running and registers it.
 
 What tells a loaded board from an unloaded one is not its USB ids. fx2lafw
 keeps whichever ids the EEPROM carries — `0925:3881` for the Saleae clones,

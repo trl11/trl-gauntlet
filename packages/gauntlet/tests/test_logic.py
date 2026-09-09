@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 
 from gauntlet.capabilities import CommandRejected
-from gauntlet.instruments import waveform
+from gauntlet.instruments import fx2_logic, waveform
 from gauntlet.instruments.fx2_logic import (
     CMD_GET_FW_VERSION,
     CMD_START,
@@ -30,6 +30,17 @@ from gauntlet.instruments.fx2_logic import (
     upload_firmware,
 )
 from gauntlet.instruments.mock_logic import MockLogic, pattern
+
+
+@pytest.fixture(autouse=True)
+def no_installed_firmware(monkeypatch: Any) -> None:
+    """Empty the installed image locations, which are searched after any setting.
+
+    A test names a directory of its own and means it to be the only one, so
+    without this it reads whichever images the machine running it happens to
+    have and stops testing the same thing on a bench as in CI.
+    """
+    monkeypatch.setattr(fx2_logic, "FIRMWARE_DIRS", ())
 
 
 class _Clock:
