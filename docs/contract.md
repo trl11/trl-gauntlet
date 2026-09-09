@@ -132,7 +132,7 @@ Paths are relative to `GAUNTLET_RUN_DIR`.
 | `metrics.jsonl` | no | suite, during the run | One JSON record per line; streamed live. |
 | `manifest.json` | no | suite, at start | Versions, command line, profile. |
 | `junit.xml` | no | suite, at exit | Per-iteration results for CI. |
-| `events.sqlite` | no | suite, during the run | Queryable form of `metrics.jsonl`. |
+| `events.sqlite` | no | suite, during the run | Every `metrics.jsonl` record, in SQL. |
 | `summary.md` | no | suite, at exit | Human-readable rollup. |
 | `frames/` | no | suite, during the run | Images referenced from `metrics.images`. |
 | `traces/` | no | suite, during the run | Captured signals referenced from `metrics.traces`. |
@@ -206,6 +206,33 @@ empty label falls back to the channel number.
 Write the samples rather than a picture where the operator will want to look
 inside the capture. They cost `rate_hz * seconds` a capture before base64, so a
 suite sampling for a long time should let a profile turn them off.
+
+### `events.sqlite`
+
+The same records as `metrics.jsonl`, written as they are and readable with
+`sqlite3`. Gauntlet never reads it; it is there for the analysis the run page
+does not do.
+
+| Table | Holds |
+|---|---|
+| `iterations` | One row per iteration: `elapsed_s`, `success`, `reason`, and `metrics` as JSON. |
+| `phases` | One row per phase of an iteration, keyed by `(iteration, name)`. |
+| `live` | One row per `live` record. |
+| `anomalies` | One row per `anomaly` record, with `iteration` lifted out of its detail. |
+| `metrics` | One row per metric leaf of an `iteration` or `live` record. |
+
+`metrics` is what makes a value selectable without reaching into JSON. Nested
+keys are dotted, `number` holds it when it is one and `text` when it is not,
+and a list is kept whole as JSON rather than exploded into a row per element.
+
+```sql
+SELECT elapsed_s, number FROM metrics WHERE key = 'cpu.percent' ORDER BY elapsed_s;
+SELECT * FROM metric_names;                       -- what this run recorded
+SELECT iteration, reason FROM iterations WHERE success = 0;
+```
+
+`metric_names` is a view over `metrics`: every key, how many samples it has and
+its range, which is the quickest way to find what a run holds.
 
 ## Conformance
 

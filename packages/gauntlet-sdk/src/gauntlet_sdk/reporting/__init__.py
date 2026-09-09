@@ -9,7 +9,7 @@ still produce a conforming run directory.
 from __future__ import annotations
 
 from gauntlet_sdk.reporting.events_sink import EventsSink
-from gauntlet_sdk.reporting.jsonl_sink import JsonlSink, json_safe
+from gauntlet_sdk.reporting.jsonl_sink import JsonlSink, iteration_record, json_safe
 from gauntlet_sdk.reporting.junit_sink import JUnitSink
 from gauntlet_sdk.reporting.manifest import GitState, Manifest, build_manifest, git_state, write_manifest
 from gauntlet_sdk.reporting.summary import write_summary
@@ -23,6 +23,7 @@ __all__ = [
     "Manifest",
     "build_manifest",
     "git_state",
+    "iteration_record",
     "json_safe",
     "make_result",
     "make_test",

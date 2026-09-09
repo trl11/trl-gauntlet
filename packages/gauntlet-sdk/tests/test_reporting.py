@@ -26,6 +26,7 @@ from gauntlet_sdk import (
     write_summary,
     write_verdict,
 )
+from gauntlet_sdk.reporting.events_sink import metric_leaves
 from gauntlet_sdk.reporting.jsonl_sink import json_safe
 from gauntlet_sdk.reporting.manifest import git_state
 
@@ -167,6 +168,100 @@ class TestEventsSink:
         sink = EventsSink(tmp_path / "events.sqlite")
         sink.close()
         sink.close()
+
+    def test_a_live_record_is_stored(self, tmp_path):
+        sink = EventsSink(tmp_path / "events.sqlite")
+        sink.record({"kind": "live", "timestamp": 1.0, "elapsed_run_s": 12.0, "metrics": {"uut": {"load": 0.5}}})
+        sink.close()
+
+        with sqlite3.connect(tmp_path / "events.sqlite") as conn:
+            assert conn.execute("SELECT elapsed_s FROM live").fetchone()[0] == 12.0
+            assert conn.execute("SELECT number FROM metrics WHERE key = 'uut.load'").fetchone()[0] == 0.5
+
+    def test_an_anomaly_is_stored_against_its_iteration(self, tmp_path):
+        sink = EventsSink(tmp_path / "events.sqlite")
+        sink.record(
+            {
+                "kind": "anomaly",
+                "timestamp": 1.0,
+                "probe": "link",
+                "anomaly_kind": "frame_lost",
+                "detail": {"iteration": 4, "error": "no carrier"},
+            }
+        )
+        sink.close()
+
+        with sqlite3.connect(tmp_path / "events.sqlite") as conn:
+            row = conn.execute("SELECT iteration, probe, kind FROM anomalies").fetchone()
+            assert row == (4, "link", "frame_lost")
+
+    def test_an_anomaly_whose_detail_is_not_a_mapping_is_stored_without_an_iteration(self, tmp_path):
+        sink = EventsSink(tmp_path / "events.sqlite")
+        sink.record({"kind": "anomaly", "timestamp": 1.0, "probe": "link", "anomaly_kind": "reset", "detail": "cable"})
+        sink.close()
+
+        with sqlite3.connect(tmp_path / "events.sqlite") as conn:
+            assert conn.execute("SELECT iteration FROM anomalies").fetchone()[0] is None
+
+    def test_a_metric_is_selectable_without_reaching_into_json(self, tmp_path):
+        sink = EventsSink(tmp_path / "events.sqlite")
+        outcome = IterationOutcome(success=True, metrics={"cpu": {"percent": 12.5}, "label": "warm"})
+        sink(outcome, _ctx(1))
+        sink.close()
+
+        with sqlite3.connect(tmp_path / "events.sqlite") as conn:
+            assert conn.execute("SELECT number FROM metrics WHERE key = 'cpu.percent'").fetchone()[0] == 12.5
+            assert conn.execute("SELECT text FROM metrics WHERE key = 'label'").fetchone()[0] == "warm"
+
+    def test_replaying_an_iteration_does_not_double_its_metric_rows(self, tmp_path):
+        sink = EventsSink(tmp_path / "events.sqlite")
+        outcome = IterationOutcome(success=True, metrics={"v": 1})
+        sink(outcome, _ctx(1))
+        sink(outcome, _ctx(1))
+        sink.close()
+
+        with sqlite3.connect(tmp_path / "events.sqlite") as conn:
+            assert conn.execute("SELECT COUNT(*) FROM metrics").fetchone()[0] == 1
+
+    def test_metric_names_lists_what_a_run_recorded(self, tmp_path):
+        sink = EventsSink(tmp_path / "events.sqlite")
+        sink(IterationOutcome(success=True, metrics={"temp_c": 40.0}), _ctx(1))
+        sink(IterationOutcome(success=True, metrics={"temp_c": 42.0}), _ctx(2))
+        sink.close()
+
+        with sqlite3.connect(tmp_path / "events.sqlite") as conn:
+            row = conn.execute("SELECT samples, lowest, highest FROM metric_names WHERE key = 'temp_c'").fetchone()
+            assert row == (2, 40.0, 42.0)
+
+
+class TestMetricLeaves:
+    def test_nested_keys_are_dotted(self):
+        assert list(metric_leaves({"a": {"b": 1}})) == [("a.b", 1.0, None)]
+
+    def test_a_boolean_is_a_number(self):
+        assert list(metric_leaves({"ok": True})) == [("ok", 1.0, None)]
+
+    def test_a_list_is_kept_whole_as_json(self):
+        assert list(metric_leaves({"window": [1, 2]})) == [("window", None, "[1, 2]")]
+
+    def test_a_missing_value_is_neither(self):
+        assert list(metric_leaves({"v": None})) == [("v", None, None)]
+
+
+class TestMirroredJsonlSink:
+    def test_every_record_kind_reaches_the_mirror(self, tmp_path):
+        events = EventsSink(tmp_path / "events.sqlite")
+        jsonl = JsonlSink(tmp_path / "metrics.jsonl", mirror=events.record)
+        jsonl(IterationOutcome(success=True, metrics={"v": 1}), _ctx(1))
+        jsonl.write_live({"load": 0.5})
+        jsonl.write_anomaly("link", "frame_lost")
+        jsonl.close()
+        events.close()
+
+        with sqlite3.connect(tmp_path / "events.sqlite") as conn:
+            assert conn.execute("SELECT COUNT(*) FROM iterations").fetchone()[0] == 1
+            assert conn.execute("SELECT COUNT(*) FROM live").fetchone()[0] == 1
+            assert conn.execute("SELECT COUNT(*) FROM anomalies").fetchone()[0] == 1
 
 
 class TestJUnitSink:
