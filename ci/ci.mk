@@ -84,6 +84,7 @@ ci-validate-dist:
 		"dist/README.txt" \
 		"dist/60-gauntlet-unprivileged-ports.conf" \
 		"dist/polkit/50-gauntlet-power.pkla" \
+		"dist/tmpfiles/60-gauntlet-usbfs.conf" \
 		"dist/gauntlet.service" \
 		"dist/blinky.png" \
 		"dist/homepage.html" \
