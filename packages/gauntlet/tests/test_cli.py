@@ -219,6 +219,58 @@ class TestServe:
         assert (tmp_path / "data" / "profiles").is_dir()
 
 
+class TestExportImport:
+    """Moving a run between two data directories, which is two instances."""
+
+    @pytest.fixture
+    def run_on_disk(self, tmp_path: Path) -> Path:
+        run_dir = tmp_path / "data" / "runs" / "alpha" / "r1"
+        run_dir.mkdir(parents=True)
+        (run_dir / "verdict.json").write_text(
+            '{"passed": true, "reason": "", "started_at_utc": "2026-01-01T00:00:00Z"}'
+        )
+        (run_dir / "metrics.jsonl").write_text('{"kind":"iteration","iteration":1,"success":true}\n')
+        return run_dir
+
+    def test_a_run_moves_to_another_instance(self, capsys, monkeypatch, run_on_disk, tmp_path: Path) -> None:
+        assert cli.main(["export", "r1", "-o", str(tmp_path)]) == 0
+        archive = tmp_path / "r1.gauntlet-run.zip"
+        assert archive.is_file()
+
+        monkeypatch.setenv("GAUNTLET_DATA_DIR", str(tmp_path / "other"))
+        assert cli.main(["import", str(archive)]) == 0
+        landed = tmp_path / "other" / "runs" / "alpha" / "r1"
+        assert json.loads((landed / "verdict.json").read_text())["passed"] is True
+        assert (landed / "metrics.jsonl").is_file()
+
+    def test_output_defaults_to_the_working_directory(self, monkeypatch, run_on_disk, tmp_path: Path) -> None:
+        monkeypatch.chdir(tmp_path)
+
+        assert cli.main(["export", "r1"]) == 0
+        assert (tmp_path / "r1.gauntlet-run.zip").is_file()
+
+    def test_exporting_an_unknown_run_fails(self, capsys, tmp_path: Path) -> None:
+        assert cli.main(["export", "nope", "-o", str(tmp_path)]) == 1
+        assert "unknown run" in capsys.readouterr().err
+
+    def test_a_run_already_here_is_refused(self, capsys, run_on_disk, tmp_path: Path) -> None:
+        cli.main(["export", "r1", "-o", str(tmp_path)])
+
+        assert cli.main(["import", str(tmp_path / "r1.gauntlet-run.zip")]) == 1
+        assert "--overwrite" in capsys.readouterr().err
+
+    def test_overwrite_replaces_it(self, run_on_disk, tmp_path: Path) -> None:
+        cli.main(["export", "r1", "-o", str(tmp_path)])
+
+        assert cli.main(["import", str(tmp_path / "r1.gauntlet-run.zip"), "--overwrite"]) == 0
+
+    def test_something_that_is_not_an_export_is_rejected(self, capsys, tmp_path: Path) -> None:
+        (tmp_path / "notes.txt").write_text("this is not an archive")
+
+        assert cli.main(["import", str(tmp_path / "notes.txt")]) == 2
+        assert "error:" in capsys.readouterr().err
+
+
 class TestParser:
     def test_no_subcommand_is_rejected(self) -> None:
         with pytest.raises(SystemExit):

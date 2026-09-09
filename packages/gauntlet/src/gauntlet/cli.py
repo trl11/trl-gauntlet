@@ -15,6 +15,8 @@ from gauntlet.catalog import scan
 from gauntlet.config import Settings, load_settings
 from gauntlet.conformance import Report, verify_suite
 from gauntlet.scaffold import ScaffoldError, available_templates, render
+from gauntlet.storage import SUBJECT_RUN, NotesIndex, RunsIndex
+from gauntlet.transfer import TransferError, archive_name, export_run, import_run, read_export
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -41,6 +43,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     verify.add_argument("--suites", action="append", default=None, metavar="DIR")
     verify.add_argument("--campaigns", action="append", default=None, metavar="DIR")
     verify.add_argument("--json", action="store_true")
+
+    export = sub.add_parser("export", help="write one run to an archive another instance can read")
+    export.add_argument("run_id", help="the run to export")
+    export.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="file or directory to write to (default: the working directory)",
+    )
+
+    importing = sub.add_parser("import", help="read a run archive written by another instance")
+    importing.add_argument("archive", type=Path, help="the archive to read")
+    importing.add_argument("--overwrite", action="store_true", help="replace a run this instance already has")
 
     schema = sub.add_parser("schema", help="print a contract schema as JSON Schema")
     schema.add_argument("name", nargs="?", choices=sorted(CONTRACT_MODELS), help="omit to list the names")
@@ -69,6 +86,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _list(args)
     if args.command == "verify":
         return _verify(args)
+    if args.command == "export":
+        return _export(args)
+    if args.command == "import":
+        return _import(args)
     if args.command == "schema":
         return _schema(args)
     if args.command == "new-suite":
@@ -189,6 +210,51 @@ def _relative_to_cwd(path: Path) -> str:
         return str(path.relative_to(Path.cwd()))
     except ValueError:
         return str(path)
+
+
+def _export(args: argparse.Namespace) -> int:
+    settings = _settings(args)
+    runs = RunsIndex(settings.runs_index_path)
+    # A bench that has never served picks its history up off disk, the same way
+    # the app does at startup.
+    runs.import_tree(settings.runs_dir)
+    row = runs.get(args.run_id)
+    if row is None:
+        print(f"error: unknown run {args.run_id!r}", file=sys.stderr)
+        return 1
+
+    name = archive_name(row.run_id)
+    destination = args.output or Path.cwd() / name
+    if destination.is_dir():
+        destination = destination / name
+    notes = NotesIndex(settings.runs_index_path)
+    export_run(row, notes.list(SUBJECT_RUN, row.run_id), destination)
+    print(f"Wrote {_relative_to_cwd(destination)}")
+    return 0
+
+
+def _import(args: argparse.Namespace) -> int:
+    settings = _settings(args)
+    settings.ensure_dirs()
+    try:
+        export = read_export(args.archive)
+    except TransferError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    runs = RunsIndex(settings.runs_index_path)
+    if not args.overwrite and runs.get(export.run_id) is not None:
+        print(f"error: run {export.run_id!r} is already here; pass --overwrite to replace it", file=sys.stderr)
+        return 1
+
+    notes = NotesIndex(settings.runs_index_path)
+    try:
+        row = import_run(args.archive, settings.runs_dir, runs, notes)
+    except TransferError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    print(f"Imported {row.run_id}  {row.suite}  {row.status}  -> {row.run_dir}")
+    return 0
 
 
 def _schema(args: argparse.Namespace) -> int:

@@ -216,6 +216,12 @@ and neither is on a package registry.
   flight.
 - A run id ends in randomness, not anything constant within a process. Two runs
   starting in the same second must not share a directory.
+- A run exported by one instance and imported by another keeps its run id, so
+  importing the same archive twice leaves one run. `gauntlet.transfer` is the
+  only place an archive is written or read, and it carries the index row
+  because disk cannot rebuild a run recorded as `error`. An imported run whose
+  suite is not installed here still lists and still serves its artifacts: run
+  history never depends on the catalog.
 - `manifest.json` and the other artifacts exist only once the suite process
   ends, and `cpu_percent` is null until a second sample. Callers wait rather
   than treating either as an error.

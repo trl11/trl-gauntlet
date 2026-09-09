@@ -42,6 +42,7 @@ vi.mock("@api/client", () => ({
   listRunNotes: vi.fn(),
   listSuites: vi.fn(),
   runEventsUrl: (runId: string) => `/api/runs/${runId}/events`,
+  runExportUrl: (runId: string) => `/api/runs/${runId}/export`,
   stopRun: vi.fn(),
 }));
 

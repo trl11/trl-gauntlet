@@ -198,3 +198,41 @@ SQLite for the history view and rebuilds from disk via `import_tree`.
 
 On startup, runs recorded as in-progress are marked interrupted, and any run
 directory on disk not already indexed is imported.
+
+## Moving a run between instances
+
+A run is exported as one zip, `<run-id>.gauntlet-run.zip`, and imported by
+another instance. `gauntlet.transfer` is the whole implementation; the API and
+the CLI both go through it.
+
+```
+export.json   the index row, the operator notes, and the export apiVersion
+run/          the run directory verbatim
+```
+
+The directory would nearly be enough on its own, since `import_tree` rebuilds a
+row from `verdict.json` and `manifest.json`. `export.json` carries what disk
+cannot give back: a run recorded as `error` has no `verdict.json` to be rebuilt
+from, `manifest.json` is optional so `profile`, `target` and `unit_serial` may
+be missing from it, and notes live in the database rather than beside the
+artifacts. The row travels without its `run_dir`, which is a path on the
+machine that exported it.
+
+| Where | Export | Import |
+|---|---|---|
+| API | `GET /api/runs/{id}/export` | `POST /api/runs/import` |
+| CLI | `gauntlet export <run-id>` | `gauntlet import <archive>` |
+
+The archive is the import request's whole body rather than a form field, so
+nothing needs a multipart parser.
+
+The run keeps its id, so importing the same archive twice leaves one run rather
+than two, and the same run on two benches is one run. An id the instance
+already knows is refused unless the caller passes `overwrite`; the UI asks
+before sending it again.
+
+Nothing in a run row depends on the catalog, and a run's campaign is derived
+when the run is read, so a run whose suite is not installed on the importing
+instance still lists, still serves its artifacts, and reports no campaign. Its
+unit appears on the Units page with correct counters, because a unit is an
+aggregate over the runs table rather than a record of its own.

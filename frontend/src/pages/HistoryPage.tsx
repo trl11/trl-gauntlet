@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Confirm, FilterMenu, Pagination } from "@trl11/components/ui";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 
-import { deleteRun, listRuns, listSuites, listUnits } from "@api/client";
+import { ApiError, deleteRun, importRun, listRuns, listSuites, listUnits } from "@api/client";
 import type { RunRow } from "@api/types";
 import ListToolbar from "@components/ListToolbar";
 import PageHeader from "@components/PageHeader";
@@ -49,6 +49,10 @@ export const HistoryPage: React.FC = () => {
   const [selected, setSelected] = useState<string[]>([]);
   const [confirming, setConfirming] = useState<RunRow[] | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [imported, setImported] = useState<string | null>(null);
+  const [replacing, setReplacing] = useState<File | null>(null);
+  const archiveInput = useRef<HTMLInputElement>(null);
 
   const remove = useMutation({
     mutationFn: (targets: RunRow[]) => deleteRuns(targets.map((run) => run.run_id)),
@@ -61,6 +65,27 @@ export const HistoryPage: React.FC = () => {
           ? `Could not delete ${failedIds.length === 1 ? "1 run" : `${failedIds.length} runs`}; a run still in flight can't be deleted.`
           : null
       );
+    },
+  });
+
+  const bringIn = useMutation({
+    mutationFn: ({ archive, overwrite }: { archive: File; overwrite: boolean }) =>
+      importRun(archive, overwrite),
+    onSuccess: (run) => {
+      setImportError(null);
+      setImported(run.run_id);
+      queryClient.invalidateQueries({ queryKey: ["runs"] });
+      queryClient.invalidateQueries({ queryKey: ["units"] });
+    },
+    // A run this instance already has is the one failure the operator can
+    // answer, so it asks rather than reporting.
+    onError: (error, { archive, overwrite }) => {
+      setImported(null);
+      if (!overwrite && error instanceof ApiError && error.status === 409) {
+        setReplacing(archive);
+        return;
+      }
+      setImportError((error as Error).message);
     },
   });
 
@@ -123,6 +148,28 @@ export const HistoryPage: React.FC = () => {
       <PageHeader title="History" />
 
       <ListToolbar
+        actions={
+          <>
+            <input
+              accept=".zip"
+              className="history-page__archive"
+              onChange={(event) => {
+                const archive = event.target.files?.[0];
+                event.target.value = "";
+                if (archive) bringIn.mutate({ archive, overwrite: false });
+              }}
+              ref={archiveInput}
+              type="file"
+            />
+            <Button
+              disabled={bringIn.isPending}
+              size="small"
+              onClick={() => archiveInput.current?.click()}
+            >
+              {bringIn.isPending ? "Importing" : "Import run"}
+            </Button>
+          </>
+        }
         filter={
           <FilterMenu
             filterState={filters}
@@ -182,6 +229,18 @@ export const HistoryPage: React.FC = () => {
         </p>
       )}
 
+      {importError && (
+        <p className="history-page__error" role="alert">
+          {importError}
+        </p>
+      )}
+
+      {imported && (
+        <p className="history-page__imported" role="status">
+          {`Imported run ${imported}.`}
+        </p>
+      )}
+
       {runs.isError ? (
         <p className="history-page__error">{(runs.error as Error).message}</p>
       ) : (
@@ -209,6 +268,18 @@ export const HistoryPage: React.FC = () => {
         itemsPerPage={size}
         setItemsPerPage={(items) => write({ page: "1", size: String(items) })}
       />
+
+      {replacing && (
+        <Confirm
+          onConfirm={() => {
+            bringIn.mutate({ archive: replacing, overwrite: true });
+            setReplacing(null);
+          }}
+          onDismiss={() => setReplacing(null)}
+        >
+          {`This instance already has the run in ${replacing.name}. Replace it, and its notes, with the archive?`}
+        </Confirm>
+      )}
 
       {confirming && (
         <Confirm

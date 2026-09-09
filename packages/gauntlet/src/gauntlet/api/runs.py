@@ -6,18 +6,21 @@ import asyncio
 import contextlib
 import json
 import shutil
+import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
+from starlette.background import BackgroundTask
 
 from gauntlet.api.notes import NoteBody, add_note, delete_note, list_notes
 from gauntlet.catalog import campaigns_by_suite
 from gauntlet.storage import SUBJECT_RUN, RunFilters, RunRow
 from gauntlet.supervisor import Event, RunConflict, RunHandle, RunRejected, RunRequest
+from gauntlet.transfer import TransferError, archive_name, export_run, import_run, read_export
 
 router = APIRouter()
 
@@ -138,6 +141,64 @@ async def delete_run(request: Request, run_id: str) -> dict[str, Any]:
     request.app.state.notes_index.delete_subject(SUBJECT_RUN, run_id)
     remove_run_dir(request, row.run_dir)
     return {"id": run_id, "deleted": True}
+
+
+@router.get("/runs/{run_id}/export")
+async def export_run_archive(request: Request, run_id: str) -> FileResponse:
+    """One run as a single archive: its directory, its row, and its notes.
+
+    Refused while the run is in flight, because the artifacts are still being
+    written and the archive would be half a run.
+    """
+    handle = request.app.state.supervisor.get(run_id)
+    if handle is not None and not handle.finished:
+        raise HTTPException(status_code=409, detail="run is still in flight")
+    row = request.app.state.runs_index.get(run_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"unknown run {run_id!r}")
+    notes = request.app.state.notes_index.list(SUBJECT_RUN, run_id)
+    directory = Path(tempfile.mkdtemp(prefix="gauntlet-export-"))
+    name = archive_name(run_id)
+    export_run(row, notes, directory / name)
+    return FileResponse(
+        directory / name,
+        media_type="application/zip",
+        filename=name,
+        background=BackgroundTask(shutil.rmtree, directory, True),
+    )
+
+
+@router.post("/runs/import", status_code=201)
+async def import_run_archive(request: Request, overwrite: bool = False) -> dict[str, Any]:
+    """Take a run exported from another instance and index it here.
+
+    The archive is the request body rather than a form field, which keeps
+    multipart parsing out of the dependencies. A run id already known here is
+    refused unless ``overwrite`` says to replace it.
+    """
+    directory = Path(tempfile.mkdtemp(prefix="gauntlet-import-"))
+    archive = directory / "upload.zip"
+    try:
+        with archive.open("wb") as sink:
+            async for chunk in request.stream():
+                sink.write(chunk)
+        try:
+            export = read_export(archive)
+        except TransferError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        index = request.app.state.runs_index
+        handle = request.app.state.supervisor.get(export.run_id)
+        if handle is not None and not handle.finished:
+            raise HTTPException(status_code=409, detail="run is still in flight")
+        if not overwrite and index.get(export.run_id) is not None:
+            raise HTTPException(status_code=409, detail=f"run {export.run_id!r} is already here")
+        try:
+            row = import_run(archive, request.app.state.settings.runs_dir, index, request.app.state.notes_index)
+        except TransferError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+    return _with_campaign(row.to_dict(), _campaign_owners(request))
 
 
 @router.get("/runs/{run_id}/notes")

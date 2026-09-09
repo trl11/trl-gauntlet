@@ -124,6 +124,23 @@ def add_run(client):
 
 
 @pytest.fixture
+def make_run_dir(tmp_path: Path):
+    """Write the artifacts a finished run leaves behind, and return the directory."""
+
+    def _make(name: str = "run_dir", *, verdict: str | None = '{"passed": true, "reason": ""}') -> Path:
+        run_dir = tmp_path / name
+        (run_dir / "frames").mkdir(parents=True)
+        if verdict is not None:
+            (run_dir / "verdict.json").write_text(verdict)
+        (run_dir / "manifest.json").write_text('{"suite": "alpha"}')
+        (run_dir / "metrics.jsonl").write_text('{"kind":"iteration","iteration":1,"success":true}\n')
+        (run_dir / "frames" / "0001.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+        return run_dir
+
+    return _make
+
+
+@pytest.fixture
 def make_campaign(campaign_root: Path):
     """Write a campaign directory, with an empty suite directory, and load it."""
 

@@ -36,7 +36,9 @@ import {
   listUnits,
   renameUnit,
   rescanSuites,
+  importRun,
   runEventsUrl,
+  runExportUrl,
   saveProfile,
   rescanInstruments,
   sendInstrumentCommand,
@@ -91,6 +93,10 @@ describe("url building", () => {
   it("keeps artifact path separators while escaping each segment", () => {
     expect(artifactUrl("r1", "frames/a b.png")).toBe("/api/runs/r1/artifacts/frames/a%20b.png");
   });
+
+  it("encodes the run id in the export url", () => {
+    expect(runExportUrl("2026 01")).toBe("/api/runs/2026%2001/export");
+  });
 });
 
 describe("request", () => {
@@ -114,6 +120,16 @@ describe("request", () => {
     expect(init.method).toBe("POST");
     expect(init.body).toBe(JSON.stringify({ suite: "demo", profile: "mock.yaml" }));
     expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
+  });
+
+  it("sends an import archive as the body, typed as a zip", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ run_id: "r1" }, 201));
+    const archive = new Blob(["PK"], { type: "application/zip" });
+    await importRun(archive);
+    const [url, init] = lastCall();
+    expect(url).toBe("/api/runs/import");
+    expect(init.body).toBe(archive);
+    expect(new Headers(init.headers).get("Content-Type")).toBe("application/zip");
   });
 
   it("resolves a 204 to undefined", async () => {
@@ -230,6 +246,13 @@ describe("every endpoint addresses its route", () => {
     ],
     ["listUnitNotes", () => listUnitNotes("SN-1"), "GET", "/api/units/SN-1/notes"],
     ["deleteUnitNote", () => deleteUnitNote("SN-1", 3), "DELETE", "/api/units/SN-1/notes/3"],
+    ["importRun", () => importRun(new Blob(["PK"])), "POST", "/api/runs/import"],
+    [
+      "importRun replacing",
+      () => importRun(new Blob(["PK"]), true),
+      "POST",
+      "/api/runs/import?overwrite=true",
+    ],
     ["listInstruments", listInstruments, "GET", "/api/instruments"],
     ["rescanInstruments", rescanInstruments, "POST", "/api/instruments/rescan"],
   ];

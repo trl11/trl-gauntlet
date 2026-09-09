@@ -349,6 +349,25 @@ export function runEventsUrl(runId: string, since: number): string {
 export const listArtifacts = (runId: string): Promise<ArtifactList> =>
   request<ArtifactList>(`/api/runs/${encodeSegment(runId)}/artifacts`);
 
+/** URL of one run's export archive, for a download link. */
+export function runExportUrl(runId: string): string {
+  return apiUrl(`/api/runs/${encodeSegment(runId)}/export`);
+}
+
+/**
+ * `POST /api/runs/import`
+ *
+ * The archive is the whole request body rather than a form field, so the
+ * backend needs no multipart parser. A run id this instance already has is
+ * refused unless `overwrite` says to replace it.
+ */
+export const importRun = (archive: Blob, overwrite = false): Promise<RunRow> =>
+  request<RunRow>(`/api/runs/import${query({ overwrite: overwrite || null })}`, {
+    body: archive,
+    headers: { "Content-Type": "application/zip" },
+    method: "POST",
+  });
+
 /** URL of one artifact, for a download link or an `<img>` source. */
 export function artifactUrl(runId: string, relative: string): string {
   const path = relative.split("/").map(encodeSegment).join("/");

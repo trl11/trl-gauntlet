@@ -64,9 +64,21 @@ class NotesIndex:
         with self._lock:
             self._conn.close()
 
-    def add(self, subject_kind: str, subject_id: str, body: str, author: str | None = None) -> NoteRow:
-        """Append a note and return it with its assigned id."""
-        created_at = _utc_iso()
+    def add(
+        self,
+        subject_kind: str,
+        subject_id: str,
+        body: str,
+        author: str | None = None,
+        created_at: str | None = None,
+    ) -> NoteRow:
+        """Append a note and return it with its assigned id.
+
+        A note written here is stamped now. One restored from elsewhere carries
+        the time it was first written, which is the only thing that makes it
+        readable beside the run it is about.
+        """
+        created_at = created_at or _utc_iso()
         with self._lock:
             cursor = self._conn.execute(
                 "INSERT INTO notes (subject_kind, subject_id, body, author, created_at) VALUES (?, ?, ?, ?, ?)",
