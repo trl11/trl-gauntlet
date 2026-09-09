@@ -22,7 +22,7 @@ operator rather than for someone changing this.
 | `gauntlet.service` | The backend's systemd user unit |
 | `serve-gauntlet.sh` | What that unit runs |
 | `homepage/` | The landing page, its banner, the server for it and its unit |
-| `setup-host.sh` | The udev rules and groups, for a bench installing by hand |
+| `setup-host.sh` | The udev rules and groups, for a bench installing by hand, plus NI's driver when NI hardware is on the bus |
 | `setup-bench.sh` | That plus the packages a fresh bench needs |
 | `install-service.sh` | Both units, for a bench that has the AppImage rather than the package |
 | `README.txt` | The release note, described above |

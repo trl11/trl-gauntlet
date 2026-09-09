@@ -38,6 +38,13 @@ mosquitto-clients
 libusb-1.0-0
 usbutils
 
+# The FX2 logic analyzer has no firmware of its own: what makes one an analyzer
+# is sigrok's fx2lafw, which Gauntlet writes into its RAM at every plug. The
+# image is GPL and so is not shipped in this tree; this package puts it in
+# /usr/share/sigrok-firmware, the first place the driver looks. Without it a
+# board is registered and reports that it has nothing to load.
+sigrok-firmware-fx2lafw
+
 # `make app-build` writes an AppImage, which mounts itself through FUSE to run.
 # Without this it exits with "dlopen(): error loading libfuse.so.2", and
 # --appimage-extract-and-run is the way around it.

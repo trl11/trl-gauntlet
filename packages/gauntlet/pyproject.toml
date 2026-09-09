@@ -13,6 +13,7 @@ authors = [{ name = "TRL11", email = "devsupport@trl11.com" }]
 dependencies = [
     "fastapi>=0.110",
     "gauntlet-sdk",
+    "nidaqmx[grpc]>=1.0",
     "pillow>=10",
     "pydantic>=2",
     "pyserial>=3.5",
@@ -26,6 +27,12 @@ dependencies = [
 dev = [
     "httpx",
     "mypy",
+    # numpy arrives with nidaqmx and nothing here imports it, but mypy still
+    # parses its stubs, and from 2.3 they are written in syntax newer than the
+    # python_version checked for below. A syntax error in a followed file
+    # cannot be suppressed, so the checker is held to a numpy it can read. This
+    # caps the development environment only; the wheel asks for no numpy at all.
+    "numpy<2.3",
     "pytest>=7",
     "pytest-asyncio",
     "pytest-cov",

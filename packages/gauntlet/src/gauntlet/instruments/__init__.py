@@ -23,6 +23,7 @@ from gauntlet.instruments.mock_chamber import MockChamber
 from gauntlet.instruments.mock_daq import MockDaq
 from gauntlet.instruments.mock_logic import MockLogic
 from gauntlet.instruments.mock_psu import MockPsu
+from gauntlet.instruments.ni_daqmx import NiDaqmxDaq
 from gauntlet.instruments.uvc_camera import UvcCamera
 
 __all__ = [
@@ -35,6 +36,7 @@ __all__ = [
     "MockDaq",
     "MockLogic",
     "MockPsu",
+    "NiDaqmxDaq",
     "UvcCamera",
     "detect_instruments",
     "is_simulated",

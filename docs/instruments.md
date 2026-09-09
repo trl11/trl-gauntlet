@@ -16,6 +16,7 @@ declares about itself; naming an instrument anywhere else is a defect.
 |---|---|---|
 | `psu` | Hanmatek HM310T, `instruments/hm310t_psu.py` | Modbus RTU on a USB serial port, 9600 8N1, slave 1 |
 | `daq` | DATAQ DI-2008, `instruments/di2008_daq.py` | vendor bulk-USB protocol, claimed through usbfs |
+| `daq` | any NI-DAQmx analog input device, `instruments/ni_daqmx.py` | the NI-DAQmx driver, installed on the host outside Python |
 | `camera` | any UVC camera, `instruments/uvc_camera.py` | V4L2 ioctls on a `/dev/video*` node, memory-mapped capture |
 | `camera` | any Allied Vision camera, `instruments/alvium_camera.py` | USB3 Vision through a GenTL transport layer, claimed over usbfs |
 | `i2c` | Silicon Labs CP2112, `instruments/cp2112_i2c.py` | `I2C_RDWR` on the `i2c-dev` node the kernel's own `hid-cp2112` driver adapts it to |
@@ -47,6 +48,55 @@ after loading the list rather than assuming, because that tenfold difference is
 what decides whether a capture window long enough to hold a scan is 0.1 s or a
 second. It also sizes its capture from that rate, so a sample costs what the
 configured rate needs and no longer.
+
+### The acquisition unit that is really two devices
+
+The other unit is a National Instruments one, reached through NI-DAQmx rather
+than a protocol written here. The bench holds a cDAQ-9171 chassis with an
+NI-9238 in it, but `instruments/ni_daqmx.py` is written for neither: the
+channels, the input ranges they take and the rates they run at are all read
+back from whichever module is fitted, and a module offering one fixed range
+simply offers one choice where another offers nine.
+
+**The chassis is not the device.** NI-DAQmx lists a CompactDAQ chassis and each
+module in it as separate devices, and only the module has analog inputs, so the
+driver looks for a device with channels rather than for the thing plugged into
+USB. `cDAQ1` is the chassis and `cDAQ1Mod1` the module; the second is what a
+`daqmx:` setting names.
+
+**A delta-sigma module cannot be read on demand.** Its converter produces
+samples only against a clock, so there is no single conversion to ask for: a
+`sample` is a short finite acquisition and the reading is its mean. That is
+also why the rate is the module's own minimum rather than anything chosen
+here — the NI-9238 will not run below 1.613 kS/s at all, and the slowest rate
+it does run at is the one that averages its noise down best. Every channel is
+converted at once, so unlike the DI-2008 the rate is not divided across the
+channel list.
+
+The task is built and torn down around each acquisition. Holding one open would
+leave the module clocking for as long as the instrument is registered, where
+the panel asks for a reading about once a second and a task costs milliseconds
+to build.
+
+**NI-DAQmx is not carried by the wheel.** It is a kernel module and a shared
+library installed on the host, from NI's own repositories, and it supports
+Ubuntu and RHEL rather than every distribution. The `nidaqmx` package on PyPI
+is only the binding: it imports on a host that has never seen the driver and
+fails at first use, which is what lets a bench without it show an unavailable
+instrument rather than fail to start. There is no udev rule to install — the NI
+kernel driver owns the device, so nothing here reaches it through usbfs, and
+`setup-host.sh` installs the driver instead of granting a node.
+
+**A container has no local driver, so it asks a server.** NI packages for
+Ubuntu and RHEL and the kernel half belongs to the host regardless, so Gauntlet
+in a container has no NI-DAQmx to call. NI's own answer is the gRPC device
+server, which runs on the host beside the driver and speaks the same API over
+TCP; `setup-host.sh` installs it, bound to every interface on port 31763,
+because one on loopback cannot answer across a bridge. A target naming a server
+is driven through it and nothing else in the driver changes — the same `System`
+and the same `Task`, built against a channel instead of the local driver. The
+channel is insecure, which puts the acquisition unit on the same trust boundary
+as Gauntlet itself.
 
 The camera is driven through V4L2 ioctls against structures laid out to match
 `videodev2.h`, and its frames are converted and written by `instruments/
@@ -161,12 +211,17 @@ into its RAM over USB. Until that is in it the board answers only its
 bootloader, so `instruments/fx2_logic.py` loads it and then speaks its
 protocol, both taken from libsigrok's `src/hardware/fx2lafw` and `src/ezusb.c`.
 
-**The firmware is sigrok's and is not shipped here.** `logic_firmware` says
-where it is: `"auto"` searches the directories `sigrok-firmware-fx2lafw`
-installs into, and a path names a file or a directory to load it from instead.
-A board with no image to load is registered anyway and reports which file it
-wanted, because "install this package" is a fault to show rather than
-something to hide.
+**The firmware is sigrok's and is not shipped here.** It is GPL and this is
+not, so the image comes from the distribution: `sigrok-firmware-fx2lafw` is in
+`dependencies.txt`, which the devcontainer installs at image build time and a
+bare development host installs the same way. `logic_firmware` says where it is:
+`"auto"` searches the directories that package installs into, and a path names
+a file or a directory to load it from instead. A board with no image to load is
+registered anyway and reports which file it wanted, because "install this
+package" is a fault to show rather than something to hide.
+
+Loading renumerates the board, so the scan that loads it sees it leave the bus
+and drops it. The next scan finds it running and registers it.
 
 What tells a loaded board from an unloaded one is not its USB ids. fx2lafw
 keeps whichever ids the EEPROM carries — `0925:3881` for the Saleae clones,
@@ -215,7 +270,8 @@ it.
 
 | Setting | Meaning |
 |---|---|
-| `psu_port`, `daq_serial`, `i2c_serial`, `logic_serial` | `"auto"` probes, `""` does not look at all, anything else is the serial port or USB serial number to use. Most analyzer boards carry no serial number, so `"auto"` takes the first on the bus |
+| `psu_port`, `i2c_serial`, `logic_serial` | `"auto"` probes, `""` does not look at all, anything else is the serial port or USB serial number to use. Most analyzer boards carry no serial number, so `"auto"` takes the first on the bus |
+| `daq_serial` | The same, and it also says which of the two drivers answers. A `daqmx:` prefix names something NI-DAQmx knows: `daqmx:cDAQ1Mod1` is a device driven through the local driver, and `daqmx://host:31763` or `daqmx://host:31763/cDAQ1Mod1` is one driven through the gRPC device server at that address. Anything else is a DI-2008 USB serial number — the prefix is what tells them apart, because a DAQmx device name and a USB serial number are both bare strings. `"auto"` probes the DI-2008 first, falls through to the local NI-DAQmx, and last tries the gRPC device server on the container's host, `host.docker.internal:31763`. That one address is a fixed property of running in a container rather than a bench someone configured, which is what makes it findable; any other server is named in the setting, since an address in general is somewhere to connect rather than something to find. The probe is a TCP connect with a short ceiling, so a bench with no server there pays no timeout |
 | `camera_device` | `"auto"` prefers an Allied Vision camera when one is on the bus and otherwise registers so long as any `/dev/video*` node exists, `""` does not look at all, a `/dev/video*` path is the node to register, and anything else names an Allied Vision camera by serial. Which node actually streams, and whether it carries a format the encoder can write, is not settled until something owns it — see [Owning a device](#owning-a-device) |
 | `camera_format` | `"auto"` reads a frame to decide what it really carries, or name `yuyv` or `raw10_rggb` to state it. A GMSL adapter reports YUYV over UVC while sending raw sensor data, and the UVC format code cannot tell them apart. It settles the UVC driver only; a USB3 Vision camera states its format itself |
 | `logic_firmware` | Where fx2lafw is. `"auto"` searches the directories `sigrok-firmware-fx2lafw` installs into; a file or a directory names it instead |
@@ -459,6 +515,11 @@ $ sudo ./setup-host.sh
 ==> instruments these rules cover
     0683:2008  /dev/bus/usb/003/061  root:dialout 660  6A046A27 DI-2008
 ```
+
+The one instrument it does not settle this way is the NI unit, which is not
+reached through a node at all. When NI hardware is on the bus the same script
+installs NI's driver and its gRPC device server instead — see
+[deploying.md](deploying.md).
 
 `make install-udev-rules` runs that same script, so a checkout and a host that
 only has an AppImage set themselves up the same way. It installs every `*.rules`

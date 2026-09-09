@@ -99,6 +99,26 @@ alongside the udev rules — the same one root step, rather than a second one.
 Every port from 80 up becomes bindable by any local user, which on a
 single-operator bench is nobody new.
 
+## The one instrument that needs a third-party driver
+
+An NI acquisition unit is reached through a kernel module and a shared library
+that NI distributes from its own repositories, for Ubuntu and RHEL rather than
+for every distribution. Nothing here carries it, so `setup-host.sh` installs
+it — the one thing that script fetches rather than places — along with NI's
+gRPC device server, which is how Gauntlet reaches the driver from a container.
+
+Both steps turn on NI hardware being on the bus, so a bench without any
+downloads nothing. The driver needs a reboot before it works, and the script
+says so rather than rebooting. A bench that skipped it shows the instrument as
+unavailable with the reason, and every other instrument is unaffected.
+
+There is no udev rule to add. The NI kernel driver owns the device, so unlike
+the DAQ and the analyzer nothing here reaches it through usbfs.
+
+The gRPC server is the one system unit and the one root service in all of this.
+It is not Gauntlet: it is NI's server talking to NI's driver, and it has to be
+up before any operator logs in, which a user unit cannot be.
+
 ## Powering a rig down
 
 The System page has Reboot and Shut down, so a bench needs neither an SSH

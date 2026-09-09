@@ -109,14 +109,17 @@ it is in flight.
 |---|---|
 | `camera` | Still images from a USB camera, one per `snapshot`, each measured for brightness and sharpness. Behind a GMSL adapter it also reports the link's lock state and error counters; an Allied Vision camera reports both its temperatures instead, and takes a `reset` that reboots it. |
 | `chamber` | A temperature setpoint and a reading. Simulation only — there is no driver for real hardware. |
-| `daq` | Eight analog inputs, each a voltage range or a thermocouple type, read a scan at a time. |
+| `daq` | Analog inputs read a scan at a time, each carrying a label and a mode. How many there are and what modes they take is the unit's: a DI-2008 gives eight, each a voltage range or a thermocouple type, and an NI module gives whatever it has, on the ranges it offers. |
 | `i2c` | An I2C bridge a suite drives itself: `write`, `read`, `write_read` and a bus `scan`, with no fixed device on the other end. |
 | `logic` | Eight digital probes, captured a window at a time. Answers with each probe's level, edges, duty and frequency, a picture of the capture, and the samples themselves. |
 | `psu` | A bench supply: set voltage and current limit, switch the output, read back volts, amps and watts. |
 
-Ask for a capability rather than a device. `daq` is a DATAQ DI-2008 on this
-bench and `i2c` a CP2112, but a suite never learns that, which is what lets
-the same suite run against another unit behind the same capability.
+Ask for a capability rather than a device. `daq` is a DATAQ DI-2008 or an NI
+module on this bench and `i2c` a CP2112, but a suite never learns which, which
+is what lets the same suite run against another unit behind the same
+capability. Read the channels out of `state()` rather than assuming a count,
+and take the modes on offer from the `configure` command rather than naming
+one you have not been offered.
 
 [`instruments.md`](instruments.md) has the commands each one takes, what its
 readings mean, and what a driver does when the hardware misbehaves. Whichever

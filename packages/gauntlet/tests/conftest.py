@@ -59,6 +59,7 @@ def settings(campaign_root: Path, suite_root: Path, tmp_path: Path) -> Settings:
         camera_device="",
         daq_serial="",
         i2c_serial="",
+        logic_serial="",
         psu_port="",
         simulated_instruments=["chamber", "daq", "i2c", "psu"],
     )

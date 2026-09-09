@@ -69,6 +69,13 @@ class Settings:
     # An instrument is registered only once its hardware answers, so nothing
     # simulated reaches the operator unless it is named below.
     psu_port: str = "auto"
+    # Two drivers answer the acquisition capability, so this setting also says
+    # which. A "daqmx:" prefix names something NI-DAQmx knows: a device by its
+    # DAQmx name ("daqmx:cDAQ1Mod1"), or a gRPC device server and optionally a
+    # device on it ("daqmx://host:31763/cDAQ1Mod1"), which is how Gauntlet in a
+    # container reaches a driver installed on its host. Anything else is a
+    # DI-2008 USB serial number. "auto" probes the DI-2008 and falls through to
+    # the local NI-DAQmx, never to a server.
     daq_serial: str = "auto"
     # The bridge is a CP2112, told apart from another by its USB serial number
     # rather than a port: the kernel adapts it to an i2c-dev node itself, so
