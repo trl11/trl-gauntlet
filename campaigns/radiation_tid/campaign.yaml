@@ -3,7 +3,7 @@ apiVersion: 1
 key: radiation_tid
 title: Radiation TID
 description: 'Total ionising dose characterisation of the flight component set, one suite
-  per component. The LAN7430, the SSD and both ends of the GMSL link measure; the four
+  per component. The LAN7430, the SSD and both ends of the GMSL link measure; the three
   remaining suites are placeholders that run and pass without hardware, so the campaign
   has a green baseline to fill in.'
 suites: ./suites
@@ -43,13 +43,6 @@ members:
   fixture: 3-1
   profile: standard.yaml
   notes: Waiting on LI-IMX728-GMSL3-070H.
-- suite: tid_asm330lhb
-  component: ASM330LHBG1TR
-  test_vehicle: STEVAL-MKI244A
-  host: Linux laptop through the eval MCU and STEVAL-MKI109D
-  fixture: 4-1
-  profile: standard.yaml
-  notes: Waiting on STEVAL-MKI244A.
 - suite: tid_pic18f26k83
   component: PIC18F26K83-E/SS
   test_vehicle: TBD
