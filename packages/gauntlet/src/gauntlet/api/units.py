@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
 from gauntlet.api.notes import NoteBody, add_note, delete_note, list_notes
-from gauntlet.api.runs import remove_run_dir
+from gauntlet.api.runs import remove_run_dir, with_note_counts
 from gauntlet.storage import SUBJECT_RUN, SUBJECT_UNIT, RunFilters, UnitConflict, UnitRow, UnitsIndex
 
 router = APIRouter()
@@ -79,7 +79,8 @@ async def get_unit_history(request: Request, serial: str, limit: int = 100, offs
     index = request.app.state.runs_index
     filters = RunFilters(unit_serial=serial)
     rows = index.list(filters, limit=limit, offset=offset)
-    return {"runs": [row.to_dict() for row in rows], "total": index.count(filters)}
+    payloads = with_note_counts(request, [row.to_dict() for row in rows])
+    return {"runs": payloads, "total": index.count(filters)}
 
 
 @router.get("/units/{serial}/notes")

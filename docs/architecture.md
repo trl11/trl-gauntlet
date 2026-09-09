@@ -115,7 +115,7 @@ The web UI renders suite-agnostic forms and views from these endpoints:
 | Result views offered | `produces[]` in the manifest |
 | Starting a run | `POST /api/runs`; `POST /api/runs/{id}/stop` and `/abort` control it |
 | Live run | `GET /api/runs/{id}/events` |
-| History | `GET /api/runs`, filtered by `suite`, `unit_serial`, repeated `status`, `after`, `before`, and sorted by `sort` and `direction` |
+| History | `GET /api/runs`, filtered by `suite`, `unit_serial`, repeated `status`, `after`, `before`, `has_notes`, and sorted by `sort` and `direction` |
 | Finished-run charts | `GET /api/runs/{id}/metrics` |
 | Run artifacts | `GET /api/runs/{id}/artifacts` and `/artifacts/{path}`, the one way to read a run's files |
 | Run and unit notes | `GET|POST /api/{runs,units}/{id}/notes`, `DELETE .../notes/{note_id}` |
@@ -129,6 +129,12 @@ SSE event types are `status`, `log`, `metrics`, `phase`, `iteration`,
 
 `GET /api/runs` returns `total` alongside `runs`, counting every run matching
 the filters rather than the page, so the history view can page server-side.
+
+Every run a listing carries reports `note_count`, so a run an operator has
+written against is marked wherever runs are listed. Like `campaign` it is read
+when the run is read rather than stored on it, because a note written after the
+row was stored is still a note about that run. `has_notes` filters on the same
+thing, in SQL rather than in the page, so `total` and the paging stay right.
 
 An instrument panel is generated from what the provider declares: its `state()`
 is rendered as rows and each entry in `commands()` becomes a control built from

@@ -110,6 +110,7 @@ describe("HistoryPage", () => {
         after: null,
         before: null,
         direction: "desc",
+        has_notes: null,
         limit: 20,
         offset: 0,
         sort: "started_at",
@@ -129,6 +130,7 @@ describe("HistoryPage", () => {
         after: "2026-02-01",
         before: "2026-02-28",
         direction: "desc",
+        has_notes: null,
         limit: 50,
         offset: 50,
         sort: "started_at",
@@ -153,6 +155,23 @@ describe("HistoryPage", () => {
     await waitFor(() =>
       expect(listRuns).toHaveBeenCalledWith(expect.objectContaining({ status: ["failed"] }))
     );
+  });
+
+  it("asks for only the runs with notes when that filter is set", async () => {
+    renderHistory("/history?notes=with");
+    await waitFor(() =>
+      expect(listRuns).toHaveBeenCalledWith(expect.objectContaining({ has_notes: true }))
+    );
+  });
+
+  it("marks a run that carries notes", async () => {
+    listRuns.mockResolvedValue({
+      runs: [run({ note_count: 2 }), run({ run_id: "r2", note_count: 0 })],
+      total: 2,
+    });
+    renderHistory();
+    expect(await screen.findByLabelText("2 notes")).toBeInTheDocument();
+    expect(screen.queryByLabelText("0 notes")).not.toBeInTheDocument();
   });
 
   it("links a row's unit cell to that unit", async () => {

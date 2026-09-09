@@ -202,7 +202,7 @@ export const DashboardPage: React.FC = () => {
           loading={runs.isPending}
           filterable={false}
           pageSize={0}
-          columns={["started_at", "duration_s", "unit_serial", "suite", "status"]}
+          columns={["started_at", "duration_s", "unit_serial", "suite", "note_count", "status"]}
           emptyMessage="No runs recorded yet."
         />
       </section>

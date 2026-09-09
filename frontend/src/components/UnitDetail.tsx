@@ -234,7 +234,15 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
         <RunTable
           runs={filteredRuns}
           loading={history.isPending}
-          columns={["status", "suite", "run_id", "profile", "started_at", "duration_s"]}
+          columns={[
+            "status",
+            "suite",
+            "run_id",
+            "profile",
+            "started_at",
+            "duration_s",
+            "note_count",
+          ]}
           emptyMessage="No runs have named this unit."
           filterable={false}
           onDeleteRun={setConfirming}

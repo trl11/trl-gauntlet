@@ -52,6 +52,7 @@ async def list_runs(
     status: Annotated[list[str] | None, Query()] = None,
     after: str | None = None,
     before: str | None = None,
+    has_notes: bool = False,
     sort: str = "started_at",
     direction: str = "desc",
     limit: int = 100,
@@ -60,8 +61,9 @@ async def list_runs(
     """One page of run history.
 
     ``status`` may be repeated to accept several. ``after`` and ``before`` are
-    inclusive bounds on ``started_at``, as a date or a full timestamp. ``total``
-    counts every run matching the filters, not just this page.
+    inclusive bounds on ``started_at``, as a date or a full timestamp.
+    ``has_notes`` keeps only the runs an operator has written a note against.
+    ``total`` counts every run matching the filters, not just this page.
     """
     supervisor = request.app.state.supervisor
     index = request.app.state.runs_index
@@ -71,6 +73,7 @@ async def list_runs(
         status=tuple(status or ()),
         after=after,
         before=before,
+        has_notes=has_notes,
     )
     live = {h.run_id: h.to_dict() for h in supervisor.list_runs() if not h.finished}
     rows = index.list(filters, limit=limit, offset=offset, sort=sort, descending=direction != "asc")
@@ -79,7 +82,7 @@ async def list_runs(
     # row wins, because that is what a rename or any later edit rewrites.
     owners = _campaign_owners(request)
     payloads = [_with_campaign(live.get(row.run_id, row.to_dict()), owners) for row in rows]
-    return {"runs": payloads, "total": index.count(filters)}
+    return {"runs": with_note_counts(request, payloads), "total": index.count(filters)}
 
 
 @router.post("/runs", status_code=201)
@@ -116,12 +119,12 @@ async def get_run(request: Request, run_id: str) -> dict[str, Any]:
     owners = _campaign_owners(request)
     handle = request.app.state.supervisor.get(run_id)
     if handle is not None and not handle.finished:
-        return _with_campaign(handle.to_dict(), owners)
+        return _with_notes(request, _with_campaign(handle.to_dict(), owners))
     row = request.app.state.runs_index.get(run_id)
     if row is not None:
-        return _with_campaign(row.to_dict(), owners)
+        return _with_notes(request, _with_campaign(row.to_dict(), owners))
     if handle is not None:
-        return _with_campaign(handle.to_dict(), owners)
+        return _with_notes(request, _with_campaign(handle.to_dict(), owners))
     raise HTTPException(status_code=404, detail=f"unknown run {run_id!r}")
 
 
@@ -323,6 +326,25 @@ def _with_campaign(payload: dict[str, Any], owners: dict[str, Any]) -> dict[str,
     """
     owner = owners.get(str(payload.get("suite", "")))
     payload["campaign"] = None if owner is None else {"key": owner.key, "title": owner.manifest.title}
+    return payload
+
+
+def with_note_counts(request: Request, payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Tell each run in a listing how many notes it carries.
+
+    One query for the whole page, so a list of any length costs the same as a
+    single run. Read at request time like the campaign, because a note written
+    or deleted after the row was stored still has to show.
+    """
+    counts = request.app.state.notes_index.counts(SUBJECT_RUN)
+    for payload in payloads:
+        payload["note_count"] = counts.get(str(payload["run_id"]), 0)
+    return payloads
+
+
+def _with_notes(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
+    """The same count for one run."""
+    payload["note_count"] = request.app.state.notes_index.count(SUBJECT_RUN, str(payload["run_id"]))
     return payload
 
 
