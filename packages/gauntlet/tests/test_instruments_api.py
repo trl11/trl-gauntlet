@@ -234,3 +234,44 @@ class _ReadOnly:
 
     def read(self) -> dict[str, object]:
         return {"level": 3}
+
+
+class TestTwoOfOneInstrument:
+    """Two bridges on one bench each get their own panel and their own URL."""
+
+    def _pair(self, client):
+        from gauntlet.instruments.mock_i2c import MockI2c
+
+        registry = client.app.state.capabilities
+        registry.unregister("i2c")
+        registry.register(MockI2c(instance="i2c-dut"), role="dut")
+        registry.register(MockI2c(instance="i2c-ref"), role="ref")
+        return registry
+
+    def test_each_role_is_listed_under_its_own_key(self, client) -> None:
+        self._pair(client)
+        instruments = client.get("/api/instruments").json()["instruments"]
+        bridges = [i for i in instruments if i["kind"] == "i2c"]
+        assert [i["name"] for i in bridges] == ["i2c.dut", "i2c.ref"]
+        # The kind stays the capability, so the UI keeps building the panel
+        # from what an i2c provider declares rather than from the role.
+        assert {i["kind"] for i in bridges} == {"i2c"}
+        assert [i["instance_id"] for i in bridges] == ["i2c-dut", "i2c-ref"]
+
+    def test_a_role_is_driven_at_its_own_path(self, client) -> None:
+        self._pair(client)
+        reply = client.post(
+            "/api/instruments/i2c.dut/command",
+            json={"command": "read", "args": {"address": 0x48, "length": 2}},
+        )
+        assert reply.status_code == 200
+        assert reply.json()["result"]["address"] == 0x48
+
+    def test_an_unknown_role_is_a_404(self, client) -> None:
+        self._pair(client)
+        assert client.get("/api/instruments/i2c.spare").status_code == 404
+
+    def test_a_suite_reaches_one_bridge_through_the_capability_router(self, client) -> None:
+        self._pair(client)
+        assert client.get("/api/capabilities/i2c.dut").status_code == 200
+        assert client.get("/api/capabilities/i2c").status_code == 404

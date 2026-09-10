@@ -71,6 +71,12 @@ anything in `targets/service/` or `tools/deploy/`. Each directory under
   [`docs/writing-a-suite.md`](docs/writing-a-suite.md) says what each one
   gives a suite; [`docs/instruments.md`](docs/instruments.md) says what backs
   it and which commands it takes.
+- A provider is registered under an instance key, not a capability name, so a
+  bench may hold two of one instrument: `i2c` where there is one bridge,
+  `i2c.dut` and `i2c.ref` where the operator has bound a role to each in
+  `config.yaml`. A role means nothing to Gauntlet — it is the bench's word for
+  what the instrument is wired to, and no role appears in
+  `packages/gauntlet/` or `frontend/src/` outside a test fixture.
 
 ## Layout
 
@@ -241,6 +247,18 @@ and neither is on a package registry.
   declares that capability in `requires`. It is read from the manifest, never
   from an instrument name, and while it is set the panel keeps that
   instrument's latching key locked and will not let the operator release it.
+  Each entry is resolved through the registry first, so a suite granted one of
+  two bridges locks that one.
+- A `requires:` entry naming a role matches that instrument exactly. A bare
+  capability name matches the only instrument of its kind, so a suite needing
+  one bus need not know its bench binds roles and a bench with one instrument
+  behaves exactly as it did before roles existed. Where a bench holds two, a
+  bare name means whichever `default_instruments` says, and is refused rather
+  than guessed at when the bench has not said. That question is the bench's
+  because it is not answerable from the bus: two identical parts at one
+  address are indistinguishable, so no suite can detect which is which. The
+  dot reaches a suite as a doubled underscore, `GAUNTLET_CAP_I2C__DUT_URL`,
+  which leaves a capability name its own single underscores.
 - Profiles are offered `smoke` first and the rest alphabetically, and each
   carries a `label` derived from its filename — `smoke.yaml` shows as "Smoke".
   The label is computed, never declared, so no suite can ship a profile the UI

@@ -3,6 +3,12 @@
 Gauntlet holds the instrument serial ports. A suite declares what it needs in
 ``requires:``; Gauntlet verifies availability before spawning and passes an
 HTTP endpoint the suite drives in place of the device.
+
+A bench may hold two of one instrument, so a provider is registered under an
+instance key rather than under its capability name: ``i2c`` where there is one
+bridge, ``i2c.dut`` and ``i2c.ref`` where there are two. The role is the
+bench's word for what the instrument is wired to, bound in ``config.yaml``, so
+a suite asks for a job rather than for a serial number.
 """
 
 from __future__ import annotations
@@ -10,6 +16,21 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
+
+
+def instance_key(name: str, role: str = "") -> str:
+    """The key one instance of a capability is registered and addressed under."""
+    return f"{name}.{role}" if role else name
+
+
+def capability_of(key: str) -> str:
+    """The capability name an instance key belongs to."""
+    return key.partition(".")[0]
+
+
+def role_of(key: str) -> str:
+    """The role an instance key carries, empty for the only one of its kind."""
+    return key.partition(".")[2]
 
 
 class CapabilityError(RuntimeError):
@@ -29,8 +50,14 @@ class Grant:
     url: str
 
     def as_env(self) -> dict[str, str]:
-        """Environment variables the suite reads to find this capability."""
-        upper = self.name.upper()
+        """Environment variables the suite reads to find this capability.
+
+        A dot is not legal in an environment variable name, so ``i2c.dut``
+        becomes ``I2C__DUT``. The separator is doubled to leave a capability
+        name its own single underscores, which is what lets the SDK tell
+        ``laser_cutter`` from ``i2c.dut`` reading only the variable.
+        """
+        upper = self.name.upper().replace(".", "__")
         return {
             f"GAUNTLET_CAP_{upper}_URL": self.url,
             f"GAUNTLET_CAP_{upper}_ID": self.instance_id,
@@ -156,53 +183,104 @@ class CapabilityRegistry:
     def __init__(self, *, api_base: str | None = None) -> None:
         self._providers: dict[str, CapabilityProvider] = {}
         self._api_base = api_base
+        self._defaults: dict[str, str] = {}
 
-    def register(self, provider: CapabilityProvider) -> None:
-        """Add a provider, replacing any earlier one with the same name."""
-        self._providers[provider.name] = provider
+    def register(self, provider: CapabilityProvider, *, role: str = "") -> None:
+        """Add a provider, replacing any earlier one under the same key.
 
-    def unregister(self, name: str) -> CapabilityProvider | None:
+        A bench holding one of an instrument gives it no role, and it is
+        registered under its capability name. A bench holding two gives each a
+        role, and they are registered as ``i2c.dut`` and ``i2c.ref``.
+        """
+        self._providers[instance_key(provider.name, role)] = provider
+
+    def unregister(self, key: str) -> CapabilityProvider | None:
         """Drop a provider, returning it, or ``None`` if there was none.
 
         A capability nothing provides is missing rather than unavailable: it
         stops being offered to a suite and stops appearing to the operator.
         """
-        return self._providers.pop(name, None)
+        return self._providers.pop(key, None)
 
-    def names(self) -> list[str]:
+    def instance_keys(self) -> list[str]:
+        """Every registered instance key."""
         return sorted(self._providers)
 
-    def provider(self, name: str) -> CapabilityProvider | None:
-        """Look up a registered provider by name."""
-        return self._providers.get(name)
+    def set_defaults(self, defaults: dict[str, str]) -> None:
+        """Which role a bare capability name means, per capability.
+
+        The bench's answer to a question a suite cannot settle. A suite asking
+        for a bare ``i2c`` wants any one bus and has no way of telling two
+        apart, so where there are two the operator says which, and that choice
+        reaches the run through the grant rather than being guessed at here.
+        """
+        self._defaults = dict(defaults)
+
+    def provider(self, key: str) -> CapabilityProvider | None:
+        """Look up a registered provider by instance key."""
+        return self._providers.get(key)
+
+    def resolve(self, required: str) -> list[str]:
+        """Instance keys one ``requires:`` entry could name.
+
+        An entry carrying a role names one instrument exactly. A bare
+        capability name matches every instance of it, which is one on a bench
+        that binds no roles: that is what lets a suite needing a single bus
+        stay silent about a distinction its bench may not draw. Where a bench
+        holds two, the bare name means whichever the bench has made the
+        default, and is otherwise an ambiguity to refuse rather than settle,
+        because the two buses go to different places.
+        """
+        if required in self._providers:
+            return [required]
+        matches = sorted(key for key in self._providers if capability_of(key) == required)
+        if len(matches) > 1:
+            preferred = instance_key(required, self._defaults.get(required, ""))
+            if preferred in self._providers:
+                return [preferred]
+        return matches
 
     def missing(self, required: list[str]) -> list[str]:
-        """Which of the required capabilities cannot be satisfied right now."""
+        """Which of the required capabilities cannot be satisfied right now.
+
+        An ambiguous entry counts as unsatisfied, so a suite naming a bare
+        capability the bench has two of is offered no run to start.
+        """
         unmet = []
         for name in required:
-            provider = self._providers.get(name)
-            if provider is None or not provider.available():
+            keys = self.resolve(name)
+            if len(keys) != 1 or not self._providers[keys[0]].available():
                 unmet.append(name)
         return unmet
 
     def grants(self, required: list[str]) -> list[Grant]:
         """Issue a grant per requirement, raising if any cannot be met."""
+        for name in required:
+            keys = self.resolve(name)
+            if len(keys) > 1:
+                raise CapabilityError(
+                    f"cannot start: {name!r} names {len(keys)} instruments on this bench "
+                    f"({', '.join(keys)}); name one of them in requires:"
+                )
         unmet = self.missing(required)
         if unmet:
-            known = ", ".join(self.names()) or "none"
+            known = ", ".join(self.instance_keys()) or "none"
             raise CapabilityError(f"cannot start: capability {', '.join(unmet)} unavailable (registered: {known})")
         if not required:
             return []
         if not self._api_base:
             raise CapabilityError("cannot start: capabilities requested but the API base URL is unknown")
-        return [
-            Grant(
-                name=name,
-                instance_id=self._providers[name].instance_id(),
-                url=f"{self._api_base.rstrip('/')}/capabilities/{name}",
+        grants = []
+        for name in required:
+            key = self.resolve(name)[0]
+            grants.append(
+                Grant(
+                    name=name,
+                    instance_id=self._providers[key].instance_id(),
+                    url=f"{self._api_base.rstrip('/')}/capabilities/{key}",
+                )
             )
-            for name in required
-        ]
+        return grants
 
     def claim_for_run(self, required: list[str]) -> Callable[[], None]:
         """Own every ownable requirement not already owned, for the run's duration.
@@ -214,7 +292,8 @@ class CapabilityRegistry:
         """
         claimed: list[OwnableCapability] = []
         for name in required:
-            provider = self._providers.get(name)
+            keys = self.resolve(name)
+            provider = self._providers[keys[0]] if len(keys) == 1 else None
             if not isinstance(provider, OwnableCapability) or provider.owned():
                 continue
             if not provider.own():
@@ -253,11 +332,11 @@ class CapabilityRegistry:
     def snapshot(self) -> list[dict[str, str]]:
         """Describe every registered provider for the UI."""
         rows = []
-        for name in self.names():
-            provider = self._providers[name]
+        for key in self.instance_keys():
+            provider = self._providers[key]
             rows.append(
                 {
-                    "name": name,
+                    "name": key,
                     "available": str(provider.available()).lower(),
                     "instance_id": provider.instance_id(),
                     **provider.describe(),

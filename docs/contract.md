@@ -52,6 +52,12 @@ on `PYTHONPATH`, and Gauntlet's own `bin` directory is prepended to `PATH`.
 stdout. Gauntlet calls it to render a profile editor form.
 `gauntlet_sdk.make_suite_cli` provides it as `--print-profile-schema`.
 
+`requires` names the capabilities Gauntlet must grant. An entry may carry the
+role a bench binds an instrument to — `i2c.dut` rather than `i2c` — which is
+how a suite asks for one of two identical instruments. A bare name resolves to
+the only instrument of that capability, and is refused where there is more than
+one.
+
 `setup` describes how the bench is put together. It is shown under the
 description on the Tests page, and unlike `description` its line breaks and
 indentation survive, so an ASCII diagram of the wiring reads as it was written.

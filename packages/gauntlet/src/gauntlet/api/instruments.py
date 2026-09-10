@@ -55,18 +55,18 @@ async def rescan_instruments(request: Request) -> dict[str, Any]:
     return {"instruments": _snapshot(request)}
 
 
-@router.get("/instruments/{name}")
-async def get_instrument(request: Request, name: str) -> dict[str, Any]:
+@router.get("/instruments/{key}")
+async def get_instrument(request: Request, key: str) -> dict[str, Any]:
     """One instrument."""
-    return _describe(_provider(request, name), _holder(request))
+    return _describe(key, _provider(request, key), _holder(request))
 
 
-@router.post("/instruments/{name}/command")
-async def post_command(request: Request, name: str, body: CommandBody) -> dict[str, Any]:
+@router.post("/instruments/{key}/command")
+async def post_command(request: Request, key: str, body: CommandBody) -> dict[str, Any]:
     """Drive one instrument and return the state the command left behind."""
-    provider = _provider(request, name)
+    provider = _provider(request, key)
     if not isinstance(provider, CommandableCapability):
-        raise HTTPException(status_code=405, detail=f"instrument {name!r} takes no commands")
+        raise HTTPException(status_code=405, detail=f"instrument {key!r} takes no commands")
     try:
         result = provider.command(body.command, dict(body.args))
     except CommandRejected as exc:
@@ -82,14 +82,19 @@ def _commands(provider: CapabilityProvider) -> list[dict[str, Any]]:
     return [{"danger": False, **command} for command in provider.commands()]
 
 
-def _describe(provider: CapabilityProvider, holder: tuple[str, frozenset[str]] | None = None) -> dict[str, Any]:
+def _describe(
+    key: str, provider: CapabilityProvider, holder: tuple[str, frozenset[str]] | None = None
+) -> dict[str, Any]:
     detail = provider.describe()
     available = provider.available()
     return {
         # The run driving this instrument, so the operator can see that taking
         # it over by hand would cut across a test. Empty when nothing holds it.
-        "in_use_by": holder[0] if holder is not None and provider.name in holder[1] else "",
-        "name": provider.name,
+        "in_use_by": holder[0] if holder is not None and key in holder[1] else "",
+        # The instance key, which carries the role on a bench holding two of
+        # one instrument: `i2c` where there is one bridge, `i2c.dut` where the
+        # operator has said which is which.
+        "name": key,
         "kind": detail.get("kind") or provider.name,
         "available": available,
         # Why the instrument cannot be used, in the provider's own words. Empty
@@ -119,12 +124,14 @@ def _presentation(provider: CapabilityProvider) -> dict[str, Any]:
 
 
 def _holder(request: Request) -> tuple[str, frozenset[str]] | None:
-    """The in-flight run and the capabilities its suite declared it drives.
+    """The in-flight run and the instruments its suite declared it drives.
 
     A suite names what it needs in its manifest, so that is what says which
-    instruments a run is holding. Nothing here knows one instrument from
-    another. ``None`` when no run is in flight, or when the running suite is no
-    longer in the catalog.
+    instruments a run is holding. Each entry is resolved through the registry,
+    because a suite asking for a bare ``i2c`` on a bench that binds roles is
+    holding whichever bridge it was granted. Nothing here knows one instrument
+    from another. ``None`` when no run is in flight, or when the running suite
+    is no longer in the catalog.
     """
     supervisor = getattr(request.app.state, "supervisor", None)
     active = supervisor.active() if supervisor is not None else None
@@ -133,20 +140,22 @@ def _holder(request: Request) -> tuple[str, frozenset[str]] | None:
     suite = request.app.state.catalog().get(active.suite)
     if suite is None:
         return None
-    return active.run_id, frozenset(suite.manifest.requires)
+    registry = request.app.state.capabilities
+    held = {key for name in suite.manifest.requires for key in registry.resolve(name)}
+    return active.run_id, frozenset(held)
 
 
-def _provider(request: Request, name: str) -> CapabilityProvider:
-    provider = request.app.state.capabilities.provider(name)
+def _provider(request: Request, key: str) -> CapabilityProvider:
+    provider = request.app.state.capabilities.provider(key)
     if provider is None:
-        raise HTTPException(status_code=404, detail=f"unknown instrument {name!r}")
+        raise HTTPException(status_code=404, detail=f"unknown instrument {key!r}")
     return provider
 
 
 def _snapshot(request: Request) -> list[dict[str, Any]]:
     registry = request.app.state.capabilities
     holder = _holder(request)
-    return [_describe(registry.provider(name), holder) for name in registry.names()]
+    return [_describe(key, registry.provider(key), holder) for key in registry.instance_keys()]
 
 
 def _state(provider: CapabilityProvider) -> dict[str, Any]:

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from gauntlet.config import Settings, default_data_dir, default_suite_roots, load_settings
+from gauntlet.config import Settings, default_data_dir, default_suite_roots, instrument_roles, load_settings
 
 
 @pytest.fixture
@@ -145,3 +145,44 @@ class TestLoadSettings:
             assert load_settings().port == 7100
         finally:
             config.chmod(0o644)
+
+
+class TestTwoOfOneInstrument:
+    """A setting may name a role per device instead of one device."""
+
+    def test_a_plain_setting_is_one_instrument_under_no_role(self) -> None:
+        assert instrument_roles("auto") == {"": "auto"}
+
+    def test_a_mapping_is_one_instrument_per_role(self) -> None:
+        assert instrument_roles({"dut": "00ED940A", "ref": "00EDF8B8"}) == {
+            "dut": "00ED940A",
+            "ref": "00EDF8B8",
+        }
+
+    def test_auto_is_refused_inside_a_mapping(self) -> None:
+        """Probing would hand both roles whichever device answered first."""
+        with pytest.raises(ValueError, match="must name a device"):
+            Settings(i2c_serial={"dut": "auto", "ref": "00EDF8B8"})
+
+    def test_one_device_cannot_hold_two_roles(self) -> None:
+        with pytest.raises(ValueError, match="more than one role"):
+            Settings(i2c_serial={"dut": "00ED940A", "ref": "00ED940A"})
+
+    def test_a_role_is_lowercase_letters_and_digits(self) -> None:
+        with pytest.raises(ValueError, match="lowercase letters and digits"):
+            Settings(i2c_serial={"Under Beam": "00ED940A"})
+
+    def test_a_default_names_which_instrument_a_bare_capability_means(self) -> None:
+        settings = Settings(i2c_serial={"dut": "A", "ref": "B"}, default_instruments={"i2c": "dut"})
+        assert settings.default_instruments == {"i2c": "dut"}
+
+    def test_a_default_for_an_unknown_capability_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="not an instrument setting"):
+            Settings(default_instruments={"scope": "left"})
+
+    def test_a_default_naming_a_role_the_bench_does_not_bind_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="not 'spare'"):
+            Settings(i2c_serial={"dut": "A", "ref": "B"}, default_instruments={"i2c": "spare"})
+
+    def test_a_bench_with_one_instrument_needs_no_default(self) -> None:
+        assert Settings(i2c_serial="auto").default_instruments == {}

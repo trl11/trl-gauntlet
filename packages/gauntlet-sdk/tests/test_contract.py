@@ -56,6 +56,19 @@ class TestSuiteManifest:
         with pytest.raises(ValidationError):
             SuiteManifest.model_validate(_manifest(overrides=[{"name": "x", "flag": "-x"}]))
 
+    @pytest.mark.parametrize("entry", ["i2c", "i2c.dut", "laser_cutter", "laser_cutter.left"])
+    def test_a_requirement_may_carry_a_role(self, entry):
+        assert SuiteManifest.model_validate(_manifest(requires=[entry])).requires == [entry]
+
+    @pytest.mark.parametrize("entry", ["I2C", "i2c.", ".dut", "i2c.DUT", "i2c.a_b", "i2c__dut", "i2c.dut.ref"])
+    def test_a_requirement_that_cannot_be_addressed_is_rejected(self, entry):
+        with pytest.raises(ValidationError):
+            SuiteManifest.model_validate(_manifest(requires=[entry]))
+
+    def test_the_same_instrument_cannot_be_required_twice(self):
+        with pytest.raises(ValidationError, match="more than once"):
+            SuiteManifest.model_validate(_manifest(requires=["i2c.dut", "i2c.dut"]))
+
 
 class TestVerdict:
     def test_failing_verdict_needs_a_reason(self):

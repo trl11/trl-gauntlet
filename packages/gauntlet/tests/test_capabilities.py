@@ -56,12 +56,97 @@ class TestGrant:
         }
 
 
+class TestTwoOfOneInstrument:
+    """A bench holding two bridges tells them apart by role."""
+
+    def _bench(self) -> CapabilityRegistry:
+        registry = CapabilityRegistry(api_base=_BASE)
+        registry.register(_Provider("i2c"), role="dut")
+        registry.register(_Provider("i2c"), role="ref")
+        registry.register(_Provider("psu"))
+        return registry
+
+    def test_a_role_is_registered_under_its_own_key(self) -> None:
+        assert self._bench().instance_keys() == ["i2c.dut", "i2c.ref", "psu"]
+
+    def test_a_role_is_granted_its_own_url(self) -> None:
+        grants = self._bench().grants(["i2c.dut", "i2c.ref"])
+        assert [grant.url for grant in grants] == [
+            f"{_BASE}/capabilities/i2c.dut",
+            f"{_BASE}/capabilities/i2c.ref",
+        ]
+
+    def test_a_role_reaches_the_suite_as_a_doubled_underscore(self) -> None:
+        assert self._bench().environment(["i2c.dut"]) == {
+            "GAUNTLET_CAP_I2C__DUT_URL": f"{_BASE}/capabilities/i2c.dut",
+            "GAUNTLET_CAP_I2C__DUT_ID": "i2c0",
+        }
+
+    def test_one_instrument_answers_a_bare_name_exactly_as_before(self) -> None:
+        """A bench with one bridge is untouched by any of this."""
+        registry = CapabilityRegistry(api_base=_BASE)
+        registry.register(_Provider("i2c"))
+        assert registry.resolve("i2c") == ["i2c"]
+        assert registry.missing(["i2c"]) == []
+        assert registry.grants(["i2c"])[0].url == f"{_BASE}/capabilities/i2c"
+
+    def test_a_default_is_not_needed_where_only_one_is_plugged_in(self) -> None:
+        """A role the bench named but whose device is absent settles nothing."""
+        registry = CapabilityRegistry(api_base=_BASE)
+        registry.register(_Provider("i2c"), role="ref")
+        registry.set_defaults({"i2c": "dut"})
+        assert registry.resolve("i2c") == ["i2c.ref"]
+        assert registry.missing(["i2c"]) == []
+
+    def test_a_bare_name_takes_the_default_the_bench_named(self) -> None:
+        registry = self._bench()
+        registry.set_defaults({"i2c": "ref"})
+        assert registry.resolve("i2c") == ["i2c.ref"]
+        assert registry.missing(["i2c"]) == []
+        assert registry.grants(["i2c"])[0].url == f"{_BASE}/capabilities/i2c.ref"
+
+    def test_a_default_never_overrides_a_role_that_was_asked_for(self) -> None:
+        registry = self._bench()
+        registry.set_defaults({"i2c": "ref"})
+        assert registry.resolve("i2c.dut") == ["i2c.dut"]
+
+    def test_a_default_reaches_the_suite_under_the_name_it_asked_for(self) -> None:
+        """The suite said `i2c`, so that is the variable, whichever bridge it got."""
+        registry = self._bench()
+        registry.set_defaults({"i2c": "ref"})
+        assert registry.environment(["i2c"]) == {
+            "GAUNTLET_CAP_I2C_URL": f"{_BASE}/capabilities/i2c.ref",
+            "GAUNTLET_CAP_I2C_ID": "i2c0",
+        }
+
+    def test_a_bare_name_is_refused_where_two_answer_to_it(self) -> None:
+        with pytest.raises(CapabilityError) as caught:
+            self._bench().grants(["i2c"])
+        assert "i2c.dut, i2c.ref" in str(caught.value)
+
+    def test_a_bare_name_is_unmet_where_two_answer_to_it(self) -> None:
+        assert self._bench().missing(["i2c"]) == ["i2c"]
+
+    def test_a_bare_name_still_finds_the_only_one_of_its_kind(self) -> None:
+        """A suite needing one bus does not have to know its bench binds roles."""
+        registry = CapabilityRegistry(api_base=_BASE)
+        registry.register(_Provider("i2c"), role="dut")
+        assert registry.missing(["i2c"]) == []
+        assert registry.grants(["i2c"])[0].url == f"{_BASE}/capabilities/i2c.dut"
+
+    def test_one_role_going_leaves_the_other_registered(self) -> None:
+        registry = self._bench()
+        registry.unregister("i2c.ref")
+        assert registry.instance_keys() == ["i2c.dut", "psu"]
+        assert registry.missing(["i2c.dut"]) == []
+
+
 class TestRegistry:
     def test_names_are_sorted(self) -> None:
         registry = CapabilityRegistry()
         for name in ("psu", "chamber", "daq"):
             registry.register(_Provider(name))
-        assert registry.names() == ["chamber", "daq", "psu"]
+        assert registry.instance_keys() == ["chamber", "daq", "psu"]
 
     def test_registering_the_same_name_twice_replaces_it(self) -> None:
         registry = CapabilityRegistry()
@@ -77,7 +162,7 @@ class TestRegistry:
         psu = _Provider("psu")
         registry.register(psu)
         assert registry.unregister("psu") is psu
-        assert registry.names() == []
+        assert registry.instance_keys() == []
 
     def test_unregistering_a_name_that_was_never_there_is_none(self) -> None:
         assert CapabilityRegistry().unregister("psu") is None

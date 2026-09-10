@@ -315,6 +315,46 @@ it.
 | `camera_format` | `"auto"` reads a frame to decide what it really carries, or name `yuyv` or `raw10_rggb` to state it. A GMSL adapter reports YUYV over UVC while sending raw sensor data, and the UVC format code cannot tell them apart. It settles the UVC driver only; a USB3 Vision camera states its format itself |
 | `logic_firmware` | Where fx2lafw is. `"auto"` searches the directories `sigrok-firmware-fx2lafw` installs into; a file or a directory names it instead |
 | `simulated_instruments` | Names the instruments to simulate instead of probing for. Empty by default |
+| `default_instruments` | Which role a bare capability name means, per capability, as `{i2c: dut}`. Only consulted where a bench holds two of one instrument |
+
+Any of the settings naming where to find one instrument may instead name a
+role per instrument, which is how a bench holds two of something:
+
+```yaml
+i2c_serial:
+  dut: "00ED940A"
+  ref: "00EDF8B8"
+```
+
+Each is registered under its own instance key — `i2c.dut` and `i2c.ref` — and
+each settles on its own, so unplugging one drops it and leaves the other
+connected. Every device in a mapping has to be named outright: `"auto"` is
+refused there, because probing would hand both roles whichever device answered
+first, and one device may not be given two roles. A role is lowercase letters
+and digits.
+
+Gauntlet attaches no meaning to a role. It is the operator's word for what the
+instrument is wired to, and it reaches a suite only as the name it asked for
+in `requires:`.
+
+A suite that needs any one of them asks for the bare capability name, and the
+bench says which that means:
+
+```yaml
+default_instruments:
+  i2c: dut
+```
+
+Without an entry there, a bare name on a bench holding two is refused rather
+than guessed at. This is the one question a suite cannot settle for itself:
+two identical parts at one address are indistinguishable on the bus, so which
+is wired to what is knowledge only the bench has. Which instrument a run was
+actually given is recorded in its `manifest.json`, under the environment it
+was launched with, so the choice is never silent.
+
+A bench with one of an instrument needs none of this: it names the device as
+it always did, the instrument registers under the bare capability name, and a
+suite asking for it resolves exactly as before.
 
 An explicitly named device stays registered even when it goes quiet, reporting
 why through `unavailable_reason`: the operator said there is one there, so its
@@ -500,10 +540,16 @@ untouched. The instrument's other commands stay drivable.
 | Endpoint | For |
 |---|---|
 | `GET /api/instruments` | Every instrument: state, commands, readouts, `available`, `in_use_by` |
-| `GET /api/instruments/{name}` | One of them |
+| `GET /api/instruments/{key}` | One of them |
 | `POST /api/instruments/rescan` | Run detection again and report what is registered afterwards |
-| `POST /api/instruments/{name}/command` | Drive one, as `{"command": ..., "args": {...}}` |
-| `GET|POST /api/capabilities/{name}` | The same providers, for the suite process |
+| `POST /api/instruments/{key}/command` | Drive one, as `{"command": ..., "args": {...}}` |
+| `GET|POST /api/capabilities/{key}` | The same providers, for the suite process |
+
+`{key}` is the instance key, so a bench holding two bridges serves them at
+`/api/instruments/i2c.dut` and `/api/instruments/i2c.ref`. An instrument's
+`name` in the listing is that key and its `kind` stays the capability, which
+is what keeps the panel built from what an `i2c` provider declares rather than
+from the role.
 
 A rejected command is a 422 carrying the provider's own words, on both halves:
 a suite that asks for something the instrument does not offer reads why, rather
