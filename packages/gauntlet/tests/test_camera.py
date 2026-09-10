@@ -648,23 +648,38 @@ def starting_camera(monkeypatch: pytest.MonkeyPatch, *, silent: bool) -> tuple[v
 
 
 class TestStreamStartup:
-    """`start` means the device is streaming, not that the ioctl was accepted.
+    """`start` means the device is streaming at its rate, not that the ioctl was accepted.
 
     The bench's 4K GMSL head answers VIDIOC_STREAMON at once and then sends
     nothing for anywhere between a fifth of a second and twenty, so a caller
-    that began capturing on the ioctl alone raced it.
+    that began capturing on the ioctl alone raced it. It then delivers its
+    first few frames seconds apart, so a caller that began on the first frame
+    raced it too.
     """
 
-    def test_waits_the_startup_budget_for_the_first_frame(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_a_device_sending_at_rate_starts(self, monkeypatch: pytest.MonkeyPatch) -> None:
         camera, driver = starting_camera(monkeypatch, silent=False)
         camera.start()
         assert camera._streaming
-        assert driver.waits[0] > v4l2._STARTUP_TIMEOUT_S - 1
+        assert driver.streaming
+        assert len(driver.waits) == v4l2._SETTLE_FRAMES
+
+    def test_no_single_wait_outlasts_the_settling_gap(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera, driver = starting_camera(monkeypatch, silent=False)
+        camera.start()
+        assert max(driver.waits) <= v4l2._SETTLE_GAP_S
+
+    def test_a_silent_device_is_polled_until_the_budget_runs_out(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera, driver = starting_camera(monkeypatch, silent=True)
+        monkeypatch.setattr(v4l2, "_STARTUP_TIMEOUT_S", 0.05)
+        with pytest.raises(V4l2Error):
+            camera.start()
+        assert len(driver.waits) > 1
 
     def test_a_device_that_never_sends_is_not_left_streaming(self, monkeypatch: pytest.MonkeyPatch) -> None:
         camera, driver = starting_camera(monkeypatch, silent=True)
         monkeypatch.setattr(v4l2, "_STARTUP_TIMEOUT_S", 0.05)
-        with pytest.raises(V4l2Error, match="no frame arrived"):
+        with pytest.raises(V4l2Error, match="never reached its rate"):
             camera.start()
         assert not camera._streaming
         assert not driver.streaming
@@ -982,3 +997,56 @@ class TestGmslLink:
     def test_a_closed_link_is_refused(self) -> None:
         with pytest.raises(gmsl.GmslError, match="not open"):
             gmsl.GmslLink(Path("/dev/video0")).read_register(0x84, 0x00)
+
+
+def _scripted_select(monkeypatch: pytest.MonkeyPatch, readiness: list[bool]) -> None:
+    """Answer each `select` call from `readiness`, repeating its last entry."""
+    remaining = list(readiness)
+
+    def _select(*_args: Any) -> tuple[list[int], list[int], list[int]]:
+        ready = remaining[0]
+        if len(remaining) > 1:
+            remaining.pop(0)
+        return ([3], [], []) if ready else ([], [], [])
+
+    monkeypatch.setattr(v4l2.select, "select", _select)
+
+
+class TestStreamSettling:
+    """A stream counts as running only once frames arrive back to back.
+
+    The bench's GMSL head delivers its first few frames seconds apart and only
+    then reaches its rate, so `start()` waits for the gaps to close. Without
+    that wait the first samples of a run time out against a camera that had
+    technically started.
+    """
+
+    def test_settles_on_consecutive_prompt_frames(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera, driver = streaming_camera(monkeypatch, [(0, 16, 0, 1)])
+        camera._settle()
+        assert len(driver.queued) == v4l2._SETTLE_FRAMES
+
+    def test_a_late_frame_restarts_the_count(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera, driver = streaming_camera(monkeypatch, [(0, 16, 0, 1)])
+        _scripted_select(monkeypatch, [True, True, False, True, True, True])
+        camera._settle()
+        assert len(driver.queued) == 2 + v4l2._SETTLE_FRAMES
+
+    def test_the_flush_a_start_produces_does_not_count(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        flush = [(index, 0, v4l2.BUF_FLAG_ERROR, 0) for index in range(4)]
+        camera, driver = streaming_camera(monkeypatch, [*flush, (0, 16, 0, 1)])
+        camera._settle()
+        assert len(driver.queued) == 4 + v4l2._SETTLE_FRAMES
+
+    def test_a_stream_that_never_settles_times_out(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(v4l2, "_STARTUP_TIMEOUT_S", 0.05)
+        camera, _ = streaming_camera(monkeypatch, [(0, 16, 0, 1)])
+        _scripted_select(monkeypatch, [False])
+        with pytest.raises(V4l2Error, match="frames in a row"):
+            camera._settle()
+
+    def test_a_stream_that_only_errors_never_settles(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(v4l2, "_STARTUP_TIMEOUT_S", 0.05)
+        camera, _ = streaming_camera(monkeypatch, [(0, 0, v4l2.BUF_FLAG_ERROR, 0)])
+        with pytest.raises(V4l2Error, match="frames in a row"):
+            camera._settle()

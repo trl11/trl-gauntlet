@@ -122,6 +122,7 @@ class RunSupervisor:
         self._runs: dict[str, RunHandle] = {}
         self._lock = asyncio.Lock()
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._starting: set[asyncio.Task[None]] = set()
 
     def attach_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         """Record the loop reader threads will schedule callbacks on."""
@@ -138,10 +139,21 @@ class RunSupervisor:
         return next((h for h in self._runs.values() if not h.finished), None)
 
     async def start(self, request: RunRequest) -> RunHandle:
-        """Validate, spawn, and begin streaming a run.
+        """Validate and create a run, then open its instruments and spawn it.
 
-        Raises before spawning when the request cannot be honoured; a rejected
-        run creates no directory and no history entry.
+        Raises when the request itself cannot be honoured — an unknown suite, a
+        profile that does not resolve, a capability no instrument on this bench
+        provides — and such a rejection creates no directory and no history
+        entry.
+
+        Everything that waits on hardware happens after the run exists, and the
+        handle is returned without waiting for it. Opening an instrument is
+        where a start spends its time: the bench's camera takes seconds to
+        reach its frame rate and up to thirty to give up. Holding the request
+        open for that left the operator in front of a start form with no sign
+        of what was happening, so the run is created first and an instrument
+        that will not open ends it as an error, on the run's own page, the way
+        a suite that fails to spawn already does.
         """
         async with self._lock:
             if self.active() is not None:
@@ -153,8 +165,10 @@ class RunSupervisor:
 
             profile_path = self._resolve_profile(suite, request)
             try:
+                # Only asks whether the bench provides what the suite named,
+                # which touches no device. Claiming them is the slow half and
+                # waits until the run exists.
                 capability_env = self._capabilities.environment(suite.manifest.requires)
-                release_capabilities = self._capabilities.claim_for_run(suite.manifest.requires)
             except CapabilityError as exc:
                 raise RunRejected(str(exc)) from exc
 
@@ -172,7 +186,6 @@ class RunSupervisor:
                     capability_env=capability_env,
                 )
             except LaunchError as exc:
-                release_capabilities()
                 raise RunRejected(str(exc)) from exc
 
             if profile_path is not None:
@@ -189,13 +202,61 @@ class RunSupervisor:
                 unit_serial=request.unit_serial,
                 argv=list(launch.argv),
                 bus=EventBus(),
-                release_capabilities=release_capabilities,
             )
             self._runs[run_id] = handle
             self._evict_old()
 
-        await self._spawn(handle, launch)
+        task = asyncio.create_task(self._claim_and_spawn(handle, launch, suite.manifest.requires))
+        # A task nothing refers to may be collected before it runs.
+        self._starting.add(task)
+        task.add_done_callback(self._starting.discard)
         return handle
+
+    async def _claim_and_spawn(self, handle: RunHandle, launch: Launch, required: list[str]) -> None:
+        """Own the run's instruments, then spawn it.
+
+        Claiming runs on a worker thread because opening a device is blocking,
+        and a camera coming up spends seconds of it: inline it would hold up
+        every other request, the operator's own progress polling included.
+
+        What it is waiting on is said in the run's log, because this is the one
+        stretch of a run with nothing else to show for itself. No process has
+        started, so the suite has printed nothing, and a camera that will not
+        open takes half a minute to say so.
+        """
+        wanted = ", ".join(required)
+        if required:
+            await self._announce(handle, "info", f"opening {wanted}")
+        began = time.monotonic()
+        try:
+            handle.release_capabilities = await asyncio.to_thread(self._capabilities.claim_for_run, required)
+        except CapabilityError as exc:
+            await self._announce(handle, "error", str(exc))
+            await self._fail_to_start(handle, str(exc))
+            return
+        if required:
+            await self._announce(handle, "info", f"{wanted} ready in {time.monotonic() - began:.1f}s")
+        # Nothing yields between here and the process existing, so a stop can
+        # only have arrived before this or after there is something to signal.
+        if handle.status == "aborting":
+            reason = "stopped before the suite was started"
+            await self._announce(handle, "warning", reason)
+            await self._fail_to_start(handle, reason, status="aborted")
+            return
+        await self._spawn(handle, launch)
+
+    async def _announce(self, handle: RunHandle, level: str, message: str) -> None:
+        """Say something in the run's log while there is no suite to say it.
+
+        Written to ``test.log`` as well as published, because the bus is memory
+        a finished run eventually loses, and a run that never started is
+        exactly the one somebody comes back to read. `pump_stdout` appends, so
+        the suite's own output follows these rather than replacing them.
+        """
+        if handle.bus is not None:
+            await handle.bus.publish("log", level=level, message=message)
+        with contextlib.suppress(OSError), (Path(handle.run_dir) / "test.log").open("a", encoding="utf-8") as file:
+            file.write(message + "\n")
 
     async def stop(self, run_id: str) -> bool:
         """Request that a run finish early and still produce a verdict.
@@ -204,8 +265,12 @@ class RunSupervisor:
         ``graceful_stop_signal: NONE``.
         """
         handle = self._runs.get(run_id)
-        if handle is None or handle.process is None or handle.finished:
+        if handle is None or handle.finished:
             return False
+        # Nothing has been spawned, so there is no suite to ask for a verdict
+        # and cancelling is all a stop can mean.
+        if handle.process is None:
+            return await self.abort(run_id)
         suite = self._catalog_provider().get(handle.suite)
         signal_name = suite.manifest.exec.graceful_stop_signal if suite else "SIGUSR1"
         signum = getattr(signal, signal_name, None) if signal_name != "NONE" else None
@@ -223,8 +288,19 @@ class RunSupervisor:
     async def abort(self, run_id: str, *, sigkill_grace_s: float = 10.0) -> bool:
         """Terminate a run, escalating to SIGKILL after a grace period."""
         handle = self._runs.get(run_id)
-        if handle is None or handle.process is None or handle.finished:
+        if handle is None or handle.finished:
             return False
+        if handle.process is None:
+            # Still opening its instruments. Interrupting that part-way would
+            # leave a device owned by nobody, so the run is marked instead and
+            # the claim gives up as soon as it comes back. Saying so is worth
+            # the line: the operator is about to wait out a driver's own
+            # timeout, which on the camera is half a minute.
+            handle.status = "aborting"
+            await self._announce(handle, "warning", "stop requested; waiting for the instruments to finish opening")
+            if handle.bus is not None:
+                await handle.bus.publish("status", status="aborting")
+            return True
         process = handle.process
         try:
             process.send_signal(signal.SIGTERM)
@@ -366,17 +442,23 @@ class RunSupervisor:
             with contextlib.suppress(Exception):
                 await self._on_completed(handle)
 
-    async def _fail_to_start(self, handle: RunHandle, reason: str) -> None:
-        if handle.release_capabilities is not None:
-            handle.release_capabilities()
-        handle.status = "error"
+    async def _fail_to_start(self, handle: RunHandle, reason: str, *, status: str = "error") -> None:
+        """End a run that was created but never got as far as a process.
+
+        Recorded like any other finished run, because the caller was handed
+        this one before it could fail: the history row it wrote says
+        ``starting`` until something says otherwise.
+        """
+        verdict = "ABORTED" if status == "aborted" else "ERROR"
+        handle.status = status
         handle.ended_at = _utc_iso()
-        handle.verdict = "ERROR"
+        handle.duration_s = round(time.time() - _epoch(handle.started_at), 3)
+        handle.verdict = verdict
         handle.fail_reason = reason
         if handle.bus is not None:
-            await handle.bus.publish("status", status="error", message=reason)
-            await handle.bus.publish("verdict", result="ERROR", reason=reason, summary={})
-            await handle.bus.close()
+            await handle.bus.publish("status", status=status, message=reason)
+            await handle.bus.publish("verdict", result=verdict, reason=reason, summary={})
+        await self._close_and_notify(handle)
 
     def _resolve_profile(self, suite: Any, request: RunRequest) -> Path | None:
         if request.profile_body is not None:

@@ -299,7 +299,7 @@ class CapabilityRegistry:
             if not provider.own():
                 for owned in reversed(claimed):
                     owned.disown()
-                raise CapabilityError(f"cannot start: {name} could not be opened")
+                raise CapabilityError(f"cannot start: {name} could not be opened{_because(provider)}")
             claimed.append(provider)
 
         def _release() -> None:
@@ -343,3 +343,14 @@ class CapabilityRegistry:
                 }
             )
         return rows
+
+
+def _because(provider: CapabilityProvider) -> str:
+    """Why the provider says it is unusable, when it says anything.
+
+    A driver that refused to open knows the reason and a run that could not
+    start is where it is worth reading, so it is carried into the rejection
+    rather than left for whoever thinks to poll the panel afterwards.
+    """
+    reason = provider.describe().get("unavailable_reason", "")
+    return f": {reason}" if reason else ""

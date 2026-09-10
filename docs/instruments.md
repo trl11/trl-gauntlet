@@ -113,14 +113,28 @@ snapshots. A `snapshot` discards whatever the driver had already queued and
 reports the frame after it, because a queue that has been sitting still holds
 the picture from whenever it was last looked at.
 
-Taking ownership waits for the device to actually send. `VIDIOC_STREAMON`
-returns once the driver has queued its URBs, which is well before the far end
-is producing: the bench's 4K GMSL head usually delivers its first frame within
-a fifth of a second and occasionally takes twenty. Starting the stream
-therefore blocks until a frame arrives, and reports the camera as unavailable
-if none does, so a suite's first samples are not read against a stream that had
-not started. Nothing else waits: `available()` is still a presence check and
-never opens the node.
+Taking ownership waits for the device to reach its frame rate.
+`VIDIOC_STREAMON` returns once the driver has queued its URBs, which is well
+before the far end is producing: the bench's 4K GMSL head usually delivers its
+first frame within a fifth of a second and occasionally takes twenty. A first
+frame is not the rate either — the same head then sends its next few frames
+half a second to a second and a half apart and only reaches 19fps two to four
+seconds in. So starting the stream blocks until three frames in a row arrive
+within 0.25s of each other, and reports the camera as unavailable if that never
+happens inside thirty seconds.
+
+That wait is what a run depends on. A snapshot needs three frames and allows
+five seconds for them, so a suite that began sampling while the head was still
+coming up lost its first snapshots to timeouts and failed the run on them; the
+threshold is not read from the rate the device advertises, because this head
+advertises 30fps and delivers 19. The same wait covers every restart, including
+the one a link reading costs, so a sample taken after one is late rather than
+lost.
+
+Nothing else waits: `available()` is still a presence check and never opens the
+node. Claiming a capability for a run is blocking, so the supervisor does it on
+a worker thread — otherwise a camera spending seconds coming up holds up every
+other request, the operator's own progress polling included.
 
 ### The link and the video take turns
 
