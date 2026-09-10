@@ -63,6 +63,13 @@
     margin-left: auto;
   }
 
+  &__axis-label {
+    font-size: 11px;
+    color: $trl-gray;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
   &__bound {
     width: 84px;
     font-family: $font-mono;

@@ -152,12 +152,13 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({ runId, samples, defa
             <div className="metrics-chart__header">
               <h3 className="metrics-chart__title">{name}</h3>
               <div className="metrics-chart__axis">
+                <span className="metrics-chart__axis-label">Y axis</span>
                 <Input
                   id={`${fieldId}-${name}-min`}
                   type="number"
                   className="metrics-chart__bound"
                   aria-label={`Lowest value charted for ${name}`}
-                  placeholder="min"
+                  placeholder="auto min"
                   value={bounds[name]?.min ?? ""}
                   onChange={(event) => setBound(name, "min", event.target.value)}
                 />
@@ -166,7 +167,7 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({ runId, samples, defa
                   type="number"
                   className="metrics-chart__bound"
                   aria-label={`Highest value charted for ${name}`}
-                  placeholder="max"
+                  placeholder="auto max"
                   value={bounds[name]?.max ?? ""}
                   onChange={(event) => setBound(name, "max", event.target.value)}
                 />
