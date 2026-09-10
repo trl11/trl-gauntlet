@@ -1,0 +1,18 @@
+description: >
+  Half a minute of every analog input on the module, on whatever range each is
+  already set to. The starting point for a bench: name the inputs for what is
+  wired to them, and set a range on any the module offers a choice for. An
+  NI-9238 has one range and needs none set; leaving `mode` empty is what keeps
+  this profile working on either kind of module.
+driver: real
+duration_s: 30
+sample_period_s: 1
+channels:
+  - channel: ai0
+    label: AI 0
+  - channel: ai1
+    label: AI 1
+  - channel: ai2
+    label: AI 2
+  - channel: ai3
+    label: AI 3

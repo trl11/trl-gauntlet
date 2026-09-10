@@ -1,0 +1,9 @@
+description: No module required. What `gauntlet verify --run` executes.
+driver: mock
+duration_s: 3
+sample_period_s: 0.5
+channels:
+  - channel: ai0
+    label: Rail 3V3
+  - channel: ai1
+    label: Shunt
