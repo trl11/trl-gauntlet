@@ -117,7 +117,43 @@ it is in flight.
 Ask for a capability rather than a device. `daq` is a DATAQ DI-2008 or an NI
 module on this bench and `i2c` a CP2112, but a suite never learns which, which
 is what lets the same suite run against another unit behind the same
-capability. Read the channels out of `state()` rather than assuming a count,
+capability.
+
+### Asking for two of one instrument
+
+A bench may hold two of something. Where it does, the operator gives each one
+a role in `config.yaml` and a suite names the role after the capability:
+
+```yaml
+requires: [i2c.dut, i2c.ref]
+```
+
+```python
+dut = ctx.env.capability("i2c.dut")
+ref = ctx.env.capability("i2c.ref")
+```
+
+The role is the bench's word for what the instrument is wired to, not the
+suite's, and a suite still never learns a serial number: which bridge is which
+is settled in `config.yaml` and can be changed without touching the suite.
+
+A bare `i2c` still means whichever one is registered, so a suite needing a
+single bus does not have to know its bench draws the distinction, and runs
+unchanged on a bench that has only one. Where a bench holds two, which one a
+bare name means is the bench's to say, in `default_instruments`; without that
+the run is refused rather than guessed at, naming both.
+
+So there are two things a suite can ask for, and it should ask for the one it
+means:
+
+| `requires:` | Means |
+|---|---|
+| `i2c` | Any one bus. The bench picks, and the pick is recorded on the run |
+| `i2c.dut` | That bus in particular, because the suite cares which |
+
+A suite cannot work out for itself which is which. Two identical parts at one
+address are indistinguishable on the bus, and no amount of probing says which
+one is under the beam — that is knowledge only the bench has. Read the channels out of `state()` rather than assuming a count,
 and take the modes on offer from the `configure` command rather than naming
 one you have not been offered.
 

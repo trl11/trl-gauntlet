@@ -10,9 +10,10 @@ JSON Schema is generated from them by ``gauntlet schema <name>`` and
 
 from __future__ import annotations
 
+import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 CONTRACT_VERSION = 1
 
@@ -26,6 +27,14 @@ StopSignal = Literal["SIGUSR1", "SIGINT", "SIGTERM", "NONE"]
 # ---------------------------------------------------------------------------
 # suite.yaml — how a suite declares itself
 # ---------------------------------------------------------------------------
+
+
+# A capability a suite requires, optionally carrying the role a bench binds it
+# to: `i2c` is whichever bridge is registered, `i2c.dut` is the one the
+# operator wired to the part under test. A name may hold single underscores
+# and a role none, because the key reaches a suite through an environment
+# variable name that spells the dot as a doubled underscore.
+REQUIREMENT = re.compile(r"^[a-z][a-z0-9]*(_[a-z0-9]+)*(\.[a-z0-9]+)?$")
 
 
 class ExecSpec(BaseModel):
@@ -131,7 +140,11 @@ class SuiteManifest(BaseModel):
     )
     requires: list[str] = Field(
         default_factory=list,
-        description="Capabilities Gauntlet must grant. A run is refused when one cannot be satisfied.",
+        description=(
+            "Capabilities Gauntlet must grant. A run is refused when one cannot be satisfied. "
+            "An entry may name the role a bench binds an instrument to, as `i2c.dut`, which is "
+            "how a suite asks for one of two identical instruments."
+        ),
     )
     supports: SupportsSpec = Field(default_factory=SupportsSpec)
     overrides: list[OverrideSpec] = Field(default_factory=list)
@@ -150,6 +163,17 @@ class SuiteManifest(BaseModel):
             "bench needs before a run: a firmware image, a wiring diagram, a datasheet."
         ),
     )
+
+    @field_validator("requires")
+    @classmethod
+    def _addressable(cls, value: list[str]) -> list[str]:
+        """Every requirement names a capability, and at most one role."""
+        for entry in value:
+            if not REQUIREMENT.match(entry):
+                raise ValueError(f"requires: {entry!r} is not a capability name, optionally with a role, as `i2c.dut`")
+        if len(set(value)) != len(value):
+            raise ValueError("requires: names the same instrument more than once")
+        return value
 
     def override(self, name: str) -> OverrideSpec | None:
         """Look up a declared override by name."""

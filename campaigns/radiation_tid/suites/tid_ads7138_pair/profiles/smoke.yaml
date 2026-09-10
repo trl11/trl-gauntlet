@@ -1,0 +1,7 @@
+description: No instrument required. What `gauntlet verify --run` executes.
+driver: mock
+duration_s: 2.0
+sample_period_s: 0.25
+noise_samples: 8
+oversampling_samples: 4
+settle_s: 0

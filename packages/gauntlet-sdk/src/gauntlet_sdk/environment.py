@@ -28,7 +28,12 @@ _CAPABILITY_PREFIX = "GAUNTLET_CAP_"
 
 @dataclass(frozen=True)
 class Capability:
-    """An instrument Gauntlet is lending to this run."""
+    """An instrument Gauntlet is lending to this run.
+
+    ``name`` is what the suite wrote in ``requires:``. On a bench holding two
+    of one instrument that carries a role — ``i2c.dut`` rather than ``i2c`` —
+    and the role is the operator's word for what it is wired to.
+    """
 
     name: str
     url: str
@@ -63,18 +68,25 @@ class RunEnvironment:
 
 
 def _read_capabilities(env: dict[str, str]) -> dict[str, Capability]:
-    """Collect ``GAUNTLET_CAP_<NAME>_URL`` / ``_ID`` pairs."""
+    """Collect ``GAUNTLET_CAP_<NAME>_URL`` / ``_ID`` pairs.
+
+    A dot is not legal in an environment variable name, so ``i2c.dut`` arrives
+    as ``I2C__DUT`` and the doubled underscore is read back as the dot. A
+    capability name holds no doubled underscore and a role holds none at all,
+    which is what keeps ``laser_cutter`` a name rather than a role.
+    """
     found: dict[str, Capability] = {}
-    for key, value in env.items():
-        if not key.startswith(_CAPABILITY_PREFIX) or not key.endswith("_URL") or not value:
+    for variable, value in env.items():
+        if not variable.startswith(_CAPABILITY_PREFIX) or not variable.endswith("_URL") or not value:
             continue
-        name = key[len(_CAPABILITY_PREFIX) : -len("_URL")].lower()
-        if not name:
+        stem = variable[len(_CAPABILITY_PREFIX) : -len("_URL")]
+        if not stem:
             continue
+        name = stem.lower().replace("__", ".")
         found[name] = Capability(
             name=name,
             url=value,
-            instance_id=env.get(f"{_CAPABILITY_PREFIX}{name.upper()}_ID", ""),
+            instance_id=env.get(f"{_CAPABILITY_PREFIX}{stem}_ID", ""),
         )
     return found
 

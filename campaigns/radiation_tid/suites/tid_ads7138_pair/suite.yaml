@@ -1,0 +1,96 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
+apiVersion: 1
+key: tid_ads7138_pair
+title: ADS7138 Pair, Beam Against Reference
+category: radiation
+description: >
+  Total ionising dose characterisation of an ADS7138QRTERQ1 against an
+  identical part outside the beam. The two are wired channel to channel, so
+  each can drive the harness while the other witnesses it as digital inputs
+  and again as analog voltages. Only one is dosed, so a figure that moves on
+  it and not on the reference is the dose rather than the room.
+
+setup: |
+  Two Adafruit ADS7128 breakouts, each on its own CP2112 USB-to-I2C bridge.
+  The kernel's hid-cp2112 driver registers each bridge as a /dev/i2c-N
+  adapter, and Gauntlet hands one to `i2c.dut` and the other to `i2c.ref`, so
+  config.yaml is where the bench says which board is in the beam:
+
+      i2c_serial:
+        dut: "00ED940A"     # the bridge on the part under the beam
+        ref: "00EDF8B8"     # the bridge on the part outside it
+
+  The two boards may share the I2C address 0x10, being on separate buses.
+
+  All eight channels of each part run to all eight of the other. Every channel
+  can be a push-pull output or an analog input, so the one harness carries
+  both the digital check and the millivolt measurement, and the direction is
+  chosen in software rather than rewired.
+
+      beam                              outside the beam
+      +----------------+              +----------------+
+      |    ADS7128     |  CH0 .. CH7  |    ADS7128     |
+      |  under test    |<============>|   reference    |
+      |     0x10       |   8 wires    |     0x10       |
+      +----------------+              +----------------+
+              ^                                ^
+              | I2C                            | I2C
+      +----------------+              +----------------+
+      |    CP2112      |              |    CP2112      |
+      |  i2c.dut       |              |  i2c.ref       |
+      +----------------+              +----------------+
+              ^                                ^
+              +-------------- USB -------------+
+
+  A wire that lands on a different channel at the far end is bench wiring, not
+  a device setting: name where each channel arrives in `channel_map`. The
+  default is the harness on this bench, whose channels 2 and 3 cross.
+
+exec:
+  command: ["python", "-m", "suite.cli"]
+  args:
+    profile: --profile
+    run_dir: --run-dir
+    target: --target
+    unit_serial: --unit-serial
+  profile_schema_command: ["python", "-m", "suite.cli", "--print-profile-schema"]
+
+profiles: ./profiles
+conformance_profile: smoke.yaml
+
+produces: [events, junit, manifest, metrics, summary, verdict]
+requires: [i2c.dut, i2c.ref]
+
+supports:
+  target: false
+  unit_serial: true
+
+default_metrics:
+  - ads7138.faults
+  - ads7138.dut_drive.voh_mv
+  - ads7138.dut_drive.vol_mv
+  - ads7138.delta.noise_lsb
+
+overrides:
+  - name: duration_s
+    flag: --duration-s
+    type: number
+    label: Duration
+    unit: s
+    # Zero is a duration: it gives the loop no end of its own and the suite
+    # samples until the operator stops the run, which is what `continuous.yaml`
+    # ships. A floor of 1 would reject the value that profile seeds the form
+    # with.
+    minimum: 0
+  - name: sample_period_s
+    flag: --sample-period-s
+    type: number
+    label: Sample period
+    unit: s
+    minimum: 0.1
+  - name: driver
+    flag: --driver
+    type: string
+    label: Driver
+    choices: [real, mock]
+    help: mock drives a register model of both parts and contacts no instrument.

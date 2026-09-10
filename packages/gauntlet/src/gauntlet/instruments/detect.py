@@ -11,6 +11,11 @@ named device stays registered even when it goes quiet, reporting why through
 ``unavailable_reason`` — the operator said there is one there, so its absence
 is a fault to show rather than something to hide.
 
+A setting naming a role per device gives a bench two of one instrument, which
+are registered as ``i2c.dut`` and ``i2c.ref``. Nothing here knows what a role
+means; it is the operator's word for what the instrument is wired to, and it
+travels no further than the key a suite asks for.
+
 Detection runs at startup and again on every operator scan.
 """
 
@@ -19,9 +24,16 @@ from __future__ import annotations
 import logging
 import socket
 from collections.abc import Callable
+from functools import partial
 
-from gauntlet.capabilities.registry import CapabilityProvider, CapabilityRegistry
-from gauntlet.config import Settings
+from gauntlet.capabilities.registry import (
+    CapabilityProvider,
+    CapabilityRegistry,
+    capability_of,
+    instance_key,
+    role_of,
+)
+from gauntlet.config import Settings, instrument_roles
 from gauntlet.instruments.alvium_camera import AlviumCamera, candidate_cameras
 from gauntlet.instruments.cp2112_i2c import Cp2112I2c, candidate_adapters
 from gauntlet.instruments.di2008_daq import Di2008Daq
@@ -58,22 +70,44 @@ _PROBE_TIMEOUT_S = 0.25
 def detect_instruments(registry: CapabilityRegistry, settings: Settings) -> None:
     """Register every instrument that answers, and drop every one that does not."""
     simulated = set(settings.simulated_instruments)
-    _settle(
+    _settle_roles(
         registry,
         "camera",
-        MockCamera if "camera" in simulated else lambda: _camera(settings.camera_device, settings.camera_format),
+        settings.camera_device,
+        (lambda where, key: MockCamera(instance=key))
+        if "camera" in simulated
+        else (lambda where, key: _camera(where, settings.camera_format)),
     )
     # The chamber has no driver for real hardware, so it exists only while it
-    # is being simulated.
+    # is being simulated, and no setting says where to look for one.
     _settle(registry, "chamber", MockChamber if "chamber" in simulated else _absent)
-    _settle(registry, "daq", MockDaq if "daq" in simulated else lambda: _daq(settings.daq_serial))
-    _settle(registry, "i2c", MockI2c if "i2c" in simulated else lambda: _i2c(settings.i2c_serial))
-    _settle(
+    _settle_roles(
+        registry,
+        "daq",
+        settings.daq_serial,
+        (lambda where, key: MockDaq(instance=key)) if "daq" in simulated else (lambda where, key: _daq(where)),
+    )
+    _settle_roles(
+        registry,
+        "i2c",
+        settings.i2c_serial,
+        (lambda where, key: MockI2c(instance=key)) if "i2c" in simulated else (lambda where, key: _i2c(where)),
+    )
+    _settle_roles(
         registry,
         "logic",
-        MockLogic if "logic" in simulated else lambda: _logic(settings.logic_serial, settings.logic_firmware),
+        settings.logic_serial,
+        (lambda where, key: MockLogic(instance=key))
+        if "logic" in simulated
+        else (lambda where, key: _logic(where, settings.logic_firmware)),
     )
-    _settle(registry, "psu", MockPsu if "psu" in simulated else lambda: _psu(settings.psu_port))
+    _settle_roles(
+        registry,
+        "psu",
+        settings.psu_port,
+        (lambda where, key: MockPsu(instance=key)) if "psu" in simulated else (lambda where, key: _psu(where)),
+    )
+    registry.set_defaults(settings.default_instruments)
 
 
 def is_simulated(provider: CapabilityProvider) -> bool:
@@ -205,11 +239,11 @@ def _listening(address: str) -> bool:
         return False
 
 
-def _drop(registry: CapabilityRegistry, name: str) -> None:
+def _drop(registry: CapabilityRegistry, key: str) -> None:
     """Unregister an instrument, releasing whatever it held."""
-    gone = registry.unregister(name)
+    gone = registry.unregister(key)
     if gone is not None:
-        log.info("instrument %s: no longer present", name)
+        log.info("instrument %s: no longer present", key)
         _close(gone)
 
 
@@ -246,7 +280,30 @@ def _psu(port: str) -> CapabilityProvider | None:
     return None
 
 
-def _settle(registry: CapabilityRegistry, name: str, build: Callable[[], CapabilityProvider | None]) -> None:
+def _settle_roles(
+    registry: CapabilityRegistry,
+    name: str,
+    setting: str | dict[str, str],
+    build: Callable[[str, str], CapabilityProvider | None],
+) -> None:
+    """Settle every instance one setting asks for, and drop the rest.
+
+    A setting that is a plain string asks for one instrument under no role. One
+    that is a mapping asks for an instrument per role, and each is settled on
+    its own: unplugging the reference bridge drops ``i2c.ref`` and leaves
+    ``i2c.dut`` connected. Dropping what the mapping no longer names is what
+    makes an edit to it take effect on the next scan.
+    """
+    roles = instrument_roles(setting)
+    for role, where in roles.items():
+        key = instance_key(name, role)
+        _settle(registry, key, partial(build, where, key))
+    for key in registry.instance_keys():
+        if capability_of(key) == name and role_of(key) not in roles:
+            _drop(registry, key)
+
+
+def _settle(registry: CapabilityRegistry, key: str, build: Callable[[], CapabilityProvider | None]) -> None:
     """Register what ``build`` returns, unless what is registered is better.
 
     A working device is never rebuilt: doing so would drop the connection the
@@ -254,16 +311,16 @@ def _settle(registry: CapabilityRegistry, name: str, build: Callable[[], Capabil
     lands on a simulation again, so a scan does not restart it. Building
     nothing means nothing is there, and the instrument is dropped.
     """
-    existing = registry.provider(name)
+    existing = registry.provider(key)
     if existing is not None and not is_simulated(existing) and existing.available():
         return
     provider = build()
     if provider is None:
-        _drop(registry, name)
+        _drop(registry, key)
         return
     if existing is not None and is_simulated(existing) and is_simulated(provider):
         return
     if existing is not None:
         _close(existing)
-    log.info("instrument %s: %s", name, provider.describe().get("model", provider.name))
-    registry.register(provider)
+    log.info("instrument %s: %s", key, provider.describe().get("model", provider.name))
+    registry.register(provider, role=role_of(key))

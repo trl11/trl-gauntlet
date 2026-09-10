@@ -835,22 +835,77 @@ class TestDetection:
     def test_nothing_answering_registers_nothing(self, tmp_path: Any) -> None:
         registry = CapabilityRegistry()
         detect_instruments(registry, self._settings(tmp_path))
-        assert registry.names() == []
+        assert registry.instance_keys() == []
 
     def test_a_simulation_is_registered_only_when_it_is_named(self, tmp_path: Any) -> None:
         registry = CapabilityRegistry()
         detect_instruments(registry, self._settings(tmp_path, simulated_instruments=["psu"]))
-        assert registry.names() == ["psu"]
+        assert registry.instance_keys() == ["psu"]
         assert is_simulated(registry.provider("psu")) is True
 
     def test_the_chamber_exists_only_while_it_is_simulated(self, tmp_path: Any) -> None:
         registry = CapabilityRegistry()
         detect_instruments(registry, self._settings(tmp_path, simulated_instruments=["chamber"]))
-        assert registry.names() == ["chamber"]
+        assert registry.instance_keys() == ["chamber"]
         # There is no driver for a real chamber, so dropping the simulation
         # leaves nothing behind.
         detect_instruments(registry, self._settings(tmp_path))
-        assert registry.names() == []
+        assert registry.instance_keys() == []
+
+    def test_a_role_per_device_registers_one_instrument_each(self, tmp_path: Any) -> None:
+        registry = CapabilityRegistry()
+        settings = self._settings(
+            tmp_path,
+            psu_port={"left": "/dev/does-not-exist-a", "right": "/dev/does-not-exist-b"},
+        )
+        detect_instruments(registry, settings)
+        assert registry.instance_keys() == ["psu.left", "psu.right"]
+
+    def test_dropping_one_role_leaves_the_other_connected(self, tmp_path: Any) -> None:
+        """Each role settles on its own, so losing one does not restart the other."""
+        registry = CapabilityRegistry()
+        both = self._settings(tmp_path, i2c_serial={"dut": "A", "ref": "B"}, simulated_instruments=["i2c"])
+        detect_instruments(registry, both)
+        kept = registry.provider("i2c.dut")
+        detect_instruments(
+            registry,
+            self._settings(tmp_path, i2c_serial={"dut": "A"}, simulated_instruments=["i2c"]),
+        )
+        assert registry.instance_keys() == ["i2c.dut"]
+        assert registry.provider("i2c.dut") is kept
+
+    def test_dropping_the_roles_returns_to_one_instrument(self, tmp_path: Any) -> None:
+        registry = CapabilityRegistry()
+        detect_instruments(
+            registry,
+            self._settings(tmp_path, psu_port={"left": "/dev/does-not-exist-a", "right": "/dev/does-not-exist-b"}),
+        )
+        detect_instruments(registry, self._settings(tmp_path, psu_port="/dev/does-not-exist-a"))
+        assert registry.instance_keys() == ["psu"]
+
+    def test_a_simulation_is_simulated_once_per_role(self, tmp_path: Any) -> None:
+        registry = CapabilityRegistry()
+        detect_instruments(
+            registry,
+            self._settings(tmp_path, i2c_serial={"dut": "A", "ref": "B"}, simulated_instruments=["i2c"]),
+        )
+        assert registry.instance_keys() == ["i2c.dut", "i2c.ref"]
+        # Each carries its own instance id, so the panel and the run manifest
+        # name one bridge rather than the same one twice.
+        assert registry.provider("i2c.dut").instance_id() != registry.provider("i2c.ref").instance_id()
+
+    def test_the_bench_default_reaches_the_registry(self, tmp_path: Any) -> None:
+        registry = CapabilityRegistry()
+        detect_instruments(
+            registry,
+            self._settings(
+                tmp_path,
+                i2c_serial={"dut": "A", "ref": "B"},
+                default_instruments={"i2c": "ref"},
+                simulated_instruments=["i2c"],
+            ),
+        )
+        assert registry.resolve("i2c") == ["i2c.ref"]
 
     def test_a_named_port_registers_the_driver_even_when_it_is_silent(self, tmp_path: Any) -> None:
         registry = CapabilityRegistry()

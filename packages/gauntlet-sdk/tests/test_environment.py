@@ -118,3 +118,25 @@ class TestNewRunId:
         stamp, _, suffix = run_id.partition("-")
         assert len(stamp) == 16 and stamp.endswith("Z")
         assert len(suffix) == 4
+
+
+class TestTwoOfOneInstrument:
+    """A bench holding two of one instrument grants each under its own role."""
+
+    def test_a_doubled_underscore_reads_back_as_the_role(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.setenv("GAUNTLET_CAP_I2C__DUT_URL", "http://host/api/capabilities/i2c.dut")
+        monkeypatch.setenv("GAUNTLET_CAP_I2C__DUT_ID", "i2c-00ED940A")
+        env = run_environment(run_dir=tmp_path)
+        assert env.capability("i2c.dut").instance_id == "i2c-00ED940A"
+
+    def test_a_single_underscore_stays_part_of_the_name(self, tmp_path, monkeypatch) -> None:
+        """`laser_cutter` is a capability, not `laser` bound to the role `cutter`."""
+        monkeypatch.setenv("GAUNTLET_CAP_LASER_CUTTER_URL", "http://host/api/capabilities/laser_cutter")
+        env = run_environment(run_dir=tmp_path)
+        assert "laser_cutter" in env.capabilities
+
+    def test_a_role_the_suite_did_not_ask_for_names_what_it_was_given(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.setenv("GAUNTLET_CAP_I2C__DUT_URL", "http://host/api/capabilities/i2c.dut")
+        env = run_environment(run_dir=tmp_path)
+        with pytest.raises(LookupError, match=r"granted: i2c\.dut"):
+            env.capability("i2c.ref")
