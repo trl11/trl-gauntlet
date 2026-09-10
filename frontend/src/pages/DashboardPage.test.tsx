@@ -191,27 +191,39 @@ describe("DashboardPage", () => {
     expect(serials).toEqual(["NEWER", "OLDER"]);
   });
 
-  it("headlines the last unit tested with the record the units list holds", async () => {
+  it("headlines the run that finished last", async () => {
     renderDashboard();
-    const title = await screen.findByRole("heading", { name: "Last unit tested" });
+    const title = await screen.findByRole("heading", { name: "Last test run" });
     const card = within(title.closest("section") as HTMLElement);
-    expect(card.getByText("HC-001")).toBeInTheDocument();
-    expect(card.getByText("runs").nextElementSibling).toHaveTextContent("7");
-    expect(card.getByText("passed").nextElementSibling).toHaveTextContent("5");
-    expect(card.getByText("failed").nextElementSibling).toHaveTextContent("2");
+    expect(card.getByText("thermal_cycle")).toBeInTheDocument();
+    expect(card.getByText("unit HC-001")).toBeInTheDocument();
+    expect(card.getByText("profile").nextElementSibling).toHaveTextContent("mock.yaml");
+    expect(card.getByText("unit runs").nextElementSibling).toHaveTextContent("7");
   });
 
-  it("opens the run behind the last unit tested", async () => {
+  it("headlines a run that named no unit all the same", async () => {
+    listRuns.mockResolvedValue({
+      runs: [run({ run_id: "r9", suite: "daqmx_capture", unit_serial: null })],
+      total: 1,
+    });
+    renderDashboard();
+    const title = await screen.findByRole("heading", { name: "Last test run" });
+    const card = within(title.closest("section") as HTMLElement);
+    expect(card.getByText("daqmx_capture")).toBeInTheDocument();
+    expect(card.getByText("no unit named")).toBeInTheDocument();
+  });
+
+  it("opens the run that finished last", async () => {
     renderDashboard();
     const card = await screen.findByRole("link", {
-      name: "Open the thermal_cycle run of unit HC-001",
+      name: "Open the last run, thermal_cycle",
     });
     expect(card).toHaveAttribute("href", "/runs/r1");
   });
 
-  it("says when the last unit was tested, so a stale one is not read as live", async () => {
+  it("says when the last run ran, so a stale one is not read as live", async () => {
     renderDashboard();
-    expect(await screen.findByText(/^last tested /)).toBeInTheDocument();
+    expect(await screen.findByText(/^ran /)).toBeInTheDocument();
   });
 
   it("leaves host telemetry to the settings page", async () => {
