@@ -592,6 +592,84 @@ class TestGrabBufferFiltering:
             camera.grab(timeout_s=0.05)
 
 
+class _FakeMap(bytearray):
+    """A mapped buffer the camera can release, standing in for `mmap.mmap`."""
+
+    def __init__(self) -> None:
+        super().__init__(16)
+
+    def close(self) -> None:
+        return None
+
+
+class _StartupDriver:
+    """A driver that answers everything `start` asks, and may send no frame.
+
+    The timeout each wait was given is kept, because how long `start` is
+    prepared to wait is the whole of what it adds.
+    """
+
+    def __init__(self, silent: bool) -> None:
+        self.silent = silent
+        self.streaming = False
+        self.waits: list[float] = []
+
+    def ioctl(self, request: int, argument: Any) -> None:
+        if request == v4l2.VIDIOC_REQBUFS:
+            argument.count = 2
+        elif request == v4l2.VIDIOC_QUERYBUF:
+            argument.length = 16
+            argument.offset = 0
+        elif request == v4l2.VIDIOC_STREAMON:
+            self.streaming = True
+        elif request == v4l2.VIDIOC_STREAMOFF:
+            self.streaming = False
+        elif request == v4l2.VIDIOC_DQBUF:
+            argument.index = 0
+            argument.bytesused = 16
+            argument.flags = 0
+            argument.sequence = 1
+
+    def select(self, _read: Any, _write: Any, _error: Any, timeout: float) -> tuple[list[int], list[int], list[int]]:
+        self.waits.append(timeout)
+        return ([], [], []) if self.silent else ([3], [], [])
+
+
+def starting_camera(monkeypatch: pytest.MonkeyPatch, *, silent: bool) -> tuple[v4l2.V4l2Camera, _StartupDriver]:
+    """A camera about to be started, and the device behind it."""
+    camera = v4l2.V4l2Camera(Path("/dev/video0"))
+    driver = _StartupDriver(silent)
+    camera._fd = 3
+    camera._format = {"height": 2, "pixelformat": PIXELFORMAT_YUYV, "sizeimage": 16, "width": 4}
+    monkeypatch.setattr(camera, "_ioctl", driver.ioctl)
+    monkeypatch.setattr(v4l2.select, "select", driver.select)
+    monkeypatch.setattr(v4l2.mmap, "mmap", lambda *args, **kwargs: _FakeMap())
+    return camera, driver
+
+
+class TestStreamStartup:
+    """`start` means the device is streaming, not that the ioctl was accepted.
+
+    The bench's 4K GMSL head answers VIDIOC_STREAMON at once and then sends
+    nothing for anywhere between a fifth of a second and twenty, so a caller
+    that began capturing on the ioctl alone raced it.
+    """
+
+    def test_waits_the_startup_budget_for_the_first_frame(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera, driver = starting_camera(monkeypatch, silent=False)
+        camera.start()
+        assert camera._streaming
+        assert driver.waits[0] > v4l2._STARTUP_TIMEOUT_S - 1
+
+    def test_a_device_that_never_sends_is_not_left_streaming(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera, driver = starting_camera(monkeypatch, silent=True)
+        monkeypatch.setattr(v4l2, "_STARTUP_TIMEOUT_S", 0.05)
+        with pytest.raises(V4l2Error, match="no frame arrived"):
+            camera.start()
+        assert not camera._streaming
+        assert not driver.streaming
+
+
 def raw10_frame(width: int, height: int, red: int, green: int, blue: int) -> bytes:
     """A RAW10 RGGB frame of one flat colour, as 16-bit little-endian words."""
     even = b"".join((red if x % 2 == 0 else green).to_bytes(2, "little") for x in range(width))
@@ -717,6 +795,91 @@ class TestEncodeRaw10Frame:
         )
         _, measured = imaging.encode_frame(frame, max_width=16)
         assert measured["encoding"] == imaging.ENCODING_YUYV
+
+
+class _FakeLink:
+    """A GMSL link that records whether the video was running when it was read."""
+
+    def __init__(self, camera: _FakeCamera) -> None:
+        self.camera = camera
+        self.closed = False
+        self.streaming_when_read: list[bool] = []
+        self.streaming_when_scanned = True
+
+    def open(self) -> None:
+        return None
+
+    def close(self) -> None:
+        self.closed = True
+
+    def scan(self) -> list[int]:
+        self.streaming_when_scanned = self.camera.started
+        return [0x84]
+
+    def identity(self) -> dict[str, str]:
+        return {"uuid": "fake"}
+
+    def status(self, address: int) -> gmsl.ChipStatus:
+        self.streaming_when_read.append(self.camera.started)
+        return gmsl.ChipStatus(
+            address=address,
+            decode_errors_a=0,
+            decode_errors_b=0,
+            dev_id=0xB7,
+            dev_rev=0x06,
+            idle_errors=0,
+            link_error=False,
+            locked=True,
+        )
+
+
+def linked_camera(monkeypatch: pytest.MonkeyPatch, fake: _FakeCamera) -> tuple[UvcCamera, _FakeLink]:
+    """An owned camera with a stand-in GMSL link behind its node."""
+    link = _FakeLink(fake)
+    monkeypatch.setattr("gauntlet.instruments.uvc_camera.GmslLink", lambda node: link)
+    camera = camera_with(fake)
+    assert camera.own() is True
+    return camera, link
+
+
+class TestLinkReadsAndVideoTakeTurns:
+    """The chips and the video cannot share the connection, so they alternate.
+
+    The adapter offers 4K YUYV only, about 2.6Gbps, which leaves no room for
+    control transfers: a read taken mid-stream stops the video for anywhere
+    between a fraction of a second and over a minute.
+    """
+
+    def test_the_stream_is_stopped_while_the_chips_are_read(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera, link = linked_camera(monkeypatch, fake)
+
+        camera.command("link_status", {})
+
+        assert link.streaming_when_read == [False]
+        assert fake.started is True
+
+    def test_the_chips_are_scanned_before_the_stream_starts(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        _, link = linked_camera(monkeypatch, fake)
+
+        # Finding the chips is 127 transfers, so it costs the most of any read.
+        assert link.streaming_when_scanned is False
+
+    def test_a_stream_that_will_not_restart_drops_the_device(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera, _ = linked_camera(monkeypatch, fake)
+        monkeypatch.setattr(fake, "start", _raise_start)
+
+        reading = camera.command("link_status", {})
+
+        assert reading["error"]
+        assert camera.owned() is False
+
+
+def _raise_start() -> None:
+    """A device whose stream will not come back."""
+    raise V4l2Error("/dev/video0: streaming started but no frame arrived")
 
 
 class _FakeXu:

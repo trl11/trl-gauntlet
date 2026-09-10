@@ -462,6 +462,11 @@ class TestVerdict:
 
         assert json.loads((tmp_path / "verdict.json").read_text())["reason"] == "keyboard_interrupt"
 
+    def test_a_failure_reason_is_preferred_over_the_count(self, tmp_path):
+        write_verdict(tmp_path / "verdict.json", _result(failures=1, failure_reason="pass_criteria: too few samples"))
+
+        assert json.loads((tmp_path / "verdict.json").read_text())["reason"] == "pass_criteria: too few samples"
+
     def test_an_explicit_reason_wins(self, tmp_path):
         write_verdict(tmp_path / "verdict.json", _result(failures=1), reason="thermal limit")
 

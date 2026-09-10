@@ -332,6 +332,12 @@ def _fault(
         return f"{errors} link errors in one sample, above {profile.max_errors_per_sample}"
     if part.get("saturated"):
         return "a link error counter saturated: the true count is higher than reported"
+    if not int(stream.get("frames", 0)):
+        # The chips can hold their link up while the video across it stops, so
+        # a burst that measured nothing is the measurement. Without this the
+        # sample passes on a zero rate and the run reports a healthy mean taken
+        # over whichever samples did carry frames.
+        return "no frames arrived in the burst: the link is up but carrying no video"
     corrupt = int(stream.get("corrupt", 0))
     if corrupt > profile.max_corrupt_frames:
         return f"{corrupt} corrupt frames in one burst, above {profile.max_corrupt_frames}"

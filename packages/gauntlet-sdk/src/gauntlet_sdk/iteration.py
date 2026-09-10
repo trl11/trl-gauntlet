@@ -56,6 +56,7 @@ class RunResult:
     ended_at: float
     aborted: bool
     abort_reason: str = ""
+    failure_reason: str = ""
     stopped_early: bool = False
 
     @property
@@ -219,16 +220,18 @@ class IterationRunner:
         ok, reason = self._pass_criteria(result, outcomes)
         if ok:
             return result
-        # A graceful stop leaves ``aborted`` clear so the verdict reads as a
-        # pass/fail over the samples collected.
+        # Failing the criteria is a verdict over the samples collected, not a
+        # run cut short, so ``aborted`` stays clear whether the loop reached
+        # its own end or the operator stopped it. The extra failure is what
+        # turns the verdict, because ``passed`` counts them.
         return RunResult(
             total_iterations=result.total_iterations,
             successes=result.successes,
             failures=result.failures + 1,
             started_at=result.started_at,
             ended_at=result.ended_at,
-            aborted=not self._stop_graceful,
-            abort_reason=f"pass_criteria: {reason}",
+            aborted=False,
+            failure_reason=f"pass_criteria: {reason}",
             stopped_early=self._stop_graceful,
         )
 

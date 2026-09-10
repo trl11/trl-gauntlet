@@ -88,7 +88,7 @@ class UvcCamera:
         frame_format: str = ENCODING_AUTO,
         instance: str = "camera0",
         open_camera: Callable[[Path], V4l2Camera] = V4l2Camera,
-        link_interval_s: float = 2.0,
+        link_interval_s: float = 15.0,
         presence: Callable[[str], bool] = _device_present,
         probe_interval_s: float = 3.0,
         warmup_frames: int = 2,
@@ -347,16 +347,23 @@ class UvcCamera:
                 fmt = camera.format()
                 if fmt.get("pixelformat") not in SUPPORTED_FORMATS:
                     raise V4l2Error(f"{node}: {fourcc(int(fmt.get('pixelformat', 0)))} frames are not supported")
+                # Before the stream, because finding the chips is 127 control
+                # transfers on the connection the video comes down and stops it
+                # for seconds. Scanning first leaves that in the past by the
+                # time `start` waits for the first frame.
+                self._attach_link(node)
                 camera.start()
             except V4l2Error as exc:
                 camera.close()
+                # The link was attached before the stream was started, so a
+                # camera that never streams must not leave it held.
+                self._disconnect()
                 reasons.append(str(exc))
                 continue
             self._camera = camera
             self._format = fmt
             self._identity = {"node": str(node), **camera.describe()}
             self._unavailable_reason = ""
-            self._attach_link(node)
             log.info("camera %s: %s %s", node, self._identity.get("card", ""), self._resolution())
             return True
 
@@ -405,10 +412,12 @@ class UvcCamera:
     def _read_link(self, *, force: bool) -> dict[str, Any]:
         """Every chip's status, re-read at most once per interval unless forced.
 
-        The panel polls state on every refresh and a full read is two dozen
-        I2C transactions over the link, so an unforced call answers from the
-        last one. A suite sampling the link asks for a forced read, because a
-        reading up to an interval old is not a reading taken now.
+        The panel polls state on every refresh and a real read stops the video
+        for about a second, so an unforced call answers from the last one and
+        real reads are spaced well apart. A suite sampling the link asks for a
+        forced read, because a reading up to an interval old is not a reading
+        taken now; its reads also refresh this cache, so a panel open during a
+        run costs the run nothing.
         """
         link = self._link
         if link is None:
@@ -417,20 +426,21 @@ class UvcCamera:
         if not force and self._link_state and now - self._link_read_at < self._link_interval_s:
             return dict(self._link_state)
 
-        chips: dict[str, Any] = {}
         try:
-            # The addresses found when the link was attached, rather than a
-            # fresh scan: a scan is 127 transactions and would cost more than
-            # the reading it precedes, and chips do not move.
-            for address in self._link_addresses:
-                chips[f"0x{address:02x}"] = self._accumulate(link.status(address))
-            identity = link.identity()
+            chips, identity = self._read_chips(link)
         except (GmslError, OSError) as exc:
             # A link that has stopped answering is the measurement, not a
             # crash, so it is reported in the same shape as a healthy one.
             self._link_state = {"chips": {}, "error": str(exc), "identity": {}, "locked": False, "total_errors": 0}
             self._link_read_at = now
             return dict(self._link_state)
+        except V4l2Error as exc:
+            # The chips answered but the video would not come back, which is
+            # the camera going rather than the link, so the device is dropped
+            # here and `set_owned` re-probes for it.
+            log.warning("camera: the stream did not restart after a link read: %s", exc)
+            self._disconnect()
+            return {"chips": {}, "error": str(exc), "identity": {}, "locked": False, "total_errors": 0}
 
         self._link_state = {
             "chips": chips,
@@ -447,6 +457,31 @@ class UvcCamera:
         }
         self._link_read_at = now
         return dict(self._link_state)
+
+    def _read_chips(self, link: GmslLink) -> tuple[dict[str, Any], dict[str, str]]:
+        """Every chip's registers, read with the video stopped.
+
+        The adapter offers one format, 4K YUYV at about 2.6Gbps, which leaves
+        the USB connection no room for the control transfers the chips answer
+        on: measured on the bench, a read taken while the stream runs stops the
+        video for anywhere between a fraction of a second and over a minute,
+        and no sampling rate is slow enough to hide that. Taking turns costs a
+        stream restart, around a second, and makes both measurements reliable.
+
+        The addresses are the ones found when the link was attached rather than
+        a fresh scan: a scan is 127 transactions and would cost more than the
+        reading it precedes, and chips do not move.
+        """
+        camera = self._camera
+        if camera is not None:
+            camera.stop()
+        try:
+            chips = {f"0x{address:02x}": self._accumulate(link.status(address)) for address in self._link_addresses}
+            identity = link.identity()
+        finally:
+            if camera is not None:
+                camera.start()
+        return chips, identity
 
     def _stream_stats(self, args: dict[str, Any]) -> dict[str, Any]:
         """What the link sustained over a short burst of frames.
