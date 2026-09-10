@@ -38,6 +38,14 @@ MEMORY_MMAP = 1
 # for the next frame to be captured.
 _BACKLOG_POLL_S = 0.002
 
+# How long a device is given to deliver its first frame after VIDIOC_STREAMON.
+# The ioctl returns as soon as the driver has queued its URBs, which is well
+# before the far end is sending: a 4K GMSL head measured on the bench usually
+# takes a fifth of a second and occasionally twenty. Waiting here rather than
+# in the caller is what stops the first samples of a run timing out against a
+# stream that had not started.
+_STARTUP_TIMEOUT_S = 30.0
+
 # The formats this module can turn into a file. YUYV is packed luma and
 # chroma that has to be converted; MJPEG is already a JPEG and is written out
 # untouched.
@@ -305,7 +313,13 @@ class V4l2Camera:
         return dict(self._format)
 
     def start(self) -> None:
-        """Map the driver's buffers, queue them all, and begin streaming."""
+        """Map the driver's buffers, queue them all, and stream a first frame.
+
+        Returning only once a frame has arrived is what makes `start()` mean
+        the device is streaming. VIDIOC_STREAMON alone means the driver is
+        ready, not the far end, and a caller that begins capturing on that
+        races a device still coming up.
+        """
         if self._streaming:
             return
         request = _RequestBuffers()
@@ -332,6 +346,11 @@ class V4l2Camera:
 
         self._ioctl(VIDIOC_STREAMON, ctypes.c_uint32(BUF_TYPE_VIDEO_CAPTURE))
         self._streaming = True
+        try:
+            self.grab(timeout_s=_STARTUP_TIMEOUT_S)
+        except V4l2Timeout as exc:
+            self.stop()
+            raise V4l2Error(f"{self._path}: streaming started but no frame arrived: {exc}") from exc
 
     def stop(self) -> None:
         """Stop streaming and release the mapped buffers."""

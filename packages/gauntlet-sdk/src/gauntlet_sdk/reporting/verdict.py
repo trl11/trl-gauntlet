@@ -78,7 +78,11 @@ def write_verdict(
     """Write a verdict derived from a completed :class:`RunResult`."""
     passed = result.passed
     if not passed and not reason:
-        reason = result.abort_reason or f"{result.failures}/{result.total_iterations} iterations failed"
+        reason = (
+            result.abort_reason
+            or result.failure_reason
+            or f"{result.failures}/{result.total_iterations} iterations failed"
+        )
     payload: dict[str, Any] = {
         "passed": passed,
         "reason": reason or "",

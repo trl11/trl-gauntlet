@@ -113,6 +113,33 @@ snapshots. A `snapshot` discards whatever the driver had already queued and
 reports the frame after it, because a queue that has been sitting still holds
 the picture from whenever it was last looked at.
 
+Taking ownership waits for the device to actually send. `VIDIOC_STREAMON`
+returns once the driver has queued its URBs, which is well before the far end
+is producing: the bench's 4K GMSL head usually delivers its first frame within
+a fifth of a second and occasionally takes twenty. Starting the stream
+therefore blocks until a frame arrives, and reports the camera as unavailable
+if none does, so a suite's first samples are not read against a stream that had
+not started. Nothing else waits: `available()` is still a presence check and
+never opens the node.
+
+### The link and the video take turns
+
+The GMSL adapter tunnels I2C over a vendor extension unit on the same USB
+connection the video comes down, and offers one format only: 4K YUYV, about
+2.6Gbps, which leaves that connection no headroom. Measured on the bench, a
+read of two chips — 60ms of control transfers — stops the video for anywhere
+between 0.15s and over a minute, and the stream returns to a full 19.4fps the
+instant it comes back. No sampling rate is slow enough to hide a stall with no
+upper bound, so the two never run at once: reading the chips stops the stream,
+reads, and starts it again, which costs about a second and drops nothing. The
+scan that finds the chips is 127 transfers and runs before the stream is
+started for the same reason.
+
+A suite therefore pays roughly a second per link reading and gets a burst that
+always measures. Panel polls are answered from the last reading rather than
+taking their own, and a suite's forced reads refresh that cache, so a panel
+left open during a run costs the run nothing.
+
 YUYV is converted and scaled in one pass and written as a PNG; MJPEG is already
 a JPEG and is written out byte for byte. Every snapshot is measured for mean
 brightness and an edge score, which is what lets a suite tell a picture from a

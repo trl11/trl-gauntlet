@@ -81,7 +81,16 @@ class TestIterationRunner:
         runner.set_pass_criteria(lambda _r, _o: (False, "aggregate too low"))
         result, _ = runner.run()
         assert not result.passed
-        assert "aggregate too low" in result.abort_reason
+        assert "aggregate too low" in result.failure_reason
+
+    def test_failing_criteria_at_the_loops_own_end_are_a_failure_not_an_abort(self):
+        runner = IterationRunner(_ok, max_iterations=3, period_s=0)
+        runner.set_pass_criteria(lambda _r, _o: (False, "aggregate too low"))
+        result, _ = runner.run()
+
+        assert not result.aborted
+        assert not result.stopped_early
+        assert result.abort_reason == ""
 
     def test_graceful_stop_is_not_an_abort(self):
         runner = IterationRunner(_ok, max_iterations=100, period_s=0)

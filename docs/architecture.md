@@ -187,6 +187,13 @@ Details, including how to add a page and how the submodule is updated, are in
 
 Exit codes are recorded but do not determine the status.
 
+`aborted` means the loop was cut short: the operator aborted it, the process
+was interrupted, or a suite running with `stop_on_failure` hit a failing
+iteration. A run that reached its own end and then failed its pass criteria is
+`failed`, and so is one the operator stopped gracefully whose criteria then
+failed — the criteria are a verdict over the samples collected, not a reason
+the run stopped.
+
 ## Stopping a run
 
 `POST /api/runs/{id}/stop` sends the signal named in the suite's
