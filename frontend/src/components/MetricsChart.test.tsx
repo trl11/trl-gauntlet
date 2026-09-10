@@ -84,6 +84,28 @@ describe("MetricsChart", () => {
     expect(screen.queryByRole("heading", { name: "temp_c" })).not.toBeInTheDocument();
   });
 
+  it("gives every charted series its own vertical window", () => {
+    render(<MetricsChart runId="run-1" samples={SAMPLES} defaultMetrics={[]} />);
+    expect(screen.getByLabelText("Lowest value charted for rail.volts")).toHaveValue(null);
+    expect(screen.getByLabelText("Highest value charted for temp_c")).toHaveValue(null);
+  });
+
+  it("keeps the window an operator types", async () => {
+    render(<MetricsChart runId="run-1" samples={SAMPLES} defaultMetrics={[]} />);
+    const low = screen.getByLabelText("Lowest value charted for rail.volts");
+    await userEvent.type(low, "3");
+    expect(low).toHaveValue(3);
+    // One series' window is its own.
+    expect(screen.getByLabelText("Lowest value charted for temp_c")).toHaveValue(null);
+  });
+
+  it("fits a series' window to what it reached", async () => {
+    render(<MetricsChart runId="run-1" samples={SAMPLES} defaultMetrics={[]} />);
+    await userEvent.click(screen.getByRole("button", { name: "Fit the axis to temp_c" }));
+    expect(screen.getByLabelText("Lowest value charted for temp_c")).toHaveValue(40);
+    expect(screen.getByLabelText("Highest value charted for temp_c")).toHaveValue(41);
+  });
+
   it("removes a series from its panel's own remove button, without opening the picker", async () => {
     render(<MetricsChart runId="run-1" samples={SAMPLES} defaultMetrics={[]} />);
     expect(screen.getByRole("heading", { name: "rail.volts" })).toBeInTheDocument();
