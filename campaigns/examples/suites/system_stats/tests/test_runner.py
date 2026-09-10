@@ -21,7 +21,8 @@ from suite.memory import Memory
 from suite.runner import SPEC, _mean, _series, _state, _summary
 from suite.sampler import Sample
 
-# Long enough for three samples, short enough not to slow the suite's tests.
+# Short enough not to slow the suite's tests. The runs that only need to reach
+# their first sample take it as it is; `passing_run` lengthens it.
 _QUICK = {
     "description": "test",
     "duration_s": 0.3,
@@ -46,11 +47,23 @@ def read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text())
 
 
-@pytest.fixture
-def passing_run(tmp_path: Path) -> Path:
-    """One run with thresholds nothing can breach. Returns its run directory."""
-    run_dir = tmp_path / "run"
-    profile = write_profile(tmp_path)
+# Long enough that a host taking half a second over a sample still fits three
+# into the run. A sample costs a pass over every reader plus the sampler's
+# minimum window, and on a virtualised CI agent that came to 0.51s, which a
+# window sized for a developer's machine spent entirely on the first one.
+_PASSING_DURATION_S = 2.0
+
+
+@pytest.fixture(scope="module")
+def passing_run(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """One run with thresholds nothing can breach. Returns its run directory.
+
+    Every test reading it only reads, so the run is made once for the module
+    rather than once per test, and the longer duration is paid once.
+    """
+    directory = tmp_path_factory.mktemp("passing")
+    run_dir = directory / "run"
+    profile = write_profile(directory, duration_s=_PASSING_DURATION_S)
     assert main(["--profile", str(profile), "--run-dir", str(run_dir)]) == 0
     return run_dir
 
@@ -60,8 +73,8 @@ class TestAPassingRun:
         verdict = read_json(passing_run / "verdict.json")
         assert verdict["passed"] is True
         assert verdict["failures"] == 0
-        # A slow first sample can consume the short test duration. One passing
-        # sample proves the end-to-end runner wiring without timing assumptions.
+        # What this one is for is the verdict, so any run that reached a sample
+        # proves it. How many samples a run collects is checked separately.
         assert verdict["total_iterations"] >= 1
 
     def test_writes_every_artifact_the_manifest_declares(self, passing_run: Path) -> None:
