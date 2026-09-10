@@ -16,12 +16,13 @@ from suite.runner import SPEC
 
 def _extra_args(parser: argparse.ArgumentParser) -> None:
     # --duration-s and --sample-period-s come from make_suite_cli, which every
-    # sampled suite takes, so only the driver is added here.
+    # sampled suite takes, so only these two are added here.
     parser.add_argument("--driver", choices=["real", "mock"], default=None)
+    parser.add_argument("--labels", default=None, help="name the inputs, as `ai0=Rail 3V3, ai2=Ground`")
 
 
 def _extra_overrides(args: argparse.Namespace) -> dict[str, object]:
-    return {"driver": args.driver}
+    return {"driver": args.driver, "labels": args.labels}
 
 
 main = make_suite_cli(

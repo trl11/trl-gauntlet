@@ -34,6 +34,22 @@ def metric_key(label: str, channel: str) -> str:
     return slug or channel
 
 
+def _pairs(labels: str) -> list[tuple[str, str]]:
+    """The `channel=label` pairs a run was given, in the order they were typed."""
+    settled = []
+    for item in labels.split(","):
+        if not item.strip():
+            continue
+        channel, separator, label = item.partition("=")
+        if not separator:
+            raise ValueError(f"labels: {item.strip()!r} is not a channel and a label, as `ai0=Rail 3V3`")
+        channel = channel.strip()
+        if not re.match(_CHANNEL, channel):
+            raise ValueError(f"labels: {channel!r} is not a channel; NI names them ai0, ai1, ...")
+        settled.append((channel, " ".join(label.split())))
+    return settled
+
+
 class Channel(BaseModel):
     """One analog input: what it is wired to, and the range to read it on."""
 
@@ -105,15 +121,36 @@ class DaqmxCaptureProfile(BaseModel):
         ge=0,
         description="Readings the module may fail to return before the run fails.",
     )
+    labels: str = Field(
+        default="",
+        description=(
+            "Name the inputs without editing the profile, as `ai0=Rail 3V3, ai2=Ground`. "
+            "A channel the profile does not list is added by naming it here."
+        ),
+    )
 
     @model_validator(mode="after")
-    def _channels_are_distinct(self) -> DaqmxCaptureProfile:
-        """No channel twice, and no two channels under one metric name.
+    def _settle_channels(self) -> DaqmxCaptureProfile:
+        """Apply the labels given for this run, then check what is left.
 
-        Two rows for the same input would configure it twice and record it
-        twice, and two labels folding to the same key would silently overwrite
-        one series with the other.
+        `labels` is how an operator names the inputs from the run form, where
+        the profile's channel list is not on offer. A name for a channel the
+        profile lists renames it; a name for one it does not adds it, because
+        an operator saying what is wired to an input is asking for it to be
+        measured. Which is why this runs before the checks below rather than
+        beside them: what it adds has to be checked too.
+
+        No channel twice, and no two channels under one metric name. Two rows
+        for the same input would configure it twice and record it twice, and
+        two labels folding to the same key would silently overwrite one series
+        with the other.
         """
+        for channel, label in _pairs(self.labels):
+            listed = next((entry for entry in self.channels if entry.channel == channel), None)
+            if listed is None:
+                self.channels.append(Channel(channel=channel, label=label))
+            else:
+                listed.label = label
         named = [channel.channel for channel in self.channels]
         duplicate = next((name for name in named if named.count(name) > 1), None)
         if duplicate is not None:

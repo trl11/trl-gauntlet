@@ -53,6 +53,15 @@ overrides:
       acquisition is a hundred samples at the module's own rate, so a shorter
       period is refused rather than quietly delivering a slower rate than it
       asked for.
+  - name: labels
+    flag: --labels
+    type: string
+    label: Channel labels
+    help: >
+      Name the inputs for this run, as `ai0=Rail 3V3, ai2=Ground`. The name
+      goes on the module and on every metric the channel records. A channel
+      the profile does not list is added by naming it here; leave this empty
+      to keep the profile's own labels.
   - name: driver
     flag: --driver
     type: string

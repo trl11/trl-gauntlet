@@ -50,6 +50,32 @@ class TestProfile:
             )
 
 
+class TestRunLabels:
+    def test_a_label_renames_a_channel_the_profile_lists(self) -> None:
+        profile = DaqmxCaptureProfile(channels=[Channel(channel="ai0", label="AI 0")], labels="ai0=Rail 3V3")
+        assert [(c.channel, c.label, c.key) for c in profile.channels] == [("ai0", "Rail 3V3", "rail_3v3")]
+
+    def test_a_label_for_a_channel_not_listed_adds_it(self) -> None:
+        profile = DaqmxCaptureProfile(channels=[Channel(channel="ai0")], labels="ai2=Ground")
+        assert [(c.channel, c.label) for c in profile.channels] == [("ai0", ""), ("ai2", "Ground")]
+
+    def test_several_are_taken_in_one_go(self) -> None:
+        profile = DaqmxCaptureProfile(channels=[Channel(channel="ai0")], labels="ai0=Rail 3V3, ai1=Shunt")
+        assert [c.label for c in profile.channels] == ["Rail 3V3", "Shunt"]
+
+    def test_something_that_is_not_a_pair_is_refused(self) -> None:
+        with pytest.raises(ValidationError, match="is not a channel and a label"):
+            DaqmxCaptureProfile(labels="Rail 3V3")
+
+    def test_a_channel_ni_would_not_name_is_refused(self) -> None:
+        with pytest.raises(ValidationError, match="is not a channel"):
+            DaqmxCaptureProfile(labels="3=Rail 3V3")
+
+    def test_two_labels_folding_to_one_metric_name_are_refused(self) -> None:
+        with pytest.raises(ValidationError, match="same metric name"):
+            DaqmxCaptureProfile(channels=[Channel(channel="ai0", label="Rail 3V3")], labels="ai1=rail 3v3")
+
+
 class TestVerdict:
     def profile(self) -> DaqmxCaptureProfile:
         return DaqmxCaptureProfile(

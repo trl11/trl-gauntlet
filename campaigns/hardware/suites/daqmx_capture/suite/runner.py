@@ -1,9 +1,16 @@
-"""Capture every configured analog input for the length of the run.
+"""Capture the module's analog inputs for the length of the run.
 
 The channels are configured once at setup, then acquired on the sample period
 until the duration is up. Each acquisition becomes one metrics record, under
-the labels the profile gave the channels, so a run that measures a 3V3 rail
-charts `daq.rail_3v3` rather than `daq.channels.ai0.value`.
+the labels the channels carry, so a run that measures a 3V3 rail charts
+`daq.rail_3v3` rather than `daq.channels.ai0.value`.
+
+Every channel the module has is recorded, not only the ones the profile lists.
+The module converts all of them at once whatever the profile says, so leaving
+one out of the record would throw away a reading already taken — and an input
+nobody named is exactly where an unexpected signal turns up. What the profile
+lists is what the run configures and what its verdict is taken over; an
+unlisted channel is recorded under whatever the module calls it.
 
 A floating input on a delta-sigma module does not read zero: it pins at the
 over-range rail and sits there, unmoving, which is why a channel whose readings
@@ -30,11 +37,16 @@ from gauntlet_sdk import (
 )
 
 from suite.daq import Daq, DaqError
-from suite.profile import DaqmxCaptureProfile
+from suite.profile import DaqmxCaptureProfile, metric_key
 
 # Where the granted instrument is kept for the length of the run. None for a
 # mock run, which contacts nothing.
 _DAQ = "daq"
+
+# What each recorded series is called, by metric name, filled in as the run
+# goes. A channel the profile did not list is named by the module, so the
+# names are not known until it has been asked.
+_NAMES = "names"
 
 
 def _setup(ctx: SuiteContext) -> None:
@@ -70,16 +82,43 @@ def _mock_reading(channel_key: str, elapsed_s: float, seed: int) -> float:
     return round(0.05 + 0.002 * math.sin(elapsed_s / 5.0) + rng.uniform(-0.0002, 0.0002), 6)
 
 
+def _named(profile: DaqmxCaptureProfile, acquired: dict[str, dict[str, object]]) -> dict[str, tuple[str, str]]:
+    """The metric name and label to record each acquired channel under.
+
+    The profile has the first word on the channels it lists, and the module
+    names the rest with whatever label it is carrying. A name already taken
+    falls back to the channel itself, so two labels that fold to one metric
+    name cannot quietly overwrite one series with the other.
+    """
+    listed = {channel.channel: channel for channel in profile.channels}
+    named: dict[str, tuple[str, str]] = {}
+    taken: set[str] = set()
+    for name in list(listed) + [name for name in acquired if name not in listed]:
+        channel = listed.get(name)
+        label = str(acquired.get(name, {}).get("label") or "") if channel is None else channel.label
+        key = channel.key if channel is not None else metric_key(label, name)
+        if key in taken:
+            key = name
+        if key in taken:
+            continue
+        taken.add(key)
+        named[name] = (key, label or name)
+    return named
+
+
 def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
-    """One acquisition of every configured channel, recorded under its label."""
+    """One acquisition of the module, every channel recorded under its label."""
     profile: DaqmxCaptureProfile = ctx.profile
     daq: Daq | None = ctx.extras.get(_DAQ)
     phases: list[PhaseRecord] = []
 
     with PhaseTimer("acquire", phases) as phase:
-        phase.set_detail(channels=str(len(profile.channels)))
         if daq is None:
-            readings = {c.channel: _mock_reading(c.key, ictx.elapsed_run_s, ictx.iteration) for c in profile.channels}
+            # Nothing was asked, so nothing but the profile says what exists.
+            acquired: dict[str, dict[str, object]] = {
+                c.channel: {"label": c.label, "value": _mock_reading(c.key, ictx.elapsed_run_s, ictx.iteration)}
+                for c in profile.channels
+            }
         else:
             try:
                 acquired = daq.sample()
@@ -91,12 +130,23 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
                     phase_records=phases,
                     summary="no acquisition",
                 )
-            readings = {c.channel: acquired.get(c.channel, {}).get("value") for c in profile.channels}
+        named = _named(profile, acquired)
+        phase.set_detail(channels=str(len(named)))
 
-    # A channel the module did not return is absent from this record rather
-    # than zero: a gap in the series is the truth, and a zero is a reading.
-    values = {c.key: readings[c.channel] for c in profile.channels if readings[c.channel] is not None}
-    missing = [c.channel for c in profile.channels if readings[c.channel] is None]
+    names: dict[str, str] = ctx.extras.setdefault(_NAMES, {})
+    values = {}
+    for channel, (key, label) in named.items():
+        reading = acquired.get(channel, {}).get("value")
+        names[key] = label
+        # A channel the module did not return is absent from this record rather
+        # than zero: a gap in the series is the truth, and a zero is a reading.
+        if isinstance(reading, (int, float)):
+            values[key] = float(reading)
+
+    # Only the channels the profile asked for decide whether the sample was
+    # good. One it did not name is recorded when it arrives and not missed
+    # when it does not.
+    missing = [c.channel for c in profile.channels if c.key not in values]
 
     return IterationOutcome(
         success=not missing,
@@ -151,32 +201,39 @@ def _results(
     result: RunResult,
     profile: DaqmxCaptureProfile,
 ) -> list[dict[str, object]]:
-    """Samples and duration, then the span each channel covered."""
+    """Samples and duration, then the span every recorded channel covered.
+
+    The channels the profile named come first, in the order it named them, and
+    whatever else the module returned follows: a reading nobody asked for is
+    still worth the two rows, and it is not what the run was about.
+    """
     rows: list[dict[str, object]] = [
         make_result("samples", "Samples", result.total_iterations, format="int"),
         make_result("duration", "Duration", round(result.duration_s, 1), format="duration"),
     ]
-    for channel in profile.channels:
-        series = _series(outcomes, channel.key)
+    names: dict[str, str] = ctx.extras.get(_NAMES, {})
+    listed = [channel.key for channel in profile.channels]
+    for key in listed + sorted(name for name in names if name not in listed):
+        series = _series(outcomes, key)
         if not series:
             continue
-        name = channel.label or channel.channel
+        name = names.get(key, key)
         rows.append(
             make_result(
-                f"{channel.key}_mean",
+                f"{key}_mean",
                 f"{name} mean",
                 round(sum(series) / len(series), 6),
-                unit=channel.unit,
+                unit="V",
                 format="decimal",
                 precision=6,
             )
         )
         rows.append(
             make_result(
-                f"{channel.key}_span",
+                f"{key}_span",
                 f"{name} min to max",
                 f"{min(series):.6g} to {max(series):.6g}",
-                unit=channel.unit,
+                unit="V",
             )
         )
     return rows
