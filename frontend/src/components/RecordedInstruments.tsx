@@ -22,8 +22,12 @@ function show(value: number, precision: number | null): string {
  *
  * The summary is a file the run left behind, so this asks nothing of the
  * instruments and reads the same for a run finished months ago. Nothing here
- * knows an instrument: every row is a reading the provider published, under
- * the label the provider gave it.
+ * knows an instrument: every row is a reading the provider published.
+ *
+ * A reading is shown under the name its channel carried during the run and
+ * over the key it is recorded as. The name is the operator's and changes with
+ * the bench; the key is the same everywhere, and is what anyone reading the
+ * trace beside this table matches on.
  */
 export const RecordedInstruments: React.FC<RecordedInstrumentsProps> = ({ runId }) => {
   const record = useQuery({
@@ -80,12 +84,17 @@ export const RecordedInstruments: React.FC<RecordedInstrumentsProps> = ({ runId 
                   {instrument.readings.map((reading) => (
                     <tr key={reading.key}>
                       <td>
-                        {reading.group && (
-                          <span className="recorded-instruments__group">{reading.group}</span>
-                        )}
-                        {reading.label}
-                        {reading.unit && (
-                          <span className="recorded-instruments__unit">{reading.unit}</span>
+                        <span className="recorded-instruments__label">
+                          {reading.group && (
+                            <span className="recorded-instruments__group">{reading.group}</span>
+                          )}
+                          {reading.label}
+                          {reading.unit && (
+                            <span className="recorded-instruments__unit">{reading.unit}</span>
+                          )}
+                        </span>
+                        {reading.label !== reading.key && (
+                          <span className="recorded-instruments__key">{reading.key}</span>
                         )}
                       </td>
                       <td className="mono">{show(reading.min, reading.precision)}</td>

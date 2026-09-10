@@ -11,8 +11,14 @@ when the run ends: every reading's count, extremes, mean and last value.
 
 A reading is any number a provider publishes in ``state()``, found by walking
 it rather than by knowing any instrument, so a provider that declares nothing
-is still recorded. What a provider declares in ``readouts()`` supplies the
-label, unit and precision the summary carries.
+is still recorded. It is keyed by its path through that state, which is the
+same key for every bench and every run, whatever the instrument is wired to.
+
+What it is *called* is the operator's. A provider that lets a channel be named
+puts the name beside the readings it belongs to, and the name last seen there
+is what the summary displays, so a run made after renaming a channel reads as
+the bench is labelled rather than as the driver numbers it. Failing that, the
+label comes from ``readouts()``, and failing that the key stands in for itself.
 """
 
 from __future__ import annotations
@@ -66,6 +72,10 @@ class InstrumentRecorder:
         # the two overlapping.
         self._lock = threading.Lock()
         self._readings: dict[str, dict[str, _Series]] = {key: {} for key in self._keys}
+        # What each reading was called, last seen. Kept as the run goes rather
+        # than read at the end, so an instrument unplugged part-way is still
+        # summarised under the names it was recorded with.
+        self._labels: dict[str, dict[str, str]] = {key: {} for key in self._keys}
         self._ticks = 0
         self._began = 0.0
 
@@ -113,17 +123,19 @@ class InstrumentRecorder:
         at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         lines = []
         for key in self._keys:
-            values = self._read(key)
+            state = self._read(key)
+            values = numbers(state)
             if not values:
                 continue
             with self._lock:
                 for name, value in values.items():
                     self._readings[key].setdefault(name, _Series()).add(value)
+                self._labels[key].update(labels(state))
             lines.append({"at": at, "instrument": key, "t": elapsed, "values": values})
         return lines
 
-    def _read(self, key: str) -> dict[str, float]:
-        """Every number one instrument publishes, or nothing if it did not answer.
+    def _read(self, key: str) -> dict[str, Any]:
+        """One instrument's state, or nothing if it did not answer.
 
         An instrument may be unplugged mid-run, and reading it is incidental to
         the test, so one that stops answering stops contributing rather than
@@ -133,7 +145,7 @@ class InstrumentRecorder:
         if provider is None:
             return {}
         try:
-            return numbers(current_state(provider))
+            return current_state(provider)
         except Exception:
             log.warning("instrument %s did not answer while recording", key, exc_info=True)
             return {}
@@ -153,6 +165,7 @@ class InstrumentRecorder:
         declared = _declared(provider)
         with self._lock:
             recorded = dict(self._readings[key])
+            named = dict(self._labels[key])
         readings = []
         for name in sorted(recorded):
             series = recorded[name]
@@ -160,7 +173,7 @@ class InstrumentRecorder:
             readings.append(
                 {
                     "key": name,
-                    "label": meta.get("label") or name,
+                    "label": named.get(name) or meta.get("label") or name,
                     "unit": meta.get("unit", ""),
                     "precision": meta.get("precision"),
                     "group": meta.get("group", ""),
@@ -219,6 +232,30 @@ def numbers(state: Mapping[str, Any], prefix: str = "") -> dict[str, float]:
             found.update(numbers(value, f"{path}."))
         elif isinstance(value, (int, float)):
             found[path] = float(value)
+    return found
+
+
+def labels(state: Mapping[str, Any], prefix: str = "") -> dict[str, str]:
+    """What each number in a provider's state is called, where it says so.
+
+    A provider that lets a channel be named publishes the name beside that
+    channel's readings, which is what carries an operator's rename through to
+    everything recorded from it. Where one name covers several numbers, the
+    leaf keeps them apart: a probe named CLK reads as `CLK frequency` and
+    `CLK duty` rather than twice as `CLK`.
+    """
+    found: dict[str, str] = {}
+    for key, value in state.items():
+        if not isinstance(value, Mapping):
+            continue
+        path = f"{prefix}{key}"
+        found.update(labels(value, f"{path}."))
+        name = value.get("label")
+        if not isinstance(name, str) or not name:
+            continue
+        leaves = [leaf for leaf, number in value.items() if isinstance(number, (int, float))]
+        for leaf in leaves:
+            found[f"{path}.{leaf}"] = name if len(leaves) == 1 else f"{name} {leaf}"
     return found
 
 

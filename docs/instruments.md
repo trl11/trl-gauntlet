@@ -571,9 +571,19 @@ one.
 
 A reading is any number in a provider's `state()`, found by walking it rather
 than by knowing any instrument, so a provider that declares no `readouts()` is
-recorded all the same — its readings are keyed by their dotted path instead of
-labelled. A boolean is recorded as 0 or 1, which is what puts a supply's output
-in the trace beside the voltage it explains.
+recorded all the same. A boolean is recorded as 0 or 1, which is what puts a
+supply's output in the trace beside the voltage it explains.
+
+A reading's key is its path through that state — `channels.ai0.value` — and it
+is the same key on every bench and in every run, which is what lets two runs be
+compared. What it is *called* is the operator's: a provider that lets a channel
+be named publishes that name beside the channel's readings, and the name last
+seen there is what the summary displays and the run page shows above the key.
+Rename an input to `Rail 3V3` and every run recorded after it reads that way,
+while the key it is filed under does not move. Failing a name in `state()` the
+label comes from `readouts()`, and failing that the key stands in for itself.
+Where one name covers several numbers — a logic probe's level and its frequency
+— the leaf keeps them apart, as `CLK frequency`.
 
 Reading an instrument this way asks nothing of it that the operator's panel
 does not already ask while a run is in flight, which is why an instrument the

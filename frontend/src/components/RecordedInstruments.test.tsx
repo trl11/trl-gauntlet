@@ -77,6 +77,12 @@ describe("RecordedInstruments", () => {
     expect(row).toHaveTextContent("42");
   });
 
+  it("shows a reading's key beneath the name its channel carried", async () => {
+    renderPanel();
+    expect(await screen.findByText("Voltage")).toBeInTheDocument();
+    expect(screen.getByText("voltage")).toBeInTheDocument();
+  });
+
   it("says how often the bench was read", async () => {
     renderPanel();
     expect(await screen.findByText(/Read every 1s, 42 times/)).toBeInTheDocument();

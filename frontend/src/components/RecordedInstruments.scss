@@ -81,6 +81,17 @@
     }
   }
 
+  &__label {
+    display: block;
+  }
+
+  &__key {
+    display: block;
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+  }
+
   &__group {
     color: $trl-gray;
 
