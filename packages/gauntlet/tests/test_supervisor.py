@@ -81,6 +81,25 @@ def wait_for_status(client: TestClient, run_id: str, wanted: set[str], timeout_s
     raise AssertionError(f"run {run_id} never reached {wanted}")
 
 
+def wait_for_output(client: TestClient, run_id: str, timeout_s: float = 10.0) -> None:
+    """Block until the suite has written its first line.
+
+    A graceful stop is a signal, and one delivered before the suite installed
+    its handler kills it instead — bash's default for SIGUSR1 is to terminate.
+    A run reads as `running` from the moment its process is spawned, which is
+    earlier than that, so a test that stops one waits for the suite itself to
+    say it is up. An operator cannot lose this race: the run page has to render
+    before there is a button to press.
+    """
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        log = client.get(f"/api/runs/{run_id}/artifacts/test.log")
+        if log.status_code == 200 and log.text.strip():
+            return
+        time.sleep(0.02)
+    raise AssertionError(f"{run_id} wrote nothing within {timeout_s:g}s")
+
+
 def start(client: TestClient, suite: str = "slow") -> str:
     started = client.post("/api/runs", json={"suite": suite})
     assert started.status_code == 201, started.text
@@ -106,14 +125,16 @@ class _OwnableStub:
 
     name = "camera"
 
-    def __init__(self) -> None:
+    def __init__(self, *, opens: bool = True, opening_s: float = 0.0) -> None:
         self._owned = False
+        self._opens = opens
+        self._opening_s = opening_s
 
     def available(self) -> bool:
         return True
 
     def describe(self) -> dict[str, str]:
-        return {"driver": "test"}
+        return {"driver": "test", "unavailable_reason": "" if self._opens else "no frame arrived"}
 
     def instance_id(self) -> str:
         return "camera0"
@@ -122,8 +143,9 @@ class _OwnableStub:
         return self._owned
 
     def own(self) -> bool:
-        self._owned = True
-        return True
+        time.sleep(self._opening_s)
+        self._owned = self._opens
+        return self._owned
 
     def disown(self) -> None:
         self._owned = False
@@ -156,6 +178,7 @@ class TestStop:
     def test_a_stopped_run_still_writes_its_verdict(self, app_with) -> None:
         with app_with(slow=_GRACEFUL) as client:
             run_id = start(client)
+            wait_for_output(client, run_id)
             assert client.post(f"/api/runs/{run_id}/stop").json() == {"run_id": run_id, "status": "stopping"}
             finished = wait_for_status(client, run_id, {"passed", "failed", "error", "aborted"})
             assert finished["status"] == "passed"
@@ -271,6 +294,88 @@ class TestRunsThatNeverStart:
 
             assert response.status_code == 422
             assert "laser_cutter" in response.json()["detail"]
+
+    def test_an_instrument_that_will_not_open_errors_the_run(self, make_suite, settings) -> None:
+        """The bench has one, and it refused: that is a run that failed, not a bad request."""
+        make_suite("needy", requires=["camera"])
+
+        with TestClient(create_app(settings)) as client:
+            client.app.state.capabilities.register(_OwnableStub(opens=False))
+            started = client.post("/api/runs", json={"suite": "needy"})
+
+            assert started.status_code == 201
+            run_id = started.json()["run_id"]
+            finished = wait_for_status(client, run_id, {"error", "aborted", "failed", "passed"})
+            assert finished["status"] == "error"
+            assert "camera could not be opened: no frame arrived" in finished["fail_reason"]
+
+    def test_a_run_that_never_opened_its_instruments_reaches_history(self, make_suite, settings) -> None:
+        """The row was written while the run still said `starting`."""
+        make_suite("needy", requires=["camera"])
+
+        with TestClient(create_app(settings)) as client:
+            client.app.state.capabilities.register(_OwnableStub(opens=False))
+            run_id = client.post("/api/runs", json={"suite": "needy"}).json()["run_id"]
+            wait_for_status(client, run_id, {"error", "aborted", "failed", "passed"})
+
+            listed = {row["run_id"]: row for row in client.get("/api/runs").json()["runs"]}
+            assert listed[run_id]["status"] == "error"
+
+    def test_the_wait_for_an_instrument_is_said_in_the_run_log(self, make_suite, settings) -> None:
+        """The one stretch of a run with nothing else to show for itself."""
+        make_suite("needy", requires=["camera"])
+
+        with TestClient(create_app(settings)) as client:
+            client.app.state.capabilities.register(_OwnableStub(opens=False))
+            run_id = client.post("/api/runs", json={"suite": "needy"}).json()["run_id"]
+            wait_for_status(client, run_id, {"error", "aborted", "failed", "passed"})
+
+            written = client.get(f"/api/runs/{run_id}/artifacts/test.log").text
+            assert "opening camera" in written
+            assert "no frame arrived" in written
+
+    def test_a_run_can_be_stopped_while_its_instruments_are_opening(self, make_suite, settings) -> None:
+        """A `starting` run the operator cannot cancel is the same complaint again."""
+        make_suite("needy", requires=["camera"])
+
+        with TestClient(create_app(settings)) as client:
+            client.app.state.capabilities.register(_OwnableStub(opening_s=2.0))
+            run_id = client.post("/api/runs", json={"suite": "needy"}).json()["run_id"]
+
+            assert client.post(f"/api/runs/{run_id}/stop").status_code == 200
+            finished = wait_for_status(client, run_id, {"error", "aborted", "failed", "passed"})
+            assert finished["status"] == "aborted"
+            assert finished["fail_reason"] == "stopped before the suite was started"
+            # The operator waits out the driver's own timeout, so the log says why.
+            written = client.get(f"/api/runs/{run_id}/artifacts/test.log").text
+            assert "waiting for the instruments to finish opening" in written
+
+    def test_stopping_before_the_spawn_still_releases_the_instrument(self, make_suite, settings) -> None:
+        make_suite("needy", requires=["camera"])
+
+        with TestClient(create_app(settings)) as client:
+            camera = _OwnableStub(opening_s=2.0)
+            client.app.state.capabilities.register(camera)
+            run_id = client.post("/api/runs", json={"suite": "needy"}).json()["run_id"]
+            client.post(f"/api/runs/{run_id}/stop")
+            wait_for_status(client, run_id, {"error", "aborted", "failed", "passed"})
+
+            assert camera.owned() is False
+
+    def test_the_run_is_handed_back_before_its_instruments_open(self, make_suite, settings) -> None:
+        """Opening is where a start waits, so it happens with the run already created."""
+        make_suite("needy", requires=["camera"])
+
+        with TestClient(create_app(settings)) as client:
+            client.app.state.capabilities.register(_OwnableStub(opening_s=2.0))
+            began = time.monotonic()
+            started = client.post("/api/runs", json={"suite": "needy"})
+            answered_in = time.monotonic() - began
+
+            assert started.status_code == 201
+            assert started.json()["status"] == "starting"
+            assert answered_in < 1.0
+            wait_for_status(client, started.json()["run_id"], {"error", "aborted", "failed", "passed"})
 
 
 class TestSignallingAProcessThatHasGone:

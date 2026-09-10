@@ -38,13 +38,28 @@ MEMORY_MMAP = 1
 # for the next frame to be captured.
 _BACKLOG_POLL_S = 0.002
 
-# How long a device is given to deliver its first frame after VIDIOC_STREAMON.
+# How long a device is given to reach its frame rate after VIDIOC_STREAMON.
 # The ioctl returns as soon as the driver has queued its URBs, which is well
 # before the far end is sending: a 4K GMSL head measured on the bench usually
 # takes a fifth of a second and occasionally twenty. Waiting here rather than
 # in the caller is what stops the first samples of a run timing out against a
 # stream that had not started.
 _STARTUP_TIMEOUT_S = 30.0
+
+# How many frames in a row must arrive promptly before a stream counts as
+# running, and the longest gap between two of them that still counts.
+#
+# A first frame is not the rate. Measured over the bench's runs, this 4K GMSL
+# head delivers its first handful of frames half a second to a second and a
+# half apart and only reaches 19fps two to four seconds in, so a caller that
+# began capturing on the first frame spent its early samples timing out and
+# failed the run. The gap is not derived from the rate the device advertises,
+# because this head advertises 30fps and delivers 19: 0.25s sits a factor of
+# five above the interval of a stream at rate and a factor of two below the
+# gaps of one still coming up. A camera slower than 4fps would never settle,
+# and would need this raised rather than the wait removed.
+_SETTLE_FRAMES = 3
+_SETTLE_GAP_S = 0.25
 
 # The formats this module can turn into a file. YUYV is packed luma and
 # chroma that has to be converted; MJPEG is already a JPEG and is written out
@@ -313,12 +328,13 @@ class V4l2Camera:
         return dict(self._format)
 
     def start(self) -> None:
-        """Map the driver's buffers, queue them all, and stream a first frame.
+        """Map the driver's buffers, queue them all, and stream up to the rate.
 
-        Returning only once a frame has arrived is what makes `start()` mean
-        the device is streaming. VIDIOC_STREAMON alone means the driver is
-        ready, not the far end, and a caller that begins capturing on that
-        races a device still coming up.
+        Returning only once frames arrive back to back is what makes `start()`
+        mean the device is streaming. VIDIOC_STREAMON alone means the driver is
+        ready, not the far end, and one frame only means the far end has begun:
+        a caller that begins capturing on either races a device still coming
+        up.
         """
         if self._streaming:
             return
@@ -347,10 +363,10 @@ class V4l2Camera:
         self._ioctl(VIDIOC_STREAMON, ctypes.c_uint32(BUF_TYPE_VIDEO_CAPTURE))
         self._streaming = True
         try:
-            self.grab(timeout_s=_STARTUP_TIMEOUT_S)
+            self._settle()
         except V4l2Timeout as exc:
             self.stop()
-            raise V4l2Error(f"{self._path}: streaming started but no frame arrived: {exc}") from exc
+            raise V4l2Error(f"{self._path}: streaming started but never reached its rate: {exc}") from exc
 
     def stop(self) -> None:
         """Stop streaming and release the mapped buffers."""
@@ -484,6 +500,37 @@ class V4l2Camera:
             "frames": float(counted),
             "mbps": round(total_bytes * 8 / elapsed / 1_000_000, 2) if elapsed > 0 else 0.0,
         }
+
+    def _settle(self) -> None:
+        """Wait until `_SETTLE_FRAMES` frames in a row arrive within the gap.
+
+        Buffers are recycled rather than grabbed, because only their arrival is
+        of interest here and copying a 4K frame out of each one to discard it
+        would cost more than the wait.
+
+        A late frame resets the count instead of failing: a stream coming up
+        slowly is exactly what this waits out. The error and empty buffers a
+        cold start flushes are skipped without counting either way — they come
+        back at once and say nothing about the rate.
+        """
+        fd = self._require_fd()
+        deadline = time.monotonic() + _STARTUP_TIMEOUT_S
+        prompt = 0
+        while prompt < _SETTLE_FRAMES:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise V4l2Timeout(
+                    f"{self._path}: fewer than {_SETTLE_FRAMES} frames in a row arrived "
+                    f"within {_SETTLE_GAP_S:g}s of each other in {_STARTUP_TIMEOUT_S:g}s"
+                )
+            recycled = self._recycle(fd, time.monotonic() + min(_SETTLE_GAP_S, remaining))
+            if recycled is None:
+                prompt = 0
+                continue
+            flags, _sequence, bytesused = recycled
+            if flags & BUF_FLAG_ERROR or not bytesused:
+                continue
+            prompt += 1
 
     def _ready(self, fd: int, timeout_s: float) -> bool:
         """Is a buffer waiting right now."""

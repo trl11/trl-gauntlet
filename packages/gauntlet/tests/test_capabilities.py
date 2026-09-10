@@ -30,10 +30,14 @@ class _Provider:
 class _Ownable(_Provider):
     """An ownable provider whose `own()` the test can make fail."""
 
-    def __init__(self, name: str, *, opens: bool = True) -> None:
+    def __init__(self, name: str, *, opens: bool = True, reason: str = "") -> None:
         super().__init__(name)
         self._opens = opens
         self._owned = False
+        self._reason = reason
+
+    def describe(self) -> dict[str, str]:
+        return {**super().describe(), "unavailable_reason": self._reason}
 
     def owned(self) -> bool:
         return self._owned
@@ -267,6 +271,19 @@ class TestClaimForRun:
         registry.register(_Ownable("camera", opens=False))
         with pytest.raises(CapabilityError, match="camera could not be opened"):
             registry.claim_for_run(["camera"])
+
+    def test_a_failed_claim_carries_the_driver_reason(self) -> None:
+        registry = CapabilityRegistry()
+        registry.register(_Ownable("camera", opens=False, reason="no frame arrived"))
+        with pytest.raises(CapabilityError, match="could not be opened: no frame arrived"):
+            registry.claim_for_run(["camera"])
+
+    def test_a_driver_with_no_reason_is_reported_without_one(self) -> None:
+        registry = CapabilityRegistry()
+        registry.register(_Ownable("camera", opens=False))
+        with pytest.raises(CapabilityError) as caught:
+            registry.claim_for_run(["camera"])
+        assert str(caught.value).endswith("could not be opened")
 
     def test_a_failed_claim_releases_what_it_already_owned(self) -> None:
         registry = CapabilityRegistry()

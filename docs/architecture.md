@@ -71,18 +71,46 @@ unit.
 1. The supervisor resolves the suite from the catalog and the profile from the
    suite's profile directory and the user profile directory.
 2. Every entry in the suite's `requires:` list is checked against the
-   capability registry. An unsatisfiable capability rejects the run.
+   capability registry. A capability no instrument on the bench provides
+   rejects the run. This asks what is registered and touches no device.
 3. Gauntlet creates `<runs>/<suite>/<run-id>/` and passes it as
    `GAUNTLET_RUN_DIR`.
 4. Argv is assembled from `exec.command`, `exec.args`, and the declared
    overrides supplied with the request.
-5. The process is spawned. Two threads run: one reads stdout into `test.log`
+5. The run is handed back to the caller here, as `starting`.
+6. Whichever required instruments are not already owned are opened, on a worker
+   thread. One that will not open ends the run as an `error`, and nothing is
+   spawned.
+7. The process is spawned. Two threads run: one reads stdout into `test.log`
    and the event bus, one tails `metrics.jsonl`.
-6. On exit, `verdict.json` determines the outcome, the event bus publishes it,
+8. On exit, `verdict.json` determines the outcome, the event bus publishes it,
    and the run is written to the index.
 
-An unknown suite, a missing profile, an undeclared override, or an
-unsatisfiable capability rejects the request before anything is spawned.
+An unknown suite, a missing profile, an undeclared override, or a capability
+the bench does not provide rejects the request, and such a rejection creates no
+directory and no history entry.
+
+An instrument that is present and will not open is not a rejection. Opening one
+is where a start waits — the bench's camera takes seconds to reach its frame
+rate and up to thirty to give up — so it happens after step 5, with the run
+already created and visible. The operator watches it fail on the run's own page
+instead of waiting in front of a start form, and the reason the driver gave is
+the run's `fail_reason`. A run that ends this way has a directory and a history
+row but no `verdict.json`, which is the same shape as a suite that failed to
+spawn.
+
+Step 6 is the only part of a run with nothing else to show for itself — no
+process has printed anything yet — so it says what it is opening in the run's
+log, and writes those lines to `test.log` as well as publishing them, because
+the event bus is memory a finished run eventually loses.
+
+Stopping during step 6 is accepted rather than refused, but it cannot cut the
+wait short: a driver's open is blocking and interrupting it part-way would
+leave a device owned by nobody. The run is marked, the log says the stop was
+seen, and the claim gives up as soon as it returns — so the operator still
+waits out the driver's own timeout, half a minute in the camera's case. A stop
+here is a cancellation, not a graceful stop: no suite has run, so there is no
+verdict to ask for, and `stop` and `abort` mean the same thing until step 7.
 
 ## Packages
 
