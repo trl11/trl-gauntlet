@@ -221,6 +221,7 @@ export interface Campaign {
   key: string;
   member_count: number;
   members?: CampaignMember[];
+  profile: string;
   suites: string;
   suites_dir: string;
   title: string;

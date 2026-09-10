@@ -62,11 +62,21 @@ class CampaignManifest(BaseModel):
         default="./suites",
         description="Directory holding this campaign's suites, added to the suite discovery roots.",
     )
+    profile: str = Field(
+        default="",
+        max_length=120,
+        description="Profile every member falls back to when it names none of its own.",
+    )
     members: list[CampaignMember] = Field(default_factory=list)
 
     def member(self, suite: str) -> CampaignMember | None:
         """Look up a member entry by suite key."""
         return next((m for m in self.members if m.suite == suite), None)
+
+    def profile_for(self, suite: str) -> str:
+        """The profile a run of this suite starts with when the caller names none."""
+        member = self.member(suite)
+        return (member.profile if member is not None else "") or self.profile
 
 
 class LoadedCampaign(BaseModel):

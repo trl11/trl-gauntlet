@@ -129,6 +129,16 @@ class TestMembership:
         assert member["fixture"] == "1-1"
         assert member["profile"] == "smoke.yaml"
 
+    def test_a_member_reports_the_profile_it_would_run_with(self, client, make_campaign, make_suite):
+        campaign = make_campaign("demo_campaign", profile="standard.yaml")
+        make_suite("beta", root=campaign.suites_dir)
+
+        client.post("/api/campaigns/rescan")
+
+        member = _members(client)[0]
+        assert member["declared"] is False
+        assert member["profile"] == "standard.yaml"
+
 
 class TestMemberPayload:
     def test_a_member_carries_no_run_history(self, client, make_campaign, make_suite, add_run):
@@ -171,6 +181,44 @@ class TestMemberRuns:
 
         assert response.status_code == 201
         assert response.json()["suite"] == "beta"
+        assert response.json()["profile"] == "smoke.yaml"
+
+    def test_a_member_naming_no_profile_falls_back_to_the_campaign(self, client, make_campaign, make_suite):
+        campaign = make_campaign(
+            "demo_campaign",
+            profile="smoke.yaml",
+            members=[{"suite": "beta"}],
+        )
+        make_suite("beta", root=campaign.suites_dir)
+        client.post("/api/campaigns/rescan")
+
+        response = client.post("/api/campaigns/demo_campaign/members/beta/run", json={})
+
+        assert response.status_code == 201
+        assert response.json()["profile"] == "smoke.yaml"
+
+    def test_an_undeclared_member_falls_back_to_the_campaign(self, client, make_campaign, make_suite):
+        campaign = make_campaign("demo_campaign", profile="smoke.yaml")
+        make_suite("beta", root=campaign.suites_dir)
+        client.post("/api/campaigns/rescan")
+
+        response = client.post("/api/campaigns/demo_campaign/members/beta/run", json={})
+
+        assert response.status_code == 201
+        assert response.json()["profile"] == "smoke.yaml"
+
+    def test_a_member_profile_beats_the_campaign(self, client, make_campaign, make_suite):
+        campaign = make_campaign(
+            "demo_campaign",
+            profile="absent.yaml",
+            members=[{"suite": "beta", "profile": "smoke.yaml"}],
+        )
+        make_suite("beta", root=campaign.suites_dir)
+        client.post("/api/campaigns/rescan")
+
+        response = client.post("/api/campaigns/demo_campaign/members/beta/run", json={})
+
+        assert response.status_code == 201
         assert response.json()["profile"] == "smoke.yaml"
 
     def test_a_non_member_suite_is_a_404(self, client, make_campaign, make_suite):
