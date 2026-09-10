@@ -239,12 +239,27 @@ def _series(outcomes: list[IterationOutcome], key: str) -> list[float]:
     return [value for outcome in outcomes if isinstance(value := outcome.metrics.get("daq", {}).get(key), (int, float))]
 
 
+def _moved(outcomes: list[IterationOutcome], key: str) -> bool:
+    """Did this channel's reading ever change, anywhere in the run.
+
+    Across the run for a reading, and inside the window for a capture. The
+    distinction matters: a capture's reading is the mean of thousands of
+    samples, which averages the converter's noise away and can sit at the same
+    microvolt all run while the signal under it moves. Peak to peak is what
+    says the channel is alive there.
+    """
+    series = _series(outcomes, key)
+    if len(series) > 1 and min(series) != max(series):
+        return True
+    return any(spread > 0 for spread in _series(outcomes, f"{key}_pp"))
+
+
 def _evaluate(outcomes: list[IterationOutcome], profile: DaqmxCaptureProfile) -> tuple[bool, str] | None:
     """A capture is good when every channel read, read in range, and moved.
 
     The last of those is what a 24-bit converter makes possible: a real input
-    carries at least converter noise, so a series identical to the microvolt
-    across the whole run is not a quiet signal but an input with nothing on it.
+    carries at least converter noise, so a channel that never moves at all is
+    not a quiet signal but an input with nothing on it.
     """
     if not outcomes:
         return False, "no samples collected"
@@ -257,7 +272,7 @@ def _evaluate(outcomes: list[IterationOutcome], profile: DaqmxCaptureProfile) ->
     frozen = [
         channel.key
         for channel in profile.channels
-        if len(series := _series(outcomes, channel.key)) > 1 and min(series) == max(series)
+        if len(_series(outcomes, channel.key)) > 1 and not _moved(outcomes, channel.key)
     ]
     if frozen:
         return False, f"{', '.join(frozen)} never changed across the run; the input is probably unwired"

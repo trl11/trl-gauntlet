@@ -290,6 +290,24 @@ class TestVerdict:
         assert passed is False
         assert "shunt never changed" in reason
 
+    def test_a_capture_whose_mean_holds_still_is_alive_if_the_signal_moved(self) -> None:
+        # A capture's reading is the mean of thousands of samples, so it can
+        # sit at the same microvolt all run while the signal under it swings.
+        outcomes = [
+            sample(rail=0.5, rail_pp=0.0001, shunt=0.1, shunt_pp=0.0001),
+            sample(rail=0.5, rail_pp=0.0001, shunt=0.11, shunt_pp=0.0001),
+        ]
+        assert _evaluate(outcomes, self.profile()) == (True, "")
+
+    def test_a_capture_flat_to_the_last_sample_is_still_unwired(self) -> None:
+        outcomes = [
+            sample(rail=0.5, rail_pp=0.0, shunt=0.1, shunt_pp=0.0001),
+            sample(rail=0.5, rail_pp=0.0, shunt=0.11, shunt_pp=0.0001),
+        ]
+        passed, reason = _evaluate(outcomes, self.profile())
+        assert passed is False
+        assert "rail never changed" in reason
+
     def test_one_sample_is_not_called_unwired(self) -> None:
         # There is nothing to compare it with, so a single reading says only
         # that the channel answered.
