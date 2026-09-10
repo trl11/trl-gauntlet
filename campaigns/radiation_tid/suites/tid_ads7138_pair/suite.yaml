@@ -5,10 +5,12 @@ title: ADS7138 Pair, Beam Against Reference
 category: radiation
 description: >
   Total ionising dose characterisation of an ADS7138QRTERQ1 against an
-  identical part outside the beam. The two are wired channel to channel, so
-  each can drive the harness while the other witnesses it as digital inputs
-  and again as analog voltages. Only one is dosed, so a figure that moves on
-  it and not on the reference is the dose rather than the room.
+  identical part outside the beam, wired to it channel for channel. CH0 to
+  CH7 all take the same turns — outputs while their part drives, analog
+  inputs while it listens — so an iteration drives a byte from each part in
+  turn, has the other read it as logic and measure it in millivolts, then
+  checks each part's noise, calibration and status. Only one is dosed, so a
+  figure that moves on it and not on the reference is the dose.
 
 setup: |
   Two Adafruit ADS7128 breakouts, each on its own CP2112 USB-to-I2C bridge.
@@ -44,7 +46,35 @@ setup: |
 
   A wire that lands on a different channel at the far end is bench wiring, not
   a device setting: name where each channel arrives in `channel_map`. The
-  default is the harness on this bench, whose channels 2 and 3 cross.
+  default is straight through, which is how this bench is wired.
+
+  No channel has a fixed job: CH0 to CH7 are all driven and all measured, in
+  both directions. CH0 has one extra duty, being the wire held at a rail while
+  each part measures its own noise, named once so one iteration's spread is
+  comparable with the next.
+
+  An iteration is five phases:
+
+    link       drives the iteration's byte from the part in the beam, reads
+               the reference's digital inputs, then does the reverse. A
+               mismatch names the channel at the driving end.
+    drive      the reference converts all eight wires the beam part holds low,
+               then high. The worst of each is kept, so drive strength is
+               watched as it sags, not only once it fails a logic threshold.
+    sense      the same the other way: the beam part converts what the
+               reference drives, which is its input path and ADC against a
+               source that is not dosed.
+    noise_*    each part converts CH0 repeatedly while the other holds it at a
+               rail, then sweeps its own oversampling. What spread is left is
+               the measuring part's own.
+    health     calibrates each part, reads its config registers back, and
+               reads SYSTEM_STATUS.
+
+  Which bytes `link` drives is `patterns`. A walking one finds an output that
+  cannot rise, a walking zero one that cannot fall, and the alternating pair
+  puts every channel beside a neighbour at the opposite level, which is what
+  finds a short between two of them. `all` runs the lot and is what a dose
+  session wants; the narrower sets chase a fault it has already found.
 
 exec:
   command: ["python", "-m", "suite.cli"]
@@ -94,3 +124,11 @@ overrides:
     label: Driver
     choices: [real, mock]
     help: mock drives a register model of both parts and contacts no instrument.
+  - name: patterns
+    flag: --patterns
+    type: string
+    label: Patterns
+    choices: [all, alternating, rails, walking, walking_one, walking_zero]
+    help: >
+      Which bytes the link check drives. all is every one of them; the
+      narrower sets chase a fault it has already found.
