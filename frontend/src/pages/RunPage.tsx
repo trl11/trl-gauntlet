@@ -26,6 +26,7 @@ import IterationMap from "@components/IterationMap";
 import IterationTable from "@components/IterationTable";
 import LogStream from "@components/LogStream";
 import MetricsChart from "@components/MetricsChart";
+import RecordedInstruments from "@components/RecordedInstruments";
 import NotesPanel from "@components/NotesPanel";
 import PageHeader from "@components/PageHeader";
 import SnapshotGallery from "@components/SnapshotGallery";
@@ -49,12 +50,16 @@ const TABS = [
   "overview",
   "log",
   "metrics",
+  "instruments",
   "iterations",
   "snapshots",
   "traces",
   "artifacts",
   "notes",
 ] as const;
+
+/** The summary a run's recorded instruments leave behind. */
+const RECORD_FILE = "instruments.json";
 
 type Tab = (typeof TABS)[number];
 
@@ -228,6 +233,10 @@ export const RunPage: React.FC = () => {
   // neither. Nothing here asks which suite ran or which instrument it drove:
   // the files decide.
   const empty: Partial<Record<Tab, boolean>> = {
+    // A run records only what its suite drives and what the operator added, so
+    // the summary on disk is what decides whether there is a tab. It is
+    // written when the run ends, which is why a live run has none.
+    instruments: !files.some((file) => file.path === RECORD_FILE),
     snapshots: snapshots.length === 0,
     traces: traces.length === 0,
   };
@@ -395,6 +404,7 @@ export const RunPage: React.FC = () => {
             defaultMetrics={defaultMetrics}
           />
         )}
+        {active === "instruments" && <RecordedInstruments key={runId} runId={runId} />}
         {active === "iterations" && (
           <IterationTable
             key={runId}

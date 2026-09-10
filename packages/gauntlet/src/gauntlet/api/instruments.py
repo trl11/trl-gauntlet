@@ -19,8 +19,7 @@ from gauntlet.capabilities import (
     CommandableCapability,
     CommandRejected,
     PresentableCapability,
-    ReadableCapability,
-    StatefulCapability,
+    current_state,
 )
 
 router = APIRouter()
@@ -71,7 +70,7 @@ async def post_command(request: Request, key: str, body: CommandBody) -> dict[st
         result = provider.command(body.command, dict(body.args))
     except CommandRejected as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {"state": _state(provider), "result": dict(result)}
+    return {"state": current_state(provider), "result": dict(result)}
 
 
 def _commands(provider: CapabilityProvider) -> list[dict[str, Any]]:
@@ -102,7 +101,7 @@ def _describe(
         "unavailable_reason": "" if available else detail.get("unavailable_reason", ""),
         "instance_id": provider.instance_id(),
         "description": detail.get("description") or detail.get("model") or "",
-        "state": _state(provider),
+        "state": current_state(provider),
         "commands": _commands(provider),
         **_presentation(provider),
     }
@@ -156,12 +155,3 @@ def _snapshot(request: Request) -> list[dict[str, Any]]:
     registry = request.app.state.capabilities
     holder = _holder(request)
     return [_describe(key, registry.provider(key), holder) for key in registry.instance_keys()]
-
-
-def _state(provider: CapabilityProvider) -> dict[str, Any]:
-    """Structured state, falling back to a plain read for providers without it."""
-    if isinstance(provider, StatefulCapability):
-        return dict(provider.state())
-    if isinstance(provider, ReadableCapability):
-        return dict(provider.read())
-    return {}

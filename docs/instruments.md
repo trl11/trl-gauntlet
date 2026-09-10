@@ -549,6 +549,41 @@ the output by hand mid-run would cut across the test. A run taking the
 instrument also leaves the lock shut behind it, so nothing goes live again
 untouched. The instrument's other commands stay drivable.
 
+## What a run records
+
+Every run records the instruments its suite requires, and the operator may add
+any other the bench has from the start form. Recording is Gauntlet's: nothing
+about it reaches the suite, no manifest declares it, and a run reads the same
+whether or not anything was recorded.
+
+Two files land in the run directory. `instruments.jsonl` is the trace, a line
+per instrument per second:
+
+```json
+{"at": "2026-09-10T18:12:03Z", "instrument": "psu", "t": 12.0,
+ "values": {"current": 0.42, "output_enabled": 1.0, "voltage": 5.01}}
+```
+
+`instruments.json` is the summary, written when the run ends: every reading's
+count, extremes, mean and last value, under the label, unit and precision its
+provider declared. The run page grows an **Instruments** tab when a run has
+one.
+
+A reading is any number in a provider's `state()`, found by walking it rather
+than by knowing any instrument, so a provider that declares no `readouts()` is
+recorded all the same — its readings are keyed by their dotted path instead of
+labelled. A boolean is recorded as 0 or 1, which is what puts a supply's output
+in the trace beside the voltage it explains.
+
+Reading an instrument this way asks nothing of it that the operator's panel
+does not already ask while a run is in flight, which is why an instrument the
+suite is driving is recorded alongside the rest. An instrument that stops
+answering — unplugged mid-run — stops contributing and ends nothing.
+
+An extra instrument is named by its instance key, the same key the panel shows,
+and one this bench does not have or cannot use is refused when the run is
+started rather than dropped quietly.
+
 ## Endpoints
 
 | Endpoint | For |

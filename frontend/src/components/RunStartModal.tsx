@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Input, Modal, Select, Spinner } from "@trl11/components/ui";
+import { Button, Checkbox, Input, Modal, Select, Spinner } from "@trl11/components/ui";
 import { useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router";
 
-import { getProfile, listUnits, startRun } from "@api/client";
-import type { Suite } from "@api/types";
+import { getProfile, listInstruments, listUnits, startRun } from "@api/client";
+import type { Instrument, Suite } from "@api/types";
 import OverrideForm from "@components/OverrideForm";
 import {
   initialOverrideValues,
@@ -16,6 +16,18 @@ import {
 } from "../utils/overrides";
 
 import "./RunStartModal.scss";
+
+/**
+ * Is this instrument one the suite already drives?
+ *
+ * A requirement is an instance key where the bench binds roles and a bare
+ * capability name where it does not, so an instrument matches either the whole
+ * key or the capability half of it.
+ */
+function isRequired(instrument: Instrument, requires: string[]): boolean {
+  const capability = instrument.name.split(".")[0];
+  return requires.some((entry) => entry === instrument.name || entry === capability);
+}
 
 /** Props for {@link RunStartModal}. */
 export interface RunStartModalProps {
@@ -29,7 +41,8 @@ export interface RunStartModalProps {
  * Collects the inputs for one run and posts it.
  *
  * Which fields appear comes entirely from the manifest: the profile list, the
- * `supports` flags, and the declared overrides.
+ * `supports` flags, and the declared overrides. What can be recorded comes
+ * from the bench: every instrument registered on it, whatever it is.
  */
 export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, onClose, suite }) => {
   const fieldId = useId();
@@ -47,6 +60,17 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
   const [values, setValues] = useState<OverrideValues>(() =>
     initialOverrideValues(suite.overrides)
   );
+  const [watched, setWatched] = useState<string[]>([]);
+
+  // Everything the bench has, so the operator can record an instrument this
+  // suite does not drive — the supply feeding the unit, the chamber it sits
+  // in. What the suite requires is recorded whether or not it is asked for.
+  const instruments = useQuery({
+    queryKey: ["instruments"],
+    queryFn: listInstruments,
+  });
+  const available = (instruments.data?.instruments ?? []).filter((entry) => entry.available);
+  const optional = available.filter((entry) => !isRequired(entry, suite.requires));
 
   // The selected profile holds the values the run would use, so the override
   // controls are seeded from it and reseeded whenever the profile changes.
@@ -83,6 +107,7 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
         target: suite.supports.target ? target.trim() || null : null,
         unit_serial: suite.supports.unit_serial ? unitSerial.trim() || null : null,
         overrides: overridePayload(suite.overrides, values),
+        observe: watched,
       }),
     onSuccess: (run) => {
       queryClient.invalidateQueries({ queryKey: ["runs"] });
@@ -92,6 +117,7 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
   });
 
   const argv = overrideArgv(suite.overrides, values);
+  const recorded = [...suite.requires, ...watched];
 
   return (
     <Modal title={`Run ${suite.title}`} onClose={onClose} className="run-start-modal">
@@ -177,6 +203,36 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
           </section>
         )}
 
+        {optional.length > 0 && (
+          <section className="run-start-modal__section" aria-label="Recording">
+            <h2 className="run-start-modal__heading">Recording</h2>
+            <p className="run-start-modal__note">
+              {suite.requires.length > 0
+                ? `${suite.requires.join(", ")} ${suite.requires.length === 1 ? "is" : "are"} recorded because this suite drives ${suite.requires.length === 1 ? "it" : "them"}. Add anything else worth a reading.`
+                : "Every instrument picked here is read for as long as the run lasts."}
+            </p>
+            <div className="run-start-modal__instruments">
+              {optional.map((entry) => (
+                <Checkbox
+                  key={entry.name}
+                  id={`${fieldId}-observe-${entry.name}`}
+                  label={entry.name}
+                  hint={entry.description || entry.kind}
+                  checked={watched.includes(entry.name)}
+                  disabled={start.isPending}
+                  onChange={(event) =>
+                    setWatched((current) =>
+                      event.target.checked
+                        ? [...current, entry.name]
+                        : current.filter((name) => name !== entry.name)
+                    )
+                  }
+                />
+              ))}
+            </div>
+          </section>
+        )}
+
         <section className="run-start-modal__section" aria-label="Summary">
           <h2 className="run-start-modal__heading">Summary</h2>
           <dl className="run-start-modal__summary">
@@ -196,6 +252,8 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
                 <dd className="mono">{unitSerial.trim() || "(none)"}</dd>
               </>
             )}
+            <dt>Recording</dt>
+            <dd className="mono">{recorded.length > 0 ? recorded.join(", ") : "(nothing)"}</dd>
             <dt>Extra arguments</dt>
             <dd className="mono">{argv.length > 0 ? argv.join(" ") : "(none)"}</dd>
           </dl>

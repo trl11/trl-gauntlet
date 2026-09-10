@@ -42,6 +42,11 @@ class StartRunBody(BaseModel):
         default=None,
         description="Inline YAML to run instead of a saved profile, without persisting it.",
     )
+    observe: list[str] = Field(
+        default_factory=list,
+        description="Instruments to record for the run's duration, by instance key, "
+        "beyond the ones its suite requires.",
+    )
 
 
 @router.get("/runs")
@@ -98,6 +103,7 @@ async def start_run(request: Request, body: StartRunBody) -> dict[str, Any]:
                 unit_serial=body.unit_serial,
                 overrides=body.overrides,
                 profile_body=body.profile_body,
+                observe=body.observe,
             )
         )
     except RunConflict as exc:

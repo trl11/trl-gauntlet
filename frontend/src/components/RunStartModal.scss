@@ -26,6 +26,12 @@
     align-items: start;
   }
 
+  &__instruments {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
   &__note {
     font-size: 13px;
     color: $trl-gray;

@@ -30,6 +30,10 @@ class RunRequest:
     unit_serial: str | None = None
     overrides: dict[str, Any] = field(default_factory=dict)
     profile_body: str | None = None
+    # Instruments to record alongside the ones the suite requires, by instance
+    # key. Nothing here reaches the suite: it is what Gauntlet watches, not
+    # what the run is given.
+    observe: list[str] = field(default_factory=list)
 
 
 @dataclass

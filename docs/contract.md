@@ -144,6 +144,12 @@ Paths are relative to `GAUNTLET_RUN_DIR`.
 | `traces/` | no | suite, during the run | Captured signals referenced from `metrics.traces`. |
 | `profile.yaml` | no | Gauntlet | Copy of the profile as run. |
 | `test.log` | no | Gauntlet | Captured stdout and stderr. |
+| `instruments.jsonl` | no | Gauntlet, during the run | What the bench's instruments read, one line per instrument per second. |
+| `instruments.json` | no | Gauntlet, at exit | The same readings summarised: count, extremes, mean and last. |
+
+The last two are Gauntlet's own and a suite neither writes nor reads them: it
+is not told which instruments are being recorded, and a run is identical
+whether they are or not.
 
 `produces` lists what the suite writes. Gauntlet uses it to decide which views
 to offer and which artifacts `verify --run` requires.
