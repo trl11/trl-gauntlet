@@ -7,12 +7,12 @@ from typing import Any
 import pytest
 from suite.adc import GPO_VALUE, STATUS_ALIVE, STATUS_FAULTS, MockAdc, MockBench
 from suite.part import Part
-from suite.profile import OVERSAMPLING, TidAds7138PairProfile
+from suite.profile import OVERSAMPLING, PATTERN_SETS, TidAds7138PairProfile
 from suite.runner import across, invert, levels, link, named_bits, oversampling_spreads, pattern_for, quiet_rail
 
-# The harness on this bench: straight through but for channels 2 and 3, which
-# cross. Measured by driving a walking one from each part in turn.
-BENCH_MAP = [0, 1, 3, 2, 4, 5, 6, 7]
+# A harness whose channels 2 and 3 cross, which is what the maths has to
+# carry. This bench is wired straight, so it is not the default.
+CROSSED_MAP = [0, 1, 3, 2, 4, 5, 6, 7]
 
 
 class _StuckLow:
@@ -36,7 +36,7 @@ class _StuckLow:
 
 def _pair(channel_map: list[int] | None = None) -> tuple[Part, Part]:
     """A part in the beam and a reference, on a simulated harness."""
-    bench = MockBench(channel_map or BENCH_MAP)
+    bench = MockBench(channel_map or CROSSED_MAP)
     dut = Part(MockAdc(bench, "dut"), "the part in the beam", settle_s=0)
     ref = Part(MockAdc(bench, "ref"), "the reference", settle_s=0)
     dut.configure()
@@ -49,71 +49,97 @@ class TestChannelMap:
         assert across(0xAA, list(range(8))) == 0xAA
 
     @pytest.mark.parametrize(("driven", "seen"), [(0xAA, 0xA6), (0x55, 0x59), (0x01, 0x01), (0x80, 0x80)])
-    def test_the_bench_harness_matches_what_it_measured(self, driven: int, seen: int) -> None:
-        """Captured by driving each channel in turn and reading the far end."""
-        assert across(driven, BENCH_MAP) == seen
+    def test_a_crossed_harness_moves_the_bits_that_cross(self, driven: int, seen: int) -> None:
+        assert across(driven, CROSSED_MAP) == seen
 
     def test_reading_the_harness_from_the_other_end_undoes_it(self) -> None:
-        assert across(across(0xAA, BENCH_MAP), invert(BENCH_MAP)) == 0xAA
+        assert across(across(0xAA, CROSSED_MAP), invert(CROSSED_MAP)) == 0xAA
 
     def test_a_difference_is_named_at_the_driving_end(self) -> None:
         # Channel 3 of the driving part arrives on channel 2 of the other, so
         # a difference in bit 2 is that part's channel 3.
-        assert named_bits(1 << 2, BENCH_MAP) == "CH3"
+        assert named_bits(1 << 2, CROSSED_MAP) == "CH3"
 
 
 class TestPatterns:
     def test_both_rails_and_both_alternations_come_first(self) -> None:
-        assert [pattern_for(i) for i in range(4)] == [0x00, 0xFF, 0xAA, 0x55]
+        every = PATTERN_SETS["all"]
+        assert [pattern_for(i, every) for i in range(4)] == [0x00, 0xFF, 0xAA, 0x55]
 
     def test_every_channel_is_walked_high_and_low(self) -> None:
-        seen = {pattern_for(i) for i in range(20)}
+        every = PATTERN_SETS["all"]
+        seen = {pattern_for(i, every) for i in range(len(every))}
         assert all(1 << bit in seen for bit in range(8))
         assert all(0xFF ^ (1 << bit) in seen for bit in range(8))
 
     def test_the_patterns_cycle(self) -> None:
-        assert pattern_for(0) == pattern_for(20)
+        every = PATTERN_SETS["all"]
+        assert pattern_for(0, every) == pattern_for(len(every), every)
+
+    def test_the_first_iteration_drives_the_first_pattern(self) -> None:
+        """Iterations count from one, so the runner offsets before indexing."""
+        for name, patterns in PATTERN_SETS.items():
+            assert pattern_for(1 - 1, patterns) == patterns[0], name
+
+    def test_a_short_set_comes_round_sooner(self) -> None:
+        rails = PATTERN_SETS["rails"]
+        assert [pattern_for(i, rails) for i in range(4)] == [0x00, 0xFF, 0x00, 0xFF]
+
+    @pytest.mark.parametrize("name", sorted(PATTERN_SETS))
+    def test_every_set_drives_bytes_the_part_can_hold(self, name: str) -> None:
+        assert PATTERN_SETS[name]
+        assert all(0 <= pattern <= 0xFF for pattern in PATTERN_SETS[name])
+
+    def test_the_narrow_sets_together_are_the_wide_one(self) -> None:
+        """`all` is every named set, so nothing is reachable only by narrowing."""
+        narrow = set().union(*(set(PATTERN_SETS[name]) for name in PATTERN_SETS if name != "all"))
+        assert narrow == set(PATTERN_SETS["all"])
+
+    def test_each_walking_set_touches_every_channel_once(self) -> None:
+        for name in ("walking_one", "walking_zero"):
+            assert len(PATTERN_SETS[name]) == 8
+            assert len({pattern for pattern in PATTERN_SETS[name]}) == 8
 
 
 class TestLink:
     def test_a_pattern_crosses_the_harness_intact(self) -> None:
         dut, ref = _pair()
-        seen, complaint = link(dut, ref, 0xAA, BENCH_MAP)
+        seen, complaint = link(dut, ref, 0xAA, CROSSED_MAP)
         assert complaint == ""
         assert seen == 0xA6
 
     def test_it_crosses_back_the_other_way(self) -> None:
         dut, ref = _pair()
-        seen, complaint = link(ref, dut, 0xAA, invert(BENCH_MAP))
+        seen, complaint = link(ref, dut, 0xAA, invert(CROSSED_MAP))
         assert complaint == ""
         assert seen == 0xA6
 
     def test_a_harness_wired_otherwise_than_declared_is_a_fault(self) -> None:
         """The map is bench wiring, so a wrong one has to be reported, not absorbed."""
-        dut, ref = _pair(channel_map=BENCH_MAP)
+        dut, ref = _pair(channel_map=CROSSED_MAP)
         _, complaint = link(dut, ref, 0xAA, list(range(8)))
         assert "and not" in complaint
 
     def test_an_output_stuck_low_names_its_channel(self) -> None:
-        bench = MockBench(BENCH_MAP)
+        bench = MockBench(CROSSED_MAP)
         dut = Part(_StuckLow(MockAdc(bench, "dut"), channel=5), "the part in the beam", settle_s=0)
         ref = Part(MockAdc(bench, "ref"), "the reference", settle_s=0)
         dut.configure()
         ref.configure()
-        _, complaint = link(dut, ref, 0xFF, BENCH_MAP)
+        _, complaint = link(dut, ref, 0xFF, CROSSED_MAP)
         assert "CH5" in complaint
 
 
 class TestLevels:
     def test_a_driven_wire_reads_at_the_rails(self) -> None:
         dut, ref = _pair()
-        low, high = levels(dut, ref, BENCH_MAP)
+        low, high = levels(dut, ref, CROSSED_MAP)
         assert all(value < 100 for value in low)
         assert all(value > 3000 for value in high)
 
     def test_every_channel_is_measured_at_the_driving_end(self) -> None:
         dut, ref = _pair()
-        low, high = levels(dut, ref, BENCH_MAP)
+        low, high = levels(dut, ref, CROSSED_MAP)
         assert len(low) == 8
         assert len(high) == 8
 
@@ -172,5 +198,12 @@ class TestProfile:
         with pytest.raises(ValueError, match="above vol_max_mv"):
             TidAds7138PairProfile(vol_max_mv=3000.0, voh_min_mv=2000.0)
 
-    def test_the_bench_harness_is_the_default(self) -> None:
-        assert TidAds7138PairProfile().channel_map == BENCH_MAP
+    def test_a_straight_harness_is_the_default(self) -> None:
+        assert TidAds7138PairProfile().channel_map == list(range(8))
+
+    def test_every_pattern_is_the_default(self) -> None:
+        assert TidAds7138PairProfile().patterns == "all"
+
+    def test_a_pattern_set_that_is_not_one_of_them_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="not one of the pattern sets"):
+            TidAds7138PairProfile(patterns="walking_two")

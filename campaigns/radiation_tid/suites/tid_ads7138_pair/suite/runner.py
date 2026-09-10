@@ -47,7 +47,7 @@ from gauntlet_sdk import (
 
 from suite.adc import CODE_MAX, STATUS_ALIVE, STATUS_FAULT_NAMES, STATUS_FAULTS, Adc, AdcError, MockAdc, MockBench
 from suite.part import Part, cal_timeout_ms
-from suite.profile import OVERSAMPLING, TidAds7138PairProfile
+from suite.profile import OVERSAMPLING, PATTERN_SETS, TidAds7138PairProfile
 
 # Where the two parts are kept for the length of the run.
 _DUT = "dut"
@@ -61,19 +61,14 @@ _QUIET = "quiet"
 # comparable with the next.
 _QUIET_CHANNEL = 0
 
-_PATTERNS = (
-    0x00,
-    0xFF,
-    0xAA,
-    0x55,
-    *(1 << bit for bit in range(8)),
-    *(0xFF ^ (1 << bit) for bit in range(8)),
-)
 
+def pattern_for(iteration: int, patterns: tuple[int, ...]) -> int:
+    """The byte this iteration drives on the outputs.
 
-def pattern_for(iteration: int) -> int:
-    """The byte this iteration drives on the outputs."""
-    return _PATTERNS[iteration % len(_PATTERNS)]
+    The set is cycled rather than exhausted, so a run outlives it and a
+    short set simply comes round again sooner.
+    """
+    return patterns[iteration % len(patterns)]
 
 
 def invert(mapping: list[int]) -> list[int]:
@@ -218,7 +213,8 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     forward = profile.channel_map
     backward = invert(forward)
     quiet = ctx.extras[_QUIET]
-    pattern = pattern_for(ictx.iteration)
+    # Iterations are numbered from one, the set is indexed from zero.
+    pattern = pattern_for(ictx.iteration - 1, PATTERN_SETS[profile.patterns])
     phases: list[PhaseRecord] = []
     faults: list[str] = []
 

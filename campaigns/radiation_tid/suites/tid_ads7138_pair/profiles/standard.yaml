@@ -2,6 +2,5 @@ description: The bench profile — both parts at 0x10, one bridge each.
 driver: real
 dut_address: 16
 ref_address: 16
-channel_map: [0, 1, 3, 2, 4, 5, 6, 7]
 duration_s: 600.0
 sample_period_s: 5.0

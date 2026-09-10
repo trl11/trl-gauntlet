@@ -10,6 +10,22 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 # an iteration and the shape is what is being watched, not the curve.
 OVERSAMPLING = (0, 3, 5, 7)
 
+# The byte patterns the link check can drive, as named sets. A walking one
+# finds an output that cannot rise and a wire open at one end; a walking zero
+# finds one that cannot fall and a wire shorted to a rail; the alternating
+# pair puts every channel beside a neighbour at the opposite level, which is
+# what finds a short between two of them. `all` is every one of them in that
+# order, and is what a dose session wants: a narrower set is for chasing a
+# fault the wide one has already found.
+PATTERN_SETS: dict[str, tuple[int, ...]] = {
+    "all": (0x00, 0xFF, 0xAA, 0x55, *(1 << bit for bit in range(8)), *(0xFF ^ (1 << bit) for bit in range(8))),
+    "rails": (0x00, 0xFF),
+    "alternating": (0xAA, 0x55),
+    "walking_one": tuple(1 << bit for bit in range(8)),
+    "walking_zero": tuple(0xFF ^ (1 << bit) for bit in range(8)),
+    "walking": (*(1 << bit for bit in range(8)), *(0xFF ^ (1 << bit) for bit in range(8))),
+}
+
 
 class TidAds7138PairProfile(BaseModel):
     """What an operator can configure.
@@ -38,10 +54,14 @@ class TidAds7138PairProfile(BaseModel):
         description="The 7-bit address of the reference part. The two may share one, being on separate bridges.",
     )
     channel_map: list[int] = Field(
-        default_factory=lambda: [0, 1, 3, 2, 4, 5, 6, 7],
+        default_factory=lambda: [0, 1, 2, 3, 4, 5, 6, 7],
         min_length=8,
         max_length=8,
         description="The reference channel each channel 0 to 7 of the part under test is wired to. Bench wiring.",
+    )
+    patterns: str = Field(
+        default="all",
+        description="Which set of byte patterns the link check drives.",
     )
     vref_v: float = Field(default=3.3, gt=0, description="The parts' reference voltage, for turning codes into volts.")
     vol_max_mv: float = Field(
@@ -88,6 +108,9 @@ class TidAds7138PairProfile(BaseModel):
                 raise ValueError(f"channel {channel} is not one of the part's eight")
         if len(set(self.channel_map)) != len(self.channel_map):
             raise ValueError("channel_map names a reference channel more than once")
+        if self.patterns not in PATTERN_SETS:
+            named = ", ".join(sorted(PATTERN_SETS))
+            raise ValueError(f"{self.patterns} is not one of the pattern sets: {named}")
         if self.voh_min_mv <= self.vol_max_mv:
             raise ValueError("voh_min_mv must be above vol_max_mv, or no level could pass both")
         return self
