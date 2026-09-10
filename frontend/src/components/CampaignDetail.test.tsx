@@ -59,6 +59,7 @@ const BENCH: Campaign = {
   directory: "/campaigns/bench",
   key: "bench",
   member_count: 2,
+  profile: "",
   suites: "./suites",
   suites_dir: "/campaigns/bench/suites",
   title: "Hardware Bench",

@@ -85,6 +85,7 @@ def _member_payload(request: Request, campaign: Any, suite_key: str) -> dict[str
         "declared": declared is not None,
     }
     payload.update(member.model_dump(mode="json", exclude={"suite"}))
+    payload["profile"] = campaign.manifest.profile_for(suite_key)
     return payload
 
 
@@ -144,8 +145,9 @@ async def run_member(request: Request, key: str, suite: str, body: MemberRunBody
     """Start one member's suite using what the campaign declares for it.
 
     A convenience over `POST /runs`, not a scheduler: it starts a single run,
-    with the member's profile, target and overrides as the defaults. Re-running
-    a member after editing the campaign is therefore this call again.
+    with the member's profile, target and overrides as the defaults, and the
+    campaign's own `profile` wherever the member names none. Re-running a
+    member after editing the campaign is therefore this call again.
     """
     campaign = _campaign_or_404(request, key)
     if suite not in _member_suites(request, campaign):
@@ -161,7 +163,7 @@ async def run_member(request: Request, key: str, suite: str, body: MemberRunBody
         handle = await request.app.state.supervisor.start(
             RunRequest(
                 suite=suite,
-                profile=body.profile or (member.profile if member else "") or None,
+                profile=body.profile or campaign.manifest.profile_for(suite) or None,
                 target=body.target or declared_target or request.app.state.settings.default_target or None,
                 unit_serial=body.unit_serial or declared_serial or None,
                 overrides=overrides,

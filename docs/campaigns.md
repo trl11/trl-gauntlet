@@ -20,6 +20,7 @@ description: >
   Total ionising dose characterisation of the flight component set.
 
 suites: ./suites
+profile: standard.yaml
 
 members:
   - suite: tid_lan7430
@@ -27,7 +28,6 @@ members:
     test_vehicle: EVB-LAN7430
     host: Raspberry Pi
     fixture: "1-1"
-    profile: standard.yaml
     overrides:
       duration_s: 600
     notes: Waiting on the EVB.
@@ -37,11 +37,19 @@ members:
 |---|---|
 | `key` | `lower_snake_case`, unique across every campaign root |
 | `suites` | Directory holding this campaign's suites, relative to the manifest |
+| `profile` | Profile every member falls back to when it names none |
 | `members` | Per-suite configuration. Optional, and not what defines membership |
 
 A member entry accepts `component`, `test_vehicle`, `host`, `fixture`,
 `profile`, `target`, `unit_serial`, `overrides` and `notes`. Every one is
 optional.
+
+A programme that runs every member the same way says so once with the top-level
+`profile`, rather than repeating it down the list. A member naming its own wins,
+and because the campaign default needs no entry to hang off, a suite dropped
+into the directory picks it up as well. The `profile` each member reports is
+the one already resolved, so the Tests page shows what its Run button will
+send.
 
 ## Membership is the directory, not the list
 
@@ -133,10 +141,10 @@ POST /api/campaigns/{key}/members/{suite}/run
 ```
 
 Starts one run using the member's declared `profile`, `target`, `unit_serial`
-and `overrides`, with anything in the request body taking precedence. It is a
-convenience over `POST /runs`, not a scheduler: campaigns group runs, they do
-not sequence them. Re-running a member after changing the campaign is this call
-again.
+and `overrides` — the campaign's own `profile` where the member declares none —
+with anything in the request body taking precedence. It is a convenience over
+`POST /runs`, not a scheduler: campaigns group runs, they do not sequence them.
+Re-running a member after changing the campaign is this call again.
 
 ## Endpoints
 

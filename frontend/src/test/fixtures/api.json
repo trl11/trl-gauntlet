@@ -97,6 +97,7 @@
         "unit_serial": ""
       }
     ],
+    "profile": "",
     "suites": "./suites",
     "suites_dir": "/workspaces/gauntlet/campaigns/hardware/suites",
     "title": "Hardware Bench"
@@ -109,6 +110,7 @@
         "directory": "/workspaces/gauntlet/campaigns/hardware",
         "key": "hardware",
         "member_count": 6,
+        "profile": "",
         "suites": "./suites",
         "suites_dir": "/workspaces/gauntlet/campaigns/hardware/suites",
         "title": "Hardware Bench"

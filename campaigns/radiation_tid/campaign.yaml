@@ -7,48 +7,43 @@ description: 'Total ionising dose characterisation of the flight component set, 
   remaining suites are placeholders that run and pass without hardware, so the campaign
   has a green baseline to fill in.'
 suites: ./suites
+profile: standard.yaml
 members:
 - suite: tid_lan7430
   component: LAN7430-I/Y9X
   test_vehicle: EVB-LAN7430
   host: Raspberry Pi
   fixture: 1-1
-  profile: standard.yaml
   notes: Can use a JM201, or wait for the EVB-LAN7430 to arrive.
 - suite: tid_ads7138
   component: ADS7138QRTERQ1
   test_vehicle: PRE-10161
   host: Raspberry Pi
   fixture: 1-1
-  profile: standard.yaml
   notes: Waiting on PRE-10161.
 - suite: tid_tmp100
   component: TMP100AQDBVRQ1
   test_vehicle: PRE-10161
   host: Raspberry Pi
   fixture: 1-1
-  profile: standard.yaml
   notes: Waiting on PRE-10161. A thermocouple is to be added to the BOM.
 - suite: tid_max96793
   component: MAX96793GTJ/VY+
   test_vehicle: LI-IMX728-GMSL3-070H
   host: JM201
   fixture: 2-1
-  profile: standard.yaml
   notes: Waiting on LI-IMX728-GMSL3-070H.
 - suite: tid_max96792
   component: MAX96792AGTM/VY+
   test_vehicle: LI-GMSL3-USB3.2
   host: JM201
   fixture: 3-1
-  profile: standard.yaml
   notes: Waiting on LI-IMX728-GMSL3-070H.
 - suite: tid_pic18f26k83
   component: PIC18F26K83-E/SS
   test_vehicle: TBD
   host: Jetson or Linux laptop
   fixture: 9-1
-  profile: standard.yaml
   notes: The part runs PMU3, whose firmware carries a telemetry stream written for
     a radiation campaign, so the suite reads the part's own detectors, reset history
     and time base over the debug UART alone. That half is implemented. The supply,
@@ -61,7 +56,6 @@ members:
   test_vehicle: Alvium 1800 U-2040c
   host: Gauntlet lab host, over USB3
   fixture: TBD
-  profile: standard.yaml
   notes: The camera is the whole test vehicle - it hangs off the lab host on a USB
     cable with nothing between. Fixture is not yet chosen; the housing is the
     camera's heatsink and has to be mounted to something with mass, or it shuts its
@@ -72,7 +66,6 @@ members:
   test_vehicle: TBD
   host: Raspberry Pi
   fixture: TBD
-  profile: standard.yaml
   notes: Forked from the hardware campaign's ssd suite, which stays there as the quick
     bench check. Component, test vehicle and fixture are not yet chosen; run bench.yaml
     against whichever drive is picked before the first exposure.
