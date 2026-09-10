@@ -152,6 +152,24 @@ class DaqmxCaptureProfile(BaseModel):
             "return, or one outside the window its channel was given."
         ),
     )
+    capture_rate_hz: float = Field(
+        default=0.0,
+        ge=0,
+        description=(
+            "Samples per second to capture the waveform at, as the module runs its converters — "
+            "25000 on an NI-9238. 0 records the mean of a short acquisition instead, which is all "
+            "a DC measurement needs."
+        ),
+    )
+    capture_samples: int = Field(
+        default=5000,
+        ge=2,
+        le=25000,
+        description=(
+            "Samples per channel in each capture. At 25000 S/s, 5000 of them is a fifth of a "
+            "second of signal. Ignored unless capture_rate_hz is set."
+        ),
+    )
     labels: str = Field(
         default="",
         description=(

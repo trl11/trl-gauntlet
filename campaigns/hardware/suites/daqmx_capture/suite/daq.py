@@ -47,6 +47,16 @@ class Daq:
         """
         return self._post({"command": "sample", "args": {}})["channels"]
 
+    def capture(self, rate_hz: float, samples: int) -> dict[str, Any]:
+        """One window of samples from every channel, sample by sample.
+
+        `sample` answers with the mean of a short acquisition, which is the
+        reading a DC measurement wants and is also what throws a waveform away.
+        This keeps every sample, so what a signal did inside the window can be
+        written down rather than averaged into one number.
+        """
+        return self._post({"command": "capture", "args": {"rate_hz": rate_hz, "samples": samples}})
+
     def _post(self, body: dict[str, Any]) -> dict[str, Any]:
         request = urllib.request.Request(
             self._url,

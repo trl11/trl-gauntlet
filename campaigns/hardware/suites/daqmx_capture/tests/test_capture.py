@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from gauntlet_sdk import IterationOutcome
 from pydantic import ValidationError
 from suite.profile import Channel, DaqmxCaptureProfile, metric_key
-from suite.runner import _evaluate
+from suite.runner import _evaluate, _iterate
 
 
 def _judged(profile: DaqmxCaptureProfile, **readings: float | None) -> IterationOutcome:
@@ -114,6 +116,125 @@ class TestLimits:
     def test_a_window_with_nothing_inside_it_is_refused(self) -> None:
         with pytest.raises(ValidationError, match="must be below max_v"):
             Channel(channel="ai0", min_v=3.6, max_v=3.0)
+
+
+class _Ctx:
+    """The slice of the suite context the capture path touches."""
+
+    def __init__(self, profile: DaqmxCaptureProfile, run_dir: Path, daq: object) -> None:
+        self.profile = profile
+        self.run_dir = run_dir
+        self.extras: dict[str, object] = {"daq": daq}
+
+    def artifact(self, *parts: str) -> Path:
+        path = self.run_dir.joinpath(*parts)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+
+class _Ictx:
+    def __init__(self, iteration: int = 1) -> None:
+        self.iteration = iteration
+        self.elapsed_run_s = 0.0
+
+
+class _CapturingDaq:
+    """A module that answers a capture with the samples the test gave it."""
+
+    def __init__(self, samples: dict[str, list[float]], rate_hz: float = 25000.0) -> None:
+        self.asked: list[tuple[float, int]] = []
+        self._rate_hz = rate_hz
+        self._samples = samples
+
+    def sample(self) -> dict[str, dict[str, object]]:
+        raise AssertionError("a capturing run must not fall back to the mean")
+
+    def capture(self, rate_hz: float, samples: int) -> dict[str, object]:
+        self.asked.append((rate_hz, samples))
+        return {
+            "rate_hz": self._rate_hz,
+            "samples": samples,
+            "channels": {
+                name: {
+                    "label": name.upper(),
+                    "mean": sum(values) / len(values),
+                    "min": min(values),
+                    "max": max(values),
+                    "peak_to_peak": max(values) - min(values),
+                    "values": values,
+                }
+                for name, values in self._samples.items()
+            },
+        }
+
+
+def _captured(tmp_path: Path, profile: DaqmxCaptureProfile, daq: _CapturingDaq) -> IterationOutcome:
+    """One iteration of a capturing run, against a module the test controls."""
+    return _iterate(_Ctx(profile, tmp_path, daq), _Ictx())  # type: ignore[arg-type]
+
+
+class TestWaveformCapture:
+    def profile(self, **extra: object) -> DaqmxCaptureProfile:
+        return DaqmxCaptureProfile(
+            channels=[Channel(channel="ai0", label="Rail")],
+            capture_rate_hz=25000.0,
+            capture_samples=4,
+            **extra,
+        )
+
+    def test_the_rate_and_the_depth_asked_for_are_the_profile_s(self, tmp_path: Path) -> None:
+        daq = _CapturingDaq({"ai0": [0.001, 0.002, 0.0025, 0.002]})
+        _captured(tmp_path, self.profile(), daq)
+        assert daq.asked == [(25000.0, 4)]
+
+    def test_the_samples_are_written_as_csv_beside_the_run(self, tmp_path: Path) -> None:
+        daq = _CapturingDaq({"ai0": [0.001, 0.002, 0.0025, 0.002]})
+        _captured(tmp_path, self.profile(), daq)
+
+        rows = (tmp_path / "captures" / "capture_0001.csv").read_text().splitlines()
+        assert rows[0] == "t_s,rail"
+        assert rows[1] == "0,0.001"
+        # The second sample sits one period into the window.
+        assert rows[2].startswith("4e-05,")
+        assert len(rows) == 5
+
+    def test_the_peak_to_peak_of_the_window_is_recorded(self, tmp_path: Path) -> None:
+        daq = _CapturingDaq({"ai0": [0.001, 0.002, 0.0025, 0.002]})
+        outcome = _captured(tmp_path, self.profile(), daq)
+        assert outcome.metrics["daq"]["rail_pp"] == pytest.approx(0.0015)
+
+    def test_a_peak_outside_the_window_fails_the_sample(self, tmp_path: Path) -> None:
+        # The mean sits inside the window and the signal does not, which is
+        # the whole reason a capture is judged over its extremes.
+        profile = DaqmxCaptureProfile(
+            channels=[Channel(channel="ai0", label="Rail", min_v=0.0, max_v=0.003)],
+            capture_rate_hz=25000.0,
+            capture_samples=4,
+        )
+        daq = _CapturingDaq({"ai0": [0.001, 0.009, 0.0011, 0.001]})
+        outcome = _captured(tmp_path, profile, daq)
+        assert outcome.success is False
+        assert outcome.reason == "Rail read 0.009V, above 0.003V"
+
+    def test_a_trough_outside_the_window_fails_the_sample(self, tmp_path: Path) -> None:
+        profile = DaqmxCaptureProfile(
+            channels=[Channel(channel="ai0", label="Rail", min_v=0.0, max_v=0.003)],
+            capture_rate_hz=25000.0,
+            capture_samples=4,
+        )
+        daq = _CapturingDaq({"ai0": [0.001, 0.002, -0.004, 0.001]})
+        outcome = _captured(tmp_path, profile, daq)
+        assert outcome.success is False
+        assert outcome.reason == "Rail read -0.004V, below 0V"
+
+    def test_a_signal_that_stays_inside_the_window_passes(self, tmp_path: Path) -> None:
+        profile = DaqmxCaptureProfile(
+            channels=[Channel(channel="ai0", label="Rail", min_v=0.0, max_v=0.003)],
+            capture_rate_hz=25000.0,
+            capture_samples=4,
+        )
+        daq = _CapturingDaq({"ai0": [0.001, 0.002, 0.0025, 0.002]})
+        assert _captured(tmp_path, profile, daq).success is True
 
 
 class TestVerdict:

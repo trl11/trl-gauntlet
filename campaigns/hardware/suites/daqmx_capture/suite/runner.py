@@ -37,7 +37,7 @@ from gauntlet_sdk import (
 )
 
 from suite.daq import Daq, DaqError
-from suite.profile import DaqmxCaptureProfile, metric_key
+from suite.profile import Channel, DaqmxCaptureProfile, metric_key
 
 # Where the granted instrument is kept for the length of the run. None for a
 # mock run, which contacts nothing.
@@ -47,6 +47,9 @@ _DAQ = "daq"
 # goes. A channel the profile did not list is named by the module, so the
 # names are not known until it has been asked.
 _NAMES = "names"
+
+# The capture this iteration took, kept only until it has been written down.
+_CAPTURED = "captured"
 
 
 def _setup(ctx: SuiteContext) -> None:
@@ -106,48 +109,77 @@ def _named(profile: DaqmxCaptureProfile, acquired: dict[str, dict[str, object]])
     return named
 
 
+def _read(ctx: SuiteContext, ictx: IterationContext) -> dict[str, dict[str, object]]:
+    """One acquisition of the module, however the profile asked for it.
+
+    A capture and a reading answer in the same shape — a channel carrying a
+    label and what it read — so everything downstream is written once. What a
+    capture adds is `values`, the samples themselves.
+    """
+    profile: DaqmxCaptureProfile = ctx.profile
+    daq: Daq | None = ctx.extras.get(_DAQ)
+    if daq is None:
+        # Nothing was asked, so nothing but the profile says what exists.
+        return {
+            c.channel: {"label": c.label, "value": _mock_reading(c.key, ictx.elapsed_run_s, ictx.iteration)}
+            for c in profile.channels
+        }
+    if profile.capture_rate_hz <= 0:
+        return daq.sample()
+    captured = daq.capture(profile.capture_rate_hz, profile.capture_samples)
+    ctx.extras[_CAPTURED] = captured
+    return dict(captured.get("channels", {}))
+
+
 def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     """One acquisition of the module, every channel recorded under its label."""
     profile: DaqmxCaptureProfile = ctx.profile
-    daq: Daq | None = ctx.extras.get(_DAQ)
     phases: list[PhaseRecord] = []
+    ctx.extras.pop(_CAPTURED, None)
 
     with PhaseTimer("acquire", phases) as phase:
-        if daq is None:
-            # Nothing was asked, so nothing but the profile says what exists.
-            acquired: dict[str, dict[str, object]] = {
-                c.channel: {"label": c.label, "value": _mock_reading(c.key, ictx.elapsed_run_s, ictx.iteration)}
-                for c in profile.channels
-            }
-        else:
-            try:
-                acquired = daq.sample()
-            except DaqError as exc:
-                return IterationOutcome(
-                    success=False,
-                    reason=str(exc),
-                    metrics={},
-                    phase_records=phases,
-                    summary="no acquisition",
-                )
+        try:
+            acquired = _read(ctx, ictx)
+        except DaqError as exc:
+            return IterationOutcome(
+                success=False,
+                reason=str(exc),
+                metrics={},
+                phase_records=phases,
+                summary="no acquisition",
+            )
         named = _named(profile, acquired)
         phase.set_detail(channels=str(len(named)))
+        if profile.capture_rate_hz > 0:
+            phase.set_detail(channels=str(len(named)), samples=str(profile.capture_samples))
 
     names: dict[str, str] = ctx.extras.setdefault(_NAMES, {})
-    values = {}
+    values: dict[str, float] = {}
+    spans: dict[str, tuple[float, float]] = {}
     for channel, (key, label) in named.items():
-        reading = acquired.get(channel, {}).get("value")
+        measured = acquired.get(channel, {})
+        reading = measured.get("value", measured.get("mean"))
         names[key] = label
         # A channel the module did not return is absent from this record rather
         # than zero: a gap in the series is the truth, and a zero is a reading.
-        if isinstance(reading, (int, float)):
-            values[key] = float(reading)
+        if not isinstance(reading, (int, float)):
+            continue
+        values[key] = float(reading)
+        low, high = measured.get("min"), measured.get("max")
+        if isinstance(low, (int, float)) and isinstance(high, (int, float)):
+            # A capture says what the signal reached, so the whole window is
+            # what its channel's limits are judged against rather than the
+            # average, which a spike does not move.
+            spans[key] = (float(low), float(high))
+            values[f"{key}_pp"] = round(float(high) - float(low), 6)
+
+    _write_capture(ctx, ictx, named)
 
     # Only the channels the profile asked for decide whether the sample was
     # good. One it did not name is recorded when it arrives and not missed
     # when it does not.
     missing = [c.channel for c in profile.channels if c.key not in values]
-    faults = [fault for c in profile.channels if c.key in values and (fault := c.fault(values[c.key]))]
+    faults = [fault for c in profile.channels if c.key in values and (fault := _fault(c, values, spans))]
 
     return IterationOutcome(
         success=not missing and not faults,
@@ -158,6 +190,42 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
         phase_records=phases,
         summary=_summary(values),
     )
+
+
+def _fault(channel: Channel, values: dict[str, float], spans: dict[str, tuple[float, float]]) -> str:
+    """Why this channel is out of bounds, over the whole window it covered."""
+    low, high = spans.get(channel.key, (values[channel.key], values[channel.key]))
+    return channel.fault(low) or channel.fault(high)
+
+
+def _write_capture(ctx: SuiteContext, ictx: IterationContext, named: dict[str, tuple[str, str]]) -> str:
+    """Write this iteration's samples as CSV, and return the path, or empty.
+
+    One file per capture, a column per channel under the metric name its input
+    records as, and a time column counting from the start of the window. CSV
+    because a capture is read in whatever the bench already has — a
+    spreadsheet, numpy, a scope vendor's tool — and every one of them takes it.
+    """
+    captured = ctx.extras.get(_CAPTURED)
+    if not captured:
+        return ""
+    rate_hz = float(captured.get("rate_hz") or 0.0)
+    channels = captured.get("channels", {})
+    columns = [
+        (key, [float(sample) for sample in (channels.get(channel, {}).get("values") or [])])
+        for channel, (key, _) in named.items()
+    ]
+    depth = max((len(samples) for _, samples in columns), default=0)
+    if not rate_hz or not depth:
+        return ""
+    lines = ["t_s," + ",".join(key for key, _ in columns)]
+    for index in range(depth):
+        row = [f"{index / rate_hz:.9g}"]
+        row += [f"{samples[index]:.9g}" if index < len(samples) else "" for _, samples in columns]
+        lines.append(",".join(row))
+    relative = f"captures/capture_{ictx.iteration:04d}.csv"
+    ctx.artifact(*relative.split("/")).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return relative
 
 
 def _summary(values: dict[str, float]) -> str:

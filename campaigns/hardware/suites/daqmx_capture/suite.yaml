@@ -53,6 +53,26 @@ overrides:
       acquisition is a hundred samples at the module's own rate, so a shorter
       period is refused rather than quietly delivering a slower rate than it
       asked for.
+  - name: capture_rate_hz
+    flag: --capture-rate-hz
+    type: number
+    label: Capture rate
+    unit: S/s
+    minimum: 0
+    help: >
+      Capture the waveform at this many samples a second instead of recording
+      the mean of a short acquisition. An NI-9238 runs its converters between
+      1613 and 50000 S/s. The samples are written to `captures/` as CSV, one
+      file per acquisition; 0 records the mean only.
+  - name: capture_samples
+    flag: --capture-samples
+    type: integer
+    label: Capture samples
+    minimum: 2
+    maximum: 25000
+    help: >
+      Samples per channel in each capture. 5000 at 25000 S/s is a fifth of a
+      second of signal.
   - name: labels
     flag: --labels
     type: string

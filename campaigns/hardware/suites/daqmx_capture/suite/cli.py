@@ -19,10 +19,17 @@ def _extra_args(parser: argparse.ArgumentParser) -> None:
     # sampled suite takes, so only these two are added here.
     parser.add_argument("--driver", choices=["real", "mock"], default=None)
     parser.add_argument("--labels", default=None, help="name the inputs, as `ai0=Rail 3V3, ai2=Ground`")
+    parser.add_argument("--capture-rate-hz", type=float, default=None, help="capture the waveform at this rate")
+    parser.add_argument("--capture-samples", type=int, default=None, help="samples per channel in each capture")
 
 
 def _extra_overrides(args: argparse.Namespace) -> dict[str, object]:
-    return {"driver": args.driver, "labels": args.labels}
+    return {
+        "capture_rate_hz": args.capture_rate_hz,
+        "capture_samples": args.capture_samples,
+        "driver": args.driver,
+        "labels": args.labels,
+    }
 
 
 main = make_suite_cli(

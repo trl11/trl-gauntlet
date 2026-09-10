@@ -314,6 +314,21 @@ gives the run its own Traces tab — a picture is shown as one, and sample data
 is drawn as lanes the operator can scroll and zoom. See
 [`contract.md`](contract.md) for both shapes.
 
+### Reading a waveform rather than a level
+
+`sample` answers with the mean of a short acquisition, which is the reading a
+DC measurement wants and is also what throws a waveform away. `capture` is the
+other half: it takes `rate_hz` and `samples`, runs the converters at that rate,
+and answers with every sample of every channel, along with what each one came
+to — mean, extremes, peak to peak. The NI-9238 runs between 1613 and 50000 S/s
+on all four channels at once, so 25 kS/s is an ordinary ask.
+
+A capture is capped at 25 000 samples per channel because the reply crosses the
+API as JSON; a longer window is taken as several captures. The samples are not
+kept by the instrument — they are the caller's to write down — but the last
+capture's summary stays in `state()`, so the panel and a run's own instrument
+record both carry the peak to peak without the megabyte behind it.
+
 ## What is registered
 
 `instruments/detect.py` decides, at startup and again on every operator scan.

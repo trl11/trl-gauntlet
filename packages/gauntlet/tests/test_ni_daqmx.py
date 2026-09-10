@@ -50,6 +50,7 @@ class _FakeModule:
     ) -> None:
         self.closed = False
         self.reads: list[tuple[tuple[tuple[str, float], ...], float, int]] = []
+        self.timeouts: list[float] = []
         self.fail_with: Exception | None = None
         self._channels = channels
         self._ranges = ranges
@@ -71,8 +72,15 @@ class _FakeModule:
     def rate_limits(self) -> tuple[float, float]:
         return self._rates
 
-    def read(self, channels: tuple[tuple[str, float], ...], rate_hz: float, samples: int) -> list[list[float]]:
+    def read(
+        self,
+        channels: tuple[tuple[str, float], ...],
+        rate_hz: float,
+        samples: int,
+        timeout_s: float = 2.0,
+    ) -> list[list[float]]:
         self.reads.append((channels, rate_hz, samples))
+        self.timeouts.append(timeout_s)
         if self.fail_with is not None:
             raise self.fail_with
         return [list(self._samples[name]) for name, _ in channels]
@@ -293,6 +301,90 @@ class TestConfigure:
 
         with pytest.raises(CommandRejected, match="no command 'tare'"):
             daq.command("tare", {})
+
+
+class TestCapture:
+    """Keeping the samples rather than the mean of them."""
+
+    def _daq_with(self, samples: dict[str, list[float]]) -> Any:
+        daq = _daq(_FakeModule(samples=samples), _Clock())
+        daq.available()
+        return daq
+
+    def test_a_capture_answers_with_every_sample(self) -> None:
+        daq = self._daq_with({"ai0": [0.1, 0.2, 0.3], "ai1": [-0.1, 0.0, 0.1]})
+
+        captured = daq.command("capture", {"rate_hz": 25000.0, "samples": 3})
+
+        assert captured["rate_hz"] == 25000.0
+        assert captured["samples"] == 3
+        assert captured["channels"]["ai0"]["values"] == [0.1, 0.2, 0.3]
+        assert captured["channels"]["ai1"]["values"] == [-0.1, 0.0, 0.1]
+
+    def test_a_capture_measures_the_window_it_took(self) -> None:
+        daq = self._daq_with({"ai0": [0.1, 0.3], "ai1": [0.0, 0.0]})
+
+        measured = daq.command("capture", {"rate_hz": 25000.0, "samples": 2})["channels"]["ai0"]
+
+        assert measured["min"] == 0.1
+        assert measured["max"] == 0.3
+        assert measured["mean"] == 0.2
+        assert measured["peak_to_peak"] == pytest.approx(0.2)
+
+    def test_the_window_is_what_the_read_is_given_to_finish_in(self) -> None:
+        module = _FakeModule(samples={"ai0": [0.1], "ai1": [0.1]})
+        daq = _daq(module, _Clock())
+        daq.available()
+
+        daq.command("capture", {"rate_hz": 1613.0, "samples": 16130})
+
+        # Ten seconds of signal cannot arrive inside the limit a panel reading
+        # is held to, so a capture is given its own window and then some.
+        assert module.timeouts[-1] > 10.0
+
+    def test_the_state_carries_what_the_last_capture_came_to(self) -> None:
+        daq = self._daq_with({"ai0": [0.1, 0.3], "ai1": [0.0, 0.0]})
+        daq.command("capture", {"rate_hz": 25000.0, "samples": 2})
+
+        last = daq.state()["last_capture"]
+        assert last["rate_hz"] == 25000.0
+        assert last["samples"] == 2
+        assert last["channels"]["ai0"]["peak_to_peak"] == pytest.approx(0.2)
+        # The samples are the caller's to keep; a second copy here would serve
+        # nobody and every capture would grow the panel's reply.
+        assert "values" not in last["channels"]["ai0"]
+
+    def test_the_last_sample_stands_as_the_reading(self) -> None:
+        daq = self._daq_with({"ai0": [0.1, 0.35], "ai1": [0.0, 0.0]})
+        daq.command("capture", {"rate_hz": 25000.0, "samples": 2})
+
+        assert daq.state()["channels"]["ai0"]["value"] == 0.35
+
+    def test_a_rate_the_module_does_not_run_at_is_rejected(self) -> None:
+        daq = self._daq_with({"ai0": [0.1], "ai1": [0.1]})
+
+        with pytest.raises(CommandRejected, match="'rate_hz' must be between"):
+            daq.command("capture", {"rate_hz": 200000.0, "samples": 10})
+
+    def test_more_samples_than_one_reply_can_carry_are_rejected(self) -> None:
+        daq = self._daq_with({"ai0": [0.1], "ai1": [0.1]})
+
+        with pytest.raises(CommandRejected, match="'samples' must be between"):
+            daq.command("capture", {"rate_hz": 25000.0, "samples": 1_000_000})
+
+    def test_a_capture_answers_with_itself_through_the_capability(self) -> None:
+        daq = self._daq_with({"ai0": [0.1, 0.3], "ai1": [0.0, 0.0]})
+
+        written = daq.write({"command": "capture", "args": {"rate_hz": 25000.0, "samples": 2}})
+
+        assert written["channels"]["ai0"]["values"] == [0.1, 0.3]
+
+    def test_the_capture_command_offers_the_module_s_own_rates(self) -> None:
+        daq = self._daq_with({"ai0": [0.1], "ai1": [0.1]})
+
+        capture = next(entry for entry in daq.commands() if entry["name"] == "capture")
+        rate = next(field for field in capture["fields"] if field["name"] == "rate_hz")
+        assert (rate["min"], rate["max"]) == (1613.0, 50000.0)
 
 
 class TestUnavailable:
