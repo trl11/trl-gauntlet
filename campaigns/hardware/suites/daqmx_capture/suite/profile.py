@@ -65,6 +65,34 @@ class Channel(BaseModel):
         max_length=32,
         description="What is wired to it. Names the reading everywhere, including its metric.",
     )
+    min_v: float | None = Field(
+        default=None,
+        description="Lowest this input may read before the sample counts as a fault. Unset means no floor.",
+    )
+    max_v: float | None = Field(
+        default=None,
+        description="Highest this input may read before the sample counts as a fault. Unset means no ceiling.",
+    )
+
+    @model_validator(mode="after")
+    def _limits_leave_something_inside(self) -> Channel:
+        """A window has to have room in it, and a rail has to be inside the range.
+
+        A channel given a floor above its ceiling would fail every sample it
+        ever took, which is a profile written wrongly rather than a bench
+        reading badly.
+        """
+        if self.min_v is not None and self.max_v is not None and self.min_v >= self.max_v:
+            raise ValueError(f"{self.channel}: min_v ({self.min_v}) must be below max_v ({self.max_v})")
+        return self
+
+    def fault(self, reading: float) -> str:
+        """Why this reading is out of bounds, or empty when it is not."""
+        if self.min_v is not None and reading < self.min_v:
+            return f"{self.label or self.channel} read {reading:.6g}V, below {self.min_v:g}V"
+        if self.max_v is not None and reading > self.max_v:
+            return f"{self.label or self.channel} read {reading:.6g}V, above {self.max_v:g}V"
+        return ""
 
     @field_validator("mode")
     @classmethod
@@ -119,7 +147,10 @@ class DaqmxCaptureProfile(BaseModel):
     max_missed_samples: int = Field(
         default=0,
         ge=0,
-        description="Readings the module may fail to return before the run fails.",
+        description=(
+            "Samples that may be unusable before the run fails: a reading the module did not "
+            "return, or one outside the window its channel was given."
+        ),
     )
     labels: str = Field(
         default="",

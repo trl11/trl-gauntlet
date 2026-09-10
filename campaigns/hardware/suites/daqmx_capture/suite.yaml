@@ -4,12 +4,12 @@ key: daqmx_capture
 title: DAQmx Capture
 category: hardware
 description: >
-  Record the analog inputs of an NI-DAQmx module for a fixed duration. Channels
-  are named as NI names them — `ai0`, `ai1` — and each takes a label and, where
-  the module offers a choice, a voltage range. Every acquisition is written to
-  metrics under that label. A reading is the mean of a short acquisition, not
-  one conversion: a delta-sigma converter samples only against a clock, which
-  is why this measures DC and reports no RMS.
+  Record the analog inputs of an NI-DAQmx module for a fixed duration. Every
+  channel the module has is written to metrics, under the label its input was
+  given. A channel the profile lists is also judged: it must read, read inside
+  the `min_v` to `max_v` window given for it, and move at all — a floating
+  input pins at the rail and sits there. A reading is the mean of a short
+  acquisition, not one conversion, so this measures DC and reports no RMS.
 
 exec:
   command: ["python", "-m", "suite.cli"]

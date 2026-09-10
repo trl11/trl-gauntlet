@@ -147,10 +147,11 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     # good. One it did not name is recorded when it arrives and not missed
     # when it does not.
     missing = [c.channel for c in profile.channels if c.key not in values]
+    faults = [fault for c in profile.channels if c.key in values and (fault := c.fault(values[c.key]))]
 
     return IterationOutcome(
-        success=not missing,
-        reason=f"no reading from {', '.join(missing)}" if missing else "",
+        success=not missing and not faults,
+        reason=f"no reading from {', '.join(missing)}" if missing else "; ".join(faults),
         # Nested under the instrument, so the flattened names come out as
         # `daq.<label>` and the frontend groups the whole module together.
         metrics={"daq": values},
@@ -171,17 +172,17 @@ def _series(outcomes: list[IterationOutcome], key: str) -> list[float]:
 
 
 def _evaluate(outcomes: list[IterationOutcome], profile: DaqmxCaptureProfile) -> tuple[bool, str] | None:
-    """A capture is good when every channel returned readings that moved.
+    """A capture is good when every channel read, read in range, and moved.
 
-    The second half is what a 24-bit converter makes possible: a real input
+    The last of those is what a 24-bit converter makes possible: a real input
     carries at least converter noise, so a series identical to the microvolt
     across the whole run is not a quiet signal but an input with nothing on it.
     """
     if not outcomes:
         return False, "no samples collected"
-    missed = sum(1 for outcome in outcomes if not outcome.success)
-    if missed > profile.max_missed_samples:
-        return False, f"{missed} of {len(outcomes)} samples missed a reading"
+    unusable = [outcome for outcome in outcomes if not outcome.success]
+    if len(unusable) > profile.max_missed_samples:
+        return False, f"{len(unusable)} of {len(outcomes)} samples were not usable: {unusable[0].reason}"
     silent = [channel.key for channel in profile.channels if not _series(outcomes, channel.key)]
     if silent:
         return False, f"no reading at all from {', '.join(silent)}"

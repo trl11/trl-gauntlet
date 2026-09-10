@@ -9,6 +9,26 @@ from suite.profile import Channel, DaqmxCaptureProfile, metric_key
 from suite.runner import _evaluate
 
 
+def _judged(profile: DaqmxCaptureProfile, **readings: float | None) -> IterationOutcome:
+    """One iteration whose success is taken over the profile's windows."""
+    outcome = sample(**readings)
+    faults = [
+        fault
+        for channel in profile.channels
+        if isinstance(value := outcome.metrics["daq"].get(channel.key), (int, float))
+        and (fault := channel.fault(value))
+    ]
+    if faults:
+        return IterationOutcome(
+            success=False,
+            reason="; ".join(faults),
+            metrics=outcome.metrics,
+            phase_records=[],
+            summary="",
+        )
+    return outcome
+
+
 def sample(**readings: float | None) -> IterationOutcome:
     """One iteration that recorded these channels, by metric name."""
     values = {key: value for key, value in readings.items() if value is not None}
@@ -76,10 +96,33 @@ class TestRunLabels:
             DaqmxCaptureProfile(channels=[Channel(channel="ai0", label="Rail 3V3")], labels="ai1=rail 3v3")
 
 
+class TestLimits:
+    def test_a_reading_inside_its_window_is_no_fault(self) -> None:
+        assert Channel(channel="ai0", min_v=3.0, max_v=3.6).fault(3.3) == ""
+
+    def test_a_reading_below_the_floor_says_so(self) -> None:
+        fault = Channel(channel="ai0", label="Rail 3V3", min_v=3.0).fault(0.62)
+        assert fault == "Rail 3V3 read 0.62V, below 3V"
+
+    def test_a_reading_above_the_ceiling_says_so(self) -> None:
+        fault = Channel(channel="ai0", label="Rail 3V3", max_v=3.6).fault(4.1)
+        assert fault == "Rail 3V3 read 4.1V, above 3.6V"
+
+    def test_a_channel_with_no_window_faults_on_nothing(self) -> None:
+        assert Channel(channel="ai0").fault(-99.0) == ""
+
+    def test_a_window_with_nothing_inside_it_is_refused(self) -> None:
+        with pytest.raises(ValidationError, match="must be below max_v"):
+            Channel(channel="ai0", min_v=3.6, max_v=3.0)
+
+
 class TestVerdict:
-    def profile(self) -> DaqmxCaptureProfile:
+    def profile(self, **limits: float) -> DaqmxCaptureProfile:
         return DaqmxCaptureProfile(
-            channels=[Channel(channel="ai0", label="Rail"), Channel(channel="ai1", label="Shunt")]
+            channels=[
+                Channel(channel="ai0", label="Rail", **limits),
+                Channel(channel="ai1", label="Shunt"),
+            ]
         )
 
     def test_a_capture_that_read_both_channels_passes(self) -> None:
@@ -93,7 +136,22 @@ class TestVerdict:
         outcomes = [sample(rail=0.5, shunt=0.1), sample(rail=0.51, shunt=None)]
         passed, reason = _evaluate(outcomes, self.profile())
         assert passed is False
-        assert "missed a reading" in reason
+        assert "not usable" in reason
+
+    def test_a_reading_outside_its_window_fails_the_run(self) -> None:
+        profile = self.profile(min_v=3.0, max_v=3.6)
+        outcomes = [
+            _judged(profile, rail=3.3, shunt=0.1),
+            _judged(profile, rail=0.62, shunt=0.11),
+        ]
+        passed, reason = _evaluate(outcomes, profile)
+        assert passed is False
+        assert "Rail read 0.62V, below 3V" in reason
+
+    def test_readings_inside_their_window_pass(self) -> None:
+        profile = self.profile(min_v=3.0, max_v=3.6)
+        outcomes = [_judged(profile, rail=3.3, shunt=0.1), _judged(profile, rail=3.31, shunt=0.11)]
+        assert _evaluate(outcomes, profile) == (True, "")
 
     def test_a_channel_that_never_read_at_all_is_named(self) -> None:
         profile = self.profile()
