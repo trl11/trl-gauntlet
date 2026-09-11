@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Button, Input, Select, Spinner } from "@trl11/components/ui";
+import { Button, Select, Spinner } from "@trl11/components/ui";
 import { useId, useMemo, useState } from "react";
 import {
   Brush,
@@ -15,7 +15,8 @@ import {
 import { artifactUrl, getArtifactText } from "@api/client";
 import EmptyState from "@components/EmptyState";
 import { formatNumber } from "../utils/format";
-import { decimate, parseCapture, spanOf } from "../utils/capture";
+import { paddedDomain } from "../utils/metrics";
+import { decimate, parseCapture } from "../utils/capture";
 
 import "./CaptureViewer.scss";
 
@@ -55,8 +56,6 @@ export const CaptureViewer: React.FC<CaptureViewerProps> = ({ paths, runId }) =>
   const fieldId = useId();
   const [selected, setSelected] = useState(paths[0] ?? "");
   const [window, setWindow] = useState<[number, number] | null>(null);
-  const [low, setLow] = useState("");
-  const [high, setHigh] = useState("");
   const [hidden, setHidden] = useState<string[]>([]);
 
   const path = paths.includes(selected) ? selected : (paths[0] ?? "");
@@ -103,45 +102,9 @@ export const CaptureViewer: React.FC<CaptureViewerProps> = ({ paths, runId }) =>
             setWindow(null);
           }}
         />
-        <Input
-          id={`${fieldId}-low`}
-          type="number"
-          label="Y axis min"
-          placeholder="auto"
-          value={low}
-          onChange={(event) => setLow(event.target.value)}
-        />
-        <Input
-          id={`${fieldId}-high`}
-          type="number"
-          label="Y axis max"
-          placeholder="auto"
-          value={high}
-          onChange={(event) => setHigh(event.target.value)}
-        />
         <div className="capture-viewer__buttons">
-          <Button
-            size="small"
-            onClick={() => {
-              const spans = drawn
-                .map((name) => spanOf(capture, name))
-                .filter((span) => span !== null);
-              if (spans.length === 0) return;
-              setLow(String(Math.min(...spans.map(([min]) => min))));
-              setHigh(String(Math.max(...spans.map(([, max]) => max))));
-            }}
-          >
-            Fit
-          </Button>
-          <Button
-            size="small"
-            onClick={() => {
-              setLow("");
-              setHigh("");
-              setWindow(null);
-            }}
-          >
-            Reset
+          <Button size="small" disabled={window === null} onClick={() => setWindow(null)}>
+            Reset zoom
           </Button>
         </div>
       </div>
@@ -191,10 +154,9 @@ export const CaptureViewer: React.FC<CaptureViewerProps> = ({ paths, runId }) =>
             />
             <YAxis
               allowDataOverflow
-              domain={[
-                low.trim() === "" ? "dataMin" : Number(low),
-                high.trim() === "" ? "dataMax" : Number(high),
-              ]}
+              // Over what is drawn rather than the whole capture, so zooming
+              // into a quiet stretch frames that stretch.
+              domain={paddedDomain(points.flatMap((point) => drawn.map((name) => point[name])))}
               tickFormatter={(value: number) => formatNumber(value, 6)}
               width={80}
             />

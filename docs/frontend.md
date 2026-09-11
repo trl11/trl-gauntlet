@@ -45,6 +45,12 @@ it. A run whose files include `instruments.json` grows an **Instruments** tab; a
 run that wrote `captures/*.csv` grows a **Captures** tab, drawn by
 `CaptureViewer`; the galleries appear only for a run that recorded images.
 
+Every chart scales its own vertical axis and offers no control for it: the
+window is the data's range with a tenth of that range as air at each end, from
+`paddedDomain`. A line read against the grid rather than against the edge of
+its panel is what makes a 95uV ripple on a 2.5mV rail legible, and it needs
+nothing typed to get there.
+
 `CaptureViewer` draws a waveform that is far larger than the chart it goes in.
 The whole window is drawn as an envelope — each bucket's lowest and highest
 sample, so a peak survives the thinning — and a window brushed down below the

@@ -56,26 +56,6 @@
     gap: 8px;
   }
 
-  &__axis {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-left: auto;
-  }
-
-  &__axis-label {
-    font-size: 11px;
-    color: $trl-gray;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-  }
-
-  &__bound {
-    width: 84px;
-    font-family: $font-mono;
-    font-size: 11px;
-  }
-
   &__title {
     font-family: $font-mono;
     font-size: 12px;

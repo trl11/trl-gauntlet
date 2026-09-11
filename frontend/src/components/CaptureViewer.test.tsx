@@ -77,15 +77,6 @@ describe("CaptureViewer", () => {
     expect(screen.getByRole("button", { name: "ch1" })).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("fits the vertical window to the channels on show", async () => {
-    renderViewer();
-    await screen.findByText(/4 samples/);
-    await userEvent.click(screen.getByRole("button", { name: "ch1" }));
-    await userEvent.click(screen.getByRole("button", { name: "Fit" }));
-    expect(screen.getByLabelText("Y axis min")).toHaveValue(0.0024);
-    expect(screen.getByLabelText("Y axis max")).toHaveValue(0.0027);
-  });
-
   it("stands down when the capture cannot be read", async () => {
     getArtifactText.mockResolvedValue("t_s,ch0");
     renderViewer();

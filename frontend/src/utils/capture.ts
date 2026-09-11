@@ -113,11 +113,3 @@ export function decimate(
   }
   return points;
 }
-
-/** The lowest and highest sample of one channel, over the whole capture. */
-export function spanOf(capture: Capture, channel: string): [number, number] | null {
-  const index = capture.channels.indexOf(channel);
-  if (index < 0 || capture.values[index].length === 0) return null;
-  const samples = capture.values[index];
-  return [Math.min(...samples), Math.max(...samples)];
-}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { decimate, parseCapture, spanOf, type Capture } from "./capture";
+import { decimate, parseCapture, type Capture } from "./capture";
 
 const CSV = ["t_s,ch0,ch1", "0,0.0025,0.5", "4e-05,0.0026,0.51", "8e-05,0.0024,0.52"].join("\n");
 
@@ -72,15 +72,5 @@ describe("decimate", () => {
       const at = capture.times.indexOf(point.t);
       expect(point.ch1).toBe(capture.values[1][at]);
     }
-  });
-});
-
-describe("spanOf", () => {
-  it("gives the lowest and highest sample of a channel", () => {
-    expect(spanOf(parseCapture(CSV), "ch0")).toEqual([0.0024, 0.0026]);
-  });
-
-  it("gives nothing for a channel the capture does not hold", () => {
-    expect(spanOf(parseCapture(CSV), "ai7")).toBeNull();
   });
 });

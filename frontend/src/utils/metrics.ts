@@ -4,6 +4,30 @@ export interface SeriesGroup {
   names: string[];
 }
 
+/** How much of a series' own range is left as air above and below it. */
+const HEADROOM = 0.1;
+
+/**
+ * The vertical window a chart draws a set of values in.
+ *
+ * A tenth of the range as air at each end, so the line is read against the
+ * grid rather than against the edge of the panel, and a peak that touches the
+ * extreme is still visibly a peak.
+ *
+ * A series that never moves has no range to take a tenth of, so the air comes
+ * from the value itself — and from 1 where even that is zero, because a flat
+ * line at zero still has to be drawn somewhere.
+ */
+export function paddedDomain(values: number[]): [number, number] | undefined {
+  const real = values.filter((value) => Number.isFinite(value));
+  if (real.length === 0) return undefined;
+  const low = Math.min(...real);
+  const high = Math.max(...real);
+  const span = high - low;
+  const air = span > 0 ? span * HEADROOM : Math.abs(high) * HEADROOM || 1;
+  return [low - air, high + air];
+}
+
 /** Splits `a1 < a2 < a10` the way a person reads it, not the way `localeCompare` does. */
 export function naturalCompare(a: string, b: string): number {
   const chunk = (value: string) => value.match(/\d+|\D+/g) ?? [value];
