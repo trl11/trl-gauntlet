@@ -1,10 +1,7 @@
 description: >
-  Half a minute of every analog input on the module, on whatever range each is
-  already set to. The starting point for a bench: name the inputs for what is
-  wired to them, and give each a `min_v` and `max_v` window once you know what
-  it should read — without one a channel is recorded and only judged on having
-  answered at all. Set a range on any input the module offers a choice for; an
-  NI-9238 has one and needs none, which is what leaving `mode` empty is for.
+  Half a minute of every analog input, on the range each is already set to.
+  Name the inputs and give each a `min_v` and `max_v` once you know what it
+  should read; without one a channel is only judged on having answered.
 driver: real
 duration_s: 30
 sample_period_s: 1

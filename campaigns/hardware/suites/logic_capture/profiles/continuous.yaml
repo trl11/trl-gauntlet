@@ -1,10 +1,6 @@
 description: >
-  All eight probes at full rate, captured continuously. Name the probes for
-  what they are clipped to, and say what each one is expected to be doing,
-  since a probe left as `any` is recorded but never fails a run. The run has
-  no end of its own: it samples until the operator stops it from the app,
-  and the verdict is taken over what was collected, so a session whose every
-  iteration passed is recorded as a pass and not an abort.
+  All eight probes at full rate. Name the probes and say what each should be
+  doing. Runs until the operator stops it.
 driver: real
 duration_s: 0
 sample_period_s: 1

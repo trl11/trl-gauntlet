@@ -97,9 +97,8 @@ overrides:
     unit: us
     minimum: 0
     help: >
-      Exposure to pin the camera at. Zero leaves the camera metering for
-      itself, which copes with whatever the scene is but compensates for a
-      sensor that is dimming.
+      Exposure to hold the camera at. Zero lets the camera meter itself,
+      which suits any scene but hides a sensor that is dimming.
   - name: driver
     flag: --driver
     type: string

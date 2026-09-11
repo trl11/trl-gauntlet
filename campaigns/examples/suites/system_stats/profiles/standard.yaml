@@ -1,4 +1,4 @@
-description: Five-minute health watch at 1 Hz, with limits a busy workstation still meets.
+description: Five-minute health watch at 1 Hz, with limits a busy workstation meets.
 duration_s: 300.0
 sample_period_s: 1.0
 max_cpu_percent: 99.0

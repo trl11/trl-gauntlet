@@ -1,10 +1,6 @@
 description: >
-  The beam-line profile for the LAN7430-I/Y9X, run continuously: one
-  measurement every thirty seconds for as long as the exposure lasts.
-  Nothing is gated tightly, for the reason `standard.yaml` gives. The run
-  has no end of its own: it samples until the operator stops it from the
-  app, and the verdict is taken over what was collected, so a session whose
-  every iteration passed is recorded as a pass and not an abort.
+  The beam-line profile for the LAN7430-I/Y9X. Runs until the operator stops
+  it.
 driver: real
 duration_s: 0
 sample_period_s: 30.0

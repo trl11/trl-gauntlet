@@ -1,6 +1,4 @@
-description: >
-  Tight limits for a host that is expected to be idle and cool. Exercises the
-  failure path on anything under real load.
+description: Tight limits for an idle host. Fails on anything under real load.
 duration_s: 60.0
 sample_period_s: 0.5
 max_cpu_percent: 25.0

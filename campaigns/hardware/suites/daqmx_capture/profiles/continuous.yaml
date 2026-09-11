@@ -1,9 +1,6 @@
 description: >
-  Every analog input on the module, sampled continuously. Name the inputs for
-  what is wired to them and set a range on any the module offers a choice for.
-  The run has no end of its own: it samples until the operator stops it from
-  the app, and the verdict is taken over what was collected, so a session whose
-  every iteration passed is recorded as a pass and not an abort.
+  Every analog input on the module. Name the inputs for what is wired to them.
+  Runs until the operator stops it.
 driver: real
 duration_s: 0
 sample_period_s: 1

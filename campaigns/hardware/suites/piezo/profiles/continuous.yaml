@@ -1,8 +1,6 @@
 description: >
-  Extend-and-return cycles with a temperature ceiling, run continuously. The
-  run has no end of its own: it samples until the operator stops it from the
-  app, and the verdict is taken over what was collected, so a session whose
-  every iteration passed is recorded as a pass and not an abort.
+  Extend-and-return cycles with a temperature ceiling. Runs until the operator
+  stops it.
 driver: real
 cycles: 0
 cycle_delay_s: 0.5

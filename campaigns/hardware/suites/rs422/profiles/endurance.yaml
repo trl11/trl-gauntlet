@@ -1,4 +1,4 @@
-description: Four-hour link session. Allows a small loss budget.
+description: Four-hour link session with a small loss budget.
 driver: real
 duration_s: 14400.0
 sample_period_s: 5.0

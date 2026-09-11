@@ -1,10 +1,7 @@
 description: >
-  The beam-line profile. One still every thirty seconds for as long as the
-  exposure lasts, measuring brightness, edge detail and both temperatures, and
-  keeping every frame. Nothing is gated tightly: the first exposures are for
-  characterisation, and a floor set before the part has been measured would
-  only encode a guess. Tighten `pass_criteria` and the drift limits once a
-  baseline run exists.
+  The beam-line profile. One still every thirty seconds, measuring brightness,
+  edge detail and both temperatures, keeping every frame. Tighten
+  `pass_criteria` and the drift limits once a baseline run exists.
 driver: real
 duration_s: 28800.0
 sample_period_s: 30.0

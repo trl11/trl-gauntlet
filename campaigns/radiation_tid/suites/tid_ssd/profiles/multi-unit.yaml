@@ -1,14 +1,10 @@
 description: >
-  Several drives characterised in one exposure, one unit each, probed
-  concurrently for eight hours. Their metrics are namespaced under
-  `units.<name>.*` and each drive gets its own verdict rows, so one part
-  degrading does not hide behind the rest. Add one entry per machine
-  holding a drive, with `host` set to that machine.
+  Several drives in one exposure, one unit each, probed concurrently for eight
+  hours, with a verdict per drive. Add one entry per machine holding a drive.
 
-  Two units must not name the same host: every unit shares the one `probe:`
-  block below, so both would write the same `test_path` at the same moment and
-  report each other's bytes as SHA-256 miscompares. Under a beam that reads as
-  the drive corrupting data.
+  Two units must not name the same host: they share the one `probe:` block
+  below, so both would write the same `test_path` and report each other's
+  bytes as SHA-256 miscompares.
 driver: real
 duration_s: 28800.0
 sample_period_s: 30.0

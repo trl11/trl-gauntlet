@@ -1,4 +1,4 @@
-description: Ten cycles on one axis. Quick check that motion and telemetry work.
+description: Ten cycles on one axis, to check motion and telemetry work.
 driver: real
 cycles: 10
 motion:

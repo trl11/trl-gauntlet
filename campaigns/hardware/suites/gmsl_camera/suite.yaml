@@ -50,10 +50,9 @@ overrides:
     unit: s
     minimum: 0.5
     help: >
-      Seconds between snapshots. Converting a 4K frame to a 960px snapshot
-      costs about half a second and rises with the width, so a real run is
-      refused below 1s rather than quietly delivering a slower rate than it
-      asked for. A mock run synthesises a small frame and may go quicker.
+      Seconds between snapshots. Converting a 4K frame costs about half a
+      second and rises with the width, so the suite refuses a real run below
+      1s. A mock run makes a small frame and may go quicker.
   - name: max_width
     flag: --max-width
     type: integer
@@ -62,8 +61,8 @@ overrides:
     minimum: 16
     maximum: 3840
     help: >
-      Width to scale each snapshot to. The camera's own width is used when
-      this is larger than it; the height follows the aspect ratio.
+      Width to scale each snapshot to. A value above the camera's own width
+      keeps the whole frame. The height follows the aspect ratio.
   - name: driver
     flag: --driver
     type: string

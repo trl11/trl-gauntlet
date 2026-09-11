@@ -1,4 +1,4 @@
-description: Five pulses against a real unit. Quick check that the line responds.
+description: Five pulses against a real unit, to check the line responds.
 driver: real
 runs: 5
 cycle_delay_s: 0.0

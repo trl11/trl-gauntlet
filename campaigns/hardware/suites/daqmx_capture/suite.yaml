@@ -49,10 +49,9 @@ overrides:
     unit: s
     minimum: 0.25
     help: >
-      Seconds between acquisitions. Each one is a metrics record. An
-      acquisition is a hundred samples at the module's own rate, so a shorter
-      period is refused rather than quietly delivering a slower rate than it
-      asked for.
+      Seconds between acquisitions. Each acquisition is one metrics record
+      of a hundred samples at the module's own rate, so the suite refuses a
+      shorter period instead of running slower than asked.
   - name: capture_rate_hz
     flag: --capture-rate-hz
     type: number
@@ -60,10 +59,10 @@ overrides:
     unit: S/s
     minimum: 0
     help: >
-      Capture the waveform at this many samples a second instead of recording
-      the mean of a short acquisition. An NI-9238 runs its converters between
-      1613 and 50000 S/s. The samples are written to `captures/` as CSV, one
-      file per acquisition; 0 records the mean only.
+      Record the waveform at this many samples a second, instead of the mean
+      of a short acquisition. An NI-9238 runs its converters between 1613
+      and 50000 S/s. Each acquisition writes one CSV file to `captures/`.
+      Zero records the mean only.
   - name: capture_samples
     flag: --capture-samples
     type: integer
@@ -79,9 +78,9 @@ overrides:
     label: Channel labels
     help: >
       Name the inputs for this run, as `ai0=Rail 3V3, ai2=Ground`. The name
-      goes on the module and on every metric the channel records. A channel
-      the profile does not list is added by naming it here; leave this empty
-      to keep the profile's own labels.
+      appears on the module and on every metric the channel records. Naming
+      a channel the profile omits adds it. Leave this empty to keep the
+      profile's own labels.
   - name: driver
     flag: --driver
     type: string

@@ -56,7 +56,7 @@ overrides:
     label: Frames
     minimum: 1
     maximum: 100
-    help: How many stills to take before deciding.
+    help: How many stills to take before the verdict.
   - name: sample_period_s
     flag: --sample-period-s
     type: number
@@ -64,9 +64,8 @@ overrides:
     unit: s
     minimum: 0.25
     help: >
-      Seconds between stills. A real camera is held at or above 1s: the
-      sensor sends RGB already, but scaling and encoding a 4K frame in pure
-      Python still costs a large fraction of a second.
+      Seconds between stills. A real camera is held at 1s or more, because
+      scaling and encoding a 4K frame in Python costs most of a second.
   - name: max_width
     flag: --max-width
     type: integer
@@ -75,8 +74,8 @@ overrides:
     minimum: 16
     maximum: 4512
     help: >
-      Width to scale each still to. Anything at or above the camera's own
-      width takes the whole frame; the height follows the aspect ratio.
+      Width to scale each still to. A value at or above the camera's own
+      width keeps the whole frame. The height follows the aspect ratio.
   - name: exposure_us
     flag: --exposure-us
     type: number
@@ -84,9 +83,8 @@ overrides:
     unit: us
     minimum: 0
     help: >
-      Exposure to pin the camera at. Zero leaves the camera metering for
-      itself, which copes with whatever the scene is but compensates for a
-      sensor that is dimming.
+      Exposure to hold the camera at. Zero lets the camera meter itself,
+      which suits any scene but hides a sensor that is dimming.
   - name: driver
     flag: --driver
     type: string

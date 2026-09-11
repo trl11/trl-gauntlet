@@ -1,8 +1,6 @@
 description: >
-  Half a minute against the disk on the unit: three ticks of write, read and
-  SHA-256 verify, with the SMART counters read before and after. This is the
-  quick answer to whether a disk works. Anything anomalous fails the run,
-  because over three ticks there is no rate to average away.
+  Half a minute on the disk: three ticks of write, read and SHA-256 verify,
+  with SMART read either side. Anything anomalous fails the run.
 driver: real
 duration_s: 30.0
 sample_period_s: 10.0
