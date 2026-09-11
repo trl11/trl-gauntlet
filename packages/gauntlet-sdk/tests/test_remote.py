@@ -205,7 +205,7 @@ class TestConnect:
     def test_a_refused_connection_closes_the_client_and_raises(self, monkeypatch, key):
         self._fake_paramiko(monkeypatch, _client(), connect_error=OSError("connection refused"))
 
-        with pytest.raises(RemoteError, match="ssh to root@unit-3: connection refused"):
+        with pytest.raises(RemoteError, match=r"ssh to root@unit-3 with .*: connection refused"):
             connect(RemoteTarget(host="unit-3", key_path=str(key)))
 
     def test_an_ssh_protocol_failure_is_a_remote_error(self, monkeypatch, key):

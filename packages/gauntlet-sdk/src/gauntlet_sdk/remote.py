@@ -92,7 +92,9 @@ def connect(target: RemoteTarget, *, timeout: float = 10.0, keepalive_s: int = 3
         )
     except (paramiko.SSHException, OSError) as exc:
         client.close()
-        raise RemoteError(f"ssh to {target.user}@{target.host}: {exc}") from exc
+        # Naming the key is the point: a refused login is almost always the
+        # wrong one, and the caller picked it from several candidates.
+        raise RemoteError(f"ssh to {target.user}@{target.host} with {target.key_path}: {exc}") from exc
 
     transport = client.get_transport()
     if transport is not None:

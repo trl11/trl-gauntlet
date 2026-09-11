@@ -418,7 +418,8 @@ class RunSupervisor:
         if verdict is None:
             status = "error"
             passed = False
-            reason = f"suite exited with code {exit_code} without writing verdict.json"
+            reported = _reported_error(Path(handle.run_dir) / "test.log")
+            reason = reported or f"suite exited with code {exit_code} without writing verdict.json"
         else:
             passed = verdict.passed
             reason = verdict.reason
@@ -510,6 +511,25 @@ class RunSupervisor:
         finished = [h for h in self.list_runs() if h.finished]
         for handle in finished[self._history_size :]:
             self._runs.pop(handle.run_id, None)
+
+
+def _reported_error(log_path: Path) -> str:
+    """The last line the suite logged through ``err()``, without its prefix.
+
+    A suite that refuses a run says why on the `error:` prefix Gauntlet already
+    reads levels from, so the operator is shown that sentence rather than an
+    exit code they cannot act on.
+    """
+    try:
+        lines = log_path.read_text(errors="replace").splitlines()
+    except OSError:
+        return ""
+    for line in reversed(lines):
+        # The explicit prefix only. `classify_log_line` also infers a level
+        # from the wording, which a traceback mentioning an error would trip.
+        if line[:6].lower().startswith("error:"):
+            return line[6:].strip()
+    return ""
 
 
 def _read_verdict(path: Path) -> Verdict | None:

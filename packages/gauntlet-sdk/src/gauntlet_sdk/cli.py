@@ -16,6 +16,7 @@ from typing import Any, Protocol
 from gauntlet_sdk.environment import run_environment
 from gauntlet_sdk.log import err, info
 from gauntlet_sdk.profile import ProfileError, load_profile
+from gauntlet_sdk.remote import RemoteError
 from gauntlet_sdk.runner import SuiteSpec, run_suite
 
 
@@ -104,7 +105,14 @@ def make_suite_cli(
             return 2
 
         info(f"{spec.name}: run_dir={env.run_dir}")
-        result, run_dir = run_suite(spec, profile, env=env)
+        try:
+            result, run_dir = run_suite(spec, profile, env=env)
+        except RemoteError as exc:
+            # The bench is wired wrong rather than the part being faulty, so
+            # this says what to fix instead of unwinding a stack the operator
+            # cannot act on.
+            err(str(exc))
+            return 2
         info(f"artifacts: {run_dir}")
         return 0 if result.passed else 1
 

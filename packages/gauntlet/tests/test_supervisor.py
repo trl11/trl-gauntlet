@@ -51,6 +51,18 @@ _STUBBORN = textwrap.dedent(
 )
 
 
+# Refuses the run the way the SDK does when the bench is unreachable: one
+# `error:` line, no verdict, exit 2.
+_REFUSES = textwrap.dedent(
+    """\
+    #!/usr/bin/env bash
+    echo "uut: connecting to trl@192.168.0.149"
+    echo "error: ssh to trl@192.168.0.149: Authentication failed."
+    exit 2
+    """
+)
+
+
 def script_writing(verdict: str) -> str:
     """A suite that writes exactly this text as its verdict and exits."""
     return textwrap.dedent(
@@ -242,6 +254,20 @@ class TestTheVerdictDecidesTheStatus:
             run_id = start(client)
             row = wait_for_status(client, run_id, {"passed", "failed", "error", "aborted"})
             assert (row["status"], row["verdict"]) == ("aborted", "ABORTED")
+
+    def test_an_error_run_reports_what_the_suite_said_over_the_exit_code(self, app_with) -> None:
+        with app_with(slow=_REFUSES) as client:
+            run_id = start(client)
+            row = wait_for_status(client, run_id, {"passed", "failed", "error", "aborted"})
+            assert row["status"] == "error"
+            assert row["fail_reason"] == "ssh to trl@192.168.0.149: Authentication failed."
+
+    def test_an_error_run_that_said_nothing_falls_back_to_the_exit_code(self, app_with) -> None:
+        with app_with(slow="#!/usr/bin/env bash\nexit 1\n") as client:
+            run_id = start(client)
+            row = wait_for_status(client, run_id, {"passed", "failed", "error", "aborted"})
+            assert row["status"] == "error"
+            assert "without writing verdict.json" in row["fail_reason"]
 
     def test_a_verdict_that_is_not_json_is_an_error(self, app_with) -> None:
         with app_with(slow=script_writing("{ truncated")) as client:
