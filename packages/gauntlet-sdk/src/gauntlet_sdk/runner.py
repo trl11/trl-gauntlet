@@ -31,7 +31,7 @@ from gauntlet_sdk.iteration import (
     IterationRunner,
     RunResult,
 )
-from gauntlet_sdk.profile import snapshot_profile, summarize_profile
+from gauntlet_sdk.profile import snapshot_profile, summarize_profile, write_resolved_profile
 from gauntlet_sdk.reporting.events_sink import EventsSink
 from gauntlet_sdk.reporting.jsonl_sink import JsonlSink
 from gauntlet_sdk.reporting.junit_sink import JUnitSink
@@ -198,6 +198,9 @@ def run_suite(
                 versions=spec.versions(ctx, profile),
             ),
         )
+        # The profile as it ended up, over the copy taken before the run, so the
+        # artifact says what ran rather than what it was asked to start from.
+        write_resolved_profile(profile, run_dir)
         write_verdict(
             run_dir / "verdict.json",
             result,

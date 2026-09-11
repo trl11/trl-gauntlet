@@ -32,7 +32,13 @@ from gauntlet_sdk.iteration import (
 from gauntlet_sdk.log import err, info, warn
 from gauntlet_sdk.monitor import RemoteMonitor
 from gauntlet_sdk.phases import PhaseRecord, PhaseTimer
-from gauntlet_sdk.profile import ProfileError, load_profile, snapshot_profile, summarize_profile
+from gauntlet_sdk.profile import (
+    ProfileError,
+    load_profile,
+    snapshot_profile,
+    summarize_profile,
+    write_resolved_profile,
+)
 from gauntlet_sdk.remote import RemoteError, RemoteTarget
 from gauntlet_sdk.reporting import (
     EventsSink,
@@ -88,6 +94,7 @@ __all__ = [
     "summarize_profile",
     "warn",
     "write_manifest",
+    "write_resolved_profile",
     "write_simple_verdict",
     "write_summary",
     "write_verdict",

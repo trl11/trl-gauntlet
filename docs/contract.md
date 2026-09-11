@@ -142,7 +142,7 @@ Paths are relative to `GAUNTLET_RUN_DIR`.
 | `summary.md` | no | suite, at exit | Human-readable rollup. |
 | `frames/` | no | suite, during the run | Images referenced from `metrics.images`. |
 | `traces/` | no | suite, during the run | Captured signals referenced from `metrics.traces`. |
-| `profile.yaml` | no | Gauntlet | Copy of the profile file the run was given. |
+| `profile.yaml` | no | Gauntlet at start, the suite at exit | The profile as run: every field, defaults and overrides included. |
 | `test.log` | no | Gauntlet | Captured stdout and stderr. |
 | `instruments.jsonl` | no | Gauntlet, during the run | What the bench's instruments read, one line per instrument per second. |
 | `instruments.json` | no | Gauntlet, at exit | The same readings summarised: count, extremes, mean and last. |
@@ -151,9 +151,11 @@ The last two are Gauntlet's own and a suite neither writes nor reads them: it
 is not told which instruments are being recorded, and a run is identical
 whether they are or not.
 
-`profile.yaml` is the file as it arrived and `manifest.json`'s `profile` is
-what the run resolved it to, overrides folded in. They differ the moment a run
-overrides anything, and the second is the one a run is reproduced from.
+`profile.yaml` starts as the file the run was handed and is replaced at exit
+with the profile the suite resolved — every field, the defaults the model
+filled in and the overrides the run was started with. A run that dies before
+resolving anything leaves the copy behind, which is better than no profile at
+all. `manifest.json` carries the same resolved values as JSON.
 
 `produces` lists what the suite writes. Gauntlet uses it to decide which views
 to offer and which artifacts `verify --run` requires.
