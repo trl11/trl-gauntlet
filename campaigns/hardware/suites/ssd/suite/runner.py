@@ -38,6 +38,9 @@ from suite.profile import SsdProfile
 # The engineering key, carried as a submodule so a bench run needs nothing
 # copied into ~/.ssh.
 BUNDLED_KEY = Path("extras/trl-engineering-keys/saver/id_ed_saver_eng_key")
+# Where `make deploy` leaves the same key. A bench unpacks the bundle without
+# `extras/`, so the checkout path above never resolves there.
+DEPLOYED_KEY = Path("~/gauntlet/keys/id_ed_saver_eng_key")
 
 
 @dataclass
@@ -58,16 +61,19 @@ def _state(ctx: SuiteContext) -> _State:
 
 
 def _bundled_key() -> str:
-    """The engineering key from the submodule, or empty when it is not checked out.
+    """The engineering key, from the checkout or from where a deploy put it.
 
-    Searched upward from this file so it is found wherever the campaign sits in
-    the tree, and missing without complaint on a bench that installs its own.
+    The checkout is searched upward from this file so it is found wherever the
+    campaign sits in the tree. A deployed bench has no such tree, so the path a
+    deploy writes is tried next. Empty when neither exists, which leaves a
+    bench that installs its own key working.
     """
     for parent in Path(__file__).resolve().parents:
         candidate = parent / BUNDLED_KEY
         if candidate.is_file():
             return str(candidate)
-    return ""
+    deployed = DEPLOYED_KEY.expanduser()
+    return str(deployed) if deployed.is_file() else ""
 
 
 def _ssh_target(profile: SsdProfile, host: str | None) -> RemoteTarget:
@@ -134,7 +140,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
                 data = probe_engine.run_probe(state.client, profile.probe, device)
         except (RemoteError, TimeoutError, OSError) as exc:
             state.probe_errors += 1
-            failed.append(device.name)
+            failed.append(f"{device.name}: {exc}")
             state.anomalies.record(
                 "ssh",
                 "probe_error",
@@ -143,11 +149,16 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
             )
             continue
 
+        kinds = []
         for anomaly in probe_engine.evaluate(device_state, profile.probe, device, data):
             state.anomalies.record(anomaly.probe, anomaly.kind, iteration=ictx.iteration, detail=anomaly.detail)
+            kinds.append(anomaly.kind)
 
-        if data.get("error"):
-            failed.append(device.name)
+        if data.get("error") or kinds:
+            # The anomaly kinds are what says which check objected, so the
+            # verdict names them rather than leaving them in metrics.jsonl.
+            why = str(data.get("error") or "") or ", ".join(kinds)
+            failed.append(f"{device.name}: {why}")
         metrics[device.name] = {
             "write_mbps": data.get("write_mbps"),
             "read_mbps": data.get("read_mbps"),
@@ -159,7 +170,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     metrics["anomalies_total"] = state.anomalies.total()
     return IterationOutcome(
         success=not failed,
-        reason=f"probe failed on {', '.join(failed)}" if failed else "",
+        reason=f"probe failed on {'; '.join(failed)}" if failed else "",
         metrics=metrics,
         summary=_tick_summary(profile, state),
     )
