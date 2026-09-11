@@ -54,12 +54,17 @@ export const ActiveRun: React.FC<ActiveRunProps> = ({ now, run }) => {
         <dd>{iteration ?? "-"}</dd>
       </dl>
       <div className="active-run__actions">
-        <Button size="small" disabled={control.isPending} onClick={() => setConfirming("stop")}>
+        <Button
+          color="amber"
+          size="small"
+          disabled={control.isPending}
+          onClick={() => setConfirming("stop")}
+        >
           Stop
         </Button>
         <Button
           className="active-run__abort"
-          color="outline"
+          color="red"
           size="small"
           disabled={control.isPending}
           onClick={() => setConfirming("abort")}

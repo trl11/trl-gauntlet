@@ -75,19 +75,20 @@
     align-items: center;
     gap: 8px;
     margin-left: auto;
+
+    // A run being stopped cannot be stopped again, and its two buttons say so
+    // more plainly than the kit's own disabled dimming does. The same rule the
+    // run page's controls carry, because these are the same two actions.
+    button:disabled {
+      opacity: 0.35;
+    }
   }
 
-  // Abort kills the process and writes no verdict, unlike Stop; recessed by
-  // default and set apart so a misclick doesn't reach it in place of Stop.
+  // Abort kills the process and writes no verdict, unlike Stop. The colours
+  // are the run page's — amber for the graceful one, red for this — so an
+  // operator learns the pair once. The gap is what a misclick has to cross.
   &__abort {
     margin-left: 10px;
-    color: $trl-gray;
-
-    &:hover,
-    &:focus-visible {
-      color: $indicator-red;
-      border-color: rgba($indicator-red, 0.6);
-    }
   }
 
   // The squares run the width of the card, under the facts they belong to.
