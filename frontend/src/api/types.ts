@@ -104,6 +104,8 @@ export interface SuiteOverride {
   /** Lowest accepted value, for a `number` or an `integer`. */
   minimum: number | null;
   name: string;
+  /** The operator must supply a value: nothing else can. */
+  required: boolean;
   type: OverrideType;
   unit: string;
 }

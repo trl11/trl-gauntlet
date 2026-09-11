@@ -17,6 +17,7 @@ function override(partial: Partial<SuiteOverride> & { name: string }): SuiteOver
     label: "",
     maximum: null,
     minimum: null,
+    required: false,
     type: "string",
     unit: "",
     ...partial,
@@ -43,12 +44,12 @@ function Harness({ errors = {} }: { errors?: Record<string, string> }) {
 }
 
 /** The form wired to the real validator, as the run dialog wires it. */
-function ValidatingHarness() {
+function ValidatingHarness({ overrides = OVERRIDES }: { overrides?: SuiteOverride[] }) {
   const [values, setValues] = useState<OverrideValues>({ stop_on_failure: true });
-  const errors = validateOverrides(OVERRIDES, values);
+  const errors = validateOverrides(overrides, values);
   return (
     <>
-      <OverrideForm overrides={OVERRIDES} values={values} errors={errors} onChange={setValues} />
+      <OverrideForm overrides={overrides} values={values} errors={errors} onChange={setValues} />
       <pre data-testid="errors">{JSON.stringify(errors)}</pre>
     </>
   );
@@ -76,10 +77,10 @@ describe("OverrideForm", () => {
     expect(screen.getByLabelText("Duration (s)")).toHaveAttribute("step", "any");
   });
 
-  it("offers the declared choices plus the suite default", () => {
+  it("offers the declared choices plus an empty entry", () => {
     render(<Harness />);
     const options = screen.getAllByRole("option").map((option) => option.textContent);
-    expect(options).toEqual(["(suite default)", "fast", "slow"]);
+    expect(options).toEqual(["", "fast", "slow"]);
   });
 
   it("reports every edit as the whole value map", async () => {
@@ -139,12 +140,20 @@ describe("OverrideForm validates what is typed into it", () => {
     expect(screen.getByTestId("errors")).toHaveTextContent("{}");
   });
 
-  it("accepts an empty field, which leaves the suite default in place", async () => {
+  it("accepts an empty field, which leaves the suite's own default in place", async () => {
     const user = userEvent.setup();
     render(<ValidatingHarness />);
     await user.type(screen.getByLabelText("cycles"), "99");
     await user.clear(screen.getByLabelText("cycles"));
     expect(screen.getByTestId("errors")).toHaveTextContent("{}");
+  });
+
+  it("marks a required field the operator has left blank", async () => {
+    const user = userEvent.setup();
+    render(<ValidatingHarness overrides={[override({ name: "ssh_user", required: true })]} />);
+    expect(screen.getByText("required")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("ssh_user"), "trl");
+    expect(screen.queryByText("required")).not.toBeInTheDocument();
   });
 
   it("leaves the non-numeric types alone", async () => {

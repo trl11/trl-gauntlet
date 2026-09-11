@@ -1301,6 +1301,7 @@
     "overrides": [
       {
         "choices": [],
+        "required": false,
         "default": null,
         "flag": "--duration-s",
         "help": "How long to keep sampling the host.",
@@ -1313,6 +1314,7 @@
       },
       {
         "choices": [],
+        "required": false,
         "default": null,
         "flag": "--sample-period-s",
         "help": "Seconds between samples. CPU utilisation is measured across this window.",
@@ -1325,6 +1327,7 @@
       },
       {
         "choices": [],
+        "required": false,
         "default": null,
         "flag": "--max-cpu-percent",
         "help": "Fail a sample whose overall CPU utilisation exceeds this.",
@@ -1337,6 +1340,7 @@
       },
       {
         "choices": [],
+        "required": false,
         "default": null,
         "flag": "--min-available-memory-percent",
         "help": "Fail a sample whose MemAvailable share of MemTotal is below this.",
@@ -1349,6 +1353,7 @@
       },
       {
         "choices": [],
+        "required": false,
         "default": null,
         "flag": "--min-free-disk-percent",
         "help": "Fail a sample where any mounted filesystem has less free space than this.",
@@ -1361,6 +1366,7 @@
       },
       {
         "choices": [],
+        "required": false,
         "default": null,
         "flag": "--max-load-per-core",
         "help": "Fail a sample whose one-minute load average divided by core count is above this.",
@@ -1373,6 +1379,7 @@
       },
       {
         "choices": [],
+        "required": false,
         "default": null,
         "flag": "--max-temperature-c",
         "help": "Fail a sample whose hottest thermal zone is above this. Skipped when the host exposes none.",
@@ -1385,6 +1392,7 @@
       },
       {
         "choices": [],
+        "required": false,
         "default": null,
         "flag": "--max-new-interface-errors",
         "help": "Fail a sample where an interface reports more new errors plus drops than this.",
@@ -1397,6 +1405,7 @@
       },
       {
         "choices": [],
+        "required": false,
         "default": null,
         "flag": "--stop-on-failure",
         "help": "Abandon the run as soon as one sample fails a check.",
@@ -1476,6 +1485,7 @@
         "overrides": [
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--duration-s",
             "help": "",
@@ -1488,6 +1498,7 @@
           },
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--rate-hz",
             "help": "",
@@ -1500,6 +1511,7 @@
           },
           {
             "choices": ["real", "mock"],
+            "required": false,
             "default": null,
             "flag": "--driver",
             "help": "",
@@ -1569,6 +1581,7 @@
         "overrides": [
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--duration-s",
             "help": "",
@@ -1581,6 +1594,7 @@
           },
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--sample-period-s",
             "help": "",
@@ -1593,6 +1607,7 @@
           },
           {
             "choices": ["real", "mock"],
+            "required": false,
             "default": null,
             "flag": "--driver",
             "help": "",
@@ -1662,6 +1677,7 @@
         "overrides": [
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--duration-s",
             "help": "How long to keep sampling.",
@@ -1674,6 +1690,7 @@
           },
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--sample-period-s",
             "help": "",
@@ -1686,6 +1703,7 @@
           },
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--stop-on-failure",
             "help": "",
@@ -1754,6 +1772,7 @@
         "overrides": [
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--iterations",
             "help": "",
@@ -1823,6 +1842,7 @@
         "overrides": [
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--runs",
             "help": "",
@@ -1835,6 +1855,7 @@
           },
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--cycle-delay-s",
             "help": "",
@@ -1847,6 +1868,7 @@
           },
           {
             "choices": ["real", "mock"],
+            "required": false,
             "default": null,
             "flag": "--driver",
             "help": "",
@@ -1916,6 +1938,7 @@
         "overrides": [
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--cycles",
             "help": "",
@@ -1928,6 +1951,7 @@
           },
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--cycle-delay-s",
             "help": "",
@@ -1940,6 +1964,7 @@
           },
           {
             "choices": ["real", "mock"],
+            "required": false,
             "default": null,
             "flag": "--driver",
             "help": "",
@@ -2009,6 +2034,7 @@
         "overrides": [
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--duration-s",
             "help": "",
@@ -2021,6 +2047,7 @@
           },
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--rate-hz",
             "help": "",
@@ -2033,6 +2060,7 @@
           },
           {
             "choices": ["real", "mock"],
+            "required": false,
             "default": null,
             "flag": "--driver",
             "help": "",
@@ -2102,6 +2130,7 @@
         "overrides": [
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--duration-s",
             "help": "",
@@ -2114,6 +2143,7 @@
           },
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--sample-period-s",
             "help": "",
@@ -2126,6 +2156,7 @@
           },
           {
             "choices": ["real", "mock"],
+            "required": false,
             "default": null,
             "flag": "--driver",
             "help": "",
@@ -2221,6 +2252,7 @@
         "overrides": [
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--duration-s",
             "help": "How long to keep sampling the host.",
@@ -2233,6 +2265,7 @@
           },
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--sample-period-s",
             "help": "Seconds between samples. CPU utilisation is measured across this window.",
@@ -2245,6 +2278,7 @@
           },
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--max-cpu-percent",
             "help": "Fail a sample whose overall CPU utilisation exceeds this.",
@@ -2257,6 +2291,7 @@
           },
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--min-available-memory-percent",
             "help": "Fail a sample whose MemAvailable share of MemTotal is below this.",
@@ -2269,6 +2304,7 @@
           },
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--min-free-disk-percent",
             "help": "Fail a sample where any mounted filesystem has less free space than this.",
@@ -2281,6 +2317,7 @@
           },
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--max-load-per-core",
             "help": "Fail a sample whose one-minute load average divided by core count is above this.",
@@ -2293,6 +2330,7 @@
           },
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--max-temperature-c",
             "help": "Fail a sample whose hottest thermal zone is above this. Skipped when the host exposes none.",
@@ -2305,6 +2343,7 @@
           },
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--max-new-interface-errors",
             "help": "Fail a sample where an interface reports more new errors plus drops than this.",
@@ -2317,6 +2356,7 @@
           },
           {
             "choices": [],
+            "required": false,
             "default": null,
             "flag": "--stop-on-failure",
             "help": "Abandon the run as soon as one sample fails a check.",

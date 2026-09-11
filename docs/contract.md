@@ -86,6 +86,12 @@ false. A `string` override with `choices` renders as a select and rejects
 values outside the list. A `number` or `integer` override may carry `minimum`
 and `maximum`, which bound the form control and reject a value outside them.
 
+A blank control means the suite's own default applies, so an override is
+optional by default. `required: true` says there is no such default: the
+operator must supply a value, and the run form marks the field and refuses to
+start until they do. Declare it only where nothing else can fill the value in,
+because a required override cannot be satisfied by a profile.
+
 `downloads` names files inside the suite directory that Gauntlet serves and
 the Tests page offers as links, for what a bench needs before a run: a firmware
 image to program a part with, a wiring diagram, a datasheet. Only a declared

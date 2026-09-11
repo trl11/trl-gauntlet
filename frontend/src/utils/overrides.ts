@@ -71,7 +71,8 @@ export function initialOverrideValues(
 
 /** The problem with one entered value, or null when it is acceptable. */
 function problemWith(override: SuiteOverride, text: string): string | null {
-  if (!isNumeric(override) || text === "") return null;
+  if (text === "") return override.required ? "required" : null;
+  if (!isNumeric(override)) return null;
   const parsed = Number(text);
   if (!Number.isFinite(parsed)) return "must be a number";
   if (override.type === "integer" && !Number.isInteger(parsed)) return "must be a whole number";
@@ -87,8 +88,9 @@ function problemWith(override: SuiteOverride, text: string): string | null {
 /**
  * Problems with the entered values, keyed by override name.
  *
- * An empty result means the run can be submitted. Nothing is required: an
- * empty field means the suite's own default applies.
+ * An empty result means the run can be submitted. An empty field is usually
+ * fine, meaning the suite's own default applies; one the manifest declares
+ * `required` is the exception, because no default exists to fall back to.
  */
 export function validateOverrides(
   overrides: SuiteOverride[],

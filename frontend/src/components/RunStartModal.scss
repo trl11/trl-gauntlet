@@ -13,12 +13,6 @@
     @include modal.scrolls;
   }
 
-  &__description {
-    font-size: 14px;
-    line-height: 1.6;
-    color: $trl-gray;
-  }
-
   &__fields {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

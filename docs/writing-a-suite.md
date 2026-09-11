@@ -275,6 +275,11 @@ overrides:
 Undeclared keys are rejected by the API. `label`, `unit`, `choices`, `minimum`
 and `maximum` are what the run form builds its control from, so fill them in.
 
+A blank control means your own default applies. Where there is no default to
+fall back to — an SSH user, a serial port with no sensible guess — declare
+`required: true` and the run form will not start until the operator fills it
+in.
+
 ## Verify
 
 ```bash

@@ -128,8 +128,6 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
           if (!invalid && !start.isPending) start.mutate();
         }}
       >
-        {suite.description && <p className="run-start-modal__description">{suite.description}</p>}
-
         <section className="run-start-modal__section" aria-label="Common settings">
           <h2 className="run-start-modal__heading">Common settings</h2>
           <div className="run-start-modal__fields">
@@ -157,7 +155,6 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
                 id={`${fieldId}-target`}
                 label="Target"
                 hint="Address of the unit under test"
-                placeholder="(configured default)"
                 value={target}
                 disabled={start.isPending}
                 onChange={(event) => setTarget(event.target.value)}
@@ -243,7 +240,7 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
             {suite.supports.target && (
               <>
                 <dt>Target</dt>
-                <dd className="mono">{target.trim() || "(configured default)"}</dd>
+                <dd className="mono">{target.trim() || "(none)"}</dd>
               </>
             )}
             {suite.supports.unit_serial && (

@@ -19,6 +19,7 @@ function override(partial: Partial<SuiteOverride> & { name: string }): SuiteOver
     label: "",
     maximum: null,
     minimum: null,
+    required: false,
     type: "string",
     unit: "",
     ...partial,
@@ -89,8 +90,24 @@ describe("profileFields", () => {
 });
 
 describe("validateOverrides", () => {
-  it("accepts an empty field, which means the suite default", () => {
+  it("accepts an empty field, which means the suite's own default", () => {
     expect(validateOverrides([BOUNDED], { level: "" })).toEqual({});
+  });
+
+  it("rejects an empty field the manifest declares required", () => {
+    const needed = override({ name: "ssh_user", required: true });
+    expect(validateOverrides([needed], { ssh_user: "" })).toEqual({ ssh_user: "required" });
+    expect(validateOverrides([needed], { ssh_user: "  " })).toEqual({ ssh_user: "required" });
+  });
+
+  it("accepts a required field once it has a value", () => {
+    const needed = override({ name: "ssh_user", required: true });
+    expect(validateOverrides([needed], { ssh_user: "trl" })).toEqual({});
+  });
+
+  it("never calls a boolean required, since it is always one or the other", () => {
+    const flag = override({ name: "verbose", type: "boolean", required: true });
+    expect(validateOverrides([flag], { verbose: false })).toEqual({});
   });
 
   it("rejects text where a number is declared", () => {

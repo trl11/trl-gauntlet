@@ -71,6 +71,10 @@ class OverrideSpec(BaseModel):
     unit: str = Field(default="", description="Suffix shown after the input.")
     default: Any = None
     choices: list[str] = Field(default_factory=list, description="Renders a select instead of a text input.")
+    required: bool = Field(
+        default=False,
+        description="The operator must supply a value. Nothing else can: no default here, none in a profile.",
+    )
     help: str = ""
     minimum: float | None = Field(default=None, description="Lowest accepted value, for a number or an integer.")
     maximum: float | None = Field(default=None, description="Highest accepted value, for a number or an integer.")
