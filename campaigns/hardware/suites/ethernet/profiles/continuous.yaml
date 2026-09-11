@@ -1,9 +1,6 @@
 description: >
-  A continuous session at thirty-second ticks, with per-tick floors and a
-  session-average gate. The run has no end of its own: it samples until the
-  operator stops it from the app, and the verdict is taken over what was
-  collected, so a session whose every iteration passed is recorded as a pass
-  and not an abort.
+  Thirty-second ticks with per-tick floors and a session-average gate. Runs
+  until the operator stops it.
 driver: real
 duration_s: 0
 sample_period_s: 30.0

@@ -48,7 +48,9 @@ overrides:
     label: Sample period
     unit: s
     minimum: 0.05
-    help: Seconds between samples. CPU utilisation is measured across this window.
+    help: >
+      Seconds between samples. The suite measures CPU utilisation across
+      this window.
   - name: max_cpu_percent
     flag: --max-cpu-percent
     type: number
@@ -56,7 +58,7 @@ overrides:
     unit: "%"
     minimum: 0
     maximum: 100
-    help: Fail a sample whose overall CPU utilisation exceeds this.
+    help: Fail a sample with CPU utilisation above this.
   - name: min_available_memory_percent
     flag: --min-available-memory-percent
     type: number
@@ -64,7 +66,8 @@ overrides:
     unit: "%"
     minimum: 0
     maximum: 100
-    help: Fail a sample whose MemAvailable share of MemTotal is below this.
+    help: >
+      Fail a sample with available memory below this share of total memory.
   - name: min_free_disk_percent
     flag: --min-free-disk-percent
     type: number
@@ -72,29 +75,34 @@ overrides:
     unit: "%"
     minimum: 0
     maximum: 100
-    help: Fail a sample where any mounted filesystem has less free space than this.
+    help: >
+      Fail a sample if any mounted filesystem has less free space than this.
   - name: max_load_per_core
     flag: --max-load-per-core
     type: number
     label: Load ceiling
     unit: per core
     minimum: 0.01
-    help: Fail a sample whose one-minute load average divided by core count is above this.
+    help: Fail a sample with a one-minute load average per core above this.
   - name: max_temperature_c
     flag: --max-temperature-c
     type: number
     label: Temperature ceiling
     unit: C
-    help: Fail a sample whose hottest thermal zone is above this. Skipped when the host exposes none.
+    help: >
+      Fail a sample with a thermal zone above this. A host that exposes no
+      thermal zone skips the check.
   - name: max_new_interface_errors
     flag: --max-new-interface-errors
     type: integer
     label: Interface error budget
     unit: per sample
     minimum: 0
-    help: Fail a sample where an interface reports more new errors plus drops than this.
+    help: >
+      Fail a sample if an interface reports more new errors and drops than
+      this.
   - name: stop_on_failure
     flag: --stop-on-failure
     type: boolean
     label: Stop on first failure
-    help: Abandon the run as soon as one sample fails a check.
+    help: Stop the run at the first sample that fails a check.

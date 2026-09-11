@@ -1,7 +1,6 @@
 description: >
-  Half a minute against a real board, for checking the bench before a
-  beam-line session. Same measurement as the beam-line profile, short enough
-  to run after every change to the wiring.
+  Half a minute against a real board, for checking the bench before a beam
+  session. Short enough to run after every change to the wiring.
 driver: real
 duration_s: 30.0
 sample_period_s: 2.0

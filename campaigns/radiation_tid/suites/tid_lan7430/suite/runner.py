@@ -73,6 +73,9 @@ COLLECTOR_SOURCE = Path(__file__).parent / "collector_script.py"
 # exported and nothing copied into ~/.ssh. Relative to the repository root,
 # which is found by walking up from here.
 BUNDLED_KEY = Path("extras/trl-engineering-keys/saver/id_ed_saver_eng_key")
+# Where `make deploy` leaves the same key. A bench unpacks the bundle without
+# `extras/`, so the checkout path above never resolves there.
+DEPLOYED_KEY = Path("~/gauntlet/keys/id_ed_saver_eng_key")
 
 # A tick whose interface counters moved by less than this fraction of what
 # iperf3 reported was carried somewhere other than the part under test.
@@ -80,16 +83,19 @@ TRAFFIC_MATCH_FLOOR = 0.5
 
 
 def _bundled_key() -> str:
-    """The engineering key from the submodule, or empty when it is not checked out.
+    """The engineering key, from the checkout or from where a deploy put it.
 
-    Searched upward from this file so it is found wherever the campaign sits in
-    the tree, and missing without complaint on a bench that installs its own.
+    The checkout is searched upward from this file so it is found wherever the
+    campaign sits in the tree. A deployed bench has no such tree, so the path a
+    deploy writes is tried next. Empty when neither exists, which leaves a
+    bench that installs its own key working.
     """
     for parent in Path(__file__).resolve().parents:
         candidate = parent / BUNDLED_KEY
         if candidate.is_file():
             return str(candidate)
-    return ""
+    deployed = DEPLOYED_KEY.expanduser()
+    return str(deployed) if deployed.is_file() else ""
 
 
 def _ssh_target(profile: TidLan7430Profile, host: str | None) -> RemoteTarget:

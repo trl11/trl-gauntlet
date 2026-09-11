@@ -17,7 +17,7 @@ import {
 import SeriesPicker from "@components/SeriesPicker";
 import usePersistedSeries from "@hooks/usePersistedSeries";
 import { formatNumber } from "../utils/format";
-import { naturalCompare } from "../utils/metrics";
+import { naturalCompare, paddedDomain } from "../utils/metrics";
 
 import "./MetricsChart.scss";
 
@@ -145,7 +145,12 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({ runId, samples, defa
                   tickFormatter={(value: number) => `${formatNumber(value, 1)}s`}
                   type="number"
                 />
-                <YAxis tickFormatter={(value: number) => formatNumber(value)} width={64} />
+                <YAxis
+                  allowDataOverflow
+                  domain={paddedDomain(rows.map((row) => row[name]))}
+                  tickFormatter={(value: number) => formatNumber(value)}
+                  width={64}
+                />
                 <ChartTooltip
                   formatter={(value: number | string) => formatNumber(Number(value))}
                   labelFormatter={(value: number | string) => `${formatNumber(Number(value), 2)} s`}

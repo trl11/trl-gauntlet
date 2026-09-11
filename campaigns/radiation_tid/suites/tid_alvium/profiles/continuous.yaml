@@ -1,9 +1,6 @@
 description: >
-  The beam-line profile with no end of its own: it samples until the operator
-  stops the run from the app, and the verdict is taken over what was
-  collected, so a session that measured throughout is recorded as a pass and
-  not an abort. For an exposure whose length is decided at the beam rather
-  than beforehand.
+  The beam-line profile. Runs until the operator stops it, for an exposure
+  whose length is decided at the beam.
 driver: real
 duration_s: 0
 sample_period_s: 30.0

@@ -13,17 +13,17 @@
     @include modal.scrolls;
   }
 
-  &__description {
-    font-size: 14px;
-    line-height: 1.6;
-    color: $trl-gray;
-  }
-
   &__fields {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 16px;
     align-items: start;
+  }
+
+  &__instruments {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
 
   &__note {

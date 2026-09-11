@@ -5,11 +5,12 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@api/client";
-import type { Suite, Unit } from "@api/types";
+import type { Instrument, Suite, Unit } from "@api/types";
 
 import RunStartModal from "./RunStartModal";
 
 const getProfile = vi.fn();
+const listInstruments = vi.fn();
 const listUnits = vi.fn();
 const startRun = vi.fn();
 
@@ -18,10 +19,25 @@ vi.mock("@api/client", async (importOriginal) => {
   return {
     ...actual,
     getProfile: (...args: unknown[]) => getProfile(...args),
+    listInstruments: (...args: unknown[]) => listInstruments(...args),
     listUnits: (...args: unknown[]) => listUnits(...args),
     startRun: (...args: unknown[]) => startRun(...args),
   };
 });
+
+/** An instrument as `GET /api/instruments` reports it, with the fields the modal reads. */
+function instrument(name: string, available = true): Instrument {
+  return {
+    available,
+    commands: [],
+    description: `the ${name}`,
+    instance_id: `${name}0`,
+    kind: name.split(".")[0],
+    name,
+    state: {},
+    unavailable_reason: available ? "" : "nothing on the bus",
+  };
+}
 
 /** A unit as `GET /api/units` reports it, with only the fields the modal reads. */
 function unit(serial: string, lastSeen: string | null): Unit {
@@ -65,6 +81,7 @@ function suite(partial: Partial<Suite> = {}): Suite {
         maximum: 600,
         minimum: 1,
         name: "duration_s",
+        required: false,
         type: "number",
         unit: "s",
       },
@@ -77,6 +94,7 @@ function suite(partial: Partial<Suite> = {}): Suite {
         maximum: null,
         minimum: null,
         name: "cycles",
+        required: false,
         type: "integer",
         unit: "",
       },
@@ -89,6 +107,7 @@ function suite(partial: Partial<Suite> = {}): Suite {
         maximum: null,
         minimum: null,
         name: "stop_on_failure",
+        required: false,
         type: "boolean",
         unit: "",
       },
@@ -143,6 +162,9 @@ beforeEach(() => {
     body: "cycles: 12\nduration_s: 300\nstop_on_failure: true\n",
     name: "mock.yaml",
     path: "/p/mock.yaml",
+  });
+  listInstruments.mockResolvedValue({
+    instruments: [instrument("psu"), instrument("chamber"), instrument("logic", false)],
   });
   listUnits.mockResolvedValue({
     units: [unit("HC-001", "2026-01-01T00:00:00Z"), unit("HC-009", "2026-06-01T00:00:00Z")],
@@ -262,6 +284,7 @@ describe("RunStartModal", () => {
     await user.type(screen.getByLabelText("Target"), "192.168.55.1");
     await user.click(screen.getByRole("button", { name: "Start run" }));
     expect(startRun).toHaveBeenCalledWith({
+      observe: [],
       overrides: { cycles: 12, duration_s: 300, stop_on_failure: true },
       profile: "mock.yaml",
       suite: "thermal_cycle",
@@ -269,6 +292,42 @@ describe("RunStartModal", () => {
       unit_serial: null,
     });
     expect(await screen.findByText("run page")).toBeInTheDocument();
+  });
+
+  it("offers every available instrument the suite does not already drive", async () => {
+    renderModal(suite({ requires: ["psu"] }));
+    const recording = await screen.findByRole("region", { name: "Recording" });
+    expect(within(recording).getByLabelText("chamber")).toBeInTheDocument();
+    // Driven by the suite, so it is recorded without being offered.
+    expect(within(recording).queryByLabelText("psu")).not.toBeInTheDocument();
+    // Its hardware does not answer, so there is nothing to record.
+    expect(within(recording).queryByLabelText("logic")).not.toBeInTheDocument();
+  });
+
+  it("treats an instrument bound to a role as the bare capability the suite named", async () => {
+    listInstruments.mockResolvedValue({
+      instruments: [instrument("i2c.dut"), instrument("chamber")],
+    });
+    renderModal(suite({ requires: ["i2c"] }));
+    const recording = await screen.findByRole("region", { name: "Recording" });
+    expect(within(recording).queryByLabelText("i2c.dut")).not.toBeInTheDocument();
+  });
+
+  it("posts the instruments the operator asked to record", async () => {
+    const user = userEvent.setup();
+    renderModal(suite({ overrides: [], requires: ["psu"] }));
+    const recording = await screen.findByRole("region", { name: "Recording" });
+    await user.click(within(recording).getByLabelText("chamber"));
+    await user.click(screen.getByRole("button", { name: "Start run" }));
+    await waitFor(() => expect(startRun).toHaveBeenCalled());
+    expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ observe: ["chamber"] }));
+  });
+
+  it("offers no recording section on a bench with nothing to record", async () => {
+    listInstruments.mockResolvedValue({ instruments: [] });
+    renderModal();
+    await waitFor(() => expect(screen.getByLabelText("Duration (s)")).toHaveValue(300));
+    expect(screen.queryByRole("region", { name: "Recording" })).not.toBeInTheDocument();
   });
 
   it("shows the server's detail when the run is rejected", async () => {

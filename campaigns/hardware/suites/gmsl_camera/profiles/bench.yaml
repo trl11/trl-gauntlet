@@ -1,8 +1,7 @@
 description: >
-  Half a minute of stills from the real camera, one every two seconds, scaled
-  to 960px wide. The starting point for a bench: the brightness window and the
-  sharpness floor are set wide enough to pass any lit scene, so narrow them
-  once the camera is pointed at whatever the run is really watching.
+  Half a minute of stills, one every two seconds, scaled to 960px wide. The
+  thresholds pass any lit scene, so narrow them once the camera is pointed at
+  what the run is really watching.
 driver: real
 duration_s: 30
 sample_period_s: 2

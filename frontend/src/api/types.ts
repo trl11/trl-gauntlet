@@ -104,6 +104,8 @@ export interface SuiteOverride {
   /** Lowest accepted value, for a `number` or an `integer`. */
   minimum: number | null;
   name: string;
+  /** The operator must supply a value: nothing else can. */
+  required: boolean;
   type: OverrideType;
   unit: string;
 }
@@ -299,12 +301,47 @@ export interface RunList {
 
 /** Body of `POST /api/runs`. */
 export interface StartRunBody {
+  /** Instruments to record alongside the ones the suite requires, by instance key. */
+  observe?: string[];
   overrides?: Record<string, unknown>;
   profile?: string | null;
   profile_body?: string | null;
   suite: string;
   target?: string | null;
   unit_serial?: string | null;
+}
+
+/** One reading of one instrument over a whole run, from `instruments.json`. */
+export interface RecordedReading {
+  count: number;
+  /** Section the provider put the reading in. Empty when it named none. */
+  group: string;
+  key: string;
+  label: string;
+  last: number;
+  max: number;
+  mean: number;
+  min: number;
+  /** Decimals the provider asks the reading to be shown to. */
+  precision: number | null;
+  unit: string;
+}
+
+/** Everything one instrument read over a run. */
+export interface RecordedInstrument {
+  description: string;
+  kind: string;
+  name: string;
+  readings: RecordedReading[];
+}
+
+/** `instruments.json` from the run directory: what the bench read while the run ran. */
+export interface InstrumentRecord {
+  instruments: RecordedInstrument[];
+  /** Seconds between readings. */
+  interval_s: number;
+  /** How many times every instrument was read. */
+  ticks: number;
 }
 
 /** What `stop` and `abort` acknowledge with. */
@@ -417,6 +454,7 @@ export interface RunManifest {
   hostname: string;
   platform: string;
   profile_path: string | null;
+  profile?: Record<string, unknown>;
   profile_summary: Record<string, string>;
   python_version: string;
   repo_branch: string | null;

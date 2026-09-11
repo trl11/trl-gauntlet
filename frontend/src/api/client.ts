@@ -17,6 +17,7 @@ import type {
   Health,
   InstrumentCommandResult,
   InstrumentList,
+  InstrumentRecord,
   JsonSchema,
   MetricsResponse,
   Note,
@@ -404,6 +405,10 @@ export const getRunVerdict = (runId: string): Promise<Verdict> =>
 /** `manifest.json` from the run directory, parsed. */
 export const getRunManifest = (runId: string): Promise<RunManifest> =>
   getArtifactJson<RunManifest>(runId, "manifest.json");
+
+/** `instruments.json` from the run directory, parsed. */
+export const getRunInstruments = (runId: string): Promise<InstrumentRecord> =>
+  getArtifactJson<InstrumentRecord>(runId, "instruments.json");
 
 /** `GET /api/runs/{id}/metrics` */
 export const getRunMetrics = (runId: string, limit?: number): Promise<MetricsResponse> =>

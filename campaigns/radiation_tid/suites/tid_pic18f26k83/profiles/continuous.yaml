@@ -1,8 +1,5 @@
 description: >
-  The continuous beam-line profile. The run has no end of its own: it samples
-  until the operator stops it at the target dose, and the verdict is taken
-  over what was collected, so a session whose every tick passed is recorded as
-  a pass and not an abort.
+  The beam-line profile. Runs until the operator stops it at the target dose.
 driver: real
 duration_s: 0
 sample_period_s: 2.0

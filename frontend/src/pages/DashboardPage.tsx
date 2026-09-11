@@ -7,14 +7,14 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
 import { listInstruments, listRuns, listSuites, listUnits } from "@api/client";
-import type { RunRow, Unit } from "@api/types";
+import type { Unit } from "@api/types";
 import ActiveRun from "@components/ActiveRun";
 import InstrumentTile from "@components/InstrumentTile";
 import PageHeader from "@components/PageHeader";
 import Panel from "@components/Panel";
 import RunTable from "@components/RunTable";
 import StatusPill from "@components/StatusPill";
-import { formatRelativeTime, formatTimestamp } from "../utils/format";
+import { formatDuration, formatRelativeTime, formatTimestamp } from "../utils/format";
 import { isLive } from "../utils/run_status";
 
 import "./DashboardPage.scss";
@@ -39,29 +39,17 @@ const SectionHead: React.FC<SectionHeadProps> = ({ action, title }) => (
   </div>
 );
 
-/** What the bench last held: the run that named a unit, and the serial it named. */
-interface BenchUnit {
-  run: RunRow;
-  serial: string;
-}
-
-/** The most recent run that names a unit, which is the unit on the bench. */
-function lastUnitRun(runs: RunRow[]): BenchUnit | null {
-  for (const run of runs) {
-    if (run.unit_serial) return { run, serial: run.unit_serial };
-  }
-  return null;
-}
-
 /**
  * What the first card calls itself.
  *
- * A run in flight holds the unit, so the card names the run. With nothing
- * running there is no unit under test, only the last one that was.
+ * With something in flight the card is that run. With nothing running it is
+ * the run that finished last, whatever it was and whether or not it named a
+ * unit: what the bench did most recently is the thing an operator walking up
+ * to it wants to see.
  */
-function benchTitle(running: boolean, held: boolean): string {
+function benchTitle(running: boolean, ran: boolean): string {
   if (running) return "Active run";
-  return held ? "Last unit tested" : "Unit under test";
+  return ran ? "Last test run" : "Nothing has run yet";
 }
 
 /** The units seen most recently, newest first. */
@@ -96,15 +84,19 @@ export const DashboardPage: React.FC = () => {
 
   const allRuns = runs.data?.runs ?? [];
   const active = allRuns.filter((run) => isLive(run.status));
-  const onBench = lastUnitRun(allRuns);
+  // The history is newest first, so the run that finished last is the first
+  // one that is not still going.
+  const lastRun = allRuns.find((run) => !isLive(run.status)) ?? null;
   const instrumentRows = instruments.data?.instruments ?? [];
   const unitRows = recentUnits(units.data?.units ?? []);
   const discoveryErrors = suites.data?.errors ?? [];
 
-  // The record the units list already holds for whatever the bench last held,
-  // so the card counts its history without asking for anything of its own.
-  const benchRecord =
-    onBench === null ? undefined : units.data?.units.find((unit) => unit.serial === onBench.serial);
+  // The record the units list already holds for the unit that run named, so
+  // the card counts its history without asking for anything of its own. A run
+  // that named no unit has none, and the card says so.
+  const benchRecord = lastRun?.unit_serial
+    ? units.data?.units.find((unit) => unit.serial === lastRun.unit_serial)
+    : undefined;
 
   return (
     <div className="dashboard-page">
@@ -125,14 +117,14 @@ export const DashboardPage: React.FC = () => {
       )}
 
       <Panel
-        title={benchTitle(active.length > 0, onBench !== null)}
+        title={benchTitle(active.length > 0, lastRun !== null)}
         action={
-          // A unit that is only the last one tested says when, so hours-old
-          // history is not read as the unit on the bench right now.
+          // A finished run says when it ran, so hours-old history is not read
+          // as what the bench is doing right now.
           active.length === 0 &&
-          onBench !== null && (
+          lastRun !== null && (
             <span className="dashboard-page__tested">
-              {`last tested ${formatTimestamp(onBench.run.started_at, { second: undefined })} · ${formatRelativeTime(onBench.run.started_at, new Date(now))}`}
+              {`ran ${formatTimestamp(lastRun.started_at, { second: undefined })} · ${formatRelativeTime(lastRun.started_at, new Date(now))}`}
             </span>
           )
         }
@@ -146,42 +138,50 @@ export const DashboardPage: React.FC = () => {
                 <ActiveRun key={run.run_id} now={now} run={run} />
               ))}
             </div>
-          ) : onBench === null ? (
+          ) : lastRun === null ? (
             <div className="dashboard-page__idle">
               <p>Nothing running</p>
               <Link to="/tests">Run a test</Link>
             </div>
           ) : (
             <Link
-              aria-label={`Open the ${onBench.run.suite} run of unit ${onBench.serial}`}
+              aria-label={`Open the last run, ${lastRun.suite}`}
               className="dashboard-page__unit"
-              to={`/runs/${encodeURIComponent(onBench.run.run_id)}`}
+              to={`/runs/${encodeURIComponent(lastRun.run_id)}`}
             >
               <div className="dashboard-page__unit-head">
-                <span className="dashboard-page__unit-serial">{onBench.serial}</span>
-                <p className="dashboard-page__unit-suite">last suite {onBench.run.suite}</p>
+                <span className="dashboard-page__unit-serial">{lastRun.suite}</span>
+                <p className="dashboard-page__unit-suite">
+                  {lastRun.unit_serial ? `unit ${lastRun.unit_serial}` : "no unit named"}
+                </p>
               </div>
 
               <dl className="dashboard-page__unit-facts">
                 <div>
-                  <dt>runs</dt>
-                  <dd>{benchRecord?.run_count ?? "-"}</dd>
+                  <dt>profile</dt>
+                  <dd>{lastRun.profile ?? "-"}</dd>
                 </div>
                 <div>
-                  <dt>passed</dt>
-                  <dd className={clsx(benchRecord && benchRecord.passed > 0 && "is-passed")}>
-                    {benchRecord?.passed ?? "-"}
-                  </dd>
+                  <dt>took</dt>
+                  <dd>{lastRun.duration_s == null ? "-" : formatDuration(lastRun.duration_s)}</dd>
                 </div>
                 <div>
-                  <dt>failed</dt>
-                  <dd className={clsx(benchRecord && benchRecord.failed > 0 && "is-failed")}>
-                    {benchRecord?.failed ?? "-"}
+                  <dt>unit runs</dt>
+                  <dd
+                    className={clsx(
+                      benchRecord && benchRecord.failed > 0 && "is-failed",
+                      benchRecord &&
+                        benchRecord.failed === 0 &&
+                        benchRecord.passed > 0 &&
+                        "is-passed"
+                    )}
+                  >
+                    {benchRecord?.run_count ?? "-"}
                   </dd>
                 </div>
               </dl>
 
-              <StatusPill status={onBench.run.status} />
+              <StatusPill status={lastRun.status} />
             </Link>
           )}
         </div>

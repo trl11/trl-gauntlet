@@ -44,7 +44,7 @@ import nidaqmx.constants
 import nidaqmx.errors
 import nidaqmx.system
 
-from gauntlet.capabilities.declare import command_field, command_row, readout
+from gauntlet.capabilities.declare import command_field, command_row, number_arg, readout
 from gauntlet.capabilities.registry import CommandRejected
 
 log = logging.getLogger("gauntlet.instruments.ni_daqmx")
@@ -53,8 +53,16 @@ log = logging.getLogger("gauntlet.instruments.ni_daqmx")
 # without making a sample cost longer than the interval the panel refreshes on.
 _SAMPLE_COUNT = 100
 
-# Longest an acquisition may block, whatever rate it was asked for.
+# Longest a reading may block, whatever rate it was asked for. A capture is
+# asked for by length and blocks for that length by definition, so it carries
+# its own limit rather than this one.
 _READ_LIMIT_S = 2.0
+
+# Most samples one capture may take per channel. A capture crosses the API as
+# JSON, so this is what keeps one reply to a few megabytes: at the module's
+# fastest rate it is half a second of signal, and a longer window is taken as
+# several captures.
+_CAPTURE_LIMIT = 25_000
 
 # Longest channel label kept, in characters. Enough to name what is wired to a
 # channel, short enough to sit under the reading without crowding its neighbours.
@@ -92,7 +100,13 @@ class NiModule(Protocol):
     def rate_limits(self) -> tuple[float, float]:
         """Slowest and fastest sample rates the module runs its inputs at."""
 
-    def read(self, channels: tuple[tuple[str, float], ...], rate_hz: float, samples: int) -> list[list[float]]:
+    def read(
+        self,
+        channels: tuple[tuple[str, float], ...],
+        rate_hz: float,
+        samples: int,
+        timeout_s: float = _READ_LIMIT_S,
+    ) -> list[list[float]]:
         """One finite acquisition: a list of samples per channel, in order."""
 
     def voltage_ranges(self) -> tuple[float, ...]:
@@ -109,6 +123,20 @@ def as_channels(data: list[Any]) -> list[list[float]]:
     if data and not isinstance(data[0], list):
         return [[float(sample) for sample in data]]
     return [[float(sample) for sample in channel] for channel in data]
+
+
+def _measured(values: list[float]) -> dict[str, float | None]:
+    """What one channel did over a capture, without the samples themselves."""
+    if not values:
+        return {"mean": None, "min": None, "max": None, "peak_to_peak": None}
+    low = min(values)
+    high = max(values)
+    return {
+        "mean": round(sum(values) / len(values), _PRECISION),
+        "min": round(low, _PRECISION),
+        "max": round(high, _PRECISION),
+        "peak_to_peak": round(high - low, _PRECISION),
+    }
 
 
 def mode_name(limit: float) -> str:
@@ -247,7 +275,13 @@ class _DaqmxModule:
     def rate_limits(self) -> tuple[float, float]:
         return float(self._device.ai_min_rate), float(self._device.ai_max_multi_chan_rate)
 
-    def read(self, channels: tuple[tuple[str, float], ...], rate_hz: float, samples: int) -> list[list[float]]:
+    def read(
+        self,
+        channels: tuple[tuple[str, float], ...],
+        rate_hz: float,
+        samples: int,
+        timeout_s: float = _READ_LIMIT_S,
+    ) -> list[list[float]]:
         """One finite acquisition, built and torn down around the read.
 
         The task is not kept between readings. Holding one would leave the
@@ -267,7 +301,7 @@ class _DaqmxModule:
                 sample_mode=nidaqmx.constants.AcquisitionType.FINITE,
                 samps_per_chan=samples,
             )
-            timeout = min(_READ_LIMIT_S, max(0.5, 4.0 * samples / rate_hz))
+            timeout = min(timeout_s, max(0.5, 4.0 * samples / rate_hz))
             return as_channels(task.read(number_of_samples_per_channel=samples, timeout=timeout))
 
     def voltage_ranges(self) -> tuple[float, ...]:
@@ -318,7 +352,13 @@ class NiDaqmxDaq:
         self._modes: dict[str, str] = {}
         self._ranges: dict[str, float] = {}
         self._rate_hz = 0.0
+        self._rate_limits: tuple[float, float] = (0.0, 0.0)
         self._reading: dict[str, float | None] = {}
+        # What the last capture was, for the panel and for the run's record of
+        # the bench. The samples themselves are not kept: they are the caller's
+        # to write down, and holding a second copy of a megabyte here would
+        # serve nobody.
+        self._last_capture: dict[str, Any] = {}
         # Far enough in the past that the first probe and the first sample both
         # happen immediately.
         self._last_probe = clock() - probe_interval_s
@@ -349,6 +389,8 @@ class NiDaqmxDaq:
                 return self._configure_channels(args)
             if name == "sample":
                 return {"channels": self._acquire()}
+            if name == "capture":
+                return self._capture(args)
             raise CommandRejected(f"daq has no command {name!r}")
 
     def commands(self) -> list[dict[str, Any]]:
@@ -365,6 +407,7 @@ class NiDaqmxDaq:
                 for name, mode in self._modes.items()
             ]
             modes = tuple(self._ranges)
+            slowest, fastest = self._rate_limits
         return [
             {
                 "name": "configure",
@@ -377,6 +420,27 @@ class NiDaqmxDaq:
                 ],
             },
             {"name": "sample", "label": "Sample", "fields": []},
+            {
+                "name": "capture",
+                "label": "Capture",
+                "fields": [
+                    command_field(
+                        "rate_hz",
+                        "Sample rate",
+                        unit="S/s",
+                        minimum=slowest,
+                        maximum=fastest,
+                        dial=False,
+                    ),
+                    command_field(
+                        "samples",
+                        "Samples",
+                        minimum=1,
+                        maximum=_CAPTURE_LIMIT,
+                        dial=False,
+                    ),
+                ],
+            },
         ]
 
     def connection(self) -> str:
@@ -436,7 +500,7 @@ class NiDaqmxDaq:
         return self._rate_hz
 
     def state(self) -> dict[str, Any]:
-        """Every channel's label, range and latest reading.
+        """Every channel's label, range and latest reading, and the last capture.
 
         A reading older than ``sample_interval_s`` is refreshed, so the panel
         stays live without an acquisition per caller. The label is the
@@ -452,6 +516,7 @@ class NiDaqmxDaq:
                 values = dict(self._reading)
             modes = dict(self._modes)
             labels = {name: self._label(name) for name in modes}
+            capture = dict(self._last_capture)
         return {
             "channels": {
                 name: {
@@ -461,13 +526,21 @@ class NiDaqmxDaq:
                     "value": values.get(name),
                 }
                 for name, mode in modes.items()
-            }
+            },
+            # What the last capture came to, without its samples. Empty until
+            # one has been taken.
+            "last_capture": capture,
         }
 
     def write(self, values: dict[str, Any]) -> dict[str, Any]:
-        """Run a command given as ``{"command": ..., "args": {...}}``."""
-        self.command(str(values.get("command", "")), dict(values.get("args") or {}))
-        return self.state()
+        """Run a command given as ``{"command": ..., "args": {...}}``.
+
+        A capture answers with itself rather than with the state, because the
+        samples are the whole result and state carries only what they came to.
+        """
+        name = str(values.get("command", ""))
+        result = self.command(name, dict(values.get("args") or {}))
+        return result if name == "capture" else self.state()
 
     def _acquire(self) -> dict[str, float | None]:
         """Take one acquisition and keep the mean of each channel.
@@ -494,6 +567,65 @@ class NiDaqmxDaq:
             for name, samples in zip(names, data, strict=True)
         }
         return dict(self._reading)
+
+    def _capture(self, args: dict[str, Any]) -> dict[str, Any]:
+        """One window of samples from every channel, kept sample by sample.
+
+        This is the other half of ``sample``. A reading is the mean of a short
+        acquisition, which is what a DC measurement wants and what throws a
+        waveform away; a capture keeps every sample, so a caller can write down
+        what a signal did rather than what it averaged to.
+
+        The rate is the module's to give: it runs its converters between the
+        two limits it publishes and nothing between them is a special case.
+        The sample count is capped because the reply crosses the API as JSON,
+        and a longer window is asked for as several captures.
+        """
+        slowest, fastest = self._rate_limits
+        rate_hz = number_arg("daq", args, "rate_hz", slowest, fastest)
+        samples = int(number_arg("daq", args, "samples", 1, _CAPTURE_LIMIT))
+        module = self._module
+        if module is None:
+            raise CommandRejected(f"daq is unavailable: {self._unavailable_reason}")
+        names = list(self._modes)
+        channels = tuple((name, self._ranges[self._modes[name]]) for name in names)
+        window_s = samples / rate_hz
+        try:
+            # The read blocks for the length of the window by definition, so
+            # the limit is drawn from what was asked for rather than from what
+            # a panel reading may take.
+            data = module.read(channels, rate_hz, samples, timeout_s=window_s + _READ_LIMIT_S)
+        except _UNREACHABLE as exc:
+            self._fail(f"capture failed: {exc}")
+            raise CommandRejected(f"daq capture failed: {exc}") from exc
+        if len(data) != len(names):
+            raise CommandRejected(f"daq answered with {len(data)} channels of {len(names)}")
+        taken = {name: values for name, values in zip(names, data, strict=True)}
+        # The last sample of each channel stands as its reading, so a panel
+        # showing the readings does not go stale behind a run that only
+        # captures.
+        self._reading = {name: round(values[-1], _PRECISION) if values else None for name, values in taken.items()}
+        self._last_sample = self._clock()
+        self._last_capture = {
+            "rate_hz": rate_hz,
+            "samples": samples,
+            "window_s": round(window_s, 6),
+            "channels": {name: _measured(values) for name, values in taken.items()},
+        }
+        return {
+            "rate_hz": rate_hz,
+            "samples": samples,
+            "window_s": round(window_s, 6),
+            "channels": {
+                name: {
+                    "label": self._label(name),
+                    "unit": "V",
+                    **_measured(values),
+                    "values": [round(sample, _PRECISION) for sample in values],
+                }
+                for name, values in taken.items()
+            },
+        }
 
     def _channel(self, name: str) -> str:
         """The channel a row names, rejected when there is no such one."""
@@ -581,7 +713,8 @@ class NiDaqmxDaq:
         self._reading = dict.fromkeys(channels)
         # A delta-sigma module will not run below its minimum at all, and the
         # slowest rate it does run at is the one that averages down best.
-        self._rate_hz = module.rate_limits()[0]
+        self._rate_limits = module.rate_limits()
+        self._rate_hz = self._rate_limits[0]
 
     def _disconnect(self) -> None:
         module, self._module = self._module, None

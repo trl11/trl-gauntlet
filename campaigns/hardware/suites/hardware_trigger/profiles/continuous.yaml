@@ -1,8 +1,4 @@
-description: >
-  Pulses with a one-second gap, emitted continuously. The run has no end of
-  its own: it samples until the operator stops it from the app, and the
-  verdict is taken over what was collected, so a session whose every
-  iteration passed is recorded as a pass and not an abort.
+description: Pulses with a one-second gap. Runs until the operator stops it.
 driver: real
 runs: 0
 cycle_delay_s: 1.0

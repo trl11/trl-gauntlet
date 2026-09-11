@@ -25,7 +25,9 @@ import EmptyState from "@components/EmptyState";
 import IterationMap from "@components/IterationMap";
 import IterationTable from "@components/IterationTable";
 import LogStream from "@components/LogStream";
+import CaptureViewer from "@components/CaptureViewer";
 import MetricsChart from "@components/MetricsChart";
+import RecordedInstruments from "@components/RecordedInstruments";
 import NotesPanel from "@components/NotesPanel";
 import PageHeader from "@components/PageHeader";
 import SnapshotGallery from "@components/SnapshotGallery";
@@ -49,12 +51,20 @@ const TABS = [
   "overview",
   "log",
   "metrics",
+  "captures",
+  "instruments",
   "iterations",
   "snapshots",
   "traces",
   "artifacts",
   "notes",
 ] as const;
+
+/** The summary a run's recorded instruments leave behind. */
+const RECORD_FILE = "instruments.json";
+
+/** Where a run writes the sampled waveforms it captured. */
+const CAPTURE_DIR = "captures/";
 
 type Tab = (typeof TABS)[number];
 
@@ -211,11 +221,20 @@ export const RunPage: React.FC = () => {
     { paths: snapshots.map((shot) => shot.path), tab: "snapshots" },
     { paths: drawn.map((trace) => trace.path), tab: "traces" },
   ];
+  // Every captured waveform the run wrote, in the order it wrote them. A run
+  // that captured none has no tab, which is what keeps the viewer out of the
+  // way of every run that measures rather than captures.
+  const captures = files
+    .map((file) => file.path)
+    .filter((path) => path.startsWith(CAPTURE_DIR) && path.endsWith(".csv"))
+    .sort();
+
   const gathered = new Set(galleries.flatMap((gallery) => gallery.paths));
   const listedFiles = files.filter((file) => !gathered.has(file.path));
   const foldedRows = galleries.filter((gallery) => gallery.paths.length > 0).length;
   const tabCounts: Partial<Record<Tab, number>> = {
     artifacts: listedFiles.length + foldedRows,
+    captures: captures.length,
     iterations: iterations.length,
     log: logs.length,
     notes: notes.data?.notes.length ?? 0,
@@ -228,6 +247,11 @@ export const RunPage: React.FC = () => {
   // neither. Nothing here asks which suite ran or which instrument it drove:
   // the files decide.
   const empty: Partial<Record<Tab, boolean>> = {
+    captures: captures.length === 0,
+    // A run records only what its suite drives and what the operator added, so
+    // the summary on disk is what decides whether there is a tab. It is
+    // written when the run ends, which is why a live run has none.
+    instruments: !files.some((file) => file.path === RECORD_FILE),
     snapshots: snapshots.length === 0,
     traces: traces.length === 0,
   };
@@ -395,6 +419,8 @@ export const RunPage: React.FC = () => {
             defaultMetrics={defaultMetrics}
           />
         )}
+        {active === "captures" && <CaptureViewer key={runId} paths={captures} runId={runId} />}
+        {active === "instruments" && <RecordedInstruments key={runId} runId={runId} />}
         {active === "iterations" && (
           <IterationTable
             key={runId}

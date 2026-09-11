@@ -1,0 +1,95 @@
+@use "@trl11/styles/theme.scss" as *;
+@use "@styles/chart";
+
+.capture-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__spinner {
+    margin: 24px auto;
+  }
+
+  &__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+  }
+
+  &__buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__note {
+    color: $trl-gray;
+    font-size: 13px;
+
+    a {
+      color: $indicator-blue;
+    }
+  }
+
+  &__channels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  &__channel {
+    font-family: $font-mono;
+    font-size: 11px;
+
+    &--c0 {
+      color: $indicator-blue;
+    }
+
+    &--c1 {
+      color: $indicator-green;
+    }
+
+    &--c2 {
+      color: $indicator-yellow;
+    }
+
+    &--c3 {
+      color: $indicator-purple;
+    }
+
+    &--c4 {
+      color: $trl-cantaloupe;
+    }
+  }
+
+  &__chart {
+    border: 1px solid $trl-dark-gray;
+    background-color: $trl-dark;
+    padding: 10px 8px 4px;
+  }
+
+  &__line {
+    color: $indicator-blue;
+
+    &--c0 {
+      color: $indicator-blue;
+    }
+
+    &--c1 {
+      color: $indicator-green;
+    }
+
+    &--c2 {
+      color: $indicator-yellow;
+    }
+
+    &--c3 {
+      color: $indicator-purple;
+    }
+
+    &--c4 {
+      color: $trl-cantaloupe;
+    }
+  }
+}

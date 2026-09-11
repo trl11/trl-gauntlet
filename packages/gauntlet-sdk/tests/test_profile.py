@@ -3,9 +3,16 @@
 from __future__ import annotations
 
 import pytest
+import yaml
 from pydantic import BaseModel, ConfigDict
 
-from gauntlet_sdk import ProfileError, load_profile, snapshot_profile, summarize_profile
+from gauntlet_sdk import (
+    ProfileError,
+    load_profile,
+    snapshot_profile,
+    summarize_profile,
+    write_resolved_profile,
+)
 
 
 class Profile(BaseModel):
@@ -113,6 +120,37 @@ class TestSummarizeProfile:
 
     def test_a_requested_field_the_model_lacks_is_skipped(self):
         assert summarize_profile(Profile(), fields=["nonexistent"]) == {}
+
+
+class TestWriteResolvedProfile:
+    def test_every_field_is_written_including_the_defaults(self, tmp_path):
+        written = write_resolved_profile(Profile(iterations=9), tmp_path)
+
+        assert written == tmp_path / "profile.yaml"
+        assert yaml.safe_load(written.read_text()) == {
+            "description": "default",
+            "duration_s": 1.5,
+            "iterations": 9,
+            "verbose": False,
+        }
+
+    def test_it_replaces_the_copy_taken_before_the_run(self, tmp_path):
+        # The copy is the file as handed over, which says nothing about the
+        # overrides the run was started with.
+        (tmp_path / "profile.yaml").write_text("iterations: 2\n")
+
+        write_resolved_profile(Profile(iterations=9), tmp_path)
+
+        assert yaml.safe_load((tmp_path / "profile.yaml").read_text())["iterations"] == 9
+
+    def test_an_unwritable_run_directory_is_not_an_error(self, tmp_path):
+        run_dir = tmp_path / "readonly"
+        run_dir.mkdir()
+        run_dir.chmod(0o500)
+        try:
+            assert write_resolved_profile(Profile(), run_dir) is None
+        finally:
+            run_dir.chmod(0o700)
 
 
 class TestSnapshotProfile:

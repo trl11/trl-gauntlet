@@ -73,17 +73,16 @@ overrides:
         20khz,
       ]
     help: >
-      How fast to sample. Only rates that divide the analyzer's 48 or 30 MHz
-      clock exactly are on offer, since a rate is a divisor rather than a
-      setting.
+      How fast to sample. A rate is a divisor of the analyzer's 48 or 30 MHz
+      clock, so only exact divisions are on offer.
   - name: window
     flag: --window
     type: string
     label: Window
     choices: [1ms, 10ms, 100ms]
     help: >
-      How much signal one capture covers. A window shorter than a cycle of what
-      is on the probe shows a flat line rather than a signal.
+      How much signal one capture covers. A window shorter than one cycle on
+      the probe shows a flat line.
   - name: driver
     flag: --driver
     type: string

@@ -1,0 +1,15 @@
+description: >
+  Every analog input on the module. Name the inputs for what is wired to them.
+  Runs until the operator stops it.
+driver: real
+duration_s: 0
+sample_period_s: 1
+channels:
+  - channel: ai0
+    label: AI 0
+  - channel: ai1
+    label: AI 1
+  - channel: ai2
+    label: AI 2
+  - channel: ai3
+    label: AI 3

@@ -1,10 +1,7 @@
 description: >
   The beam-line profile for the LAN7430-I/Y9X. One measurement every thirty
-  seconds for as long as the exposure lasts, recording throughput and every
-  reading that dose is known to move. Nothing is gated tightly: the first
-  exposures are for characterisation, and a floor set before the part has been
-  measured would only encode a guess. Tighten `pass_criteria` once a baseline
-  run exists.
+  seconds, recording throughput and every reading dose is known to move.
+  Tighten `pass_criteria` once a baseline run exists.
 driver: real
 duration_s: 28800.0
 sample_period_s: 30.0

@@ -1,3 +1,3 @@
-description: Three fast iterations. Used by `gauntlet verify --run`.
+description: Three fast iterations. What `gauntlet verify --run` executes.
 iterations: 3
 period_s: 0.1

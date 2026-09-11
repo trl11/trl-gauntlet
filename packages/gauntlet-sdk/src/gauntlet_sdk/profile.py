@@ -50,6 +50,30 @@ def load_profile(model: type[P], path: Path | None, *, overrides: dict[str, Any]
         raise ProfileError(f"profile {where} does not match {model.__name__}:\n{exc}") from exc
 
 
+def write_resolved_profile(profile: BaseModel, run_dir: Path) -> Path | None:
+    """Write the profile a run actually used, as YAML, over the copied file.
+
+    The copy taken at the start is the file as handed over: it carries whatever
+    the operator wrote and nothing the profile model filled in, and none of the
+    overrides the run was started with, which reach the suite as flags. What
+    ran is this — every field, defaults included, overrides folded in — and it
+    is what somebody reproducing the run needs.
+
+    Written at the end, because the copy is what a run that dies before
+    resolving anything leaves behind, and that is better than no profile at all.
+    """
+    try:
+        text = yaml.safe_dump(profile.model_dump(mode="json"), sort_keys=True, default_flow_style=False)
+    except (TypeError, ValueError, yaml.YAMLError):
+        return None
+    dest = run_dir / "profile.yaml"
+    try:
+        dest.write_text(text, encoding="utf-8")
+    except OSError:
+        return None
+    return dest
+
+
 def summarize_profile(profile: BaseModel, *, fields: list[str] | None = None) -> dict[str, str]:
     """Flatten selected profile fields into strings for the run manifest.
 
@@ -65,7 +89,9 @@ def snapshot_profile(source: Path | None, run_dir: Path) -> Path | None:
     """Copy the profile into the run directory so the run stays reproducible.
 
     Gauntlet does this for supervised runs; suites call it so a standalone run
-    gets the same record.
+    gets the same record. It is the file as handed over, written before the run
+    starts, and :func:`write_resolved_profile` replaces it at the end with what
+    the run made of it.
     """
     if source is None or not source.is_file():
         return None

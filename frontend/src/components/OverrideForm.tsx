@@ -79,7 +79,7 @@ export const OverrideForm: React.FC<OverrideFormProps> = ({
               hint={hint || undefined}
               error={errors[override.name]}
               options={[
-                { value: "", label: "(suite default)" },
+                { value: "", label: "" },
                 ...override.choices.map((choice) => ({ value: choice, label: choice })),
               ]}
               value={String(values[override.name] ?? "")}
@@ -100,7 +100,6 @@ export const OverrideForm: React.FC<OverrideFormProps> = ({
             step={stepFor(override)}
             min={override.minimum ?? undefined}
             max={override.maximum ?? undefined}
-            placeholder="(suite default)"
             value={String(values[override.name] ?? "")}
             disabled={disabled}
             onChange={(event) => update(override.name, event.target.value)}

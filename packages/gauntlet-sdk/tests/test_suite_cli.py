@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict
 
 from gauntlet_sdk import IterationContext, IterationOutcome, SuiteSpec, err, info, make_suite_cli, warn
 from gauntlet_sdk.cli import _coerce
+from gauntlet_sdk.remote import RemoteError
 
 
 class Profile(BaseModel):
@@ -38,6 +39,23 @@ def _main(**kwargs):
 
 def _verdict(run_dir):
     return json.loads((run_dir / "verdict.json").read_text())
+
+
+def _unreachable_bench(**kwargs):
+    """A suite whose setup cannot reach the unit, as a bad key or address leaves it."""
+
+    def _setup(_ctx):
+        raise RemoteError("ssh to trl@192.168.0.149: Authentication failed.")
+
+    spec = SuiteSpec(
+        name="demo",
+        profile_model=Profile,
+        iterate=_iterate,
+        setup=_setup,
+        iteration_count=lambda p: p.iterations,
+        sample_period_seconds=lambda p: p.sample_period_s,
+    )
+    return make_suite_cli(spec, **kwargs)
 
 
 class TestProfileSchema:
@@ -84,6 +102,15 @@ class TestRunning:
         manifest = json.loads((tmp_path / "manifest.json").read_text())
         assert manifest["target"] == "unit-3"
         assert manifest["unit_serial"] == "SN-9"
+
+    def test_a_bench_it_cannot_reach_exits_two_with_the_reason_and_no_traceback(self, tmp_path, capsys):
+        code = _unreachable_bench()(["--run-dir", str(tmp_path)])
+
+        printed = capsys.readouterr().out
+        assert code == 2
+        assert "error: ssh to trl@192.168.0.149: Authentication failed." in printed
+        assert "Traceback" not in printed
+        assert not (tmp_path / "verdict.json").exists()
 
     def test_an_invalid_profile_exits_two_without_running(self, tmp_path):
         profile = tmp_path / "bad.yaml"

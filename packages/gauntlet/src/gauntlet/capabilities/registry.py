@@ -177,6 +177,15 @@ class OwnableCapability(Protocol):
         """Close the device."""
 
 
+def current_state(provider: CapabilityProvider) -> dict[str, Any]:
+    """Structured state, falling back to a plain read for providers without it."""
+    if isinstance(provider, StatefulCapability):
+        return dict(provider.state())
+    if isinstance(provider, ReadableCapability):
+        return dict(provider.read())
+    return {}
+
+
 class CapabilityRegistry:
     """Tracks providers and issues grants for a run."""
 

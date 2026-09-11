@@ -1,4 +1,4 @@
-description: Long session — 3600 pulses with a one-second gap, ~2 hours.
+description: Long session — 3600 pulses with a one-second gap, about two hours.
 driver: real
 runs: 3600
 cycle_delay_s: 1.0

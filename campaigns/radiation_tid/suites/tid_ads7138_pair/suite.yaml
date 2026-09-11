@@ -130,5 +130,5 @@ overrides:
     label: Patterns
     choices: [all, alternating, rails, walking, walking_one, walking_zero]
     help: >
-      Which bytes the link check drives. all is every one of them; the
-      narrower sets chase a fault it has already found.
+      Which bytes the link check drives. `all` drives every byte. The
+      narrower sets chase a fault the check has already found.

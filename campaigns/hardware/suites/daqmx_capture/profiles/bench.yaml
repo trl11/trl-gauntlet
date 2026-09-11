@@ -1,0 +1,16 @@
+description: >
+  Half a minute of every analog input, on the range each is already set to.
+  Name the inputs and give each a `min_v` and `max_v` once you know what it
+  should read; without one a channel is only judged on having answered.
+driver: real
+duration_s: 30
+sample_period_s: 1
+channels:
+  - channel: ai0
+    label: AI 0
+  - channel: ai1
+    label: AI 1
+  - channel: ai2
+    label: AI 2
+  - channel: ai3
+    label: AI 3

@@ -1,0 +1,108 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.recorded-instruments {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+
+  &__spinner {
+    margin: 24px auto;
+  }
+
+  &__note {
+    color: $trl-gray;
+    font-size: 13px;
+
+    a {
+      color: $indicator-blue;
+    }
+  }
+
+  &__instrument {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  &__name {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-family: $font-mono;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  &__description {
+    font-family: $font-primary;
+    font-size: 12px;
+    font-weight: 400;
+    color: $trl-gray;
+  }
+
+  &__silent {
+    color: $trl-gray;
+    font-size: 13px;
+  }
+
+  &__scroll {
+    overflow-x: auto;
+    border: 1px solid $trl-dark-gray;
+  }
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+
+    th,
+    td {
+      text-align: left;
+      padding: 8px 12px;
+      white-space: nowrap;
+    }
+
+    thead th {
+      background-color: $trl-dark;
+      color: $trl-gray;
+      font-weight: 500;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid $trl-dark-gray;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba($trl-dark-gray, 0.6);
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+  }
+
+  &__label {
+    display: block;
+  }
+
+  &__key {
+    display: block;
+    font-family: $font-mono;
+    font-size: 11px;
+    color: $trl-gray;
+  }
+
+  &__group {
+    color: $trl-gray;
+
+    &::after {
+      content: " / ";
+    }
+  }
+
+  &__unit {
+    color: $trl-gray;
+    font-size: 11px;
+    margin-left: 6px;
+  }
+}

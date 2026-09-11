@@ -35,6 +35,7 @@ from gauntlet.suites.discovery import SuiteCatalog, resolve_profile
 from gauntlet.supervisor.events import EventBus
 from gauntlet.supervisor.launcher import Launch, LaunchError, RunRequest, build_launch
 from gauntlet.supervisor.readers import pump_stdout, tail_metrics
+from gauntlet.supervisor.recorder import InstrumentRecorder
 
 log = logging.getLogger("gauntlet.supervisor")
 
@@ -66,8 +67,12 @@ class RunHandle:
     verdict: str | None = None
     fail_reason: str | None = None
     argv: list[str] = field(default_factory=list)
+    # Instrument instance keys this run records: what its suite requires, plus
+    # whatever the operator asked to watch alongside.
+    observing: list[str] = field(default_factory=list)
     bus: EventBus | None = None
     process: subprocess.Popen[str] | None = None
+    recorder: InstrumentRecorder | None = field(default=None, repr=False)
     # Closes whatever capability this run itself claimed ownership of — a
     # camera the operator already had open is left as it was found. Not
     # serialized: it is machinery, not something a caller reads.
@@ -143,8 +148,8 @@ class RunSupervisor:
 
         Raises when the request itself cannot be honoured — an unknown suite, a
         profile that does not resolve, a capability no instrument on this bench
-        provides — and such a rejection creates no directory and no history
-        entry.
+        provides, an instrument asked for that the bench does not have — and
+        such a rejection creates no directory and no history entry.
 
         Everything that waits on hardware happens after the run exists, and the
         handle is returned without waiting for it. Opening an instrument is
@@ -171,6 +176,7 @@ class RunSupervisor:
                 capability_env = self._capabilities.environment(suite.manifest.requires)
             except CapabilityError as exc:
                 raise RunRejected(str(exc)) from exc
+            observing = self._observed(suite.manifest.requires, request.observe)
 
             run_id = _new_run_id()
             run_dir = self._runs_dir / suite.key / run_id
@@ -201,6 +207,7 @@ class RunSupervisor:
                 target=request.target,
                 unit_serial=request.unit_serial,
                 argv=list(launch.argv),
+                observing=observing,
                 bus=EventBus(),
             )
             self._runs[run_id] = handle
@@ -342,6 +349,8 @@ class RunSupervisor:
 
         handle.process = process
         handle.status = "running"
+        handle.recorder = InstrumentRecorder(self._capabilities, handle.observing, Path(handle.run_dir))
+        handle.recorder.start()
         loop = asyncio.get_running_loop()
         self._loop = loop
 
@@ -401,11 +410,16 @@ class RunSupervisor:
         bus: EventBus,
         loop: asyncio.AbstractEventLoop,
     ) -> None:
+        # Stopped before anything is published, so the summary is on disk by
+        # the time a caller is told the run has finished.
+        if handle.recorder is not None:
+            handle.recorder.stop()
         verdict = _read_verdict(Path(handle.run_dir) / "verdict.json")
         if verdict is None:
             status = "error"
             passed = False
-            reason = f"suite exited with code {exit_code} without writing verdict.json"
+            reported = _reported_error(Path(handle.run_dir) / "test.log")
+            reason = reported or f"suite exited with code {exit_code} without writing verdict.json"
         else:
             passed = verdict.passed
             reason = verdict.reason
@@ -460,6 +474,28 @@ class RunSupervisor:
             await handle.bus.publish("verdict", result=verdict, reason=reason, summary={})
         await self._close_and_notify(handle)
 
+    def _observed(self, required: list[str], observe: list[str]) -> list[str]:
+        """Which instruments this run records, as instance keys.
+
+        Everything the suite requires, because a run is read afterwards against
+        the instruments that drove it, and then whatever else the operator
+        asked for. An extra instrument is named by its instance key, the same
+        key the panel shows, and one this bench does not have is refused rather
+        than dropped: an operator who asked to record something is owed the
+        recording or the reason there is none.
+        """
+        keys = [self._capabilities.resolve(name)[0] for name in required]
+        for key in observe:
+            provider = self._capabilities.provider(key)
+            if provider is None:
+                known = ", ".join(self._capabilities.instance_keys()) or "none"
+                raise RunRejected(f"cannot record {key!r}: no such instrument (registered: {known})")
+            if not provider.available():
+                raise RunRejected(f"cannot record {key!r}: the instrument is not available")
+            if key not in keys:
+                keys.append(key)
+        return keys
+
     def _resolve_profile(self, suite: Any, request: RunRequest) -> Path | None:
         if request.profile_body is not None:
             return _write_scratch_profile(self._runs_dir, suite.key, request.profile_body)
@@ -475,6 +511,25 @@ class RunSupervisor:
         finished = [h for h in self.list_runs() if h.finished]
         for handle in finished[self._history_size :]:
             self._runs.pop(handle.run_id, None)
+
+
+def _reported_error(log_path: Path) -> str:
+    """The last line the suite logged through ``err()``, without its prefix.
+
+    A suite that refuses a run says why on the `error:` prefix Gauntlet already
+    reads levels from, so the operator is shown that sentence rather than an
+    exit code they cannot act on.
+    """
+    try:
+        lines = log_path.read_text(errors="replace").splitlines()
+    except OSError:
+        return ""
+    for line in reversed(lines):
+        # The explicit prefix only. `classify_log_line` also infers a level
+        # from the wording, which a traceback mentioning an error would trip.
+        if line[:6].lower().startswith("error:"):
+            return line[6:].strip()
+    return ""
 
 
 def _read_verdict(path: Path) -> Verdict | None:

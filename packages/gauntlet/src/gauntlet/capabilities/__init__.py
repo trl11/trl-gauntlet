@@ -19,6 +19,7 @@ from gauntlet.capabilities.registry import (
     StatefulCapability,
     WritableCapability,
     capability_of,
+    current_state,
     instance_key,
     role_of,
 )
@@ -37,6 +38,7 @@ __all__ = [
     "WritableCapability",
     "capability_of",
     "command_field",
+    "current_state",
     "instance_key",
     "number_arg",
     "readout",

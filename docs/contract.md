@@ -86,6 +86,12 @@ false. A `string` override with `choices` renders as a select and rejects
 values outside the list. A `number` or `integer` override may carry `minimum`
 and `maximum`, which bound the form control and reject a value outside them.
 
+A blank control means the suite's own default applies, so an override is
+optional by default. `required: true` says there is no such default: the
+operator must supply a value, and the run form marks the field and refuses to
+start until they do. Declare it only where nothing else can fill the value in,
+because a required override cannot be satisfied by a profile.
+
 `downloads` names files inside the suite directory that Gauntlet serves and
 the Tests page offers as links, for what a bench needs before a run: a firmware
 image to program a part with, a wiring diagram, a datasheet. Only a declared
@@ -136,14 +142,26 @@ Paths are relative to `GAUNTLET_RUN_DIR`.
 |---|---|---|---|
 | `verdict.json` | yes | suite, at exit | Pass/fail and reason. |
 | `metrics.jsonl` | no | suite, during the run | One JSON record per line; streamed live. |
-| `manifest.json` | no | suite, at start | Versions, command line, profile. |
+| `manifest.json` | no | suite, at exit | Versions, command line, and the profile as the run resolved it. |
 | `junit.xml` | no | suite, at exit | Per-iteration results for CI. |
 | `events.sqlite` | no | suite, during the run | Every `metrics.jsonl` record, in SQL. |
 | `summary.md` | no | suite, at exit | Human-readable rollup. |
 | `frames/` | no | suite, during the run | Images referenced from `metrics.images`. |
 | `traces/` | no | suite, during the run | Captured signals referenced from `metrics.traces`. |
-| `profile.yaml` | no | Gauntlet | Copy of the profile as run. |
+| `profile.yaml` | no | Gauntlet at start, the suite at exit | The profile as run: every field, defaults and overrides included. |
 | `test.log` | no | Gauntlet | Captured stdout and stderr. |
+| `instruments.jsonl` | no | Gauntlet, during the run | What the bench's instruments read, one line per instrument per second. |
+| `instruments.json` | no | Gauntlet, at exit | The same readings summarised: count, extremes, mean and last. |
+
+The last two are Gauntlet's own and a suite neither writes nor reads them: it
+is not told which instruments are being recorded, and a run is identical
+whether they are or not.
+
+`profile.yaml` starts as the file the run was handed and is replaced at exit
+with the profile the suite resolved — every field, the defaults the model
+filled in and the overrides the run was started with. A run that dies before
+resolving anything leaves the copy behind, which is better than no profile at
+all. `manifest.json` carries the same resolved values as JSON.
 
 `produces` lists what the suite writes. Gauntlet uses it to decide which views
 to offer and which artifacts `verify --run` requires.

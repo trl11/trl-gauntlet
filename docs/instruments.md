@@ -314,6 +314,21 @@ gives the run its own Traces tab — a picture is shown as one, and sample data
 is drawn as lanes the operator can scroll and zoom. See
 [`contract.md`](contract.md) for both shapes.
 
+### Reading a waveform rather than a level
+
+`sample` answers with the mean of a short acquisition, which is the reading a
+DC measurement wants and is also what throws a waveform away. `capture` is the
+other half: it takes `rate_hz` and `samples`, runs the converters at that rate,
+and answers with every sample of every channel, along with what each one came
+to — mean, extremes, peak to peak. The NI-9238 runs between 1613 and 50000 S/s
+on all four channels at once, so 25 kS/s is an ordinary ask.
+
+A capture is capped at 25 000 samples per channel because the reply crosses the
+API as JSON; a longer window is taken as several captures. The samples are not
+kept by the instrument — they are the caller's to write down — but the last
+capture's summary stays in `state()`, so the panel and a run's own instrument
+record both carry the peak to peak without the megabyte behind it.
+
 ## What is registered
 
 `instruments/detect.py` decides, at startup and again on every operator scan.
@@ -548,6 +563,51 @@ latching key locked, and will not let the operator release the lock — taking
 the output by hand mid-run would cut across the test. A run taking the
 instrument also leaves the lock shut behind it, so nothing goes live again
 untouched. The instrument's other commands stay drivable.
+
+## What a run records
+
+Every run records the instruments its suite requires, and the operator may add
+any other the bench has from the start form. Recording is Gauntlet's: nothing
+about it reaches the suite, no manifest declares it, and a run reads the same
+whether or not anything was recorded.
+
+Two files land in the run directory. `instruments.jsonl` is the trace, a line
+per instrument per second:
+
+```json
+{"at": "2026-09-10T18:12:03Z", "instrument": "psu", "t": 12.0,
+ "values": {"current": 0.42, "output_enabled": 1.0, "voltage": 5.01}}
+```
+
+`instruments.json` is the summary, written when the run ends: every reading's
+count, extremes, mean and last value, under the label, unit and precision its
+provider declared. The run page grows an **Instruments** tab when a run has
+one.
+
+A reading is any number in a provider's `state()`, found by walking it rather
+than by knowing any instrument, so a provider that declares no `readouts()` is
+recorded all the same. A boolean is recorded as 0 or 1, which is what puts a
+supply's output in the trace beside the voltage it explains.
+
+A reading's key is its path through that state — `channels.ai0.value` — and it
+is the same key on every bench and in every run, which is what lets two runs be
+compared. What it is *called* is the operator's: a provider that lets a channel
+be named publishes that name beside the channel's readings, and the name last
+seen there is what the summary displays and the run page shows above the key.
+Rename an input to `Rail 3V3` and every run recorded after it reads that way,
+while the key it is filed under does not move. Failing a name in `state()` the
+label comes from `readouts()`, and failing that the key stands in for itself.
+Where one name covers several numbers — a logic probe's level and its frequency
+— the leaf keeps them apart, as `CLK frequency`.
+
+Reading an instrument this way asks nothing of it that the operator's panel
+does not already ask while a run is in flight, which is why an instrument the
+suite is driving is recorded alongside the rest. An instrument that stops
+answering — unplugged mid-run — stops contributing and ends nothing.
+
+An extra instrument is named by its instance key, the same key the panel shows,
+and one this bench does not have or cannot use is refused when the run is
+started rather than dropped quietly.
 
 ## Endpoints
 

@@ -92,9 +92,8 @@ overrides:
     minimum: 0.25
     help: >
       Seconds between samples. Reading both chips and converting a snapshot
-      costs about a second, so a real run is refused below 2s rather than
-      quietly delivering a slower rate than it asked for. A mock run has no
-      link to read and may go quicker.
+      costs about a second, so the suite refuses a real run below 2s. A mock
+      run has no link to read and may go quicker.
   - name: max_width
     flag: --max-width
     type: integer
@@ -108,16 +107,16 @@ overrides:
     type: string
     label: Part I2C address
     help: >
-      The chip under the beam, as a hexadecimal byte. Both ends are recorded
-      either way; this is the one the verdict is about.
+      The chip under the beam, as a hexadecimal byte. The suite records both
+      ends. The verdict is about this one.
   - name: max_errors_per_sample
     flag: --max-errors-per-sample
     type: integer
     label: Max errors per sample
     minimum: 0
     help: >
-      Link errors in one sample before that sample fails. The chip's counters
-      clear when read, so this is a rate rather than a total.
+      Link errors in one sample before that sample fails. The chip clears
+      its counters when read, so this is a rate and not a total.
   - name: snapshot_every
     flag: --snapshot-every
     type: integer

@@ -44,6 +44,7 @@ class Manifest:
     unit_serial: str | None = None
     profile_path: str | None = None
     profile_summary: dict[str, str] = field(default_factory=dict)
+    profile: dict[str, Any] = field(default_factory=dict)
     hardware: dict[str, dict[str, str]] = field(default_factory=dict)
     versions: dict[str, str] = field(default_factory=dict)
     env: dict[str, str] = field(default_factory=dict)
@@ -85,6 +86,7 @@ def build_manifest(
     unit_serial: str | None = None,
     profile_path: Path | None = None,
     profile_summary: dict[str, str] | None = None,
+    profile: dict[str, Any] | None = None,
     hardware: dict[str, dict[str, str]] | None = None,
     versions: dict[str, str] | None = None,
     extra_env: dict[str, str] | None = None,
@@ -110,6 +112,7 @@ def build_manifest(
         unit_serial=unit_serial,
         profile_path=str(profile_path) if profile_path else None,
         profile_summary=profile_summary or {},
+        profile=profile or {},
         hardware=hardware or {},
         versions=versions or {},
         env=env,

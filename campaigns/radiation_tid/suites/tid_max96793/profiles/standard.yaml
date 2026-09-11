@@ -1,7 +1,7 @@
 description: >
-  The beam-line profile for the MAX96793GTJ/VY+: five minutes at 1Hz, keeping one frame
-  in ten. Narrow max_errors_per_sample to the baseline this part shows with the
-  beam off before trusting a pass.
+  The beam-line profile for the MAX96793GTJ/VY+: five minutes at 1 Hz, keeping
+  one frame in ten. Narrow `max_errors_per_sample` to the baseline this part
+  shows with the beam off.
 driver: real
 duration_s: 300
 sample_period_s: 2

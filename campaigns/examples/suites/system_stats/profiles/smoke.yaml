@@ -1,4 +1,4 @@
-description: Three-second smoke run. Used by `gauntlet verify --run`; needs no hardware.
+description: Three-second run, no hardware. What `gauntlet verify --run` executes.
 duration_s: 3.0
 sample_period_s: 0.25
 max_cpu_percent: 100.0
