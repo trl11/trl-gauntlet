@@ -8,8 +8,9 @@ description: >
   channel the module has is written to metrics, under the label its input was
   given. A channel the profile lists is also judged: it must read, read inside
   the `min_v` to `max_v` window given for it, and move at all — a floating
-  input pins at the rail and sits there. A reading is the mean of a short
-  acquisition, not one conversion, so this measures DC and reports no RMS.
+  input pins at the rail and sits there. The bench profiles capture the
+  waveform at 25000 S/s; `capture_rate_hz: 0` records the mean instead, which
+  measures DC and reports no RMS.
 
 exec:
   command: ["python", "-m", "suite.cli"]

@@ -25,6 +25,9 @@ dmesg:
 psu:
   enabled: true
 
+daq:
+  enabled: true
+
 # Nothing is gated on this run. It is here to be read, not to pass or fail.
 pass_criteria:
   require_measurement: true
