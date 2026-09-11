@@ -96,6 +96,27 @@ class PsuBlock(BaseModel):
     timeout_s: float = Field(default=5.0, gt=0)
 
 
+class DaqBlock(BaseModel):
+    """Analog capture from a DAQ module, recorded beside the bandwidth.
+
+    Like the bench supply, this is only ever asked for a capture: the suite
+    does not reserve the module, so a capture locks nothing in the operator's
+    panel and a bench without one runs the suite unchanged.
+    """
+
+    model_config = ConfigDict(extra="forbid", title="DAQ capture")
+
+    enabled: bool = Field(default=True, description="Capture the module's inputs when Gauntlet offers a `daq` capability.")
+    capability: str = Field(default="daq", description="Capability name to capture from.")
+    capture_rate_hz: float = Field(
+        default=25000.0,
+        gt=0,
+        description="Samples per second to capture at. An NI-9238 runs its converters between 1613 and 50000 S/s.",
+    )
+    capture_samples: int = Field(default=5000, ge=2, le=25000, description="Samples per channel in each capture.")
+    timeout_s: float = Field(default=15.0, gt=0)
+
+
 class MonitorBlock(BaseModel):
     """Background sampling of the unit while the session runs."""
 
@@ -156,5 +177,6 @@ class TidSsdProfile(BaseModel):
     provision: ProvisionBlock = Field(default_factory=ProvisionBlock)
     dmesg: DmesgBlock = Field(default_factory=DmesgBlock)
     psu: PsuBlock = Field(default_factory=PsuBlock)
+    daq: DaqBlock = Field(default_factory=DaqBlock)
     monitor: MonitorBlock = Field(default_factory=MonitorBlock)
     pass_criteria: PassCriteria = Field(default_factory=PassCriteria)

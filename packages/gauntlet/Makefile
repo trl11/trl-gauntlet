@@ -20,5 +20,6 @@ help:
 # the UI, which nothing later would report as an error.
 build:
 	@$(MAKE) --no-print-directory -C $(ROOT) frontend
+	@$(STAMP_GIT_SHA)
 	@mkdir -p $(DIST)
 	@uv build --wheel --out-dir $(DIST) $(APP)

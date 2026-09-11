@@ -6,6 +6,7 @@ run.
 
 from __future__ import annotations
 
+import getpass
 import json
 import os
 import platform
@@ -33,6 +34,7 @@ class Manifest:
     run_id: str
     started_at_utc: str
     hostname: str = ""
+    operator: str = ""
     platform: str = ""
     python_version: str = ""
     cwd: str = ""
@@ -40,6 +42,8 @@ class Manifest:
     repo_sha: str | None = None
     repo_branch: str | None = None
     repo_dirty: bool = False
+    gauntlet_version: str | None = None
+    gauntlet_git_sha: str | None = None
     target: str | None = None
     unit_serial: str | None = None
     profile_path: str | None = None
@@ -101,6 +105,10 @@ def build_manifest(
         run_id=run_id,
         started_at_utc=started_at_utc or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         hostname=socket.gethostname(),
+        # The account the suite ran as, which is the operator: both the app
+        # and the rig's systemd units run as the operator's own login, never
+        # as root.
+        operator=getpass.getuser(),
         platform=platform.platform(),
         python_version=sys.version.split()[0],
         cwd=os.getcwd(),
@@ -108,6 +116,11 @@ def build_manifest(
         repo_sha=git.sha,
         repo_branch=git.branch,
         repo_dirty=git.dirty,
+        # Gauntlet's own version and commit, not the suite's: it launched this
+        # process and passed them down as environment, since a suite venv need
+        # not have gauntlet itself installed to read them any other way.
+        gauntlet_version=os.environ.get("GAUNTLET_VERSION"),
+        gauntlet_git_sha=os.environ.get("GAUNTLET_GIT_SHA"),
         target=target,
         unit_serial=unit_serial,
         profile_path=str(profile_path) if profile_path else None,

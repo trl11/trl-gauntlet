@@ -10,6 +10,7 @@ import {
   deleteRunNote,
   getArtifactText,
   getRun,
+  getRunInstrumentTrace,
   getRunManifest,
   getRunMetrics,
   getRunVerdict,
@@ -35,7 +36,9 @@ import TraceTimeline from "@components/TraceTimeline";
 import VerdictBanner from "@components/VerdictBanner";
 import VerdictSummary from "@components/VerdictSummary";
 import useEventStream from "@hooks/useEventStream";
+import { metricsSeriesKey } from "@hooks/usePersistedSeries";
 import { formatDuration, formatTimestamp } from "../utils/format";
+import { traceToSamples } from "../utils/instrument_trace";
 import { elapsedSeconds, parseLog, replay, type AnomalyRow } from "../utils/run_history";
 import { isLive } from "../utils/run_status";
 
@@ -141,6 +144,12 @@ export const RunPage: React.FC = () => {
     enabled: settled && hasFile("summary.md"),
     retry: false,
   });
+  const instrumentTrace = useQuery({
+    queryKey: ["run-instrument-trace", runId],
+    queryFn: () => getRunInstrumentTrace(runId),
+    enabled: settled && hasFile("instruments.jsonl"),
+    retry: false,
+  });
 
   const notes = useQuery({
     queryKey: ["run-notes", runId],
@@ -169,6 +178,29 @@ export const RunPage: React.FC = () => {
 
   const logs = parsedLog.length > 0 ? parsedLog : stream.logs;
   const samples = replayed.samples.length > 0 ? replayed.samples : stream.metrics;
+  // The bench's own readings, alongside whatever the suite reported, so a
+  // channel recorded rather than published still shows up on the Metrics
+  // tab's picker. Merged rather than kept on the Instruments tab, which stays
+  // the tab for what a reading came to rather than for charting it.
+  const metricsSamples = useMemo(() => {
+    const recorded = traceToSamples(instrumentTrace.data ?? []);
+    if (recorded.length === 0) return samples;
+    return [...samples, ...recorded].sort((a, b) => (a.elapsed_s ?? a.ts) - (b.elapsed_s ?? b.ts));
+  }, [samples, instrumentTrace.data]);
+  // Presets the Metrics tab's series pick before switching to it, so a
+  // reading clicked on the Instruments tab is what the operator sees there.
+  // Written to the same storage `MetricsChart` reads on mount, since the
+  // chart is unmounted while the Instruments tab is open and always remounts
+  // fresh when this tab switch brings it back.
+  const showReading = (key: string) => {
+    try {
+      localStorage.setItem(metricsSeriesKey(runId), JSON.stringify([key]));
+    } catch {
+      // Storage can be full or disabled (private browsing); the tab switch
+      // still gets the operator there, just without the series preselected.
+    }
+    setTab("metrics");
+  };
   const phases = replayed.phases.length > 0 ? replayed.phases : stream.phases;
   const iterations = replayed.iterations.length > 0 ? replayed.iterations : stream.iterations;
   const anomalies: AnomalyRow[] =
@@ -400,9 +432,10 @@ export const RunPage: React.FC = () => {
                 <DefinitionRows
                   rows={[
                     { label: "host", value: manifest.data.hostname || "-" },
-                    { label: "platform", value: manifest.data.platform || "-" },
-                    { label: "python", value: manifest.data.python_version || "-" },
+                    { label: "user", value: manifest.data.operator || "-" },
                     { label: "commit", value: manifest.data.repo_sha ?? "-" },
+                    { label: "gauntlet", value: manifest.data.gauntlet_version || "-" },
+                    { label: "gauntlet commit", value: manifest.data.gauntlet_git_sha ?? "-" },
                   ]}
                 />
               </>
@@ -415,12 +448,14 @@ export const RunPage: React.FC = () => {
           <MetricsChart
             key={runId}
             runId={runId}
-            samples={samples}
+            samples={metricsSamples}
             defaultMetrics={defaultMetrics}
           />
         )}
         {active === "captures" && <CaptureViewer key={runId} paths={captures} runId={runId} />}
-        {active === "instruments" && <RecordedInstruments key={runId} runId={runId} />}
+        {active === "instruments" && (
+          <RecordedInstruments key={runId} runId={runId} onSelectReading={showReading} />
+        )}
         {active === "iterations" && (
           <IterationTable
             key={runId}

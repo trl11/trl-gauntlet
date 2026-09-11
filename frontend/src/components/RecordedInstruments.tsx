@@ -10,6 +10,11 @@ import "./RecordedInstruments.scss";
 export interface RecordedInstrumentsProps {
   /** Run whose recording is shown. */
   runId: string;
+  /**
+   * Called with a reading's key, prefixed by the instrument it came from,
+   * when the operator asks to see it charted on the Metrics tab.
+   */
+  onSelectReading: (key: string) => void;
 }
 
 /** A reading to as many decimals as its instrument asked for. */
@@ -27,9 +32,14 @@ function show(value: number, precision: number | null): string {
  * A reading is shown under the name its channel carried during the run and
  * over the key it is recorded as. The name is the operator's and changes with
  * the bench; the key is the same everywhere, and is what anyone reading the
- * trace beside this table matches on.
+ * trace beside this table matches on. That key, prefixed by the instrument's,
+ * is also how the same reading is named on the Metrics tab's chart, which is
+ * where a row sends the operator who clicks it.
  */
-export const RecordedInstruments: React.FC<RecordedInstrumentsProps> = ({ runId }) => {
+export const RecordedInstruments: React.FC<RecordedInstrumentsProps> = ({
+  runId,
+  onSelectReading,
+}) => {
   const record = useQuery({
     queryKey: ["run-instruments", runId],
     queryFn: () => getRunInstruments(runId),
@@ -83,19 +93,25 @@ export const RecordedInstruments: React.FC<RecordedInstrumentsProps> = ({ runId 
                 <tbody>
                   {instrument.readings.map((reading) => (
                     <tr key={reading.key}>
-                      <td>
-                        <span className="recorded-instruments__label">
-                          {reading.group && (
-                            <span className="recorded-instruments__group">{reading.group}</span>
+                      <td className="recorded-instruments__open-cell">
+                        <button
+                          type="button"
+                          className="recorded-instruments__open"
+                          onClick={() => onSelectReading(`${instrument.name}.${reading.key}`)}
+                        >
+                          <span className="recorded-instruments__label">
+                            {reading.group && (
+                              <span className="recorded-instruments__group">{reading.group}</span>
+                            )}
+                            {reading.label}
+                            {reading.unit && (
+                              <span className="recorded-instruments__unit">{reading.unit}</span>
+                            )}
+                          </span>
+                          {reading.label !== reading.key && (
+                            <span className="recorded-instruments__key">{reading.key}</span>
                           )}
-                          {reading.label}
-                          {reading.unit && (
-                            <span className="recorded-instruments__unit">{reading.unit}</span>
-                          )}
-                        </span>
-                        {reading.label !== reading.key && (
-                          <span className="recorded-instruments__key">{reading.key}</span>
-                        )}
+                        </button>
                       </td>
                       <td className="mono">{show(reading.min, reading.precision)}</td>
                       <td className="mono">{show(reading.mean, reading.precision)}</td>

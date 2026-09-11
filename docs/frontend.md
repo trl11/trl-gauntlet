@@ -45,6 +45,16 @@ it. A run whose files include `instruments.json` grows an **Instruments** tab; a
 run that wrote `captures/*.csv` grows a **Captures** tab, drawn by
 `CaptureViewer`; the galleries appear only for a run that recorded images.
 
+The Instruments tab stays a summary table; `instruments.jsonl` is charted on
+the **Metrics** tab instead, merged in beside whatever the suite reported.
+`traceToSamples` turns the instruments' independent lines back into one row
+per tick, prefixing each reading with the instrument it came from so two
+instruments naming a reading alike do not collide — `daq.channels.ai0.value`
+sits in the same `MetricsChart` and the same series picker as the suite's own
+`rail.volts`. Clicking a reading's row on the Instruments tab presets that
+series (`metricsSeriesKey`, in `usePersistedSeries`) and switches to the
+Metrics tab to show it, the same storage `MetricsChart` reads from on mount.
+
 Every chart scales its own vertical axis and offers no control for it: the
 window is the data's range with a tenth of that range as air at each end, from
 `paddedDomain`. A line read against the grid rather than against the edge of

@@ -23,8 +23,12 @@ help:
 # The context is the repository: the build needs both packages, the frontend
 # and the ui-kit. .dockerignore stays at the root because Docker reads it from
 # the root of the context, not from beside the Dockerfile.
+# The image builds in its own context, sharing no working directory with the
+# checkout, so the commit it was built from is passed in rather than read from
+# a `.git` the image never sees.
 build:
-	@docker build -f $(DOCKER)/Dockerfile -t $(IMAGE) $(ROOT)
+	@docker build -f $(DOCKER)/Dockerfile -t $(IMAGE) \
+		--build-arg GIT_SHA="$$(git -C $(ROOT) rev-parse HEAD 2>/dev/null)" $(ROOT)
 
 run: build
 	@echo "Gauntlet   http://localhost:$(DOCKER_PORT)"

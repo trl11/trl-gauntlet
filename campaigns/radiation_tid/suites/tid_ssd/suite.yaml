@@ -7,10 +7,10 @@ description: >
   Total ionising dose characterisation of the flight SSD. Each tick measures
   write and read bandwidth with dd, writes a block and compares its SHA-256
   after a cache drop, reads the whole NVMe health log, and collects the kernel
-  messages the drive has logged since the last tick. The bench supply current
-  is recorded alongside when the bench has a supply. The session never aborts,
-  so a drive that slows, corrupts, drains its spare pool, leaves the bus or
-  comes back is recorded rather than lost.
+  messages the drive has logged since the last tick. A bench supply and a DAQ
+  module are recorded alongside when the bench has them. The session never
+  aborts, so a drive that slows, corrupts, drains its spare pool, leaves the
+  bus or comes back is recorded rather than lost.
 
 setup: |
   The drive is the only thing in the beam. The unit that holds it is outside,
@@ -31,6 +31,11 @@ setup: |
   The suite reads a bench supply on the rail and never commands it. The supply
   is absent from requires:, so the operator keeps the rail while the beam is
   on. A bench without a supply runs the suite unchanged.
+
+  The suite also captures a DAQ module's analog inputs when the bench has one,
+  a window of samples at a time rather than a mean. It is absent from
+  requires: too, so nothing locks the module's panel while a capture is in
+  flight and a bench without one runs the suite unchanged.
 
       +--------------+   SSH    +--------------+  PCIe  +--------------+
       |   Gauntlet   |--------->| Raspberry Pi |------->|  NVMe SSD    |
@@ -63,8 +68,9 @@ default_metrics:
   [nvme0.read_mbps, nvme0.smart_available_spare, nvme0.smart_media_errors, nvme0.write_mbps]
 
 # The bench supply is read, never commanded, and never reserved: the operator
-# keeps control of the rail while the beam is on. A bench without one runs
-# this suite unchanged.
+# keeps control of the rail while the beam is on. The DAQ module is only ever
+# asked for a capture, the same way. Neither is named here, so a bench
+# missing one or both runs this suite unchanged.
 requires: []
 
 supports:

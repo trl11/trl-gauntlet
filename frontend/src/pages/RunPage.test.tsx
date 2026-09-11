@@ -26,6 +26,7 @@ vi.mock("@api/client", () => ({
   deleteRunNote: vi.fn(),
   getArtifactText: vi.fn(),
   getRun: vi.fn(),
+  getRunInstrumentTrace: vi.fn(),
   getRunManifest: vi.fn(),
   getRunMetrics: vi.fn(),
   getRunVerdict: vi.fn(),

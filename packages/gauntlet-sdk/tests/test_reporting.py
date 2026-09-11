@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import getpass
 import json
 import sqlite3
 import subprocess
@@ -363,6 +364,29 @@ class TestManifest:
         manifest = build_manifest(suite="demo", run_id="r1", profile_path=tmp_path / "quick.yaml")
 
         assert manifest.profile_path == str(tmp_path / "quick.yaml")
+
+    def test_the_operator_is_the_account_the_suite_ran_as(self):
+        manifest = build_manifest(suite="demo", run_id="r1")
+
+        assert manifest.operator == getpass.getuser()
+
+    def test_gauntlets_own_version_and_commit_come_from_the_environment(self, monkeypatch):
+        monkeypatch.setenv("GAUNTLET_VERSION", "0.1.0")
+        monkeypatch.setenv("GAUNTLET_GIT_SHA", "abc123")
+
+        manifest = build_manifest(suite="demo", run_id="r1")
+
+        assert manifest.gauntlet_version == "0.1.0"
+        assert manifest.gauntlet_git_sha == "abc123"
+
+    def test_gauntlets_own_version_and_commit_are_absent_when_not_launched_by_it(self, monkeypatch):
+        monkeypatch.delenv("GAUNTLET_VERSION", raising=False)
+        monkeypatch.delenv("GAUNTLET_GIT_SHA", raising=False)
+
+        manifest = build_manifest(suite="demo", run_id="r1")
+
+        assert manifest.gauntlet_version is None
+        assert manifest.gauntlet_git_sha is None
 
     def test_git_state_outside_a_repository_is_empty(self, tmp_path):
         state = git_state(tmp_path)

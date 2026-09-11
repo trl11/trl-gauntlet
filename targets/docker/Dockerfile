@@ -30,6 +30,12 @@ FROM ${PYTHON_IMAGE} AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
+# Set rather than baked into the wheel: this stage shares no working directory
+# with the checkout it was built from, so gauntlet.git_sha() has nothing of
+# its own to read here.
+ARG GIT_SHA
+ENV GAUNTLET_GIT_SHA=${GIT_SHA}
+
 # System packages the suites' transports need. This image has its own list,
 # beside it: the one at the repository root describes a development machine and
 # carries Electron's runtime, an X server and FUSE, none of which a container

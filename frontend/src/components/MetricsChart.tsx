@@ -15,7 +15,7 @@ import {
 } from "recharts";
 
 import SeriesPicker from "@components/SeriesPicker";
-import usePersistedSeries from "@hooks/usePersistedSeries";
+import usePersistedSeries, { metricsSeriesKey } from "@hooks/usePersistedSeries";
 import { formatNumber } from "../utils/format";
 import { naturalCompare, paddedDomain } from "../utils/metrics";
 
@@ -71,7 +71,7 @@ function elapsed(sample: MetricSample, firstTs: number): number {
  * run keeps the operator's picks.
  */
 export const MetricsChart: React.FC<MetricsChartProps> = ({ runId, samples, defaultMetrics }) => {
-  const [chosen, setChosen] = usePersistedSeries(`gauntlet:run:${runId}:metrics-series`);
+  const [chosen, setChosen] = usePersistedSeries(metricsSeriesKey(runId));
   const [range, setRange] = useState<[number, number] | null>(null);
 
   const names = useMemo(() => {

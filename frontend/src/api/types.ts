@@ -327,6 +327,23 @@ export interface RecordedReading {
   unit: string;
 }
 
+/**
+ * One line of `instruments.jsonl`: what one instrument read on one tick.
+ *
+ * Every instrument read on the same tick carries the same `t`, which is what
+ * lets a line be plotted alongside the others from that tick.
+ */
+export interface RecordedTick {
+  /** When the tick was taken, to the second, as UTC. */
+  at: string;
+  /** Instance key of the instrument this line read. */
+  instrument: string;
+  /** Seconds since recording began. */
+  t: number;
+  /** Every number the instrument published, by its key. */
+  values: Record<string, number>;
+}
+
 /** Everything one instrument read over a run. */
 export interface RecordedInstrument {
   description: string;
@@ -450,8 +467,14 @@ export interface RunManifest {
   command_line: string[];
   cwd: string;
   env: Record<string, string>;
+  /** Gauntlet's own commit, not the suite's `repo_sha`. */
+  gauntlet_git_sha?: string | null;
+  /** Gauntlet's own version, not any suite-reported version in `versions`. */
+  gauntlet_version?: string | null;
   hardware: Record<string, Record<string, string>>;
   hostname: string;
+  /** The account the run was started as. */
+  operator?: string;
   platform: string;
   profile_path: string | null;
   profile?: Record<string, unknown>;
@@ -844,6 +867,8 @@ export interface SystemInfo {
   cpu_model: string | null;
   gauntlet: string;
   gauntlet_sdk: string;
+  /** Commit this build was made from. Absent when it could not be determined. */
+  git_sha?: string | null;
   hostname: string | null;
   kernel: string | null;
   memory_total_bytes: number | null;

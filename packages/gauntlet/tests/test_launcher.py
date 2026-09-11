@@ -130,6 +130,12 @@ class TestEnvironment:
         assert env["GAUNTLET_TARGET"] == "10.0.0.5"
         assert env["GAUNTLET_UNIT_SERIAL"] == "SN1"
 
+    def test_gauntlet_version_is_set(self, make_suite, tmp_path):
+        from gauntlet import __version__
+
+        env = _launch(make_suite("demo"), tmp_path).env
+        assert env["GAUNTLET_VERSION"] == __version__
+
     def test_suite_directory_is_importable(self, make_suite, tmp_path):
         suite = make_suite("demo")
         assert str(suite.directory) in _launch(suite, tmp_path).env["PYTHONPATH"]

@@ -74,10 +74,40 @@
 
     tbody tr {
       border-bottom: 1px solid rgba($trl-dark-gray, 0.6);
+      transition: background-color 0.15s ease;
 
       &:last-child {
         border-bottom: none;
       }
+
+      &:has(.recorded-instruments__open:hover),
+      &:has(.recorded-instruments__open:focus-visible) {
+        background-color: rgba($trl-dark-gray, 0.5);
+      }
+    }
+  }
+
+  &__open-cell {
+    padding: 0;
+  }
+
+  // The row's one accessible way to send its reading to the Metrics tab: a
+  // real button filling its cell, so keyboard and screen-reader users get one
+  // clear target per row instead of the whole row masquerading as a link.
+  &__open {
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 8px 12px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: none;
+      box-shadow: inset 2px 0 0 $indicator-blue;
     }
   }
 

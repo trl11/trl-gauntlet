@@ -27,6 +27,7 @@ class TestSystemInfo:
             "cpu_model",
             "gauntlet",
             "gauntlet_sdk",
+            "git_sha",
             "hostname",
             "kernel",
             "memory_total_bytes",

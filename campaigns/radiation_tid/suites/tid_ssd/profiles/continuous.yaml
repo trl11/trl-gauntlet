@@ -22,6 +22,9 @@ dmesg:
 psu:
   enabled: true
 
+daq:
+  enabled: true
+
 monitor:
   enabled: true
   sample_period_s: 30.0

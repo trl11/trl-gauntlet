@@ -61,6 +61,7 @@ from gauntlet_sdk.remote import RemoteError, capture_host_facts, connect, is_ali
 from suite import mock
 from suite import probe as probe_engine
 from suite.anomaly import flag
+from suite.daq import DaqReader
 from suite.profile import TidSsdProfile, Unit
 from suite.psu import PsuReader
 
@@ -96,6 +97,7 @@ class _State:
     units: list[_UnitState] = field(default_factory=list)
     pool: ThreadPoolExecutor | None = None
     psu: PsuReader | None = None
+    daq: DaqReader | None = None
     measured_ticks: int = 0
     first_anomaly_iteration: int | None = None
 
@@ -173,6 +175,11 @@ def _setup(ctx: SuiteContext) -> None:
         state.psu = PsuReader.discover(ctx.env.api_base, profile.psu.capability, timeout_s=profile.psu.timeout_s)
         if state.psu is None:
             info("no psu capability on this bench — supply current will not be recorded")
+
+    if profile.daq.enabled:
+        state.daq = DaqReader.discover(ctx.env.api_base, profile.daq.capability, timeout_s=profile.daq.timeout_s)
+        if state.daq is None:
+            info("no daq capability on this bench — analog capture will not be recorded")
 
     _write_units_artifact(ctx, state)
     ctx.extras["state"] = state
@@ -379,6 +386,14 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
         if reading:
             metrics["psu"] = reading
 
+    if state.daq is not None:
+        captured = state.daq.capture(profile.daq.capture_rate_hz, profile.daq.capture_samples)
+        if captured:
+            values = _daq_values(captured)
+            if values:
+                metrics["daq"] = values
+            _write_daq_capture(ctx, ictx, captured)
+
     if state.first_anomaly_iteration is None and state.anomalies.total() > 0:
         state.first_anomaly_iteration = ictx.iteration
 
@@ -404,6 +419,43 @@ def _tick_summary(profile: TidSsdProfile, state: _State) -> str:
             prefix = f"{unit.name}: " if len(state.units) > 1 else ""
             chunks.append(prefix + " ".join(parts) + " MB/s")
     return "  ".join(chunks)
+
+
+def _daq_values(captured: dict[str, Any]) -> dict[str, float]:
+    """Mean and peak-to-peak for every channel this capture returned.
+
+    The mean sits beside the bandwidth and SMART figures already on this
+    tick; the peak-to-peak is what a transient shows that an average erases.
+    """
+    values: dict[str, float] = {}
+    for channel, data in captured.get("channels", {}).items():
+        samples = [float(s) for s in (data.get("values") or []) if isinstance(s, (int, float))]
+        if not samples:
+            continue
+        values[f"{channel}_mean"] = round(sum(samples) / len(samples), 6)
+        values[f"{channel}_pp"] = round(max(samples) - min(samples), 6)
+    return values
+
+
+def _write_daq_capture(ctx: SuiteContext, ictx: IterationContext, captured: dict[str, Any]) -> None:
+    """Write this tick's capture as CSV, a column per channel.
+
+    Same shape as daqmx_capture's own capture files, so an operator reading
+    one off this bench already knows the other.
+    """
+    rate_hz = float(captured.get("rate_hz") or 0.0)
+    columns = [
+        (channel, [float(s) for s in (data.get("values") or [])]) for channel, data in captured.get("channels", {}).items()
+    ]
+    depth = max((len(samples) for _, samples in columns), default=0)
+    if not rate_hz or not depth:
+        return
+    lines = ["t_s," + ",".join(channel for channel, _ in columns)]
+    for index in range(depth):
+        row = [f"{index / rate_hz:.9g}"]
+        row += [f"{samples[index]:.9g}" if index < len(samples) else "" for _, samples in columns]
+        lines.append(",".join(row))
+    ctx.artifact("captures", f"daq_{ictx.iteration:04d}.csv").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _device_metrics(metrics: dict[str, Any]) -> dict[str, dict[str, Any]]:

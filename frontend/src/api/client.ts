@@ -28,6 +28,7 @@ import type {
   ProfileDiff,
   RunControlResult,
   RunList,
+  RecordedTick,
   RunManifest,
   RunRow,
   SavedProfile,
@@ -409,6 +410,15 @@ export const getRunManifest = (runId: string): Promise<RunManifest> =>
 /** `instruments.json` from the run directory, parsed. */
 export const getRunInstruments = (runId: string): Promise<InstrumentRecord> =>
   getArtifactJson<InstrumentRecord>(runId, "instruments.json");
+
+/** `instruments.jsonl` from the run directory, one tick per line. */
+export const getRunInstrumentTrace = async (runId: string): Promise<RecordedTick[]> => {
+  const text = await getArtifactText(runId, "instruments.jsonl");
+  return text
+    .split("\n")
+    .filter((line) => line.length > 0)
+    .map((line) => JSON.parse(line) as RecordedTick);
+};
 
 /** `GET /api/runs/{id}/metrics` */
 export const getRunMetrics = (runId: string, limit?: number): Promise<MetricsResponse> =>

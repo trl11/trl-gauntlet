@@ -146,6 +146,7 @@ export const SystemPage: React.FC = () => {
                   { label: "hostname", value: text(host?.hostname) },
                   { label: "gauntlet", value: text(host?.gauntlet) },
                   { label: "gauntlet sdk", value: text(host?.gauntlet_sdk) },
+                  { label: "commit", value: text(host?.git_sha) },
                 ]}
               />
             )}

@@ -5,6 +5,7 @@ description: >
 driver: real
 duration_s: 30
 sample_period_s: 1
+capture_rate_hz: 25000
 channels:
   - channel: ai0
     label: AI 0

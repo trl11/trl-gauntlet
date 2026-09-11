@@ -43,3 +43,7 @@ tmp/
 .cache/
 .docker/
 .local/
+
+# The commit a wheel was built from, stamped in by whichever Makefile target
+# builds it, because the wheel itself carries no `.git` to read it from.
+packages/gauntlet/src/gauntlet/_build_info.py

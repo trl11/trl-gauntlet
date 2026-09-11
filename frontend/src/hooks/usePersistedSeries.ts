@@ -1,6 +1,19 @@
 import { useState } from "react";
 
 /**
+ * Where one run's Metrics series pick is kept in `localStorage`.
+ *
+ * Exported so another view can preset the pick before sending the operator to
+ * the Metrics tab — the Instruments tab writes a single reading under this
+ * key and switches tabs, which is what "show me this reading" comes down to:
+ * `MetricsChart` treats that arrival no differently from a pick made through
+ * `SeriesPicker`.
+ */
+export function metricsSeriesKey(runId: string): string {
+  return `gauntlet:run:${runId}:metrics-series`;
+}
+
+/**
  * A series-name selection that survives a reload, scoped to one
  * `localStorage` key. Starts `null` ("no explicit choice yet, use the
  * caller's default") until the operator picks something, at which point the

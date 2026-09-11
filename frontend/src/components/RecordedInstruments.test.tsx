@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@api/client";
@@ -49,11 +50,11 @@ const record: InstrumentRecord = {
   ticks: 42,
 };
 
-function renderPanel() {
+function renderPanel(onSelectReading: (key: string) => void = vi.fn()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <RecordedInstruments runId="RUN-0001" />
+      <RecordedInstruments runId="RUN-0001" onSelectReading={onSelectReading} />
     </QueryClientProvider>
   );
 }
@@ -97,5 +98,12 @@ describe("RecordedInstruments", () => {
     getRunInstruments.mockRejectedValue(new ApiError(404, "no such artifact", "/api"));
     renderPanel();
     expect(await screen.findByText("Nothing recorded")).toBeInTheDocument();
+  });
+
+  it("sends the instrument-prefixed key of the reading clicked", async () => {
+    const onSelectReading = vi.fn();
+    renderPanel(onSelectReading);
+    await userEvent.click(await screen.findByRole("button", { name: /Voltage/ }));
+    expect(onSelectReading).toHaveBeenCalledWith("psu.voltage");
   });
 });
