@@ -22,6 +22,12 @@ BIN          := $(VENV)/bin
 PY           := $(BIN)/python
 APP          := $(ROOT)/packages/gauntlet
 SDK          := $(ROOT)/packages/gauntlet-sdk
+# What a wheel or bundle built from $(APP) cannot read for itself: the commit
+# it was built from. Run before anything installs or builds from $(APP), so
+# `gauntlet.git_sha()` finds it baked in rather than falling back to asking a
+# git that will not be there once shipped. Empty rather than failing outside a
+# repository, e.g. a build context with no `.git`.
+STAMP_GIT_SHA = printf '"""Generated at build time. Not committed."""\n\nfrom __future__ import annotations\n\nGIT_SHA: str = "%s"\n' "$$(git -C $(ROOT) rev-parse HEAD 2>/dev/null)" > $(APP)/src/gauntlet/_build_info.py
 # Where a suite belonging to no test programme goes. Nothing is shipped here:
 # every suite in this repository belongs to a campaign, so the directory exists
 # only once `make suite-new` has scaffolded one into it.

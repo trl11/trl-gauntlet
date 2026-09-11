@@ -43,6 +43,7 @@ dev: install
 # copy of it.
 runtime:
 	@$(MAKE) --no-print-directory -C $(ROOT) frontend
+	@$(STAMP_GIT_SHA)
 	@rm -rf $(DESKTOP_RUNTIME)
 	@mkdir -p $(DESKTOP_RUNTIME)
 	@echo "CPython $(PYTHON_BUILD_VERSION) ($(PYTHON_BUILD_RELEASE))"

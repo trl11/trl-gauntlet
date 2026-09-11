@@ -128,6 +128,8 @@ Full field list: `gauntlet schema suite`.
 | `GAUNTLET_TARGET` | the run names a target | Address of the unit under test. |
 | `GAUNTLET_UNIT_SERIAL` | the operator enters one | Serial of the unit under test. |
 | `GAUNTLET_API` | always | Base URL of the Gauntlet REST API. |
+| `GAUNTLET_VERSION` | always | Gauntlet's own version, for `manifest.json`'s provenance. |
+| `GAUNTLET_GIT_SHA` | the commit is known | Commit Gauntlet itself was built from, for `manifest.json`'s provenance. |
 | `GAUNTLET_CAP_<NAME>_URL` | per granted capability | Endpoint for that capability. |
 | `GAUNTLET_CAP_<NAME>_ID` | per granted capability | Instance id to address. |
 
@@ -142,7 +144,7 @@ Paths are relative to `GAUNTLET_RUN_DIR`.
 |---|---|---|---|
 | `verdict.json` | yes | suite, at exit | Pass/fail and reason. |
 | `metrics.jsonl` | no | suite, during the run | One JSON record per line; streamed live. |
-| `manifest.json` | no | suite, at exit | Versions, command line, and the profile as the run resolved it. |
+| `manifest.json` | no | suite, at exit | Versions, command line, the profile as the run resolved it, and provenance: host, operator, and the Gauntlet version and commit that launched it. |
 | `junit.xml` | no | suite, at exit | Per-iteration results for CI. |
 | `events.sqlite` | no | suite, during the run | Every `metrics.jsonl` record, in SQL. |
 | `summary.md` | no | suite, at exit | Human-readable rollup. |

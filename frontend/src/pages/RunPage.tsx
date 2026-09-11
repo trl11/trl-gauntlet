@@ -432,9 +432,10 @@ export const RunPage: React.FC = () => {
                 <DefinitionRows
                   rows={[
                     { label: "host", value: manifest.data.hostname || "-" },
-                    { label: "platform", value: manifest.data.platform || "-" },
-                    { label: "python", value: manifest.data.python_version || "-" },
+                    { label: "user", value: manifest.data.operator || "-" },
                     { label: "commit", value: manifest.data.repo_sha ?? "-" },
+                    { label: "gauntlet", value: manifest.data.gauntlet_version || "-" },
+                    { label: "gauntlet commit", value: manifest.data.gauntlet_git_sha ?? "-" },
                   ]}
                 />
               </>

@@ -467,8 +467,14 @@ export interface RunManifest {
   command_line: string[];
   cwd: string;
   env: Record<string, string>;
+  /** Gauntlet's own commit, not the suite's `repo_sha`. */
+  gauntlet_git_sha?: string | null;
+  /** Gauntlet's own version, not any suite-reported version in `versions`. */
+  gauntlet_version?: string | null;
   hardware: Record<string, Record<string, string>>;
   hostname: string;
+  /** The account the run was started as. */
+  operator?: string;
   platform: string;
   profile_path: string | null;
   profile?: Record<string, unknown>;
@@ -861,6 +867,8 @@ export interface SystemInfo {
   cpu_model: string | null;
   gauntlet: string;
   gauntlet_sdk: string;
+  /** Commit this build was made from. Absent when it could not be determined. */
+  git_sha?: string | null;
   hostname: string | null;
   kernel: string | null;
   memory_total_bytes: number | null;

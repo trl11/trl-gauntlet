@@ -13,6 +13,7 @@ from typing import Any
 
 from gauntlet_sdk.contract import OverrideSpec
 
+from gauntlet import __version__, git_sha
 from gauntlet.suites.manifest import LoadedSuite
 
 
@@ -64,6 +65,7 @@ def suite_environment(suite: LoadedSuite) -> dict[str, str]:
         {
             "GAUNTLET_SUITE": suite.key,
             "GAUNTLET_SUITE_DIR": str(suite.directory),
+            "GAUNTLET_VERSION": __version__,
             # Suite stdout is captured and re-rendered, so colour codes would
             # arrive as literal escape bytes in the log view.
             "NO_COLOR": "1",
@@ -72,6 +74,11 @@ def suite_environment(suite: LoadedSuite) -> dict[str, str]:
             "TERM": "dumb",
         }
     )
+    # A suite venv need not have gauntlet itself installed, so this is the only
+    # way it can learn which commit launched it, for the manifest it writes.
+    sha = git_sha()
+    if sha:
+        env["GAUNTLET_GIT_SHA"] = sha
     return env
 
 

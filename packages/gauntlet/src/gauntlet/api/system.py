@@ -77,10 +77,12 @@ async def system_info() -> dict[str, Any]:
     from gauntlet_sdk import __version__ as sdk_version
 
     from gauntlet import __version__ as app_version
+    from gauntlet import git_sha
 
     info = host_stats.static_info(app_version, sys.version.split()[0])
     info["gauntlet_sdk"] = sdk_version
     info["contract_version"] = CONTRACT_VERSION
+    info["git_sha"] = git_sha()
     return info
 
 

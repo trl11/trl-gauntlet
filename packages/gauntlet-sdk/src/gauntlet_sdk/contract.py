@@ -312,6 +312,7 @@ class RunManifest(BaseModel):
     run_id: str
     started_at_utc: str
     hostname: str = ""
+    operator: str = ""
     platform: str = ""
     python_version: str = ""
     cwd: str = ""
@@ -319,6 +320,8 @@ class RunManifest(BaseModel):
     repo_sha: str | None = None
     repo_branch: str | None = None
     repo_dirty: bool = False
+    gauntlet_version: str | None = None
+    gauntlet_git_sha: str | None = None
     target: str | None = None
     unit_serial: str | None = None
     profile_path: str | None = None
