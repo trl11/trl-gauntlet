@@ -193,6 +193,7 @@ def run_suite(
                 unit_serial=env.unit_serial,
                 profile_path=env.profile_path,
                 profile_summary=summary_fn(ctx, profile) if summary_fn else summarize_profile(profile),
+                profile=profile.model_dump(mode="json"),
                 hardware=spec.hardware_summary(ctx, profile),
                 versions=spec.versions(ctx, profile),
             ),

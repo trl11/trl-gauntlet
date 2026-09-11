@@ -452,6 +452,7 @@ export interface RunManifest {
   hostname: string;
   platform: string;
   profile_path: string | null;
+  profile?: Record<string, unknown>;
   profile_summary: Record<string, string>;
   python_version: string;
   repo_branch: string | null;

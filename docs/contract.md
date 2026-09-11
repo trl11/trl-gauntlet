@@ -136,13 +136,13 @@ Paths are relative to `GAUNTLET_RUN_DIR`.
 |---|---|---|---|
 | `verdict.json` | yes | suite, at exit | Pass/fail and reason. |
 | `metrics.jsonl` | no | suite, during the run | One JSON record per line; streamed live. |
-| `manifest.json` | no | suite, at start | Versions, command line, profile. |
+| `manifest.json` | no | suite, at exit | Versions, command line, and the profile as the run resolved it. |
 | `junit.xml` | no | suite, at exit | Per-iteration results for CI. |
 | `events.sqlite` | no | suite, during the run | Every `metrics.jsonl` record, in SQL. |
 | `summary.md` | no | suite, at exit | Human-readable rollup. |
 | `frames/` | no | suite, during the run | Images referenced from `metrics.images`. |
 | `traces/` | no | suite, during the run | Captured signals referenced from `metrics.traces`. |
-| `profile.yaml` | no | Gauntlet | Copy of the profile as run. |
+| `profile.yaml` | no | Gauntlet | Copy of the profile file the run was given. |
 | `test.log` | no | Gauntlet | Captured stdout and stderr. |
 | `instruments.jsonl` | no | Gauntlet, during the run | What the bench's instruments read, one line per instrument per second. |
 | `instruments.json` | no | Gauntlet, at exit | The same readings summarised: count, extremes, mean and last. |
@@ -150,6 +150,10 @@ Paths are relative to `GAUNTLET_RUN_DIR`.
 The last two are Gauntlet's own and a suite neither writes nor reads them: it
 is not told which instruments are being recorded, and a run is identical
 whether they are or not.
+
+`profile.yaml` is the file as it arrived and `manifest.json`'s `profile` is
+what the run resolved it to, overrides folded in. They differ the moment a run
+overrides anything, and the second is the one a run is reproduced from.
 
 `produces` lists what the suite writes. Gauntlet uses it to decide which views
 to offer and which artifacts `verify --run` requires.

@@ -319,6 +319,7 @@ class RunManifest(BaseModel):
     unit_serial: str | None = None
     profile_path: str | None = None
     profile_summary: dict[str, str] = Field(default_factory=dict)
+    profile: dict[str, Any] = Field(default_factory=dict)
     hardware: dict[str, dict[str, str]] = Field(default_factory=dict)
     versions: dict[str, str] = Field(default_factory=dict)
     env: dict[str, str] = Field(default_factory=dict)
