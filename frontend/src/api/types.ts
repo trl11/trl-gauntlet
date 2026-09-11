@@ -327,6 +327,23 @@ export interface RecordedReading {
   unit: string;
 }
 
+/**
+ * One line of `instruments.jsonl`: what one instrument read on one tick.
+ *
+ * Every instrument read on the same tick carries the same `t`, which is what
+ * lets a line be plotted alongside the others from that tick.
+ */
+export interface RecordedTick {
+  /** When the tick was taken, to the second, as UTC. */
+  at: string;
+  /** Instance key of the instrument this line read. */
+  instrument: string;
+  /** Seconds since recording began. */
+  t: number;
+  /** Every number the instrument published, by its key. */
+  values: Record<string, number>;
+}
+
 /** Everything one instrument read over a run. */
 export interface RecordedInstrument {
   description: string;

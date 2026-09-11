@@ -19,6 +19,7 @@ import {
   getProfile,
   getProfileSchema,
   getRun,
+  getRunInstrumentTrace,
   getRunManifest,
   getRunMetrics,
   getRunVerdict,
@@ -318,6 +319,27 @@ describe("text responses", () => {
     const error = (await getArtifactText("r1", "test.log").catch((caught) => caught)) as ApiError;
     expect(error.status).toBe(0);
     expect(error.detail).toContain("cannot reach the Gauntlet API");
+  });
+});
+
+describe("getRunInstrumentTrace", () => {
+  it("parses the trace one tick per line", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        '{"at": "t0", "instrument": "psu", "t": 0, "values": {"voltage": 5}}\n' +
+          '{"at": "t1", "instrument": "psu", "t": 1, "values": {"voltage": 5.1}}\n'
+      )
+    );
+    await expect(getRunInstrumentTrace("r1")).resolves.toEqual([
+      { at: "t0", instrument: "psu", t: 0, values: { voltage: 5 } },
+      { at: "t1", instrument: "psu", t: 1, values: { voltage: 5.1 } },
+    ]);
+    expect(lastCall()[0]).toBe("/api/runs/r1/artifacts/instruments.jsonl");
+  });
+
+  it("resolves to nothing for a run that recorded no trace", async () => {
+    fetchMock.mockResolvedValue(new Response(""));
+    await expect(getRunInstrumentTrace("r1")).resolves.toEqual([]);
   });
 });
 
