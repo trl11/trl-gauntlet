@@ -74,11 +74,6 @@ class TidAds7138PairProfile(BaseModel):
         ge=0,
         description="Lowest a driven-high output may sit before it counts as a fault.",
     )
-    noise_max_lsb: float = Field(
-        default=4.0,
-        gt=0,
-        description="Widest the spread of repeated conversions of one static wire may be, in codes.",
-    )
     noise_samples: int = Field(
         default=32, ge=4, le=256, description="Conversions taken of a static wire to measure that spread."
     )

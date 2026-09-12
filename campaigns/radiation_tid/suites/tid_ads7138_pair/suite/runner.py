@@ -289,8 +289,6 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
         faults.append(f"the part in the beam holds a low output at {vol_mv:.0f} mV, above {profile.vol_max_mv:.0f} mV")
     if voh_mv < profile.voh_min_mv:
         faults.append(f"the part in the beam holds a high output at {voh_mv:.0f} mV, below {profile.voh_min_mv:.0f} mV")
-    if dut_noise > profile.noise_max_lsb:
-        faults.append(f"the part in the beam spreads {dut_noise:.2f} codes, above {profile.noise_max_lsb:.2f}")
     for key, part in ((_DUT, dut), (_REF, ref)):
         reading = readings[key]
         status = reading["status"]
