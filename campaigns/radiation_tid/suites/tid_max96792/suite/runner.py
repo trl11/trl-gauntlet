@@ -164,6 +164,24 @@ def _mock_snapshot(ctx: SuiteContext, ictx: IterationContext) -> Snapshot:
     )
 
 
+def _read_link(camera: Camera) -> Reading:
+    """Read the link, reclaiming ownership once if the driver dropped it.
+
+    A stream that stalls restarting after a link read makes the driver treat
+    the camera as gone and disown it (see uvc_camera.py), which otherwise
+    fails every sample from there on: `own()` in `_setup` only runs once, and
+    nothing after it asks again. Re-owning and reading once more costs the
+    stalled sample, not the rest of the run.
+    """
+    try:
+        return camera.link_status()
+    except LinkError as exc:
+        if "not owned" not in str(exc):
+            raise
+        camera.own()
+        return camera.link_status()
+
+
 def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     """One sample: read both ends of the link, then keep a frame."""
     profile: TidMax96792Profile = ctx.profile
@@ -172,7 +190,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
 
     with PhaseTimer("link", phases) as phase:
         try:
-            reading = _mock_reading(ctx, ictx) if camera is None else camera.link_status()
+            reading = _mock_reading(ctx, ictx) if camera is None else _read_link(camera)
         except LinkError as exc:
             return IterationOutcome(
                 success=False,
