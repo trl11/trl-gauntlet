@@ -3,4 +3,4 @@ driver: mock
 duration_s: 2.0
 sample_period_s: 0.25
 max_width: 64
-snapshot_every: 1
+snapshot_period_s: 0

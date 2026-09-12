@@ -45,6 +45,7 @@ FAR_ROLE = "serializer"
 
 _CAMERA = "camera"
 _FRAME_BYTES = "frame_bytes"
+_LAST_SNAPSHOT_S = "last_snapshot_s"
 _PREVIOUS_IMAGE = "previous_image"
 _PREVIOUS_SEQUENCE = "previous_sequence"
 _REPEATS = "repeats"
@@ -215,7 +216,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
             snapshot_error = str(exc)
 
     images: list[str] = []
-    if shot is not None and profile.snapshot_every and ictx.iteration % profile.snapshot_every == 0:
+    if shot is not None and _snapshot_due(ctx, ictx, profile):
         with PhaseTimer("write", phases) as phase:
             relative = f"frames/link_{ictx.iteration:05d}{shot.suffix}"
             ctx.artifact(*relative.split("/")).write_bytes(shot.image)
@@ -253,6 +254,22 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
         phase_records=phases,
         summary=_summary(part, video, shot),
     )
+
+
+def _snapshot_due(ctx: SuiteContext, ictx: IterationContext, profile: TidMax96792Profile) -> bool:
+    """Whether enough real time has passed to keep this sample's snapshot.
+
+    Gated on elapsed run time rather than a count of samples, so the frame
+    cadence stays fixed whatever sample_period_s is tuned to later.
+    """
+    period = profile.snapshot_period_s
+    if period <= 0:
+        return True
+    last = ctx.extras.get(_LAST_SNAPSHOT_S)
+    if last is not None and ictx.elapsed_run_s - last < period:
+        return False
+    ctx.extras[_LAST_SNAPSHOT_S] = ictx.elapsed_run_s
+    return True
 
 
 def _link_metrics(part: dict[str, Any], repeats: int) -> dict[str, Any]:

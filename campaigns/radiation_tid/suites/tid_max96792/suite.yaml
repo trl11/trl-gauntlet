@@ -117,9 +117,10 @@ overrides:
     help: >
       Link errors in one sample before that sample fails. The chip clears
       its counters when read, so this is a rate and not a total.
-  - name: snapshot_every
-    flag: --snapshot-every
-    type: integer
-    label: Keep every Nth frame
+  - name: snapshot_period_s
+    flag: --snapshot-period-s
+    type: number
+    label: Snapshot period
+    unit: s
     minimum: 0
-    help: Keep one snapshot every N samples, or 0 to keep none.
+    help: Keep a snapshot no more often than this, or 0 to keep every sample.

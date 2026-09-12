@@ -10,4 +10,4 @@ max_total_errors: 100000
 max_dropped_frames: 8
 max_corrupt_frames: 0
 max_unlocks: 0
-snapshot_every: 1
+snapshot_period_s: 0
