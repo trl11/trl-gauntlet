@@ -4,7 +4,7 @@ description: >
   `pass_criteria` and the drift limits once a baseline run exists.
 driver: real
 duration_s: 28800.0
-sample_period_s: 30.0
+sample_period_s: 10.0
 max_width: 960
 
 # Pinned, because the camera's own metering compensates for a sensor that is
