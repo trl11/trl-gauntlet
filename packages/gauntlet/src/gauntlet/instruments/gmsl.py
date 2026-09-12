@@ -222,6 +222,17 @@ class GmslLink:
             locked=bool(control & _CTRL3_LOCKED),
         )
 
+    def link_state(self, address: int) -> tuple[bool, bool]:
+        """Whether the chip at this address reports its link locked and clean.
+
+        The least a caller can ask the link without `status`'s other five
+        registers: CTRL3 alone carries both the lock bit and the error bit, for
+        a caller that wants to keep watching a link without reading as much of
+        it each time.
+        """
+        control = self.read_register(address, REG_CTRL3)
+        return bool(control & _CTRL3_LOCKED), bool(control & _CTRL3_ERROR)
+
     def _query(self, selector: int, length: int, direction: int, payload: list[int] | None = None) -> bytes:
         """One extension unit transfer, in whichever direction was asked for."""
         if self._fd is None:
