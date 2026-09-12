@@ -22,6 +22,10 @@ build/
 dist/
 web_dist/
 
+# A bundled Python runtime unpacked at the repo root, outside targets/app/ and
+# not managed by any Makefile target.
+/app/
+
 # Where runs land. output/ is the default data directory, so it carries the
 # config, databases and logs too; gauntlet-runs/ is what the SDK falls back to
 # when a suite is run on its own without GAUNTLET_RUN_DIR.
