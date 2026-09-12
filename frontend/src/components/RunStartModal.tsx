@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Checkbox, Input, Modal, Select, Spinner } from "@trl11/components/ui";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { getProfile, listInstruments, listUnits, startRun } from "@api/client";
@@ -73,16 +73,22 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
   const optional = available.filter((entry) => !isRequired(entry, suite.requires));
 
   // The selected profile holds the values the run would use, so the override
-  // controls are seeded from it and reseeded whenever the profile changes.
+  // controls are seeded from it and reseeded whenever the profile changes. A
+  // background refetch of that same query - the profile editor saving, or a
+  // campaign rescan handing this suite a new object - must not repeat that
+  // seeding, or it would overwrite whatever the operator has since typed.
   const content = useQuery({
     queryKey: ["profile", suite.key, profile],
     queryFn: () => getProfile(suite.key, profile),
     enabled: profile !== "" && suite.overrides.length > 0,
   });
   const body = profile === "" ? "" : (content.data?.body ?? "");
+  const seededProfile = useRef<string | null>(null);
   useEffect(() => {
+    if (seededProfile.current === profile || content.isFetching) return;
+    seededProfile.current = profile;
     setValues(initialOverrideValues(suite.overrides, profileFields(body)));
-  }, [body, suite.overrides]);
+  }, [profile, body, suite.overrides, content.isFetching]);
 
   // The units already tested, offered as completions for the serial. Most
   // recently seen first, because the unit on the bench is usually the one just
