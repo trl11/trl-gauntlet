@@ -5,13 +5,24 @@ path being relative to the run directory, which is what makes it appear in the
 run's snapshot gallery. Its measurements go into metrics beside it, so
 brightness and edge detail chart across the run the way any other reading does.
 
-A snapshot is judged on three things: it arrived, it is neither black nor
-blown out, and it is not byte for byte the frame before it. The last is what
-catches a pipeline that has locked up while still answering, which is the
-failure a camera test exists for and the one a frame count alone will not see.
+A snapshot is judged on whether the camera and the chips behind it are still
+alive, not on the scene: it arrived, and it is not byte for byte the frame
+before it. The second is what catches a pipeline that has locked up while
+still answering, which is the failure a camera test exists for and the one a
+frame count alone will not see. Brightness and sharpness are recorded for
+review but never fail a run — they depend on the scene and how it is lit, not
+on the camera's health.
+
+Behind a GMSL adapter, every register read stops the video to make room on the
+bus for it, so a sample also reads one register from one chip, never every
+chip's every register the way `link_status` does: which chip is staggered
+across samples in turn, so a run watches the whole link over its length
+without contending with the video for the bus on any one sample.
 """
 
 from __future__ import annotations
+
+from typing import Any
 
 from gauntlet_sdk import (
     IterationContext,
@@ -42,11 +53,15 @@ _CAMERA = "camera"
 # so keeping the run's images in memory would cost megabytes to no purpose.
 _PREVIOUS = "previous_image"
 _REPEATS = "repeats"
+# Every chip address behind the camera, discovered once at setup rather than
+# rediscovered on every sample: staggering exists to avoid exactly that cost.
+_CHIP_ADDRESSES = "chip_addresses"
 
 
 def _setup(ctx: SuiteContext) -> None:
-    """Take the instrument and report what it is set to."""
+    """Take the instrument, report what it is set to, and find any GMSL chips."""
     profile: CameraSnapshotProfile = ctx.profile
+    ctx.extras[_CHIP_ADDRESSES] = []
     if profile.driver == "mock":
         info("driver=mock — no instrument contacted, frames are synthesised")
         ctx.extras[_CAMERA] = None
@@ -72,6 +87,19 @@ def _setup(ctx: SuiteContext) -> None:
         f"{form.get('fourcc', '?')}, scaling snapshots to {profile.max_width}px wide"
     )
 
+    try:
+        reading = camera.link_status()
+    except CameraError as exc:
+        warn(f"{granted.instance_id}: could not read the GMSL link: {exc}")
+        return
+    addresses = sorted(reading.chips)
+    if not addresses:
+        # Not every camera behind this capability is a GMSL one, and the
+        # snapshots are still the whole test for one that is not.
+        return
+    ctx.extras[_CHIP_ADDRESSES] = addresses
+    info(f"{granted.instance_id}: staggering one register a sample across {', '.join(addresses)}")
+
 
 def _mock_snapshot(ctx: SuiteContext, ictx: IterationContext) -> Snapshot:
     """A believable still, for a run with no camera to ask."""
@@ -90,16 +118,51 @@ def _mock_snapshot(ctx: SuiteContext, ictx: IterationContext) -> Snapshot:
     )
 
 
+def _take_snapshot(camera: Camera, *, max_width: int) -> Snapshot:
+    """Take a still, reclaiming ownership once if the driver dropped it.
+
+    A stream that stalls restarting after a read makes the driver treat the
+    camera as gone and disown it (see uvc_camera.py), which otherwise fails
+    every sample from there on: `own()` in `_setup` only runs once, and
+    nothing after it asks again. Re-owning and shooting once more costs the
+    stalled sample, not the rest of the run.
+    """
+    try:
+        return camera.snapshot(max_width=max_width)
+    except CameraError as exc:
+        if "not owned" not in str(exc):
+            raise
+        camera.own()
+        return camera.snapshot(max_width=max_width)
+
+
+def _read_one_chip(camera: Camera, addresses: list[str], iteration: int) -> dict[str, Any] | None:
+    """One chip's lock state, staggered by iteration rather than read every sample.
+
+    Iteration 0 reads the first address, iteration 1 the next, and so on
+    around the list — every chip gets its turn over the length of the run
+    without any one sample paying for all of them.
+    """
+    if not addresses:
+        return None
+    address = addresses[iteration % len(addresses)]
+    try:
+        return camera.link_register(address)
+    except CameraError as exc:
+        return {"address": address, "error": str(exc), "link_error": False, "locked": False}
+
+
 def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
-    """One snapshot, written to `frames/` and judged."""
+    """One snapshot, written to `frames/` and judged, plus one chip's link state."""
     profile: CameraSnapshotProfile = ctx.profile
     camera: Camera | None = ctx.extras.get(_CAMERA)
+    addresses: list[str] = ctx.extras.get(_CHIP_ADDRESSES, [])
     phases: list[PhaseRecord] = []
 
     with PhaseTimer("snapshot", phases) as phase:
         phase.set_detail(width=str(profile.max_width))
         try:
-            shot = _mock_snapshot(ctx, ictx) if camera is None else camera.snapshot(max_width=profile.max_width)
+            shot = _mock_snapshot(ctx, ictx) if camera is None else _take_snapshot(camera, max_width=profile.max_width)
         except CameraError as exc:
             return IterationOutcome(
                 success=False,
@@ -123,56 +186,76 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     ctx.extras[_PREVIOUS] = shot.image
     ctx.extras[_REPEATS] = repeats
 
-    reason = _fault(shot, repeats, profile)
-    return IterationOutcome(
-        success=not reason,
-        reason=reason,
+    link = None
+    if camera is not None:
+        with PhaseTimer("link", phases) as phase:
+            link = _read_one_chip(camera, addresses, ictx.iteration)
+            if link is not None:
+                phase.set_detail(address=str(link.get("address", "")))
+
+    reason = _fault(shot, repeats, link, profile)
+    metrics: dict[str, Any] = {
         # Nested under the instrument, so the flattened names come out as
         # `camera.<measurement>` and the frontend groups them together.
         # `images` sits at the top because that is where the contract reads it.
-        metrics={
-            "camera": {
-                "bytes": len(shot.image),
-                "mean_luma": shot.mean_luma,
-                "repeats": repeats,
-                "sequence": shot.sequence,
-                "sharpness": shot.sharpness,
-            },
-            "images": [relative],
+        "camera": {
+            "bytes": len(shot.image),
+            "mean_luma": shot.mean_luma,
+            "repeats": repeats,
+            "sequence": shot.sequence,
+            "sharpness": shot.sharpness,
         },
+        "images": [relative],
+    }
+    if link is not None:
+        metrics["link"] = {
+            "address": link.get("address", ""),
+            "locked": 1 if link.get("locked") else 0,
+            "link_error": 1 if link.get("link_error") else 0,
+        }
+    return IterationOutcome(
+        success=not reason,
+        reason=reason,
+        metrics=metrics,
         phase_records=phases,
         summary=f"luma={shot.mean_luma:.1f} sharpness={shot.sharpness:.2f} {shot.width}x{shot.height}",
     )
 
 
-def _fault(shot: Snapshot, repeats: int, profile: CameraSnapshotProfile) -> str:
-    """Why this snapshot is no good, or an empty string when it is fine."""
-    if shot.mean_luma < profile.min_mean_luma:
-        return f"frame is dark: mean luma {shot.mean_luma:.1f} below {profile.min_mean_luma:.1f}"
-    if shot.mean_luma > profile.max_mean_luma:
-        return f"frame is saturated: mean luma {shot.mean_luma:.1f} above {profile.max_mean_luma:.1f}"
-    if shot.sharpness < profile.min_sharpness:
-        return f"frame has no detail: sharpness {shot.sharpness:.2f} below {profile.min_sharpness:.2f}"
+def _fault(shot: Snapshot, repeats: int, link: dict[str, Any] | None, profile: CameraSnapshotProfile) -> str:
+    """Why this snapshot is no good, or an empty string when it is fine.
+
+    Nothing here judges the scene: brightness and sharpness depend on what the
+    camera is pointed at and how it is lit, neither of which says whether the
+    camera or the chips behind it are still alive. What does is a pipeline
+    that has frozen while still answering, and a chip that has stopped
+    reporting its link locked.
+    """
     if repeats > profile.max_identical_frames:
         return f"camera is repeating one frame: {repeats} identical snapshots in a row"
+    if link is not None and link.get("error"):
+        return f"chip {link.get('address', '?')}: {link['error']}"
+    if link is not None and not link.get("locked"):
+        return f"chip {link.get('address', '?')} reports its GMSL link is down"
     return ""
 
 
-def _series(outcomes: list[IterationOutcome], key: str) -> list[float]:
-    """Every value recorded for one measurement, skipping the snapshots that failed."""
-    return [
-        value for outcome in outcomes if isinstance(value := outcome.metrics.get("camera", {}).get(key), (int, float))
-    ]
+def _series(outcomes: list[IterationOutcome], key: str, *, group: str = "camera") -> list[float]:
+    """Every value recorded for one measurement, skipping the samples that carry none."""
+    return [value for outcome in outcomes if isinstance(value := outcome.metrics.get(group, {}).get(key), (int, float))]
 
 
 def _evaluate(outcomes: list[IterationOutcome], profile: CameraSnapshotProfile) -> tuple[bool, str] | None:
-    """A session is good when every snapshot arrived and every one was usable."""
+    """A session is good when every snapshot arrived, every one was usable, and the link stayed locked."""
     if not outcomes:
         return False, "no snapshots taken"
     missed = sum(1 for outcome in outcomes if not outcome.success)
     if missed > profile.max_missed_snapshots:
         first = next((outcome.reason for outcome in outcomes if not outcome.success), "")
         return False, f"{missed} of {len(outcomes)} snapshots were not usable: {first}"
+    unlocked = sum(1 for value in _series(outcomes, "locked", group="link") if value == 0)
+    if unlocked > profile.max_unlocked_reads:
+        return False, f"{unlocked} of {len(outcomes)} staggered link reads found the chip unlocked"
     return True, ""
 
 
@@ -208,6 +291,16 @@ def _results(
                 round(sum(sharpness) / len(sharpness), 2),
                 format="decimal",
                 precision=2,
+            )
+        )
+    locked = _series(outcomes, "locked", group="link")
+    if locked:
+        rows.append(
+            make_result(
+                "unlocked_reads",
+                "Staggered reads with the link down",
+                sum(1 for value in locked if value == 0),
+                format="int",
             )
         )
     return rows

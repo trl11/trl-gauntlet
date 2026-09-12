@@ -15,12 +15,25 @@ import binascii
 import json
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
 class CameraError(RuntimeError):
     """The instrument refused a command, or could not be reached."""
+
+
+@dataclass(frozen=True)
+class Reading:
+    """Every chip's I2C address, as the link reported them once at setup.
+
+    Nothing here carries error counters or lock state: this suite only ever
+    reads one chip's one register at a time, on its own schedule, and this is
+    just what it needs to know which addresses exist to stagger across.
+    """
+
+    chips: dict[str, dict[str, Any]] = field(default_factory=dict)
+    error: str = ""
 
 
 @dataclass(frozen=True)
@@ -54,6 +67,26 @@ class Camera:
         slot when it is not.
         """
         self._post({"command": "set_owned", "args": {"owned": True}})
+
+    def link_status(self) -> Reading:
+        """Every chip's address, read once so later samples know what to stagger across.
+
+        This is the expensive read — every register from every chip — which is
+        exactly what staggering single-register reads across the run is meant
+        to avoid repeating.
+        """
+        payload = self._post({"command": "link_status", "args": {}})
+        chips = payload.get("chips")
+        return Reading(chips=dict(chips) if isinstance(chips, dict) else {}, error=str(payload.get("error") or ""))
+
+    def link_register(self, address: str) -> dict[str, Any]:
+        """One chip's lock state, from a single register.
+
+        The cheapest thing a sample can ask the link, so a run watches it
+        without contending with the video for the bus the way a full
+        `link_status` on every sample would.
+        """
+        return self._post({"command": "link_register", "args": {"address": address}})
 
     def snapshot(self, *, max_width: int) -> Snapshot:
         """Take one still and return it with its measurements.

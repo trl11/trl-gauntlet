@@ -1,12 +1,9 @@
 description: >
-  Half a minute of stills, one every two seconds, scaled to 960px wide. The
-  thresholds pass any lit scene, so narrow them once the camera is pointed at
-  what the run is really watching.
+  Half a minute of stills, one every two seconds, scaled to 960px wide,
+  checking whether the camera and its chips are still alive rather than the
+  scene.
 driver: real
 duration_s: 30
 sample_period_s: 2
 max_width: 960
-min_mean_luma: 4
-max_mean_luma: 250
-min_sharpness: 0.5
 max_identical_frames: 3

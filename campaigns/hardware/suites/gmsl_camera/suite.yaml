@@ -5,10 +5,10 @@ title: GMSL Camera
 category: hardware
 description: >
   Take a still from the camera on a fixed period and keep every one as an
-  artifact. Each snapshot is measured for brightness and edge detail and
-  compared with the one before it, so a camera that has gone dark, gone soft or
-  stopped producing new pictures fails the run rather than filling the frames
-  directory with identical images.
+  artifact, checking whether the camera and the GMSL chips behind it are still
+  alive rather than the scene: a still identical to the one before it, or a
+  chip that has stopped reporting its link locked, fails the run. Brightness
+  and edge detail are measured and kept for review but never fail it.
 
 exec:
   command: ["python", "-m", "suite.cli"]
@@ -29,7 +29,7 @@ supports:
   target: false
   unit_serial: true
 
-default_metrics: [camera.mean_luma, camera.sharpness]
+default_metrics: [camera.mean_luma, camera.sharpness, link.locked]
 
 overrides:
   - name: duration_s
