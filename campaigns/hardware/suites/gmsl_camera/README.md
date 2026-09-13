@@ -57,16 +57,17 @@ the period has to grow with it, or the sample loop simply runs late.
 
 ## What a snapshot has to be to pass
 
-Each tick takes one still, writes it into `frames/`, and judges it three ways.
-All three thresholds are in the profile.
+Each tick takes one still, writes it into `frames/`, and judges whether the
+camera and the chips behind it are still alive — never the scene. Brightness
+and sharpness depend on what the camera is pointed at and how it is lit, so
+they are recorded in `metrics.camera` for review but never fail a run.
 
 | Check | Profile field | Catches |
 |---|---|---|
-| brightness inside a window | `min_mean_luma`, `max_mean_luma` | a dark frame, a saturated one, no picture at all |
-| edge detail above a floor | `min_sharpness` | a lens cap, a badly defocused image, a blank raster |
 | not identical to the frame before | `max_identical_frames` | a pipeline that has locked up while still answering |
+| the chip read this sample still reports its link locked | `max_unlocked_reads` | a chip that has stopped answering, or gone down |
 
-The third is the one worth understanding. A camera that has frozen still hands
+The first is the one worth understanding. A camera that has frozen still hands
 over frames on request, and a run that only counted them would pass. A live
 sensor varies by at least its own noise between frames, so byte-identical
 stills in a row mean the picture stopped changing, not that the scene did.
@@ -74,10 +75,11 @@ stills in a row mean the picture stopped changing, not that the scene did.
 a fault; it is not zero, because a repeat can happen once without meaning
 anything.
 
-The defaults on `profiles/bench.yaml` are set wide enough to pass any lit
-scene. **Narrow them once the camera is pointed at whatever the run is really
-watching** — a brightness window that spans almost the whole range will not
-notice a part that has started to dim.
+The second reads one register from one chip each sample, rotating through
+every chip found behind the camera in turn, rather than every chip's every
+register on every sample the way `link_status` does — see
+[`docs/instruments.md`](../../../../docs/instruments.md) for why that read
+stops the video while it runs, and costs more the more of it is asked for.
 
 ## Profiles
 

@@ -50,23 +50,6 @@ class CameraSnapshotProfile(BaseModel):
             "7.7s at 3840, so a wide snapshot needs a sample period to match."
         ),
     )
-    min_mean_luma: float = Field(
-        default=4.0,
-        ge=0,
-        le=255,
-        description="Below this the frame is dark enough to count as no picture.",
-    )
-    max_mean_luma: float = Field(
-        default=250.0,
-        ge=0,
-        le=255,
-        description="Above this the frame is saturated enough to count as no picture.",
-    )
-    min_sharpness: float = Field(
-        default=0.5,
-        ge=0,
-        description="Mean difference between neighbouring pixels. Near zero is a blank or defocused frame.",
-    )
     max_identical_frames: int = Field(
         default=3,
         ge=0,
@@ -80,6 +63,14 @@ class CameraSnapshotProfile(BaseModel):
         ge=0,
         description="Snapshots the camera may fail to return before the run fails.",
     )
+    max_unlocked_reads: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Staggered link-register reads that may report the chip unlocked before the run fails. "
+            "One chip is read per sample, in turn, rather than every chip on every sample."
+        ),
+    )
 
     @model_validator(mode="after")
     def _sample_period_is_attainable(self) -> CameraSnapshotProfile:
@@ -89,11 +80,4 @@ class CameraSnapshotProfile(BaseModel):
                 f"sample_period_s ({self.sample_period_s}) is below {MIN_SAMPLE_PERIOD_S}, "
                 f"which is the shortest a real camera can be read at"
             )
-        return self
-
-    @model_validator(mode="after")
-    def _brightness_range_is_usable(self) -> CameraSnapshotProfile:
-        """The brightness window has to leave something inside it."""
-        if self.min_mean_luma >= self.max_mean_luma:
-            raise ValueError(f"min_mean_luma ({self.min_mean_luma}) must be below max_mean_luma ({self.max_mean_luma})")
         return self

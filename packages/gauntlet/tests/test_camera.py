@@ -820,6 +820,8 @@ class _FakeLink:
         self.closed = False
         self.streaming_when_read: list[bool] = []
         self.streaming_when_scanned = True
+        self.locked = True
+        self.link_error = False
 
     def open(self) -> None:
         return None
@@ -846,6 +848,10 @@ class _FakeLink:
             link_error=False,
             locked=True,
         )
+
+    def link_state(self, address: int) -> tuple[bool, bool]:
+        self.streaming_when_read.append(self.camera.started)
+        return self.locked, self.link_error
 
 
 def linked_camera(monkeypatch: pytest.MonkeyPatch, fake: _FakeCamera) -> tuple[UvcCamera, _FakeLink]:
@@ -890,6 +896,80 @@ class TestLinkReadsAndVideoTakeTurns:
 
         assert reading["error"]
         assert camera.owned() is False
+
+
+class TestLinkRegister:
+    """One chip's lock state, read without touching the other five registers."""
+
+    def test_the_stream_is_stopped_while_the_register_is_read(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera, link = linked_camera(monkeypatch, fake)
+
+        reading = camera.command("link_register", {"address": "0x84"})
+
+        assert link.streaming_when_read == [False]
+        assert fake.started is True
+        assert reading == {"address": "0x84", "error": "", "link_error": False, "locked": True}
+
+    def test_an_unlocked_chip_is_reported_as_such(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera, link = linked_camera(monkeypatch, fake)
+        link.locked = False
+
+        reading = camera.command("link_register", {"address": "0x84"})
+
+        assert reading["locked"] is False
+
+    def test_an_address_nothing_answered_at_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera, _ = linked_camera(monkeypatch, fake)
+
+        with pytest.raises(CommandRejected, match="0x50"):
+            camera.command("link_register", {"address": "0x50"})
+
+    def test_a_camera_with_no_link_behind_it_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        link = _FakeLink(fake)
+        link.streaming_when_scanned = True
+
+        class _NoChips(_FakeLink):
+            def scan(self) -> list[int]:
+                return []
+
+        monkeypatch.setattr("gauntlet.instruments.uvc_camera.GmslLink", lambda node: _NoChips(fake))
+        camera = camera_with(fake)
+        assert camera.own() is True
+
+        with pytest.raises(CommandRejected, match="not behind a GMSL adapter"):
+            camera.command("link_register", {"address": "0x84"})
+
+    def test_a_stream_that_will_not_restart_drops_the_device(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera, _ = linked_camera(monkeypatch, fake)
+        monkeypatch.setattr(fake, "start", _raise_start)
+
+        reading = camera.command("link_register", {"address": "0x84"})
+
+        assert reading["error"]
+        assert camera.owned() is False
+
+    def test_a_malformed_address_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera, _ = linked_camera(monkeypatch, fake)
+
+        with pytest.raises(CommandRejected, match="not a hex address"):
+            camera.command("link_register", {"address": "not-hex"})
+
+    def test_write_returns_the_reading_itself_rather_than_state(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A suite reaches this through `write`, not `command`: the same gap that
+        once left `link_status` and `snapshot` silently swapped for `state()`
+        could as easily swallow this one, so it is worth its own check."""
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera, _ = linked_camera(monkeypatch, fake)
+
+        result = camera.write({"command": "link_register", "args": {"address": "0x84"}})
+
+        assert result == {"address": "0x84", "error": "", "link_error": False, "locked": True}
 
 
 def _raise_start() -> None:
@@ -973,6 +1053,18 @@ class TestGmslLink:
     def test_an_unlocked_chip_says_so(self, monkeypatch: pytest.MonkeyPatch) -> None:
         link = gmsl_link(monkeypatch, _FakeXu({0x84: chip(0xB7, locked=False)}))
         assert not link.status(0x84).locked
+
+    def test_link_state_reads_only_the_control_register(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeXu({0x84: chip(0xB7)})
+        link = gmsl_link(monkeypatch, fake)
+        locked, link_error = link.link_state(0x84)
+        assert locked
+        assert not link_error
+
+    def test_link_state_agrees_with_status_on_an_unlocked_chip(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        link = gmsl_link(monkeypatch, _FakeXu({0x84: chip(0xB7, locked=False)}))
+        locked, _ = link.link_state(0x84)
+        assert not locked
 
     def test_a_counter_at_its_ceiling_is_saturated(self, monkeypatch: pytest.MonkeyPatch) -> None:
         link = gmsl_link(monkeypatch, _FakeXu({0x84: chip(0xB7, decode_a=0xFF)}))

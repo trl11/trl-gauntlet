@@ -168,6 +168,8 @@ class UvcCamera:
                 raise CommandRejected("camera is not owned: own it before driving it")
             if name == "link_status":
                 return self._read_link(force=True)
+            if name == "link_register":
+                return self._link_register(args)
             if name == "stream_stats":
                 return self._stream_stats(args)
             if name == "snapshot":
@@ -309,7 +311,7 @@ class UvcCamera:
         """
         name = str(values.get("command", ""))
         result = self.command(name, dict(values.get("args") or {}))
-        if name in ("link_status", "snapshot", "stream_stats"):
+        if name in ("link_status", "link_register", "snapshot", "stream_stats"):
             return result
         return self.state()
 
@@ -458,6 +460,45 @@ class UvcCamera:
         self._link_read_at = now
         return dict(self._link_state)
 
+    def _link_register(self, args: dict[str, Any]) -> dict[str, Any]:
+        """One chip's lock state, from a single register rather than a full status read.
+
+        `link_status` reads every register from every chip discovered on the
+        bus. A caller sampling the link on its own schedule, one chip at a
+        time, costs the bus far less this way — still with the stream stopped
+        and restarted around it, the same as any other register read, but for
+        one register on one chip rather than six on every one.
+        """
+        link = self._link
+        if link is None:
+            raise CommandRejected("camera is not behind a GMSL adapter")
+        address = _address_arg(args)
+        if address not in self._link_addresses:
+            raise CommandRejected(f"camera: no chip answers at 0x{address:02x}")
+        camera = self._camera
+        if camera is not None:
+            camera.stop()
+        try:
+            locked, link_error = link.link_state(address)
+        except (GmslError, OSError) as exc:
+            # A link that has stopped answering is the measurement, not a
+            # crash, so it is reported in the same shape as a healthy one.
+            if camera is not None:
+                camera.start()
+            return {"address": f"0x{address:02x}", "error": str(exc), "link_error": False, "locked": False}
+        if camera is None:
+            return {"address": f"0x{address:02x}", "error": "", "link_error": link_error, "locked": locked}
+        try:
+            camera.start()
+        except V4l2Error as exc:
+            # The chip answered but the video would not come back, which is
+            # the camera going rather than the link, so the device is dropped
+            # here and `set_owned` re-probes for it.
+            log.warning("camera: the stream did not restart after a link read: %s", exc)
+            self._disconnect()
+            return {"address": f"0x{address:02x}", "error": str(exc), "link_error": False, "locked": False}
+        return {"address": f"0x{address:02x}", "error": "", "link_error": link_error, "locked": locked}
+
     def _read_chips(self, link: GmslLink) -> tuple[dict[str, Any], dict[str, str]]:
         """Every chip's registers, read with the video stopped.
 
@@ -594,6 +635,17 @@ def _width_arg(args: dict[str, Any]) -> int:
             raise CommandRejected(f"camera: 'max_width' must be a number or one of {', '.join(_WIDTH_CHOICES)}")
         value = int(value)
     return _int_arg({"max_width": value}, "max_width", _FULL_RES, 16, _MAX_WIDTH_LIMIT)
+
+
+def _address_arg(args: dict[str, Any]) -> int:
+    """The I2C address to read, as `link_status` names it: a hex string like ``"0x50"``."""
+    value = args.get("address")
+    if not isinstance(value, str):
+        raise CommandRejected("camera: 'address' must be a string like '0x50'")
+    try:
+        return int(value, 16)
+    except ValueError as exc:
+        raise CommandRejected(f"camera: 'address' is not a hex address: {value!r}") from exc
 
 
 def _int_arg(args: dict[str, Any], key: str, fallback: int, minimum: int, maximum: int) -> int:

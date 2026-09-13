@@ -99,12 +99,13 @@ class TidMax96793Profile(BaseModel):
         description="Snapshots that may fail to arrive before the run fails.",
     )
     min_mean_luma: float = Field(default=1.0, ge=0, description="Below this a frame counts as dark.")
-    snapshot_every: int = Field(
-        default=1,
+    snapshot_period_s: float = Field(
+        default=0.0,
         ge=0,
         description=(
-            "Keep one snapshot every N samples, or 0 to keep none. A long "
-            "irradiation at 1Hz writes a lot of frames otherwise."
+            "Keep a snapshot no more often than this many seconds, or 0 to keep "
+            "every sample. Measured in real time rather than a count of samples, "
+            "so it holds steady whatever sample_period_s is set to."
         ),
     )
 

@@ -1,7 +1,7 @@
 description: The beam-line profile. Runs until the operator stops it.
 driver: real
 duration_s: 0
-sample_period_s: 30.0
+sample_period_s: 10.0
 
 # The login on the unit. The key is the engineering key carried in the
 # extras/trl-engineering-keys submodule, so nothing has to be exported or

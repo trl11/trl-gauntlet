@@ -155,7 +155,11 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({ runId, samples, defa
                   formatter={(value: number | string) => formatNumber(Number(value))}
                   labelFormatter={(value: number | string) => `${formatNumber(Number(value), 2)} s`}
                 />
+                {/* rows also carries recorded-instrument samples merged in on the run page, so a
+                    series only the suite reports has a gap at every one of those; unconnected,
+                    an isolated point draws nothing at all. */}
                 <Line
+                  connectNulls
                   dataKey={name}
                   dot={false}
                   isAnimationActive={false}

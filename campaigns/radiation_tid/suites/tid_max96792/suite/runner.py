@@ -45,6 +45,7 @@ FAR_ROLE = "serializer"
 
 _CAMERA = "camera"
 _FRAME_BYTES = "frame_bytes"
+_LAST_SNAPSHOT_S = "last_snapshot_s"
 _PREVIOUS_IMAGE = "previous_image"
 _PREVIOUS_SEQUENCE = "previous_sequence"
 _REPEATS = "repeats"
@@ -163,6 +164,24 @@ def _mock_snapshot(ctx: SuiteContext, ictx: IterationContext) -> Snapshot:
     )
 
 
+def _read_link(camera: Camera) -> Reading:
+    """Read the link, reclaiming ownership once if the driver dropped it.
+
+    A stream that stalls restarting after a link read makes the driver treat
+    the camera as gone and disown it (see uvc_camera.py), which otherwise
+    fails every sample from there on: `own()` in `_setup` only runs once, and
+    nothing after it asks again. Re-owning and reading once more costs the
+    stalled sample, not the rest of the run.
+    """
+    try:
+        return camera.link_status()
+    except LinkError as exc:
+        if "not owned" not in str(exc):
+            raise
+        camera.own()
+        return camera.link_status()
+
+
 def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     """One sample: read both ends of the link, then keep a frame."""
     profile: TidMax96792Profile = ctx.profile
@@ -171,7 +190,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
 
     with PhaseTimer("link", phases) as phase:
         try:
-            reading = _mock_reading(ctx, ictx) if camera is None else camera.link_status()
+            reading = _mock_reading(ctx, ictx) if camera is None else _read_link(camera)
         except LinkError as exc:
             return IterationOutcome(
                 success=False,
@@ -215,7 +234,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
             snapshot_error = str(exc)
 
     images: list[str] = []
-    if shot is not None and profile.snapshot_every and ictx.iteration % profile.snapshot_every == 0:
+    if shot is not None and _snapshot_due(ctx, ictx, profile):
         with PhaseTimer("write", phases) as phase:
             relative = f"frames/link_{ictx.iteration:05d}{shot.suffix}"
             ctx.artifact(*relative.split("/")).write_bytes(shot.image)
@@ -253,6 +272,22 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
         phase_records=phases,
         summary=_summary(part, video, shot),
     )
+
+
+def _snapshot_due(ctx: SuiteContext, ictx: IterationContext, profile: TidMax96792Profile) -> bool:
+    """Whether enough real time has passed to keep this sample's snapshot.
+
+    Gated on elapsed run time rather than a count of samples, so the frame
+    cadence stays fixed whatever sample_period_s is tuned to later.
+    """
+    period = profile.snapshot_period_s
+    if period <= 0:
+        return True
+    last = ctx.extras.get(_LAST_SNAPSHOT_S)
+    if last is not None and ictx.elapsed_run_s - last < period:
+        return False
+    ctx.extras[_LAST_SNAPSHOT_S] = ictx.elapsed_run_s
+    return True
 
 
 def _link_metrics(part: dict[str, Any], repeats: int) -> dict[str, Any]:

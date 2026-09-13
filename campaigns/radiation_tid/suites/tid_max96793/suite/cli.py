@@ -21,7 +21,7 @@ def _extra_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--max-width", type=int, default=None)
     parser.add_argument("--part-address", default=None)
     parser.add_argument("--max-errors-per-sample", type=int, default=None)
-    parser.add_argument("--snapshot-every", type=int, default=None)
+    parser.add_argument("--snapshot-period-s", type=float, default=None)
     parser.add_argument("--burst-frames", type=int, default=None)
 
 
@@ -32,7 +32,7 @@ def _extra_overrides(args: argparse.Namespace) -> dict[str, object]:
         "max_errors_per_sample": args.max_errors_per_sample,
         "max_width": args.max_width,
         "part_address": args.part_address,
-        "snapshot_every": args.snapshot_every,
+        "snapshot_period_s": args.snapshot_period_s,
     }
 
 

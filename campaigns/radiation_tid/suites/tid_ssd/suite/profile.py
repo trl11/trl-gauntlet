@@ -106,7 +106,9 @@ class DaqBlock(BaseModel):
 
     model_config = ConfigDict(extra="forbid", title="DAQ capture")
 
-    enabled: bool = Field(default=True, description="Capture the module's inputs when Gauntlet offers a `daq` capability.")
+    enabled: bool = Field(
+        default=True, description="Capture the module's inputs when Gauntlet offers a `daq` capability."
+    )
     capability: str = Field(default="daq", description="Capability name to capture from.")
     capture_rate_hz: float = Field(
         default=25000.0,
