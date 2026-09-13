@@ -445,7 +445,8 @@ def _write_daq_capture(ctx: SuiteContext, ictx: IterationContext, captured: dict
     """
     rate_hz = float(captured.get("rate_hz") or 0.0)
     columns = [
-        (channel, [float(s) for s in (data.get("values") or [])]) for channel, data in captured.get("channels", {}).items()
+        (channel, [float(s) for s in (data.get("values") or [])])
+        for channel, data in captured.get("channels", {}).items()
     ]
     depth = max((len(samples) for _, samples in columns), default=0)
     if not rate_hz or not depth:
