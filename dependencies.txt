@@ -10,6 +10,10 @@
 # `make stop` finds the server by the port it listens on.
 lsof
 
+# A mounted .gitconfig may declare the lfs filter with required = true, which
+# fails every checkout when the binary is absent.
+git-lfs
+
 # ssd, ethernet, hardware_trigger reach a unit over SSH.
 openssh-client
 
