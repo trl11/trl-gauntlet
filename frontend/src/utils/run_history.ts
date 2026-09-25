@@ -102,13 +102,26 @@ function levelOf(message: string): LogLevel {
   return upper.includes("WARN") ? "warning" : "info";
 }
 
-/** Read `test.log` as log lines. The captured file carries no timestamps. */
+/** The UTC time Gauntlet prefixes each `test.log` line with, and the line. */
+const STAMPED_LINE = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z) (.*)$/;
+
+/**
+ * Read `test.log` as log lines.
+ *
+ * A run recorded before Gauntlet stamped its lines has none, so its lines
+ * carry no time.
+ */
 export function parseLog(text: string): LogLine[] {
   if (text === "") return [];
   return text
     .replace(/\n$/, "")
     .split("\n")
-    .map((message, index) => ({ level: levelOf(message), message, seq: index, ts: null }));
+    .map((line, index) => {
+      const match = STAMPED_LINE.exec(line);
+      const message = match ? match[2] : line;
+      const ts = match ? Date.parse(match[1]) / 1000 : null;
+      return { level: levelOf(message), message, seq: index, ts };
+    });
 }
 
 /** Seconds the run has taken so far, or took in total. */

@@ -13,6 +13,7 @@ from gauntlet.app import create_app
 from gauntlet.supervisor.supervisor import (
     _epoch,
     _read_verdict,
+    _reported_error,
     _schedule,
     _snapshot_profile,
     _write_scratch_profile,
@@ -510,6 +511,18 @@ class TestSupervisorHelpers:
         _snapshot_profile(tmp_path / "absent.yaml", run_dir)
 
         assert not (run_dir / "profile.yaml").exists()
+
+    def test_the_reported_error_is_read_past_the_stamp(self, tmp_path) -> None:
+        path = tmp_path / "test.log"
+        path.write_text("2026-01-01T00:00:00.000Z error: no unit\n2026-01-01T00:00:01.000Z exiting\n")
+
+        assert _reported_error(path) == "no unit"
+
+    def test_the_reported_error_is_read_from_a_log_without_stamps(self, tmp_path) -> None:
+        path = tmp_path / "test.log"
+        path.write_text("error: no unit\nexiting\n")
+
+        assert _reported_error(path) == "no unit"
 
     def test_a_timestamp_that_cannot_be_parsed_falls_back_to_now(self) -> None:
         assert _epoch("not a timestamp") == pytest.approx(time.time(), abs=5)

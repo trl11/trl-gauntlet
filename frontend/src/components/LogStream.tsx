@@ -41,7 +41,7 @@ type Filters = React.ComponentProps<typeof FilterMenu>["filterState"];
  * One captured output line.
  *
  * A live `log` event satisfies this, and so does a line parsed out of
- * `test.log`, which has no timestamp of its own.
+ * `test.log`, which has no timestamp when the run predates stamped logs.
  */
 export interface LogLine {
   level: LogLevel;

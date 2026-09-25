@@ -81,8 +81,10 @@ unit.
 6. Whichever required instruments are not already owned are opened, on a worker
    thread. One that will not open ends the run as an `error`, and nothing is
    spawned.
-7. The process is spawned. Two threads run: one reads stdout into `test.log`
-   and the event bus, one tails `metrics.jsonl`.
+7. The process is spawned. Two threads run: one reads stdout into the event
+   bus and into `test.log`, stamping each line with the time the bus gave it
+   so a finished run's log is timed the same as a live one, and one tails
+   `metrics.jsonl`.
 8. On exit, `verdict.json` determines the outcome, the event bus publishes it,
    and the run is written to the index.
 

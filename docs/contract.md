@@ -151,7 +151,7 @@ Paths are relative to `GAUNTLET_RUN_DIR`.
 | `frames/` | no | suite, during the run | Images referenced from `metrics.images`. |
 | `traces/` | no | suite, during the run | Captured signals referenced from `metrics.traces`. |
 | `profile.yaml` | no | Gauntlet at start, the suite at exit | The profile as run: every field, defaults and overrides included. |
-| `test.log` | no | Gauntlet | Captured stdout and stderr. |
+| `test.log` | no | Gauntlet | Captured stdout and stderr, each line prefixed with the UTC time Gauntlet read it, as `2026-01-01T00:00:00.000Z`. |
 | `instruments.jsonl` | no | Gauntlet, during the run | What the bench's instruments read, one line per instrument per second. |
 | `instruments.json` | no | Gauntlet, at exit | The same readings summarised: count, extremes, mean and last. |
 
