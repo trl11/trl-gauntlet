@@ -88,6 +88,7 @@ export function replay(records: MetricsRecord[]): Replayed {
       reason: record.reason ?? "",
       success: record.success === true,
       traces: Array.isArray(traces) ? (traces as string[]) : [],
+      ts: record.timestamp ?? null,
     });
   });
   return result;

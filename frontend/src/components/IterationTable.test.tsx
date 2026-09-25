@@ -2,12 +2,29 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { formatTimestamp } from "../utils/format";
 import IterationTable, { type IterationRow } from "./IterationTable";
 import type { MetricSample } from "./MetricsChart";
 
 const ITERATIONS: IterationRow[] = [
-  { elapsed_run_s: 2, images: [], iteration: 1, reason: "", success: true, traces: [] },
-  { elapsed_run_s: 5, images: [], iteration: 2, reason: "rail low", success: false, traces: [] },
+  {
+    elapsed_run_s: 2,
+    images: [],
+    iteration: 1,
+    reason: "",
+    success: true,
+    traces: [],
+    ts: 1767225602,
+  },
+  {
+    elapsed_run_s: 5,
+    images: [],
+    iteration: 2,
+    reason: "rail low",
+    success: false,
+    traces: [],
+    ts: null,
+  },
 ];
 
 const SAMPLES: MetricSample[] = [
@@ -33,6 +50,15 @@ describe("IterationTable", () => {
     expect(screen.getByText("PASS")).toBeInTheDocument();
     expect(screen.getByText("FAIL")).toBeInTheDocument();
     expect(screen.getByText("rail low")).toBeInTheDocument();
+  });
+
+  it("shows when each iteration was recorded, and a dash where it is not known", () => {
+    render(
+      <IterationTable runId="run-1" iterations={ITERATIONS} samples={SAMPLES} defaultMetrics={[]} />
+    );
+    const [, first, second] = screen.getAllByRole("row");
+    expect(first).toHaveTextContent(formatTimestamp(1767225602));
+    expect(second.querySelectorAll("td")[1]).toHaveTextContent("-");
   });
 
   it("takes each iteration's duration from the gap to the one before it", () => {

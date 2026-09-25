@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { formatTimestamp } from "../utils/format";
 import SnapshotGallery, { type Snapshot } from "./SnapshotGallery";
 
 vi.mock("@api/client", () => ({
@@ -9,9 +10,9 @@ vi.mock("@api/client", () => ({
 }));
 
 const snapshots: Snapshot[] = [
-  { iteration: 1, path: "frames/snapshot_0001.png" },
-  { iteration: 2, path: "frames/snapshot_0002.png" },
-  { iteration: 3, path: "frames/snapshot_0003.png" },
+  { iteration: 1, path: "frames/snapshot_0001.png", ts: null },
+  { iteration: 2, path: "frames/snapshot_0002.png", ts: null },
+  { iteration: 3, path: "frames/snapshot_0003.png", ts: null },
 ];
 
 function renderGallery(rows: Snapshot[] = snapshots) {
@@ -34,8 +35,18 @@ describe("SnapshotGallery", () => {
   });
 
   it("falls back to the file name for an image recorded against no iteration", () => {
-    renderGallery([{ iteration: null, path: "frames/loose.png" }]);
+    renderGallery([{ iteration: null, path: "frames/loose.png", ts: null }]);
     expect(screen.getByText("loose.png")).toBeInTheDocument();
+  });
+
+  it("shows when a snapshot was recorded, on its thumbnail and full size", async () => {
+    const user = userEvent.setup();
+    renderGallery([{ iteration: 4, path: "frames/timed.png", ts: 1767225600 }]);
+    const time = formatTimestamp(1767225600);
+    expect(screen.getByText(time)).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Open timed.png"));
+    expect(screen.getByText(`1 of 1 — iteration 4 — ${time}`)).toBeInTheDocument();
   });
 
   it("offers every snapshot as a download", () => {

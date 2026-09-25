@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { artifactUrl } from "@api/client";
 import EmptyState from "@components/EmptyState";
+import { formatTimestamp } from "../utils/format";
 
 import "./SnapshotGallery.scss";
 
@@ -14,6 +15,8 @@ export interface Snapshot {
   iteration: number | null;
   /** Path inside the run directory, as `metrics.images` gave it. */
   path: string;
+  /** When the iteration that recorded it was recorded, in seconds since the epoch. */
+  ts: number | null;
 }
 
 /** Props for {@link SnapshotGallery}. */
@@ -76,8 +79,13 @@ export const SnapshotGallery: React.FC<SnapshotGalleryProps> = ({ runId, snapsho
               />
             </button>
             <div className="snapshot-gallery__caption">
-              <span className="snapshot-gallery__iteration">
-                {snapshot.iteration === null ? nameOf(snapshot.path) : `#${snapshot.iteration}`}
+              <span className="snapshot-gallery__label">
+                <span className="snapshot-gallery__iteration">
+                  {snapshot.iteration === null ? nameOf(snapshot.path) : `#${snapshot.iteration}`}
+                </span>
+                {snapshot.ts !== null && (
+                  <span className="snapshot-gallery__time">{formatTimestamp(snapshot.ts)}</span>
+                )}
               </span>
               <a
                 aria-label={`Download ${nameOf(snapshot.path)}`}
@@ -108,6 +116,7 @@ export const SnapshotGallery: React.FC<SnapshotGalleryProps> = ({ runId, snapsho
               <span className="snapshot-gallery__position">
                 {`${at + 1} of ${snapshots.length}`}
                 {open.iteration !== null && ` — iteration ${open.iteration}`}
+                {open.ts !== null && ` — ${formatTimestamp(open.ts)}`}
               </span>
               <Button
                 aria-label="Next snapshot"

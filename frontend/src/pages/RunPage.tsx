@@ -210,7 +210,9 @@ export const RunPage: React.FC = () => {
   // iterations recorded them.
   const snapshots = useMemo(
     () =>
-      iterations.flatMap((row) => row.images.map((path) => ({ iteration: row.iteration, path }))),
+      iterations.flatMap((row) =>
+        row.images.map((path) => ({ iteration: row.iteration, path, ts: row.ts }))
+      ),
     [iterations]
   );
   // The same, for what the run named in `metrics.traces`. A trace is an image
@@ -219,7 +221,9 @@ export const RunPage: React.FC = () => {
   // picture of the unit, and a run recording both should not interleave them.
   const traces = useMemo(
     () =>
-      iterations.flatMap((row) => row.traces.map((path) => ({ iteration: row.iteration, path }))),
+      iterations.flatMap((row) =>
+        row.traces.map((path) => ({ iteration: row.iteration, path, ts: row.ts }))
+      ),
     [iterations]
   );
 
