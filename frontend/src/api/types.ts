@@ -334,7 +334,7 @@ export interface RecordedReading {
  * lets a line be plotted alongside the others from that tick.
  */
 export interface RecordedTick {
-  /** When the tick was taken, to the second, as UTC. */
+  /** When the tick was taken, to the millisecond, as UTC. */
   at: string;
   /** Instance key of the instrument this line read. */
   instrument: string;
