@@ -16,6 +16,7 @@ import {
   stopRun,
 } from "@api/client";
 import type { RunRow } from "@api/types";
+import { formatTimestamp } from "../utils/format";
 import RunPage from "./RunPage";
 import { pending, spinners } from "../test/queries";
 
@@ -158,6 +159,7 @@ describe("RunPage", () => {
     expect(screen.getByText("SN-42")).toBeInTheDocument();
     expect(screen.getByText("10.0.0.4")).toBeInTheDocument();
     expect(screen.getByText("12s")).toBeInTheDocument();
+    expect(screen.getByText(formatTimestamp("2026-01-01T00:00:12Z"))).toBeInTheDocument();
   });
 
   it("hydrates the verdict of a finished run from the stored files", async () => {

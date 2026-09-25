@@ -356,6 +356,7 @@ export const RunPage: React.FC = () => {
             },
             { label: "target", value: detail.target ?? "-" },
             { label: "started", value: formatTimestamp(detail.started_at) },
+            { label: "ended", value: formatTimestamp(detail.ended_at) },
             {
               label: live ? "elapsed" : "duration",
               value: formatDuration(

@@ -2,7 +2,7 @@ import { Tooltip } from "@trl11/components/ui";
 import clsx from "clsx";
 import { useMemo } from "react";
 
-import { formatDuration } from "../utils/format";
+import { formatDuration, formatTimestamp } from "../utils/format";
 import type { IterationRow } from "./IterationTable";
 
 import "./IterationMap.scss";
@@ -23,6 +23,8 @@ export interface IterationCell {
   phases: PhaseRow[];
   reason: string;
   success: boolean;
+  /** When the iteration was recorded, in seconds since the epoch. */
+  ts: number | null;
 }
 
 /** What one square burns: it passed, it passed with something to say, it failed. */
@@ -78,6 +80,7 @@ function toCells(iterations: IterationRow[], phases: PhaseRow[]): IterationCell[
       phases: byIteration.get(row.iteration) ?? [],
       reason: row.reason,
       success: row.success,
+      ts: row.ts,
     });
     if (elapsed != null) previous = elapsed;
     byIteration.delete(row.iteration);
@@ -90,6 +93,7 @@ function toCells(iterations: IterationRow[], phases: PhaseRow[]): IterationCell[
       phases: rows,
       reason: "",
       success: rows.every((row) => row.success),
+      ts: null,
     });
   }
   return cells;
@@ -149,6 +153,7 @@ export const IterationMap: React.FC<IterationMapProps> = ({ iterations, onSelect
             content={
               <span className="iteration-map__tooltip">
                 <span className="iteration-map__tooltip-head">{describe(cell)}</span>
+                {cell.ts !== null && <span>{formatTimestamp(cell.ts)}</span>}
                 {cell.phases.length > 0 && <span>{describePhases(cell)}</span>}
               </span>
             }

@@ -2,11 +2,20 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { formatTimestamp } from "../utils/format";
 import IterationMap, { type PhaseRow } from "./IterationMap";
 import type { IterationRow } from "./IterationTable";
 
 const ITERATIONS: IterationRow[] = [
-  { elapsed_run_s: 2, images: [], iteration: 1, reason: "", success: true, traces: [], ts: null },
+  {
+    elapsed_run_s: 2,
+    images: [],
+    iteration: 1,
+    reason: "",
+    success: true,
+    traces: [],
+    ts: 1767225602,
+  },
   {
     elapsed_run_s: 5,
     images: [],
@@ -46,7 +55,9 @@ describe("IterationMap", () => {
     render(<IterationMap iterations={ITERATIONS} phases={PHASES} />);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
     await userEvent.hover(screen.getByRole("button", { name: "#1 · passed · 2s" }));
-    expect(await screen.findByRole("tooltip")).toHaveTextContent("soak 1s · check 500ms");
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip).toHaveTextContent("soak 1s · check 500ms");
+    expect(tooltip).toHaveTextContent(formatTimestamp(1767225602));
     await userEvent.unhover(screen.getByRole("button", { name: "#1 · passed · 2s" }));
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });

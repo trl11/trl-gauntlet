@@ -31,6 +31,14 @@ describe("traceToSamples", () => {
     expect(samples[1].values).toEqual({ "daq.channels.ai0.value": 0.6 });
   });
 
+  it("times each row by when its tick was taken, not by seconds into the run", () => {
+    const ticks: RecordedTick[] = [
+      { at: "2026-09-11T18:09:20.250Z", instrument: "daq", t: 3, values: { v: 1 } },
+    ];
+
+    expect(traceToSamples(ticks)[0].ts).toBe(Date.parse("2026-09-11T18:09:20.250Z") / 1000);
+  });
+
   it("orders rows by elapsed time, whatever order the lines arrived in", () => {
     const ticks: RecordedTick[] = [
       { at: "2026-09-11T18:09:21Z", instrument: "daq", t: 1, values: { v: 2 } },
