@@ -39,7 +39,6 @@ import TraceTimeline from "@components/TraceTimeline";
 import VerdictBanner from "@components/VerdictBanner";
 import VerdictSummary from "@components/VerdictSummary";
 import useEventStream from "@hooks/useEventStream";
-import { metricsSeriesKey } from "@hooks/usePersistedSeries";
 import { formatDuration, formatTimestamp } from "../utils/format";
 import { traceToSamples } from "../utils/instrument_trace";
 import { elapsedSeconds, parseLog, replay, type AnomalyRow } from "../utils/run_history";
@@ -191,27 +190,12 @@ export const RunPage: React.FC = () => {
   const samples = replayed.samples.length > 0 ? replayed.samples : stream.metrics;
   // The bench's own readings, alongside whatever the suite reported, so a
   // channel recorded rather than published still shows up on the Metrics
-  // tab's picker. Merged rather than kept on the Instruments tab, which stays
-  // the tab for what a reading came to rather than for charting it.
+  // tab's picker, where it can be charted against the suite's own series.
   const metricsSamples = useMemo(() => {
     const recorded = traceToSamples(instrumentTrace.data ?? []);
     if (recorded.length === 0) return samples;
     return [...samples, ...recorded].sort((a, b) => (a.elapsed_s ?? a.ts) - (b.elapsed_s ?? b.ts));
   }, [samples, instrumentTrace.data]);
-  // Presets the Metrics tab's series pick before switching to it, so a
-  // reading clicked on the Instruments tab is what the operator sees there.
-  // Written to the same storage `MetricsChart` reads on mount, since the
-  // chart is unmounted while the Instruments tab is open and always remounts
-  // fresh when this tab switch brings it back.
-  const showReading = (key: string) => {
-    try {
-      localStorage.setItem(metricsSeriesKey(runId), JSON.stringify([key]));
-    } catch {
-      // Storage can be full or disabled (private browsing); the tab switch
-      // still gets the operator there, just without the series preselected.
-    }
-    setTab("metrics");
-  };
   const phases = replayed.phases.length > 0 ? replayed.phases : stream.phases;
   const iterations = replayed.iterations.length > 0 ? replayed.iterations : stream.iterations;
   const anomalies: AnomalyRow[] =
@@ -479,9 +463,7 @@ export const RunPage: React.FC = () => {
           />
         )}
         {active === "captures" && <CaptureViewer key={runId} paths={captures} runId={runId} />}
-        {active === "instruments" && (
-          <RecordedInstruments key={runId} runId={runId} onSelectReading={showReading} />
-        )}
+        {active === "instruments" && <RecordedInstruments key={runId} runId={runId} />}
         {active === "iterations" && (
           <IterationTable
             key={runId}
