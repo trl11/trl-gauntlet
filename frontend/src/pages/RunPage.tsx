@@ -1,3 +1,5 @@
+import { faStar } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Confirm, Spinner } from "@trl11/components/ui";
 import clsx from "clsx";
@@ -18,6 +20,7 @@ import {
   listRunNotes,
   listSuites,
   runExportUrl,
+  setRunFavorite,
   stopRun,
 } from "@api/client";
 import ArtifactList from "@components/ArtifactList";
@@ -167,6 +170,14 @@ export const RunPage: React.FC = () => {
     onSuccess: refreshNotes,
   });
 
+  const favorite = useMutation({
+    mutationFn: (next: boolean) => setRunFavorite(runId, next),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["run", runId] });
+      queryClient.invalidateQueries({ queryKey: ["runs"] });
+    },
+  });
+
   const control = useMutation({
     mutationFn: (action: "abort" | "stop") =>
       action === "stop" ? stopRun(runId) : abortRun(runId),
@@ -300,6 +311,16 @@ export const RunPage: React.FC = () => {
         title={detail.suite}
         actions={
           <div className="run-page__actions">
+            <Button
+              aria-pressed={Boolean(detail.favorite)}
+              className={clsx("run-page__favorite", detail.favorite && "is-favorite")}
+              disabled={favorite.isPending}
+              size="small"
+              onClick={() => favorite.mutate(!detail.favorite)}
+            >
+              <FontAwesomeIcon icon={faStar} />
+              {detail.favorite ? "Favorite" : "Add to favorites"}
+            </Button>
             {live ? (
               <>
                 <Button

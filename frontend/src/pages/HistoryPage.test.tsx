@@ -16,6 +16,7 @@ const getRunVerdict = vi.fn();
 const listRuns = vi.fn();
 const listSuites = vi.fn();
 const listUnits = vi.fn();
+const setRunFavorite = vi.fn();
 
 vi.mock("@api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@api/client")>();
@@ -27,6 +28,7 @@ vi.mock("@api/client", async (importOriginal) => {
     listRuns: (...args: unknown[]) => listRuns(...args),
     listSuites: () => listSuites(),
     listUnits: () => listUnits(),
+    setRunFavorite: (...args: unknown[]) => setRunFavorite(...args),
   };
 });
 
@@ -87,6 +89,8 @@ function renderHistory(url = "/history") {
 }
 
 beforeEach(() => {
+  document.cookie = "gauntlet_history_favorites=; max-age=0; path=/";
+  document.cookie = "gauntlet_history_page_size=; max-age=0; path=/";
   deleteRun.mockResolvedValue(undefined);
   importRun.mockResolvedValue(run({ run_id: "r9" }));
   getRunVerdict.mockResolvedValue(verdict());
@@ -110,9 +114,11 @@ describe("HistoryPage", () => {
         after: null,
         before: null,
         direction: "desc",
+        favorite: null,
         has_notes: null,
         limit: 20,
         offset: 0,
+        q: null,
         sort: "started_at",
         status: [],
         suite: null,
@@ -130,9 +136,11 @@ describe("HistoryPage", () => {
         after: "2026-02-01",
         before: "2026-02-28",
         direction: "desc",
+        favorite: null,
         has_notes: null,
         limit: 50,
         offset: 50,
+        q: null,
         sort: "started_at",
         status: [],
         suite: "thermal_cycle",
@@ -162,6 +170,110 @@ describe("HistoryPage", () => {
     await waitFor(() =>
       expect(listRuns).toHaveBeenCalledWith(expect.objectContaining({ has_notes: true }))
     );
+  });
+
+  it("asks for only the favorites when that filter is set", async () => {
+    renderHistory("/history?favorite=only");
+    await waitFor(() =>
+      expect(listRuns).toHaveBeenCalledWith(expect.objectContaining({ favorite: true }))
+    );
+  });
+
+  it("searches the runs as the operator types, from the first page", async () => {
+    renderHistory("/history?page=3");
+    await userEvent.type(await screen.findByRole("searchbox", { name: "Search runs" }), "e346");
+    await waitFor(() =>
+      expect(listRuns).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 0, q: "e346" }))
+    );
+  });
+
+  it("takes the search out of the URL", async () => {
+    renderHistory("/history?q=HC-001");
+    expect(await screen.findByRole("searchbox", { name: "Search runs" })).toHaveValue("HC-001");
+    await waitFor(() =>
+      expect(listRuns).toHaveBeenCalledWith(expect.objectContaining({ q: "HC-001" }))
+    );
+  });
+
+  it("keeps the favorites filter on for the rest of the session", async () => {
+    const first = renderHistory();
+    await userEvent.click(await screen.findByRole("button", { name: "Favorites only" }));
+    first.unmount();
+
+    renderHistory();
+    expect(await screen.findByRole("button", { name: "Favorites only" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await waitFor(() =>
+      expect(listRuns).toHaveBeenLastCalledWith(expect.objectContaining({ favorite: true }))
+    );
+  });
+
+  it("keeps the page size for the rest of the session, unless the URL names one", async () => {
+    document.cookie = "gauntlet_history_page_size=50; path=/";
+    const first = renderHistory();
+    await waitFor(() =>
+      expect(listRuns).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 50 }))
+    );
+    first.unmount();
+
+    renderHistory("/history?size=10");
+    await waitFor(() =>
+      expect(listRuns).toHaveBeenLastCalledWith(expect.objectContaining({ limit: 10 }))
+    );
+  });
+
+  it("remembers a page size chosen from the pager", async () => {
+    renderHistory();
+    await userEvent.selectOptions(
+      await screen.findByRole("combobox", { name: "Items per page" }),
+      "50"
+    );
+    expect(document.cookie).toContain("gauntlet_history_page_size=50");
+  });
+
+  it("toggles the favorites filter from the toolbar", async () => {
+    renderHistory();
+    const toggle = await screen.findByRole("button", { name: "Favorites only" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(toggle);
+    await waitFor(() =>
+      expect(listRuns).toHaveBeenLastCalledWith(expect.objectContaining({ favorite: true }))
+    );
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(toggle);
+    await waitFor(() =>
+      expect(listRuns).toHaveBeenLastCalledWith(expect.objectContaining({ favorite: null }))
+    );
+  });
+
+  it("marks a favorite run with a star", async () => {
+    listRuns.mockResolvedValue({
+      runs: [run({ favorite: true }), run({ run_id: "r2" })],
+      total: 2,
+    });
+    renderHistory();
+    expect(await screen.findAllByLabelText("Favorite")).toHaveLength(1);
+  });
+
+  it("adds a run to the favorites from its row menu", async () => {
+    setRunFavorite.mockResolvedValue({ favorite: true, run_id: "r1" });
+    renderHistory();
+    await userEvent.click(await screen.findByRole("button", { name: "Actions for run r1" }));
+    const menu = document.querySelector(".row-menu") as HTMLElement;
+    await userEvent.click(within(menu).getByRole("button", { name: "Add to favorites" }));
+    await waitFor(() => expect(setRunFavorite).toHaveBeenCalledWith("r1", true));
+  });
+
+  it("removes a favorite from its row menu", async () => {
+    setRunFavorite.mockResolvedValue({ favorite: false, run_id: "r1" });
+    listRuns.mockResolvedValue({ runs: [run({ favorite: true })], total: 1 });
+    renderHistory();
+    await userEvent.click(await screen.findByRole("button", { name: "Actions for run r1" }));
+    const menu = document.querySelector(".row-menu") as HTMLElement;
+    await userEvent.click(within(menu).getByRole("button", { name: "Remove from favorites" }));
+    await waitFor(() => expect(setRunFavorite).toHaveBeenCalledWith("r1", false));
   });
 
   it("marks a run that carries notes", async () => {

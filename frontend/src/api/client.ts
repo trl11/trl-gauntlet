@@ -27,6 +27,7 @@ import type {
   ProfileContent,
   ProfileDiff,
   RunControlResult,
+  RunFavorite,
   RunList,
   RecordedTick,
   RunManifest,
@@ -303,6 +304,10 @@ export interface ListRunsParams {
   /** Inclusive upper bound on `started_at`. A bare date covers the whole day. */
   before?: string | null;
   direction?: "asc" | "desc";
+  /** Keep only the runs an operator has marked as a favorite. */
+  favorite?: boolean | null;
+  /** Keep only the runs whose id, suite, profile, unit, target, status or failure reason contains this. */
+  q?: string | null;
   /** Keep only the runs an operator has written a note against. */
   has_notes?: boolean | null;
   limit?: number;
@@ -343,6 +348,12 @@ export const abortRun = (runId: string): Promise<RunControlResult> =>
  */
 export const deleteRun = (runId: string): Promise<Deleted> =>
   request<Deleted>(`/api/runs/${encodeSegment(runId)}`, { method: "DELETE" });
+
+/** `PUT /api/runs/{id}/favorite` to mark a run, `DELETE` to unmark it. */
+export const setRunFavorite = (runId: string, favorite: boolean): Promise<RunFavorite> =>
+  request<RunFavorite>(`/api/runs/${encodeSegment(runId)}/favorite`, {
+    method: favorite ? "PUT" : "DELETE",
+  });
 
 /** URL of the SSE stream for one run, resuming after sequence number `since`. */
 export function runEventsUrl(runId: string, since: number): string {

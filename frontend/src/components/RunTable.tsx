@@ -38,6 +38,8 @@ export interface RunTableProps {
   loading?: boolean;
   /** Offers "Delete" from a per-row "more actions" menu when set. */
   onDeleteRun?: (run: RunRow) => void;
+  /** Offers marking or unmarking a favorite from the same menu when set. */
+  onToggleFavorite?: (run: RunRow) => void;
   /** Replaces the default navigation to `/runs/:runId`. */
   onSelect?: (run: RunRow) => void;
   /** Receives the whole new selection. With `selectedIds`, renders a checkbox column. */
@@ -67,6 +69,7 @@ export const RunTable: React.FC<RunTableProps> = ({
   filterable = true,
   loading = false,
   onDeleteRun,
+  onToggleFavorite,
   onSelect,
   onSelectionChange,
   onSort,
@@ -113,7 +116,8 @@ export const RunTable: React.FC<RunTableProps> = ({
   const rows = paginate ? matching.slice((page - 1) * perPage, page * perPage) : matching;
   const pageIds = rows.map((run) => run.run_id);
   const allSelected = rows.length > 0 && pageIds.every((id) => selectedIds?.includes(id));
-  const extraColumns = (selectable ? 1 : 0) + (renderExpanded ? 1 : 0) + (onDeleteRun ? 1 : 0);
+  const hasMenu = Boolean(onDeleteRun || onToggleFavorite);
+  const extraColumns = (selectable ? 1 : 0) + (renderExpanded ? 1 : 0) + (hasMenu ? 1 : 0);
 
   const sortBy = (column: RunTableColumn) => {
     if (!COLUMNS[column].sortable) return;
@@ -232,7 +236,7 @@ export const RunTable: React.FC<RunTableProps> = ({
                     </th>
                   );
                 })}
-                {onDeleteRun && <th scope="col" aria-label="Actions" />}
+                {hasMenu && <th scope="col" aria-label="Actions" />}
               </tr>
             </thead>
             <tbody>
@@ -286,16 +290,30 @@ export const RunTable: React.FC<RunTableProps> = ({
                         </td>
                       )
                     )}
-                    {onDeleteRun && (
+                    {hasMenu && (
                       <td className="run-table__menu">
                         <RowMenu
                           ariaLabel={`Actions for run ${run.run_id}`}
                           items={[
-                            {
-                              danger: true,
-                              label: "Delete",
-                              onSelect: () => onDeleteRun(run),
-                            },
+                            ...(onToggleFavorite
+                              ? [
+                                  {
+                                    label: run.favorite
+                                      ? "Remove from favorites"
+                                      : "Add to favorites",
+                                    onSelect: () => onToggleFavorite(run),
+                                  },
+                                ]
+                              : []),
+                            ...(onDeleteRun
+                              ? [
+                                  {
+                                    danger: true,
+                                    label: "Delete",
+                                    onSelect: () => onDeleteRun(run),
+                                  },
+                                ]
+                              : []),
                           ]}
                         />
                       </td>

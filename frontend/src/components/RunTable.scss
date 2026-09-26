@@ -135,6 +135,11 @@
     @include table.identifier;
   }
 
+  &__favorite {
+    color: $indicator-yellow;
+    font-size: 12px;
+  }
+
   &__notes {
     display: inline-flex;
     align-items: center;

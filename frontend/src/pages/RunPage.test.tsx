@@ -13,6 +13,7 @@ import {
   listArtifacts,
   listRunNotes,
   listSuites,
+  setRunFavorite,
   stopRun,
 } from "@api/client";
 import type { RunRow } from "@api/types";
@@ -36,6 +37,7 @@ vi.mock("@api/client", () => ({
   listSuites: vi.fn(),
   runEventsUrl: (runId: string) => `/api/runs/${runId}/events`,
   runExportUrl: (runId: string) => `/api/runs/${runId}/export`,
+  setRunFavorite: vi.fn(),
   stopRun: vi.fn(),
 }));
 
@@ -103,6 +105,26 @@ describe("RunPage campaign", () => {
     vi.mocked(getRunManifest).mockResolvedValue({} as never);
     vi.mocked(listArtifacts).mockResolvedValue({ artifacts: [], run_dir: "", run_id: "run-1" });
     vi.mocked(listRunNotes).mockResolvedValue({ notes: [] });
+  });
+
+  it("adds the run to the favorites", async () => {
+    vi.mocked(getRun).mockResolvedValue(FINISHED);
+    vi.mocked(setRunFavorite).mockResolvedValue({ favorite: true, run_id: "run-1" });
+    renderPage();
+    const star = await screen.findByRole("button", { name: "Add to favorites" });
+    expect(star).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(star);
+    expect(setRunFavorite).toHaveBeenCalledWith("run-1", true);
+  });
+
+  it("takes a favorite back out of the favorites", async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...FINISHED, favorite: true });
+    vi.mocked(setRunFavorite).mockResolvedValue({ favorite: false, run_id: "run-1" });
+    renderPage();
+    const star = await screen.findByRole("button", { name: "Favorite" });
+    expect(star).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(star);
+    expect(setRunFavorite).toHaveBeenCalledWith("run-1", false);
   });
 
   it("names the campaign that groups the run's suite", async () => {

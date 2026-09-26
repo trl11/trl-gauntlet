@@ -280,6 +280,8 @@ export interface RunRow {
   duration_s: number | null;
   ended_at: string | null;
   fail_reason: string | null;
+  /** Whether an operator has marked this run as a favorite. Absent on a body served before favorites were. */
+  favorite?: boolean;
   /** Operator notes against this run. Absent on a body served before counts were. */
   note_count?: number;
   profile: string | null;
@@ -291,6 +293,12 @@ export interface RunRow {
   target: string | null;
   unit_serial: string | null;
   verdict: RunVerdictCode | null;
+}
+
+/** `PUT|DELETE /api/runs/{id}/favorite` */
+export interface RunFavorite {
+  favorite: boolean;
+  run_id: string;
 }
 
 /** `GET /api/runs`. `total` counts every match, not just this page. */

@@ -27,6 +27,20 @@
     }
   }
 
+  &__favorite {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+
+    svg {
+      color: $trl-gray;
+    }
+
+    &.is-favorite svg {
+      color: $indicator-yellow;
+    }
+  }
+
   &__export {
     font-size: 13px;
     color: $indicator-blue;

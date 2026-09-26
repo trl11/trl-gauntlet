@@ -1,15 +1,27 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Confirm, FilterMenu, Pagination } from "@trl11/components/ui";
-import { useRef, useState } from "react";
+import { faStar } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button, Confirm, FilterMenu, Input, Pagination, Tooltip } from "@trl11/components/ui";
+import clsx from "clsx";
+import { useId, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 
-import { ApiError, deleteRun, importRun, listRuns, listSuites, listUnits } from "@api/client";
+import {
+  ApiError,
+  deleteRun,
+  importRun,
+  listRuns,
+  listSuites,
+  listUnits,
+  setRunFavorite,
+} from "@api/client";
 import type { RunRow } from "@api/types";
 import ListToolbar from "@components/ListToolbar";
 import PageHeader from "@components/PageHeader";
 import RunDetails from "@components/RunDetails";
 import RunTable, { type SortDirection } from "@components/RunTable";
 import type { RunTableColumn } from "@components/run_columns";
+import { readCookie, writeCookie } from "../utils/cookie";
 import { downloadCsv, toCsv } from "../utils/run_csv";
 import { LIVE_STATUSES, RUN_STATUS_OPTIONS } from "../utils/run_status";
 
@@ -20,6 +32,7 @@ type Filters = React.ComponentProps<typeof FilterMenu>["filterState"];
 
 /** Columns the table renders, left to right. */
 const COLUMNS: RunTableColumn[] = [
+  "favorite",
   "started_at",
   "duration_s",
   "suite",
@@ -29,6 +42,10 @@ const COLUMNS: RunTableColumn[] = [
   "note_count",
   "status",
 ];
+
+/** Cookies holding the view preferences that outlast a URL: until the browser closes. */
+const FAVORITES_COOKIE = "gauntlet_history_favorites";
+const PAGE_SIZE_COOKIE = "gauntlet_history_page_size";
 
 /** Which statuses one filter value asks the API for. */
 function statusFilter(value: string): string[] {
@@ -46,6 +63,7 @@ async function deleteRuns(runIds: string[]): Promise<string[]> {
 /** Every recorded run, filtered and paged by the server, selectable and exportable. */
 export const HistoryPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const fieldId = useId();
   const [params, setParams] = useSearchParams();
   const [selected, setSelected] = useState<string[]>([]);
   const [confirming, setConfirming] = useState<RunRow[] | null>(null);
@@ -67,6 +85,11 @@ export const HistoryPage: React.FC = () => {
           : null
       );
     },
+  });
+
+  const favorite = useMutation({
+    mutationFn: (run: RunRow) => setRunFavorite(run.run_id, !run.favorite),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["runs"] }),
   });
 
   const bringIn = useMutation({
@@ -91,10 +114,14 @@ export const HistoryPage: React.FC = () => {
   });
 
   const page = Math.max(1, Number(params.get("page") ?? 1) || 1);
-  const size = Math.max(1, Number(params.get("size") ?? 20) || 20);
+  // The URL wins, so a shared link shows what it was shared with; the cookie
+  // fills in whatever the URL leaves out.
+  const size = Math.max(1, Number(params.get("size") ?? readCookie(PAGE_SIZE_COOKIE) ?? 20) || 20);
   const sort = (params.get("sort") ?? "started_at") as RunTableColumn;
   const direction: SortDirection = params.get("dir") === "asc" ? "asc" : "desc";
 
+  const favoritesOnly = (params.get("favorite") ?? readCookie(FAVORITES_COOKIE)) === "only";
+  const search = params.get("q") ?? "";
   const filters: Filters = {
     after: params.get("after") || "all",
     before: params.get("before") || "all",
@@ -128,6 +155,8 @@ export const HistoryPage: React.FC = () => {
     after: filters.after === "all" ? null : String(filters.after),
     before: filters.before === "all" ? null : String(filters.before),
     direction,
+    favorite: favoritesOnly ? true : null,
+    q: search.trim() || null,
     // Null rather than false, so a listing nobody filtered asks for nothing.
     has_notes: filters.notes === "with" ? true : null,
     limit: size,
@@ -140,6 +169,9 @@ export const HistoryPage: React.FC = () => {
   const runs = useQuery({
     queryKey: ["runs", "history", query],
     queryFn: () => listRuns(query),
+    // Every keystroke in the search box is a new query; the rows already on
+    // screen stay there until its answer arrives rather than flashing a skeleton.
+    placeholderData: keepPreviousData,
   });
 
   const rows = runs.data?.runs ?? [];
@@ -154,6 +186,15 @@ export const HistoryPage: React.FC = () => {
       <ListToolbar
         actions={
           <>
+            <Input
+              aria-label="Search runs"
+              className="history-page__search"
+              id={`${fieldId}-search`}
+              placeholder="Search run id, suite, unit, reason"
+              type="search"
+              value={search}
+              onChange={(event) => write({ page: "", q: event.target.value })}
+            />
             <input
               accept=".zip"
               className="history-page__archive"
@@ -175,42 +216,59 @@ export const HistoryPage: React.FC = () => {
           </>
         }
         filter={
-          <FilterMenu
-            filterState={filters}
-            setFilterState={setFilters}
-            filters={[
-              {
-                id: "suite",
-                options: [
-                  { value: "all", label: "Any suite" },
-                  ...(suites.data?.suites ?? []).map((suite) => ({
-                    value: suite.key,
-                    label: suite.title || suite.key,
-                  })),
-                ],
-              },
-              { id: "status", options: RUN_STATUS_OPTIONS },
-              {
-                id: "notes",
-                options: [
-                  { value: "all", label: "Any notes" },
-                  { value: "with", label: "With notes" },
-                ],
-              },
-              {
-                id: "unit",
-                options: [
-                  { value: "all", label: "Any unit" },
-                  ...(units.data?.units ?? []).map((unit) => ({
-                    value: unit.serial,
-                    label: unit.serial,
-                  })),
-                ],
-              },
-              { id: "after", select: false, type: "date", label: "Started on or after" },
-              { id: "before", select: false, type: "date", label: "Started on or before" },
-            ]}
-          />
+          <>
+            <Tooltip content={favoritesOnly ? "Show every run" : "Show favorites only"}>
+              <Button
+                aria-label="Favorites only"
+                aria-pressed={favoritesOnly}
+                className={clsx("history-page__favorites", favoritesOnly && "is-active")}
+                square
+                onClick={() => {
+                  const next = favoritesOnly ? "all" : "only";
+                  writeCookie(FAVORITES_COOKIE, next);
+                  write({ favorite: next, page: "" });
+                }}
+              >
+                <FontAwesomeIcon icon={faStar} />
+              </Button>
+            </Tooltip>
+            <FilterMenu
+              filterState={filters}
+              setFilterState={setFilters}
+              filters={[
+                {
+                  id: "suite",
+                  options: [
+                    { value: "all", label: "Any suite" },
+                    ...(suites.data?.suites ?? []).map((suite) => ({
+                      value: suite.key,
+                      label: suite.title || suite.key,
+                    })),
+                  ],
+                },
+                { id: "status", options: RUN_STATUS_OPTIONS },
+                {
+                  id: "notes",
+                  options: [
+                    { value: "all", label: "Any notes" },
+                    { value: "with", label: "With notes" },
+                  ],
+                },
+                {
+                  id: "unit",
+                  options: [
+                    { value: "all", label: "Any unit" },
+                    ...(units.data?.units ?? []).map((unit) => ({
+                      value: unit.serial,
+                      label: unit.serial,
+                    })),
+                  ],
+                },
+                { id: "after", select: false, type: "date", label: "Started on or after" },
+                { id: "before", select: false, type: "date", label: "Started on or before" },
+              ]}
+            />
+          </>
         }
         status={
           <>
@@ -262,6 +320,7 @@ export const HistoryPage: React.FC = () => {
           filterable={false}
           loading={runs.isPending}
           onDeleteRun={(run) => setConfirming([run])}
+          onToggleFavorite={(run) => favorite.mutate(run)}
           onSelectionChange={setSelected}
           onSort={(column, next) => write({ dir: next, sort: column })}
           pageSize={0}
@@ -277,7 +336,10 @@ export const HistoryPage: React.FC = () => {
         setCurrentPage={(next) => write({ page: String(next) })}
         totalPages={totalPages}
         itemsPerPage={size}
-        setItemsPerPage={(items) => write({ page: "1", size: String(items) })}
+        setItemsPerPage={(items) => {
+          writeCookie(PAGE_SIZE_COOKIE, String(items));
+          write({ page: "1", size: String(items) });
+        }}
       />
 
       {replacing && (

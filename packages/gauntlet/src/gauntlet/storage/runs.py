@@ -10,6 +10,7 @@ import json
 import sqlite3
 import threading
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,15 @@ CREATE TABLE IF NOT EXISTS runs (
 );
 CREATE INDEX IF NOT EXISTS runs_suite_started ON runs (suite, started_at DESC);
 CREATE INDEX IF NOT EXISTS runs_unit ON runs (unit_serial);
+"""
+
+# Its own table rather than a column on `runs`, because `upsert` replaces a
+# whole row and `import_tree` rebuilds rows from disk, and neither knows it.
+FAVORITES_SCHEMA = """
+CREATE TABLE IF NOT EXISTS favorite_runs (
+    run_id     TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL
+);
 """
 
 _COLUMNS = (
@@ -72,7 +82,9 @@ class RunFilters:
     ``after`` and ``before`` are inclusive bounds compared against
     ``started_at``. Both are ISO 8601, which sorts lexicographically, so a bare
     date such as ``2026-08-03`` bounds a whole day. ``has_notes`` keeps only the
-    runs an operator has written a note against.
+    runs an operator has written a note against, and ``favorite`` only the runs
+    an operator has marked as one. ``search`` keeps the runs whose id, suite,
+    profile, unit, target, status or failure reason contains it, ignoring case.
     """
 
     suite: str | None = None
@@ -81,6 +93,12 @@ class RunFilters:
     after: str | None = None
     before: str | None = None
     has_notes: bool = False
+    favorite: bool = False
+    search: str | None = None
+
+
+#: Columns ``RunFilters.search`` looks in.
+_SEARCHED = ("run_id", "suite", "profile", "unit_serial", "target", "status", "fail_reason")
 
 
 def _where(filters: RunFilters) -> tuple[str, list[Any]]:
@@ -107,6 +125,14 @@ def _where(filters: RunFilters) -> tuple[str, list[Any]]:
     if filters.has_notes:
         clauses.append("EXISTS (SELECT 1 FROM notes WHERE subject_kind = ? AND subject_id = runs.run_id)")
         params.append(SUBJECT_RUN)
+    if filters.search:
+        # `%` and `_` are LIKE wildcards, and suite keys are full of
+        # underscores, so a search has to match them literally.
+        escaped = filters.search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        clauses.append("(" + " OR ".join(f"{column} LIKE ? ESCAPE '\\'" for column in _SEARCHED) + ")")
+        params.extend(f"%{escaped}%" for _ in _SEARCHED)
+    if filters.favorite:
+        clauses.append("EXISTS (SELECT 1 FROM favorite_runs WHERE favorite_runs.run_id = runs.run_id)")
     return (f"WHERE {' AND '.join(clauses)}" if clauses else "", params)
 
 
@@ -153,7 +179,7 @@ class RunsIndex:
         self._conn.row_factory = sqlite3.Row
         # The notes table belongs to `NotesIndex` and shares this database, so
         # filtering on whether a run has notes reads it through this connection.
-        self._conn.executescript(RUNS_SCHEMA + NOTES_SCHEMA)
+        self._conn.executescript(RUNS_SCHEMA + NOTES_SCHEMA + FAVORITES_SCHEMA)
         self._conn.commit()
         self._lock = threading.Lock()
 
@@ -215,8 +241,27 @@ class RunsIndex:
             return None
         with self._lock:
             self._conn.execute("DELETE FROM runs WHERE run_id = ?", (run_id,))
+            self._conn.execute("DELETE FROM favorite_runs WHERE run_id = ?", (run_id,))
             self._conn.commit()
         return row
+
+    def set_favorite(self, run_id: str, favorite: bool) -> None:
+        """Mark or unmark one run as a favorite. Repeating either is harmless."""
+        with self._lock:
+            if favorite:
+                self._conn.execute(
+                    "INSERT OR IGNORE INTO favorite_runs (run_id, created_at) VALUES (?, ?)",
+                    (run_id, datetime.now(timezone.utc).isoformat()),
+                )
+            else:
+                self._conn.execute("DELETE FROM favorite_runs WHERE run_id = ?", (run_id,))
+            self._conn.commit()
+
+    def favorites(self) -> set[str]:
+        """Every run id marked as a favorite."""
+        with self._lock:
+            rows = self._conn.execute("SELECT run_id FROM favorite_runs").fetchall()
+        return {row[0] for row in rows}
 
     def reconcile_stale(self) -> int:
         """Mark runs still recorded as in-progress as interrupted.

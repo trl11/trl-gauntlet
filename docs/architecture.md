@@ -145,9 +145,10 @@ The web UI renders suite-agnostic forms and views from these endpoints:
 | Result views offered | `produces[]` in the manifest |
 | Starting a run | `POST /api/runs`; `POST /api/runs/{id}/stop` and `/abort` control it |
 | Live run | `GET /api/runs/{id}/events` |
-| History | `GET /api/runs`, filtered by `suite`, `unit_serial`, repeated `status`, `after`, `before`, `has_notes`, and sorted by `sort` and `direction` |
+| History | `GET /api/runs`, filtered by `suite`, `unit_serial`, repeated `status`, `after`, `before`, `has_notes`, `favorite`, `q` (a case-insensitive search of run id, suite, profile, unit, target, status and failure reason), and sorted by `sort` and `direction` |
 | Finished-run charts | `GET /api/runs/{id}/metrics` |
 | Run artifacts | `GET /api/runs/{id}/artifacts` and `/artifacts/{path}`, the one way to read a run's files |
+| Favorite runs | `PUT|DELETE /api/runs/{id}/favorite` |
 | Run and unit notes | `GET|POST /api/{runs,units}/{id}/notes`, `DELETE .../notes/{note_id}` |
 | Units under test | `GET /api/units`, `GET|PATCH|DELETE /api/units/{serial}`, `GET /api/units/{serial}/history` |
 | Instrument panels | `GET /api/instruments`, `GET /api/instruments/{name}`, `POST /api/instruments/rescan`, `POST /api/instruments/{name}/command` |
@@ -165,6 +166,14 @@ written against is marked wherever runs are listed. Like `campaign` it is read
 when the run is read rather than stored on it, because a note written after the
 row was stored is still a note about that run. `has_notes` filters on the same
 thing, in SQL rather than in the page, so `total` and the paging stay right.
+
+A run listing also reports `favorite`, and the `favorite` filter keeps only the
+runs so marked. Favorites are the bench's, not a browser's, so every operator
+sees the same ones. They live in their own table rather than on the run's row,
+because storing a run replaces its row and a reimport rebuilds it from disk,
+and either would drop the mark. Deleting a run drops its mark; exporting one
+does not carry it, since which runs a bench keeps an eye on is that bench's
+business.
 
 An instrument panel is generated from what the provider declares: its `state()`
 is rendered as rows and each entry in `commands()` becomes a control built from
