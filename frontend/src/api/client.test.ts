@@ -22,6 +22,7 @@ import {
   getRunInstrumentTrace,
   getRunManifest,
   getRunMetrics,
+  getRunProvenance,
   getRunVerdict,
   getSettings,
   getSystemData,
@@ -36,6 +37,7 @@ import {
   listUnitNotes,
   listUnits,
   renameUnit,
+  runCampaignMember,
   rescanSuites,
   importRun,
   runEventsUrl,
@@ -233,9 +235,21 @@ describe("every endpoint addresses its route", () => {
       "/api/runs/r1/metrics?limit=50",
     ],
     ["listRunNotes", () => listRunNotes("r1"), "GET", "/api/runs/r1/notes"],
-    ["addRunNote", () => addRunNote("r1", "note"), "POST", "/api/runs/r1/notes"],
+    [
+      "addRunNote",
+      () => addRunNote("r1", { author: null, body: "note", location: null, session: null }),
+      "POST",
+      "/api/runs/r1/notes",
+    ],
     ["deleteRunNote", () => deleteRunNote("r1", 7), "DELETE", "/api/runs/r1/notes/7"],
-    ["listUnits", listUnits, "GET", "/api/units"],
+    ["listUnits", () => listUnits(), "GET", "/api/units"],
+    [
+      "listUnits narrowed",
+      () => listUnits({ location: "Lab 2", session: "week 1" }),
+      "GET",
+      "/api/units?location=Lab+2&session=week+1",
+    ],
+    ["getRunProvenance", getRunProvenance, "GET", "/api/runs/provenance"],
     ["getUnit", () => getUnit("SN-1"), "GET", "/api/units/SN-1"],
     ["deleteUnit", () => deleteUnit("SN-1"), "DELETE", "/api/units/SN-1?runs=true"],
     ["getUnitHistory", () => getUnitHistory("SN-1"), "GET", "/api/units/SN-1/history"],
@@ -381,12 +395,22 @@ describe("body decoding", () => {
 });
 
 describe("endpoint shapes", () => {
-  it("posts a note with an explicit null author", async () => {
+  it("posts a note with who wrote it, where, and in which session", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ id: 1 }));
-    await addUnitNote("SN-1", "looks fine");
+    const note = { author: "Ada", body: "looks fine", location: "Lab 2", session: "week 1" };
+    await addUnitNote("SN-1", note);
     const [url, init] = lastCall();
     expect(url).toBe("/api/units/SN-1/notes");
-    expect(init.body).toBe(JSON.stringify({ body: "looks fine", author: null }));
+    expect(init.body).toBe(JSON.stringify(note));
+  });
+
+  it("starts a campaign member with the sign-in as its provenance", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ run_id: "r1" }));
+    const provenance = { location: "Lab 2", operator: "Ada", session: "week 1" };
+    await runCampaignMember("demo", "alpha", provenance);
+    const [url, init] = lastCall();
+    expect(url).toBe("/api/campaigns/demo/members/alpha/run");
+    expect(init.body).toBe(JSON.stringify(provenance));
   });
 
   it("patches a unit with its new serial", async () => {

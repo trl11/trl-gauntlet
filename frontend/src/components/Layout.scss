@@ -135,6 +135,23 @@ $collapse-at: 900px;
     color: $trl-light-gray;
   }
 
+  &__sign-in-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    line-height: 1.2;
+  }
+
+  &__sign-in-name {
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  &__sign-in-where {
+    font-size: 11px;
+    color: $trl-gray;
+  }
+
   &__version {
     font-family: $font-mono;
     font-size: 11px;

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@api/client";
 import type { Instrument, Suite, Unit } from "@api/types";
+import { setSignIn } from "@hooks/useSignIn";
 
 import RunStartModal from "./RunStartModal";
 
@@ -214,6 +215,18 @@ describe("RunStartModal", () => {
     ]);
   });
 
+  it("records the run as whoever is signed in", async () => {
+    setSignIn({ location: "Lab 2", name: "Ada", session: "week 1" });
+    const user = userEvent.setup();
+    renderModal();
+    await waitFor(() => expect(screen.getByLabelText("Duration (s)")).toHaveValue(300));
+    expect(screen.getByText("Ada · Lab 2 · week 1")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Start run" }));
+    expect(startRun).toHaveBeenCalledWith(
+      expect.objectContaining({ location: "Lab 2", operator: "Ada", session: "week 1" })
+    );
+  });
+
   it("still accepts a serial no unit has yet", async () => {
     const user = userEvent.setup();
     renderModal(suite({ supports: { target: false, unit_serial: true } }));
@@ -284,9 +297,12 @@ describe("RunStartModal", () => {
     await user.type(screen.getByLabelText("Target"), "192.168.55.1");
     await user.click(screen.getByRole("button", { name: "Start run" }));
     expect(startRun).toHaveBeenCalledWith({
+      location: null,
       observe: [],
+      operator: null,
       overrides: { cycles: 12, duration_s: 300, stop_on_failure: true },
       profile: "mock.yaml",
+      session: null,
       suite: "thermal_cycle",
       target: "192.168.55.1",
       unit_serial: null,

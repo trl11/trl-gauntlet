@@ -479,3 +479,35 @@ def _write_run(run_dir: Path, *, verdict: dict, manifest: dict | None = None) ->
     (run_dir / "verdict.json").write_text(json.dumps(verdict))
     if manifest is not None:
         (run_dir / "manifest.json").write_text(json.dumps(manifest))
+
+
+class TestProvenance:
+    def test_a_reimport_from_disk_recovers_it(self, runs: RunsIndex, tmp_path: Path) -> None:
+        run_dir = tmp_path / "runs" / "alpha" / "r1"
+        run_dir.mkdir(parents=True)
+        (run_dir / "verdict.json").write_text('{"passed": true, "started_at_utc": "2026-01-01T00:00:00Z"}')
+        (run_dir / "provenance.json").write_text('{"operator": "Ada", "location": "Lab 2", "session": "week 1"}')
+        runs.import_tree(tmp_path / "runs")
+        row = runs.get("r1")
+        assert row is not None
+        assert (row.operator, row.location, row.session) == ("Ada", "Lab 2", "week 1")
+
+    def test_a_database_from_before_it_gains_the_columns(self, index_path: Path) -> None:
+        conn = sqlite3.connect(index_path)
+        conn.executescript(
+            "CREATE TABLE runs (run_id TEXT PRIMARY KEY, suite TEXT NOT NULL, status TEXT NOT NULL, "
+            "started_at TEXT NOT NULL, ended_at TEXT, duration_s REAL, verdict TEXT, fail_reason TEXT, "
+            "profile TEXT, target TEXT, unit_serial TEXT, run_dir TEXT NOT NULL);"
+            "CREATE TABLE notes (id INTEGER PRIMARY KEY AUTOINCREMENT, subject_kind TEXT NOT NULL, "
+            "subject_id TEXT NOT NULL, body TEXT NOT NULL, author TEXT, created_at TEXT NOT NULL);"
+            "INSERT INTO runs VALUES ('old', 'alpha', 'passed', '2026-01-01', NULL, NULL, NULL, NULL, NULL, NULL, "
+            "NULL, '/runs/old');"
+        )
+        conn.close()
+        runs = RunsIndex(index_path)
+        notes = NotesIndex(index_path)
+        runs.upsert(replace(_run("new", minute=1, serial=None), location="Lab 2"))
+        notes.add(SUBJECT_RUN, "new", "hello", "Ada", session="week 1")
+        assert [row.run_id for row in runs.list(RunFilters(location="Lab 2"))] == ["new"]
+        assert runs.get("old") is not None
+        assert notes.list(SUBJECT_RUN, "new")[0].session == "week 1"

@@ -40,6 +40,12 @@ export const RunDetails: React.FC<RunDetailsProps> = ({ run }) => {
       <dd>{testCounts(verdict.isPending, verdict.data)}</dd>
       <dt>Target</dt>
       <dd>{run.target ?? "-"}</dd>
+      <dt>Operator</dt>
+      <dd>{run.operator ?? "-"}</dd>
+      <dt>Location</dt>
+      <dd>{run.location ?? "-"}</dd>
+      <dt>Session</dt>
+      <dd>{run.session ?? "-"}</dd>
       <dt>Artifacts</dt>
       <dd className="run-details__path">{run.run_dir}</dd>
     </dl>

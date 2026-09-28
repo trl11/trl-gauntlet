@@ -116,6 +116,17 @@ class TestNotes:
         assert [n.body for n in landed] == ["reran it", "swapped the cable"]
         assert [n.author for n in landed] == [None, "gabe"]
 
+    def test_who_where_and_which_session_travel(self, make_run_dir, elsewhere, tmp_path: Path) -> None:
+        here = NotesIndex(tmp_path / "here.db")
+        here.add(SUBJECT_RUN, "r1", "swapped the cable", "Ada", location="Lab 2", session="week 1")
+        row = make_row(make_run_dir(), operator="Ada", location="Lab 2", session="week 1")
+        export_run(row, here.list(SUBJECT_RUN, "r1"), tmp_path / "r1.zip")
+
+        imported = import_run(tmp_path / "r1.zip", elsewhere.runs_dir, elsewhere.runs, elsewhere.notes)
+        assert (imported.operator, imported.location, imported.session) == ("Ada", "Lab 2", "week 1")
+        note = elsewhere.notes.list(SUBJECT_RUN, "r1")[0]
+        assert (note.location, note.session) == ("Lab 2", "week 1")
+
     def test_a_note_keeps_the_time_it_was_written(self, make_run_dir, elsewhere, tmp_path: Path) -> None:
         here = NotesIndex(tmp_path / "here.db")
         here.add(SUBJECT_RUN, "r1", "swapped the cable", created_at="2026-01-01T00:02:00Z")

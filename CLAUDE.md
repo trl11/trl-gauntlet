@@ -215,6 +215,7 @@ and neither is on a package registry.
 - `campaign.yaml` is read, never written. No endpoint edits one, so nothing
   Gauntlet serves can disagree with the file on disk; a change is made with an
   editor and picked up by a rescan.
+- Signing in is provenance, not authentication: nothing requires it. The name, location and test session live in the browser, and reach the server only as fields on a run or a note. A run's are written into its directory as `provenance.json` as well as its row, so a reimport keeps them, and never reach the suite.
 - Renaming a unit rewrites `unit_serial` on its run rows. `DELETE
   /api/units/{serial}` drops only its metadata and notes, never a run, so a
   unit with runs is derived from them again; `?runs=true` deletes those runs

@@ -8,6 +8,7 @@ import { useNavigate } from "react-router";
 import { getCampaign, runCampaignMember } from "@api/client";
 import type { CampaignMember } from "@api/types";
 import EmptyState from "@components/EmptyState";
+import useSignIn, { provenanceOf } from "@hooks/useSignIn";
 
 import "./CampaignDetail.scss";
 
@@ -77,6 +78,7 @@ export interface CampaignDetailProps {
  */
 export const CampaignDetail: React.FC<CampaignDetailProps> = ({ campaignKey }) => {
   const navigate = useNavigate();
+  const signIn = useSignIn();
 
   const campaign = useQuery({
     queryKey: ["campaign", campaignKey],
@@ -84,7 +86,7 @@ export const CampaignDetail: React.FC<CampaignDetailProps> = ({ campaignKey }) =
   });
 
   const start = useMutation({
-    mutationFn: (suite: string) => runCampaignMember(campaignKey, suite),
+    mutationFn: (suite: string) => runCampaignMember(campaignKey, suite, provenanceOf(signIn)),
     onSuccess: (run) => navigate(`/runs/${encodeURIComponent(run.run_id)}`),
   });
 

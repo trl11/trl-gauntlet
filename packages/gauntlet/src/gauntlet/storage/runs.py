@@ -9,11 +9,13 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from gauntlet.storage.columns import add_missing_columns
 from gauntlet.storage.notes import NOTES_SCHEMA, SUBJECT_RUN
 
 RUNS_SCHEMA = """
@@ -29,7 +31,10 @@ CREATE TABLE IF NOT EXISTS runs (
     profile     TEXT,
     target      TEXT,
     unit_serial TEXT,
-    run_dir     TEXT NOT NULL
+    run_dir     TEXT NOT NULL,
+    operator    TEXT,
+    location    TEXT,
+    session     TEXT
 );
 CREATE INDEX IF NOT EXISTS runs_suite_started ON runs (suite, started_at DESC);
 CREATE INDEX IF NOT EXISTS runs_unit ON runs (unit_serial);
@@ -57,7 +62,17 @@ _COLUMNS = (
     "target",
     "unit_serial",
     "run_dir",
+    "operator",
+    "location",
+    "session",
 )
+
+#: Who ran a run, where, and in which test session, as the operator signed in.
+#: Gauntlet writes it into the run directory as :data:`PROVENANCE_NAME`, so a
+#: reimport from disk recovers it.
+PROVENANCE_COLUMNS = ("operator", "location", "session")
+
+PROVENANCE_NAME = "provenance.json"
 
 #: Columns :meth:`RunsIndex.list` will sort by. Anything else falls back to
 #: ``started_at``, so caller text never reaches the statement.
@@ -65,8 +80,11 @@ SORT_COLUMNS = frozenset(
     {
         "duration_s",
         "ended_at",
+        "location",
+        "operator",
         "profile",
         "run_id",
+        "session",
         "started_at",
         "status",
         "suite",
@@ -83,8 +101,10 @@ class RunFilters:
     ``started_at``. Both are ISO 8601, which sorts lexicographically, so a bare
     date such as ``2026-08-03`` bounds a whole day. ``has_notes`` keeps only the
     runs an operator has written a note against, and ``favorite`` only the runs
-    an operator has marked as one. ``search`` keeps the runs whose id, suite,
-    profile, unit, target, status or failure reason contains it, ignoring case.
+    an operator has marked as one. ``location`` and ``session`` keep the runs
+    recorded at that location and in that test session. ``search`` keeps the
+    runs whose id, suite, profile, unit, target, status, failure reason,
+    operator, location or session contains it, ignoring case.
     """
 
     suite: str | None = None
@@ -94,11 +114,24 @@ class RunFilters:
     before: str | None = None
     has_notes: bool = False
     favorite: bool = False
+    location: str | None = None
+    session: str | None = None
     search: str | None = None
 
 
 #: Columns ``RunFilters.search`` looks in.
-_SEARCHED = ("run_id", "suite", "profile", "unit_serial", "target", "status", "fail_reason")
+_SEARCHED = (
+    "run_id",
+    "suite",
+    "profile",
+    "unit_serial",
+    "target",
+    "status",
+    "fail_reason",
+    "operator",
+    "location",
+    "session",
+)
 
 
 def _where(filters: RunFilters) -> tuple[str, list[Any]]:
@@ -111,6 +144,12 @@ def _where(filters: RunFilters) -> tuple[str, list[Any]]:
     if filters.unit_serial:
         clauses.append("unit_serial = ?")
         params.append(filters.unit_serial)
+    if filters.location:
+        clauses.append("location = ?")
+        params.append(filters.location)
+    if filters.session:
+        clauses.append("session = ?")
+        params.append(filters.session)
     if filters.status:
         clauses.append(f"status IN ({', '.join('?' for _ in filters.status)})")
         params.extend(filters.status)
@@ -152,6 +191,9 @@ class RunRow:
     profile: str | None = None
     target: str | None = None
     unit_serial: str | None = None
+    operator: str | None = None
+    location: str | None = None
+    session: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -166,6 +208,9 @@ class RunRow:
             "profile": self.profile,
             "target": self.target,
             "unit_serial": self.unit_serial,
+            "operator": self.operator,
+            "location": self.location,
+            "session": self.session,
             "run_dir": self.run_dir,
         }
 
@@ -181,6 +226,7 @@ class RunsIndex:
         # filtering on whether a run has notes reads it through this connection.
         self._conn.executescript(RUNS_SCHEMA + NOTES_SCHEMA + FAVORITES_SCHEMA)
         self._conn.commit()
+        add_missing_columns(self._conn, "runs", {column: "TEXT" for column in PROVENANCE_COLUMNS})
         self._lock = threading.Lock()
 
     def close(self) -> None:
@@ -263,6 +309,20 @@ class RunsIndex:
             rows = self._conn.execute("SELECT run_id FROM favorite_runs").fetchall()
         return {row[0] for row in rows}
 
+    def provenance(self) -> dict[str, Sequence[str]]:
+        """Every operator, location and session any run was recorded with, sorted."""
+        with self._lock:
+            return {
+                column: [
+                    str(row[0])
+                    for row in self._conn.execute(
+                        f"SELECT DISTINCT {column} FROM runs WHERE {column} IS NOT NULL AND {column} <> '' "
+                        f"ORDER BY {column} COLLATE NOCASE"
+                    )
+                ]
+                for column in PROVENANCE_COLUMNS
+            }
+
     def reconcile_stale(self) -> int:
         """Mark runs still recorded as in-progress as interrupted.
 
@@ -298,6 +358,7 @@ class RunsIndex:
 def _row_from_disk(run_dir: Path, verdict_path: Path) -> RunRow | None:
     verdict = _read_json(verdict_path) or {}
     manifest = _read_json(run_dir / "manifest.json") or {}
+    provenance = _read_json(run_dir / PROVENANCE_NAME) or {}
     if verdict.get("passed"):
         status, code = "passed", "PASS"
     elif verdict.get("aborted"):
@@ -317,6 +378,9 @@ def _row_from_disk(run_dir: Path, verdict_path: Path) -> RunRow | None:
         profile=_basename(manifest.get("profile_path")),
         target=_as_str(manifest.get("target")),
         unit_serial=_as_str(manifest.get("unit_serial")),
+        operator=_as_str(provenance.get("operator")),
+        location=_as_str(provenance.get("location")),
+        session=_as_str(provenance.get("session")),
     )
 
 

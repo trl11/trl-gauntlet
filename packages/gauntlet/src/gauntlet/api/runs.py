@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.background import BackgroundTask
 
-from gauntlet.api.notes import NoteBody, add_note, delete_note, list_notes
+from gauntlet.api.notes import NoteBody, add_note, clean, delete_note, list_notes
 from gauntlet.catalog import campaigns_by_suite
 from gauntlet.storage import SUBJECT_RUN, RunFilters, RunRow
 from gauntlet.supervisor import Event, RunConflict, RunHandle, RunRejected, RunRequest
@@ -47,6 +47,9 @@ class StartRunBody(BaseModel):
         description="Instruments to record for the run's duration, by instance key, "
         "beyond the ones its suite requires.",
     )
+    operator: str | None = Field(default=None, description="Who started the run, as they signed in.")
+    location: str | None = Field(default=None, description="Where the run was started, as the operator signed in.")
+    session: str | None = Field(default=None, description="The test session the run belongs to.")
 
 
 @router.get("/runs")
@@ -59,6 +62,8 @@ async def list_runs(
     before: str | None = None,
     has_notes: bool = False,
     favorite: bool = False,
+    location: str | None = None,
+    session: str | None = None,
     q: str | None = None,
     sort: str = "started_at",
     direction: str = "desc",
@@ -70,8 +75,10 @@ async def list_runs(
     ``status`` may be repeated to accept several. ``after`` and ``before`` are
     inclusive bounds on ``started_at``, as a date or a full timestamp.
     ``has_notes`` keeps only the runs an operator has written a note against,
-    and ``favorite`` only the runs marked as one. ``q`` keeps the runs whose id,
-    suite, profile, unit, target, status or failure reason contains it.
+    and ``favorite`` only the runs marked as one. ``location`` and ``session``
+    keep the runs recorded at that location and in that test session. ``q``
+    keeps the runs whose id, suite, profile, unit, target, status, failure
+    reason, operator, location or session contains it.
     ``total`` counts every run matching the filters, not just this page.
     """
     supervisor = request.app.state.supervisor
@@ -84,6 +91,8 @@ async def list_runs(
         before=before,
         has_notes=has_notes,
         favorite=favorite,
+        location=location,
+        session=session,
         search=q.strip() if q else None,
     )
     live = {h.run_id: h.to_dict() for h in supervisor.list_runs() if not h.finished}
@@ -110,6 +119,9 @@ async def start_run(request: Request, body: StartRunBody) -> dict[str, Any]:
                 overrides=body.overrides,
                 profile_body=body.profile_body,
                 observe=body.observe,
+                operator=clean(body.operator),
+                location=clean(body.location),
+                session=clean(body.session),
             )
         )
     except RunConflict as exc:
@@ -118,6 +130,17 @@ async def start_run(request: Request, body: StartRunBody) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     request.app.state.runs_index.upsert(to_row(handle))
     return handle.to_dict()
+
+
+@router.get("/runs/provenance")
+async def get_run_provenance(request: Request) -> dict[str, Any]:
+    """Every operator, location and test session any run was recorded with.
+
+    What the history and unit filters offer, so a value no run carries is never
+    one of them.
+    """
+    values = request.app.state.runs_index.provenance()
+    return {"operators": values["operator"], "locations": values["location"], "sessions": values["session"]}
 
 
 @router.get("/runs/{run_id}")
@@ -398,4 +421,7 @@ def to_row(handle: RunHandle) -> RunRow:
         profile=handle.profile,
         target=handle.target,
         unit_serial=handle.unit_serial,
+        operator=handle.operator,
+        location=handle.location,
+        session=handle.session,
     )

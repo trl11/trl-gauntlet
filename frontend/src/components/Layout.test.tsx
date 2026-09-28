@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +15,7 @@ vi.mock("@api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@api/client")>();
   return {
     ...actual,
+    getRunProvenance: () => Promise.resolve({ locations: [], operators: [], sessions: [] }),
     getSystemInfo: () => getSystemInfo(),
     listRuns: (...args: unknown[]) => listRuns(...args),
   };
@@ -148,5 +149,19 @@ describe("Layout", () => {
     await userEvent.click(toggle);
     await waitFor(() => expect(container.querySelector(".layout__tabs")).toHaveClass("is-open"));
     expect(screen.getByRole("button", { name: "Close navigation" })).toBeInTheDocument();
+  });
+
+  it("signs in from the bar and shows who is signed in", async () => {
+    const user = userEvent.setup();
+    renderLayout();
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await user.type(screen.getByLabelText("Name"), "Ada");
+    await user.type(screen.getByLabelText("Location"), "Lab 2");
+    await user.type(screen.getByLabelText("Test session"), "week 1");
+    const form = screen.getByLabelText("Name").closest("form")!;
+    await user.click(within(form).getByRole("button", { name: "Sign in" }));
+    expect(await screen.findByRole("button", { name: "Signed in as Ada" })).toHaveTextContent(
+      "Lab 2 · week 1"
+    );
   });
 });

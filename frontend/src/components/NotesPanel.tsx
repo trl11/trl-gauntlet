@@ -4,7 +4,8 @@ import { Button, Confirm, Input, Spinner, Tooltip } from "@trl11/components/ui";
 import clsx from "clsx";
 import { useId, useState } from "react";
 
-import type { Note } from "@api/types";
+import type { Note, NoteBody } from "@api/types";
+import useSignIn from "@hooks/useSignIn";
 import { formatRelativeTime, formatTimestamp } from "../utils/format";
 
 import "./NotesPanel.scss";
@@ -16,8 +17,11 @@ export interface NotesPanelProps {
   className?: string;
   /** Notes to render, newest first as returned by the API. */
   notes: Note[];
-  /** Called with the composed note. Clearing the form waits on it resolving. */
-  onAdd: (body: string, author: string | null) => void | Promise<unknown>;
+  /**
+   * Called with the composed note, stamped with the sign-in when there is one.
+   * Clearing the form waits on it resolving.
+   */
+  onAdd: (note: NoteBody) => void | Promise<unknown>;
   /** Called with the id of the note the operator confirmed deleting. */
   onDelete: (noteId: number) => void | Promise<unknown>;
   /**
@@ -40,12 +44,18 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
   const [body, setBody] = useState("");
   const [author, setAuthor] = useState("");
   const [pendingDelete, setPendingDelete] = useState<number | null>(null);
+  const signIn = useSignIn();
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     const text = body.trim();
     if (!text || busy) return;
-    await onAdd(text, author.trim() || null);
+    await onAdd({
+      author: signIn ? signIn.name : author.trim() || null,
+      body: text,
+      location: signIn?.location ?? null,
+      session: signIn?.session ?? null,
+    });
     setBody("");
   };
 
@@ -77,15 +87,19 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
           maxLength={2000}
           onChange={(event) => setBody(event.target.value)}
         />
-        <Input
-          id={`${fieldId}-author`}
-          label="Author"
-          placeholder="Optional"
-          value={author}
-          disabled={busy}
-          maxLength={120}
-          onChange={(event) => setAuthor(event.target.value)}
-        />
+        {signIn ? (
+          <p className="notes-panel__signed-in">{`As ${signIn.name} · ${signIn.location} · ${signIn.session}`}</p>
+        ) : (
+          <Input
+            id={`${fieldId}-author`}
+            label="Author"
+            placeholder="Optional"
+            value={author}
+            disabled={busy}
+            maxLength={120}
+            onChange={(event) => setAuthor(event.target.value)}
+          />
+        )}
         <Button type="submit" color="blue" disabled={busy || body.trim() === ""}>
           Add note
         </Button>
@@ -99,6 +113,11 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
             <li key={note.id} className="notes-panel__note">
               <div className="notes-panel__meta">
                 <span className="notes-panel__author">{note.author || "anonymous"}</span>
+                {(note.location || note.session) && (
+                  <span className="notes-panel__where">
+                    {[note.location, note.session].filter(Boolean).join(" · ")}
+                  </span>
+                )}
                 <Tooltip content={formatTimestamp(note.created_at)}>
                   <time className="notes-panel__time" dateTime={note.created_at}>
                     {formatRelativeTime(note.created_at)}

@@ -7,6 +7,7 @@ import {
   faMicrochip,
   faPlay,
   faSliders,
+  faUser,
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -22,8 +23,10 @@ import logo from "@assets/logo.svg";
 import ApiErrorBanner from "@components/ApiErrorBanner";
 import ErrorBoundary from "@components/ErrorBoundary";
 import ShortcutsHelp from "@components/ShortcutsHelp";
+import SignInDialog from "@components/SignInDialog";
 import StatusPill from "@components/StatusPill";
 import useGlobalShortcuts from "@hooks/useGlobalShortcuts";
+import useSignIn from "@hooks/useSignIn";
 import { isLive } from "../utils/run_status";
 
 import "./Layout.scss";
@@ -65,6 +68,8 @@ export const Layout: React.FC = () => {
   const location = useLocation();
   const { closeHelp, helpOpen, shortcuts } = useGlobalShortcuts();
   const [tabsOpen, setTabsOpen] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
+  const signIn = useSignIn();
 
   const version = useQuery({
     queryKey: ["system-info"],
@@ -139,6 +144,23 @@ export const Layout: React.FC = () => {
             </Link>
           )}
 
+          <Button
+            className="layout__sign-in"
+            size="small"
+            aria-label={signIn ? `Signed in as ${signIn.name}` : "Sign in"}
+            onClick={() => setSigningIn(true)}
+          >
+            <FontAwesomeIcon icon={faUser} />
+            {signIn ? (
+              <span className="layout__sign-in-text">
+                <span className="layout__sign-in-name">{signIn.name}</span>
+                <span className="layout__sign-in-where">{`${signIn.location} · ${signIn.session}`}</span>
+              </span>
+            ) : (
+              "Sign in"
+            )}
+          </Button>
+
           <Button color="blue" size="small" onClick={() => navigate("/tests")}>
             <FontAwesomeIcon icon={faPlay} />
             Run a test
@@ -158,6 +180,7 @@ export const Layout: React.FC = () => {
       </main>
 
       {helpOpen && <ShortcutsHelp shortcuts={shortcuts} onClose={closeHelp} />}
+      {signingIn && <SignInDialog current={signIn} onClose={() => setSigningIn(false)} />}
     </div>
   );
 };

@@ -183,7 +183,12 @@ describe("UnitDetail", () => {
 
     await userEvent.type(screen.getByLabelText("Add a note"), "swapped harness");
     await userEvent.click(screen.getByRole("button", { name: "Add note" }));
-    expect(addUnitNote).toHaveBeenCalledWith("HC-001", "swapped harness", null);
+    expect(addUnitNote).toHaveBeenCalledWith("HC-001", {
+      author: null,
+      body: "swapped harness",
+      location: null,
+      session: null,
+    });
   });
 
   it("reports a unit the API does not know", async () => {

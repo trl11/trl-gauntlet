@@ -23,6 +23,7 @@ import {
   setRunFavorite,
   stopRun,
 } from "@api/client";
+import type { NoteBody } from "@api/types";
 import ArtifactList from "@components/ArtifactList";
 import DefinitionRows from "@components/DefinitionRows";
 import EmptyState from "@components/EmptyState";
@@ -160,8 +161,7 @@ export const RunPage: React.FC = () => {
   });
   const refreshNotes = () => queryClient.invalidateQueries({ queryKey: ["run-notes", runId] });
   const addNote = useMutation({
-    mutationFn: (note: { author: string | null; body: string }) =>
-      addRunNote(runId, note.body, note.author),
+    mutationFn: (note: NoteBody) => addRunNote(runId, note),
     onSuccess: refreshNotes,
   });
   const removeNote = useMutation({
@@ -360,6 +360,27 @@ export const RunPage: React.FC = () => {
               ),
             },
             { label: "target", value: detail.target ?? "-" },
+            { label: "operator", value: detail.operator ?? "-" },
+            {
+              label: "location",
+              value: detail.location ? (
+                <Link to={`/history?location=${encodeURIComponent(detail.location)}`}>
+                  {detail.location}
+                </Link>
+              ) : (
+                "-"
+              ),
+            },
+            {
+              label: "session",
+              value: detail.session ? (
+                <Link to={`/history?session=${encodeURIComponent(detail.session)}`}>
+                  {detail.session}
+                </Link>
+              ) : (
+                "-"
+              ),
+            },
             { label: "started", value: formatTimestamp(detail.started_at) },
             { label: "ended", value: formatTimestamp(detail.ended_at) },
             {
@@ -494,7 +515,7 @@ export const RunPage: React.FC = () => {
           <NotesPanel
             busy={addNote.isPending || removeNote.isPending || notes.isPending}
             notes={notes.data?.notes ?? []}
-            onAdd={(body, author) => addNote.mutateAsync({ author, body })}
+            onAdd={(note) => addNote.mutateAsync(note)}
             onDelete={(noteId) => removeNote.mutateAsync(noteId)}
           />
         )}

@@ -39,6 +39,9 @@ _PORTABLE_COLUMNS = (
     "profile",
     "target",
     "unit_serial",
+    "operator",
+    "location",
+    "session",
 )
 
 
@@ -74,7 +77,16 @@ def export_run(row: RunRow, notes: list[NoteRow], destination: Path) -> Path:
         "exported_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "gauntletVersion": __version__,
         "run": {column: getattr(row, column) for column in _PORTABLE_COLUMNS},
-        "notes": [{"body": n.body, "author": n.author, "created_at": n.created_at} for n in notes],
+        "notes": [
+            {
+                "body": n.body,
+                "author": n.author,
+                "location": n.location,
+                "session": n.session,
+                "created_at": n.created_at,
+            }
+            for n in notes
+        ],
     }
     run_dir = Path(row.run_dir) if row.run_dir else None
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -137,7 +149,15 @@ def import_run(archive: Path, runs_dir: Path, runs: RunsIndex, notes: NotesIndex
     runs.upsert(row)
     notes.delete_subject(SUBJECT_RUN, export.run_id)
     for note in reversed(export.notes):
-        notes.add(SUBJECT_RUN, export.run_id, note.body, note.author, created_at=note.created_at)
+        notes.add(
+            SUBJECT_RUN,
+            export.run_id,
+            note.body,
+            note.author,
+            created_at=note.created_at,
+            location=note.location,
+            session=note.session,
+        )
     return row
 
 
@@ -183,6 +203,9 @@ def _row(run: dict[str, Any]) -> RunRow:
         profile=_text(fields["profile"]),
         target=_text(fields["target"]),
         unit_serial=_text(fields["unit_serial"]),
+        operator=_text(fields["operator"]),
+        location=_text(fields["location"]),
+        session=_text(fields["session"]),
     )
 
 
@@ -208,6 +231,8 @@ def _notes(raw: Any, run_id: str) -> list[NoteRow]:
             body=str(entry.get("body") or ""),
             created_at=str(entry.get("created_at") or ""),
             author=_text(entry.get("author")),
+            location=_text(entry.get("location")),
+            session=_text(entry.get("session")),
         )
         for entry in raw
         if isinstance(entry, dict) and entry.get("body")

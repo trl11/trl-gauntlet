@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from gauntlet.storage.columns import add_missing_columns
+
 NOTES_SCHEMA = """
 CREATE TABLE IF NOT EXISTS notes (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,7 +22,9 @@ CREATE TABLE IF NOT EXISTS notes (
     subject_id   TEXT NOT NULL,
     body         TEXT NOT NULL,
     author       TEXT,
-    created_at   TEXT NOT NULL
+    created_at   TEXT NOT NULL,
+    location     TEXT,
+    session      TEXT
 );
 CREATE INDEX IF NOT EXISTS notes_subject ON notes (subject_kind, subject_id);
 """
@@ -39,12 +43,16 @@ class NoteRow:
     body: str
     created_at: str
     author: str | None = None
+    location: str | None = None
+    session: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "body": self.body,
             "author": self.author,
+            "location": self.location,
+            "session": self.session,
             "created_at": self.created_at,
         }
 
@@ -58,6 +66,7 @@ class NotesIndex:
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(NOTES_SCHEMA)
         self._conn.commit()
+        add_missing_columns(self._conn, "notes", {"location": "TEXT", "session": "TEXT"})
         self._lock = threading.Lock()
 
     def close(self) -> None:
@@ -71,6 +80,8 @@ class NotesIndex:
         body: str,
         author: str | None = None,
         created_at: str | None = None,
+        location: str | None = None,
+        session: str | None = None,
     ) -> NoteRow:
         """Append a note and return it with its assigned id.
 
@@ -81,8 +92,9 @@ class NotesIndex:
         created_at = created_at or _utc_iso()
         with self._lock:
             cursor = self._conn.execute(
-                "INSERT INTO notes (subject_kind, subject_id, body, author, created_at) VALUES (?, ?, ?, ?, ?)",
-                (subject_kind, subject_id, body, author, created_at),
+                "INSERT INTO notes (subject_kind, subject_id, body, author, created_at, location, session) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (subject_kind, subject_id, body, author, created_at, location, session),
             )
             self._conn.commit()
             note_id = int(cursor.lastrowid or 0)
@@ -93,6 +105,8 @@ class NotesIndex:
             body=body,
             author=author,
             created_at=created_at,
+            location=location,
+            session=session,
         )
 
     def count(self, subject_kind: str, subject_id: str) -> int:

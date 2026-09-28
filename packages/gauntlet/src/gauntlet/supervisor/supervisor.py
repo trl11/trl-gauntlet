@@ -31,6 +31,7 @@ from typing import Any
 from gauntlet_sdk.contract import Verdict
 
 from gauntlet.capabilities.registry import CapabilityError, CapabilityRegistry
+from gauntlet.storage.runs import PROVENANCE_NAME
 from gauntlet.suites.discovery import SuiteCatalog, resolve_profile
 from gauntlet.supervisor.events import EventBus
 from gauntlet.supervisor.launcher import Launch, LaunchError, RunRequest, build_launch
@@ -62,6 +63,9 @@ class RunHandle:
     profile: str | None = None
     target: str | None = None
     unit_serial: str | None = None
+    operator: str | None = None
+    location: str | None = None
+    session: str | None = None
     ended_at: str | None = None
     duration_s: float | None = None
     verdict: str | None = None
@@ -96,6 +100,9 @@ class RunHandle:
             "profile": self.profile,
             "target": self.target,
             "unit_serial": self.unit_serial,
+            "operator": self.operator,
+            "location": self.location,
+            "session": self.session,
             "run_dir": self.run_dir,
             "argv": list(self.argv),
         }
@@ -196,6 +203,7 @@ class RunSupervisor:
 
             if profile_path is not None:
                 _snapshot_profile(profile_path, run_dir)
+            _write_provenance(request, run_dir)
 
             handle = RunHandle(
                 run_id=run_id,
@@ -206,6 +214,9 @@ class RunSupervisor:
                 profile=profile_path.name if profile_path else None,
                 target=request.target,
                 unit_serial=request.unit_serial,
+                operator=request.operator,
+                location=request.location,
+                session=request.session,
                 argv=list(launch.argv),
                 observing=observing,
                 bus=EventBus(),
@@ -552,6 +563,16 @@ def _snapshot_profile(source: Path, run_dir: Path) -> None:
         return
     with contextlib.suppress(OSError):
         destination.write_bytes(source.read_bytes())
+
+
+def _write_provenance(request: RunRequest, run_dir: Path) -> None:
+    """Record who started the run, where, and in which session, beside its artifacts.
+
+    The index is rebuilt from disk, so what is not on disk does not survive it.
+    """
+    provenance = {"operator": request.operator, "location": request.location, "session": request.session}
+    if any(provenance.values()):
+        (run_dir / PROVENANCE_NAME).write_text(json.dumps(provenance, indent=2) + "\n")
 
 
 def _write_scratch_profile(runs_dir: Path, suite_key: str, body: str) -> Path:

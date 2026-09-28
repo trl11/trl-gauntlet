@@ -154,8 +154,9 @@ Paths are relative to `GAUNTLET_RUN_DIR`.
 | `test.log` | no | Gauntlet | Captured stdout and stderr, each line prefixed with the UTC time Gauntlet read it, as `2026-01-01T00:00:00.000Z`. |
 | `instruments.jsonl` | no | Gauntlet, during the run | What the bench's instruments read, one line per instrument per second. |
 | `instruments.json` | no | Gauntlet, at exit | The same readings summarised: count, extremes, mean and last. |
+| `provenance.json` | no | Gauntlet, at start | Who started the run, where, and in which test session, as the operator signed in. Absent when nobody did. |
 
-The last two are Gauntlet's own and a suite neither writes nor reads them: it
+The last three are Gauntlet's own and a suite neither writes nor reads them: it
 is not told which instruments are being recorded, and a run is identical
 whether they are or not.
 

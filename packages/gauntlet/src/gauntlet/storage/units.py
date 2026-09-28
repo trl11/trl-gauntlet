@@ -117,12 +117,26 @@ class UnitsIndex:
         row.note_count = self._notes.count(SUBJECT_UNIT, serial)
         return row
 
-    def list(self) -> list[UnitRow]:
-        """Every known unit, most recently seen first."""
+    def list(self, location: str | None = None, session: str | None = None) -> list[UnitRow]:
+        """Every known unit, most recently seen first.
+
+        ``location`` and ``session`` keep the units with a run recorded there,
+        and count only those runs. A unit known from its metadata alone has no
+        run to match, so a filtered list leaves it out.
+        """
+        clauses: list[str] = []
+        params: list[str] = []
+        if location:
+            clauses.append("AND location = ?")
+            params.append(location)
+        if session:
+            clauses.append("AND session = ?")
+            params.append(session)
+        where = " ".join(clauses)
         with self._lock:
-            counters = self._conn.execute(_COUNTERS.format(where="")).fetchall()
-            runs = self._conn.execute(_RUNS.format(where="")).fetchall()
-            metadata = self._conn.execute("SELECT * FROM units").fetchall()
+            counters = self._conn.execute(_COUNTERS.format(where=where), params).fetchall()
+            runs = self._conn.execute(_RUNS.format(where=where), params).fetchall()
+            metadata = [] if clauses else self._conn.execute("SELECT * FROM units").fetchall()
         rows = {str(row["serial"]): _to_row(row) for row in counters}
         for record in runs:
             rows[str(record["serial"])].last_run = _last_run(record)

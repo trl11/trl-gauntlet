@@ -17,12 +17,14 @@ const listRuns = vi.fn();
 const listSuites = vi.fn();
 const listUnits = vi.fn();
 const setRunFavorite = vi.fn();
+const getRunProvenance = vi.fn();
 
 vi.mock("@api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@api/client")>();
   return {
     ...actual,
     deleteRun: (...args: unknown[]) => deleteRun(...args),
+    getRunProvenance: () => getRunProvenance(),
     importRun: (...args: unknown[]) => importRun(...args),
     getRunVerdict: (...args: unknown[]) => getRunVerdict(...args),
     listRuns: (...args: unknown[]) => listRuns(...args),
@@ -100,6 +102,11 @@ beforeEach(() => {
   });
   listSuites.mockResolvedValue({ errors: [], suites: [] });
   listUnits.mockResolvedValue({ units: [] });
+  getRunProvenance.mockResolvedValue({
+    locations: ["Lab 2"],
+    operators: ["Ada"],
+    sessions: ["week 1"],
+  });
 });
 
 afterEach(() => {
@@ -117,8 +124,10 @@ describe("HistoryPage", () => {
         favorite: null,
         has_notes: null,
         limit: 20,
+        location: null,
         offset: 0,
         q: null,
+        session: null,
         sort: "started_at",
         status: [],
         suite: null,
@@ -139,8 +148,10 @@ describe("HistoryPage", () => {
         favorite: null,
         has_notes: null,
         limit: 50,
+        location: null,
         offset: 50,
         q: null,
+        session: null,
         sort: "started_at",
         status: [],
         suite: "thermal_cycle",
@@ -162,6 +173,15 @@ describe("HistoryPage", () => {
     renderHistory("/history?status=failed");
     await waitFor(() =>
       expect(listRuns).toHaveBeenCalledWith(expect.objectContaining({ status: ["failed"] }))
+    );
+  });
+
+  it("asks for the runs at one location and in one session", async () => {
+    renderHistory("/history?location=Lab%202&session=week%201");
+    await waitFor(() =>
+      expect(listRuns).toHaveBeenCalledWith(
+        expect.objectContaining({ location: "Lab 2", session: "week 1" })
+      )
     );
   });
 

@@ -75,7 +75,11 @@ export const DashboardPage: React.FC = () => {
     refetchInterval: 10_000,
   });
   const suites = useQuery({ queryKey: ["suites"], queryFn: listSuites });
-  const units = useQuery({ queryKey: ["units"], queryFn: listUnits, refetchInterval: 10_000 });
+  const units = useQuery({
+    queryKey: ["units"],
+    queryFn: () => listUnits(),
+    refetchInterval: 10_000,
+  });
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);

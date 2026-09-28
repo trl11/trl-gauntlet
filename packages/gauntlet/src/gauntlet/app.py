@@ -109,6 +109,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 profile=handle.profile,
                 target=handle.target,
                 unit_serial=handle.unit_serial,
+                operator=handle.operator,
+                location=handle.location,
+                session=handle.session,
             )
         )
 

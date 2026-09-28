@@ -29,9 +29,13 @@ class RenameBody(BaseModel):
 
 
 @router.get("/units")
-async def get_units(request: Request) -> dict[str, Any]:
-    """Every unit any run has named, most recently seen first."""
-    units = [unit.to_dict() for unit in _index(request).list()]
+async def get_units(request: Request, location: str | None = None, session: str | None = None) -> dict[str, Any]:
+    """Every unit any run has named, most recently seen first.
+
+    ``location`` and ``session`` keep the units run at that location and in that
+    test session, with counters over those runs alone.
+    """
+    units = [unit.to_dict() for unit in _index(request).list(location=location, session=session)]
     return {"units": units, "total": len(units)}
 
 

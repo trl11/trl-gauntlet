@@ -18,9 +18,12 @@ export type RunTableColumn =
   | "duration_s"
   | "fail_reason"
   | "favorite"
+  | "location"
   | "note_count"
+  | "operator"
   | "profile"
   | "run_id"
+  | "session"
   | "started_at"
   | "status"
   | "suite"
@@ -42,11 +45,14 @@ export const COLUMNS: Record<RunTableColumn, ColumnSpec> = {
   fail_reason: { header: "Reason", sortable: false },
   // Not sortable: favorites live in their own table, not a column of runs.
   favorite: { header: "Favorite", sortable: false },
+  location: { header: "Location", sortable: true },
   // Not sortable: the count is read from the notes table per request, so the
   // index has no column to order by.
   note_count: { header: "Notes", sortable: false },
+  operator: { header: "Operator", sortable: true },
   profile: { header: "Profile", sortable: true },
   run_id: { header: "Run", sortable: true },
+  session: { header: "Session", sortable: true },
   started_at: { header: "Started", sortable: true },
   status: { header: "Status", sortable: true },
   suite: { header: "Suite", sortable: true },
@@ -87,6 +93,9 @@ export function matches(run: RunRow, needle: string): boolean {
     run.unit_serial,
     run.status,
     run.fail_reason,
+    run.operator,
+    run.location,
+    run.session,
     run.campaign?.title,
   ]
     .filter(Boolean)

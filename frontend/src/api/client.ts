@@ -21,16 +21,19 @@ import type {
   JsonSchema,
   MetricsResponse,
   Note,
+  NoteBody,
   NoteList,
   PowerAction,
   PowerResult,
   ProfileContent,
   ProfileDiff,
+  Provenance,
   RunControlResult,
   RunFavorite,
   RunList,
   RecordedTick,
   RunManifest,
+  RunProvenance,
   RunRow,
   SavedProfile,
   Settings,
@@ -287,10 +290,14 @@ export const rescanCampaigns = (): Promise<CampaignList> =>
   request<CampaignList>("/api/campaigns/rescan", { method: "POST" });
 
 /** `POST /api/campaigns/{key}/members/{suite}/run` */
-export const runCampaignMember = (key: string, suite: string): Promise<RunRow> =>
+export const runCampaignMember = (
+  key: string,
+  suite: string,
+  provenance: Provenance
+): Promise<RunRow> =>
   request<RunRow>(`/api/campaigns/${encodeSegment(key)}/members/${encodeSegment(suite)}/run`, {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify(provenance),
   });
 
 /* -------------------------------------------------------------------------
@@ -306,7 +313,9 @@ export interface ListRunsParams {
   direction?: "asc" | "desc";
   /** Keep only the runs an operator has marked as a favorite. */
   favorite?: boolean | null;
-  /** Keep only the runs whose id, suite, profile, unit, target, status or failure reason contains this. */
+  /** Keep only the runs recorded at this location. */
+  location?: string | null;
+  /** Keep only the runs whose id, suite, profile, unit, target, status, failure reason, operator, location or session contains this. */
   q?: string | null;
   /** Keep only the runs an operator has written a note against. */
   has_notes?: boolean | null;
@@ -315,6 +324,8 @@ export interface ListRunsParams {
   /** Column to order by. Anything the index does not know falls back to `started_at`. */
   sort?: string;
   /** Any run whose status is in this list. Empty accepts every status. */
+  /** Keep only the runs recorded in this test session. */
+  session?: string | null;
   status?: string[];
   suite?: string | null;
   unit_serial?: string | null;
@@ -323,6 +334,10 @@ export interface ListRunsParams {
 /** `GET /api/runs` */
 export const listRuns = (params: ListRunsParams = {}): Promise<RunList> =>
   request<RunList>(`/api/runs${query({ ...params })}`);
+
+/** `GET /api/runs/provenance` */
+export const getRunProvenance = (): Promise<RunProvenance> =>
+  request<RunProvenance>("/api/runs/provenance");
 
 /** `POST /api/runs` */
 export const startRun = (body: StartRunBody): Promise<RunRow> =>
@@ -440,14 +455,10 @@ export const listRunNotes = (runId: string): Promise<NoteList> =>
   request<NoteList>(`/api/runs/${encodeSegment(runId)}/notes`);
 
 /** `POST /api/runs/{id}/notes` */
-export const addRunNote = (
-  runId: string,
-  body: string,
-  author: string | null = null
-): Promise<Note> =>
+export const addRunNote = (runId: string, note: NoteBody): Promise<Note> =>
   request<Note>(`/api/runs/${encodeSegment(runId)}/notes`, {
     method: "POST",
-    body: JSON.stringify({ body, author }),
+    body: JSON.stringify(note),
   });
 
 /** `DELETE /api/runs/{id}/notes/{note_id}` */
@@ -458,8 +469,15 @@ export const deleteRunNote = (runId: string, noteId: number): Promise<Deleted> =
  * Units
  * ---------------------------------------------------------------------- */
 
+/** Filters accepted by `GET /api/units`. Each keeps the units run there, counting only those runs. */
+export interface ListUnitsParams {
+  location?: string | null;
+  session?: string | null;
+}
+
 /** `GET /api/units` */
-export const listUnits = (): Promise<UnitList> => request<UnitList>("/api/units");
+export const listUnits = (params: ListUnitsParams = {}): Promise<UnitList> =>
+  request<UnitList>(`/api/units${query({ ...params })}`);
 
 /** `GET /api/units/{serial}` */
 export const getUnit = (serial: string): Promise<UnitDetail> =>
@@ -487,14 +505,10 @@ export const listUnitNotes = (serial: string): Promise<NoteList> =>
   request<NoteList>(`/api/units/${encodeSegment(serial)}/notes`);
 
 /** `POST /api/units/{serial}/notes` */
-export const addUnitNote = (
-  serial: string,
-  body: string,
-  author: string | null = null
-): Promise<Note> =>
+export const addUnitNote = (serial: string, note: NoteBody): Promise<Note> =>
   request<Note>(`/api/units/${encodeSegment(serial)}/notes`, {
     method: "POST",
-    body: JSON.stringify({ body, author }),
+    body: JSON.stringify(note),
   });
 
 /** `DELETE /api/units/{serial}/notes/{note_id}` */

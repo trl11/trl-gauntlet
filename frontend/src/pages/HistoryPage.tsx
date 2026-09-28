@@ -9,6 +9,7 @@ import { useSearchParams } from "react-router";
 import {
   ApiError,
   deleteRun,
+  getRunProvenance,
   importRun,
   listRuns,
   listSuites,
@@ -39,6 +40,8 @@ const COLUMNS: RunTableColumn[] = [
   "campaign",
   "profile",
   "unit_serial",
+  "location",
+  "session",
   "note_count",
   "status",
 ];
@@ -125,7 +128,9 @@ export const HistoryPage: React.FC = () => {
   const filters: Filters = {
     after: params.get("after") || "all",
     before: params.get("before") || "all",
+    location: params.get("location") || "all",
     notes: params.get("notes") || "all",
+    session: params.get("session") || "all",
     status: params.get("status") || "all",
     suite: params.get("suite") || "all",
     unit: params.get("unit") || "all",
@@ -150,7 +155,8 @@ export const HistoryPage: React.FC = () => {
   };
 
   const suites = useQuery({ queryKey: ["suites"], queryFn: listSuites });
-  const units = useQuery({ queryKey: ["units"], queryFn: listUnits });
+  const units = useQuery({ queryKey: ["units"], queryFn: () => listUnits() });
+  const provenance = useQuery({ queryKey: ["runs", "provenance"], queryFn: getRunProvenance });
   const query = {
     after: filters.after === "all" ? null : String(filters.after),
     before: filters.before === "all" ? null : String(filters.before),
@@ -160,7 +166,9 @@ export const HistoryPage: React.FC = () => {
     // Null rather than false, so a listing nobody filtered asks for nothing.
     has_notes: filters.notes === "with" ? true : null,
     limit: size,
+    location: filters.location === "all" ? null : String(filters.location),
     offset: (page - 1) * size,
+    session: filters.session === "all" ? null : String(filters.session),
     sort,
     status: statusFilter(String(filters.status)),
     suite: filters.suite === "all" ? null : String(filters.suite),
@@ -190,7 +198,7 @@ export const HistoryPage: React.FC = () => {
               aria-label="Search runs"
               className="history-page__search"
               id={`${fieldId}-search`}
-              placeholder="Search run id, suite, unit, reason"
+              placeholder="Search run id, suite, unit, operator, reason"
               type="search"
               value={search}
               onChange={(event) => write({ page: "", q: event.target.value })}
@@ -262,6 +270,20 @@ export const HistoryPage: React.FC = () => {
                       value: unit.serial,
                       label: unit.serial,
                     })),
+                  ],
+                },
+                {
+                  id: "location",
+                  options: [
+                    { value: "all", label: "Any location" },
+                    ...(provenance.data?.locations ?? []).map((value) => ({ value, label: value })),
+                  ],
+                },
+                {
+                  id: "session",
+                  options: [
+                    { value: "all", label: "Any session" },
+                    ...(provenance.data?.sessions ?? []).map((value) => ({ value, label: value })),
                   ],
                 },
                 { id: "after", select: false, type: "date", label: "Started on or after" },
