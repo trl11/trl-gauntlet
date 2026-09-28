@@ -3,7 +3,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Confirm, Spinner } from "@trl11/components/ui";
 import clsx from "clsx";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 
 import {
@@ -78,7 +78,8 @@ type Tab = (typeof TABS)[number];
 export const RunPage: React.FC = () => {
   const { runId = "" } = useParams<{ runId: string }>();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<Tab>("overview");
+  // Null until the operator picks a tab or the run's first answer picks one.
+  const [tab, setTab] = useState<Tab | null>(null);
   const [pending, setPending] = useState<"abort" | "stop" | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
 
@@ -89,6 +90,13 @@ export const RunPage: React.FC = () => {
   });
   const live = isLive(run.data?.status);
   const settled = run.data !== undefined && !live;
+
+  // A run still in flight opens on its log, which is the only thing moving;
+  // a finished one opens on its overview. Decided once, so a run finishing
+  // under an operator watching its log does not take the log away.
+  useEffect(() => {
+    if (tab === null && run.data !== undefined) setTab(live ? "log" : "overview");
+  }, [live, run.data, tab]);
 
   // Cached alongside every other page that lists suites, so this rarely
   // triggers its own request. Only its manifest's default_metrics is used
@@ -287,7 +295,7 @@ export const RunPage: React.FC = () => {
     traces: traces.length === 0,
   };
   const visibleTabs = TABS.filter((name) => !empty[name]);
-  const active = visibleTabs.includes(tab) ? tab : "overview";
+  const active = tab !== null && visibleTabs.includes(tab) ? tab : "overview";
 
   return (
     <div className="run-page">

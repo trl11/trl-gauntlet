@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -233,6 +233,21 @@ describe("RunPage", () => {
     const link = await screen.findByRole("link", { name: "Export run" });
     expect(link).toHaveAttribute("href", "/api/runs/run-1/export");
     expect(link).toHaveAttribute("download");
+  });
+
+  it("opens a run still in flight on its log", async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...FINISHED, status: "running", ended_at: null });
+    renderPage();
+    await screen.findByRole("button", { name: "Stop" });
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: /log/ })).toHaveAttribute("aria-selected", "true")
+    );
+  });
+
+  it("opens a finished run on its overview", async () => {
+    renderPage();
+    await screen.findByText("FAILED");
+    expect(screen.getByRole("tab", { name: "overview" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("does not offer to export a run that is still writing artifacts", async () => {
