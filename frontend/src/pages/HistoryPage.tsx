@@ -1,7 +1,15 @@
-import { faStar } from "@fortawesome/free-solid-svg-icons";
+import { faFileImport, faStar } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Confirm, FilterMenu, Input, Pagination, Tooltip } from "@trl11/components/ui";
+import {
+  Button,
+  Confirm,
+  FilterMenu,
+  Input,
+  Pagination,
+  Spinner,
+  Tooltip,
+} from "@trl11/components/ui";
 import clsx from "clsx";
 import { useId, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
@@ -207,7 +215,7 @@ export const HistoryPage: React.FC = () => {
               aria-label="Search runs"
               className="history-page__search"
               id={`${fieldId}-search`}
-              placeholder="Search run id, suite, unit, operator, reason"
+              placeholder="Search"
               type="search"
               value={search}
               onChange={(event) => write({ page: "", q: event.target.value })}
@@ -223,13 +231,17 @@ export const HistoryPage: React.FC = () => {
               ref={archiveInput}
               type="file"
             />
-            <Button
-              disabled={bringIn.isPending}
-              size="small"
-              onClick={() => archiveInput.current?.click()}
-            >
-              {bringIn.isPending ? "Importing" : "Import run"}
-            </Button>
+            <Tooltip content={bringIn.isPending ? "Importing" : "Import a run archive"}>
+              <Button
+                aria-label={bringIn.isPending ? "Importing" : "Import"}
+                className="history-page__import"
+                disabled={bringIn.isPending}
+                square
+                onClick={() => archiveInput.current?.click()}
+              >
+                {bringIn.isPending ? <Spinner /> : <FontAwesomeIcon icon={faFileImport} />}
+              </Button>
+            </Tooltip>
           </>
         }
         filter={

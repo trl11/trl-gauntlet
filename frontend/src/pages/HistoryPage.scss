@@ -30,6 +30,10 @@
     }
   }
 
+  &__import svg {
+    color: $trl-gray;
+  }
+
   &__archive {
     display: none;
   }
