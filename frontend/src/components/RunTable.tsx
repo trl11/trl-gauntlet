@@ -17,7 +17,7 @@ import {
   renderCell,
   type RunTableColumn,
 } from "@components/run_columns";
-import { matchesStatus, RUN_STATUS_OPTIONS } from "../utils/run_status";
+import { isLive, matchesStatus, RUN_STATUS_OPTIONS } from "../utils/run_status";
 
 import "./RunTable.scss";
 
@@ -38,6 +38,11 @@ export interface RunTableProps {
   loading?: boolean;
   /** Offers "Delete" from a per-row "more actions" menu when set. */
   onDeleteRun?: (run: RunRow) => void;
+  /**
+   * Offers "Export" from the same menu when set, on finished runs only: the
+   * server refuses to archive a run still writing its artifacts.
+   */
+  onExportRun?: (run: RunRow) => void;
   /**
    * Offers marking or unmarking a favorite from the same menu when set, and
    * turns the favorite column's star into a toggle that shows on hover.
@@ -72,6 +77,7 @@ export const RunTable: React.FC<RunTableProps> = ({
   filterable = true,
   loading = false,
   onDeleteRun,
+  onExportRun,
   onToggleFavorite,
   onSelect,
   onSelectionChange,
@@ -119,7 +125,7 @@ export const RunTable: React.FC<RunTableProps> = ({
   const rows = paginate ? matching.slice((page - 1) * perPage, page * perPage) : matching;
   const pageIds = rows.map((run) => run.run_id);
   const allSelected = rows.length > 0 && pageIds.every((id) => selectedIds?.includes(id));
-  const hasMenu = Boolean(onDeleteRun || onToggleFavorite);
+  const hasMenu = Boolean(onDeleteRun || onExportRun || onToggleFavorite);
   const extraColumns = (selectable ? 1 : 0) + (renderExpanded ? 1 : 0) + (hasMenu ? 1 : 0);
 
   const sortBy = (column: RunTableColumn) => {
@@ -336,6 +342,9 @@ export const RunTable: React.FC<RunTableProps> = ({
                                     onSelect: () => onToggleFavorite(run),
                                   },
                                 ]
+                              : []),
+                            ...(onExportRun && !isLive(run.status)
+                              ? [{ label: "Export", onSelect: () => onExportRun(run) }]
                               : []),
                             ...(onDeleteRun
                               ? [

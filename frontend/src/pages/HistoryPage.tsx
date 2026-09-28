@@ -14,6 +14,7 @@ import {
   listRuns,
   listSuites,
   listUnits,
+  runExportUrl,
   setRunFavorite,
 } from "@api/client";
 import type { RunRow } from "@api/types";
@@ -55,6 +56,14 @@ function statusFilter(value: string): string[] {
   if (value === "all") return [];
   if (value === "live") return LIVE_STATUSES;
   return [value];
+}
+
+/** Downloads one run's archive, the way the run page's export link does. */
+function exportRun(run: RunRow): void {
+  const anchor = document.createElement("a");
+  anchor.href = runExportUrl(run.run_id);
+  anchor.download = "";
+  anchor.click();
 }
 
 /** Deletes every run named, reporting which ones the server refused. */
@@ -342,6 +351,7 @@ export const HistoryPage: React.FC = () => {
           filterable={false}
           loading={runs.isPending}
           onDeleteRun={(run) => setConfirming([run])}
+          onExportRun={exportRun}
           onToggleFavorite={(run) => favorite.mutate(run)}
           onSelectionChange={setSelected}
           onSort={(column, next) => write({ dir: next, sort: column })}

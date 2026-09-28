@@ -263,6 +263,31 @@ describe("RunTable rows", () => {
     expect(onDeleteRun).toHaveBeenCalledWith(expect.objectContaining({ run_id: "r-2" }));
   });
 
+  it("offers Export from a row menu for a finished run", async () => {
+    const user = userEvent.setup();
+    const onExportRun = vi.fn();
+    renderTable({ onExportRun });
+
+    await user.click(screen.getByRole("button", { name: "Actions for run r-2" }));
+    const menu = document.querySelector(".row-menu") as HTMLElement;
+    await user.click(within(menu).getByRole("button", { name: "Export" }));
+
+    expect(onExportRun).toHaveBeenCalledWith(expect.objectContaining({ run_id: "r-2" }));
+  });
+
+  it("offers no Export for a run still in flight", async () => {
+    const user = userEvent.setup();
+    renderTable({
+      onDeleteRun: vi.fn(),
+      onExportRun: vi.fn(),
+      runs: [run({ run_id: "r-1", status: "running", verdict: null })],
+    });
+
+    await user.click(screen.getByRole("button", { name: "Actions for run r-1" }));
+    const menu = document.querySelector(".row-menu") as HTMLElement;
+    expect(within(menu).queryByRole("button", { name: "Export" })).not.toBeInTheDocument();
+  });
+
   it("has no row menu when the caller offers no delete", () => {
     renderTable();
     expect(screen.queryByRole("button", { name: /Actions for run/ })).not.toBeInTheDocument();

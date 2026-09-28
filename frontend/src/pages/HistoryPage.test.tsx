@@ -299,6 +299,18 @@ describe("HistoryPage", () => {
     await waitFor(() => expect(setRunFavorite).toHaveBeenCalledWith("r1", true));
   });
 
+  it("downloads a run's archive from its row menu", async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    renderHistory();
+    await userEvent.click(await screen.findByRole("button", { name: "Actions for run r1" }));
+    const menu = document.querySelector(".row-menu") as HTMLElement;
+    await userEvent.click(within(menu).getByRole("button", { name: "Export" }));
+    expect(click).toHaveBeenCalledTimes(1);
+    const anchor = click.mock.contexts[0] as HTMLAnchorElement;
+    expect(anchor.getAttribute("href")).toBe("/api/runs/r1/export");
+    expect(anchor.hasAttribute("download")).toBe(true);
+  });
+
   it("removes a favorite from its row menu", async () => {
     setRunFavorite.mockResolvedValue({ favorite: false, run_id: "r1" });
     listRuns.mockResolvedValue({ runs: [run({ favorite: true })], total: 1 });
