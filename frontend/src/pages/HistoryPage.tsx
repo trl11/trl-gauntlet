@@ -323,7 +323,7 @@ export const HistoryPage: React.FC = () => {
         batchActions={
           <>
             <Button size="small" onClick={() => downloadCsv(toCsv(selectedRows))}>
-              Export CSV
+              Export
             </Button>
             <Button size="small" onClick={() => setSelected([])}>
               Clear

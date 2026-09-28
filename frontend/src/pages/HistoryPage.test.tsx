@@ -395,7 +395,7 @@ describe("HistoryPage", () => {
     await userEvent.click(
       await screen.findByRole("checkbox", { name: "Select every run on this page" })
     );
-    await userEvent.click(screen.getByRole("button", { name: "Export CSV" }));
+    await userEvent.click(screen.getByRole("button", { name: "Export" }));
 
     expect(blobs).toHaveLength(1);
     const text = await readBlob(blobs[0]);
@@ -410,7 +410,7 @@ describe("HistoryPage", () => {
   it("hides batch actions until a row is selected", async () => {
     renderHistory();
     await screen.findByText(/of \d+ · page/);
-    expect(screen.queryByRole("button", { name: "Export CSV" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Export" })).not.toBeInTheDocument();
   });
 
   it("deletes one run from its row menu, after confirming", async () => {
