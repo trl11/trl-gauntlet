@@ -6,7 +6,7 @@ import { useNavigate } from "react-router";
 import { getProfile, listInstruments, listUnits, startRun } from "@api/client";
 import type { Instrument, Suite } from "@api/types";
 import OverrideForm from "@components/OverrideForm";
-import useSignIn, { provenanceOf } from "@hooks/useSignIn";
+import useCheckIn, { provenanceOf } from "@hooks/useCheckIn";
 import {
   initialOverrideValues,
   overrideArgv,
@@ -49,7 +49,7 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
   const fieldId = useId();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const signIn = useSignIn();
+  const checkIn = useCheckIn();
 
   const profiles = suite.profiles_available ?? [];
   const [profile, setProfile] = useState(
@@ -116,7 +116,7 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
         unit_serial: suite.supports.unit_serial ? unitSerial.trim() || null : null,
         overrides: overridePayload(suite.overrides, values),
         observe: watched,
-        ...provenanceOf(signIn),
+        ...provenanceOf(checkIn),
       }),
     onSuccess: (run) => {
       queryClient.invalidateQueries({ queryKey: ["runs"] });
@@ -260,9 +260,9 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
             )}
             <dt>Recorded as</dt>
             <dd>
-              {signIn
-                ? `${signIn.name} · ${signIn.location} · ${signIn.session}`
-                : "(not signed in)"}
+              {checkIn
+                ? `${checkIn.name} · ${checkIn.location} · ${checkIn.session}`
+                : "(not checked in)"}
             </dd>
             <dt>Recording</dt>
             <dd className="mono">{recorded.length > 0 ? recorded.join(", ") : "(nothing)"}</dd>

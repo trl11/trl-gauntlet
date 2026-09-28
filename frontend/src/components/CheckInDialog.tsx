@@ -4,14 +4,14 @@ import { useId, useState } from "react";
 
 import { getRunProvenance } from "@api/client";
 import FieldInput from "@components/FieldInput";
-import { setSignIn, type SignIn } from "@hooks/useSignIn";
+import { setCheckIn, type CheckIn } from "@hooks/useCheckIn";
 
-import "./SignInDialog.scss";
+import "./CheckInDialog.scss";
 
-/** Props for {@link SignInDialog}. */
-export interface SignInDialogProps {
-  /** Who is signed in now, whose values the form starts from. */
-  current: SignIn | null;
+/** Props for {@link CheckInDialog}. */
+export interface CheckInDialogProps {
+  /** Who is checked in now, whose values the form starts from. */
+  current: CheckIn | null;
   onClose: () => void;
 }
 
@@ -21,7 +21,7 @@ export interface SignInDialogProps {
  * Each field completes from what earlier runs recorded, so a session two
  * operators share is spelled the same by both and filters as one.
  */
-const SignInDialog: React.FC<SignInDialogProps> = ({ current, onClose }) => {
+const CheckInDialog: React.FC<CheckInDialogProps> = ({ current, onClose }) => {
   const fieldId = useId();
   const [name, setName] = useState(current?.name ?? "");
   const [location, setLocation] = useState(current?.location ?? "");
@@ -50,17 +50,17 @@ const SignInDialog: React.FC<SignInDialogProps> = ({ current, onClose }) => {
   ];
 
   return (
-    <Modal title="Sign in" onClose={onClose}>
+    <Modal title="Check in" onClose={onClose}>
       <form
-        className="sign-in-dialog__form"
+        className="check-in-dialog__form"
         onSubmit={(event) => {
           event.preventDefault();
           if (!complete) return;
-          setSignIn(next);
+          setCheckIn(next);
           onClose();
         }}
       >
-        <p className="sign-in-dialog__note">
+        <p className="check-in-dialog__note">
           Runs you start and notes you write record these, so they can be found by location and
           session later. Nothing else needs them.
         </p>
@@ -82,24 +82,24 @@ const SignInDialog: React.FC<SignInDialogProps> = ({ current, onClose }) => {
             </datalist>
           </div>
         ))}
-        <div className="sign-in-dialog__actions">
+        <div className="check-in-dialog__actions">
           {current && (
             <Button
               type="button"
-              className="sign-in-dialog__sign-out"
+              className="check-in-dialog__check-out"
               onClick={() => {
-                setSignIn(null);
+                setCheckIn(null);
                 onClose();
               }}
             >
-              Sign out
+              Check out
             </Button>
           )}
           <Button type="button" onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit" color="blue" disabled={!complete}>
-            Sign in
+            Check in
           </Button>
         </div>
       </form>
@@ -107,4 +107,4 @@ const SignInDialog: React.FC<SignInDialogProps> = ({ current, onClose }) => {
   );
 };
 
-export default SignInDialog;
+export default CheckInDialog;

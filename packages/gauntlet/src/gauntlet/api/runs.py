@@ -47,8 +47,8 @@ class StartRunBody(BaseModel):
         description="Instruments to record for the run's duration, by instance key, "
         "beyond the ones its suite requires.",
     )
-    operator: str | None = Field(default=None, description="Who started the run, as they signed in.")
-    location: str | None = Field(default=None, description="Where the run was started, as the operator signed in.")
+    operator: str | None = Field(default=None, description="Who started the run, as they checked in.")
+    location: str | None = Field(default=None, description="Where the run was started, as the operator checked in.")
     session: str | None = Field(default=None, description="The test session the run belongs to.")
 
 

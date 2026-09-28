@@ -33,7 +33,7 @@ class MemberRunBody(BaseModel):
 
     Every field is optional: an empty body runs the member exactly as the
     campaign declares it. ``operator``, ``location`` and ``session`` are the
-    run's provenance, as the operator signed in, and nothing a campaign declares.
+    run's provenance, as the operator checked in, and nothing a campaign declares.
     """
 
     model_config = ConfigDict(extra="forbid")

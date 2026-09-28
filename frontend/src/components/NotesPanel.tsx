@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { useId, useState } from "react";
 
 import type { Note, NoteBody } from "@api/types";
-import useSignIn from "@hooks/useSignIn";
+import useCheckIn from "@hooks/useCheckIn";
 import { formatRelativeTime, formatTimestamp } from "../utils/format";
 
 import "./NotesPanel.scss";
@@ -18,7 +18,7 @@ export interface NotesPanelProps {
   /** Notes to render, newest first as returned by the API. */
   notes: Note[];
   /**
-   * Called with the composed note, stamped with the sign-in when there is one.
+   * Called with the composed note, stamped with the check-in when there is one.
    * Clearing the form waits on it resolving.
    */
   onAdd: (note: NoteBody) => void | Promise<unknown>;
@@ -44,17 +44,17 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
   const [body, setBody] = useState("");
   const [author, setAuthor] = useState("");
   const [pendingDelete, setPendingDelete] = useState<number | null>(null);
-  const signIn = useSignIn();
+  const checkIn = useCheckIn();
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     const text = body.trim();
     if (!text || busy) return;
     await onAdd({
-      author: signIn ? signIn.name : author.trim() || null,
+      author: checkIn ? checkIn.name : author.trim() || null,
       body: text,
-      location: signIn?.location ?? null,
-      session: signIn?.session ?? null,
+      location: checkIn?.location ?? null,
+      session: checkIn?.session ?? null,
     });
     setBody("");
   };
@@ -87,8 +87,8 @@ export const NotesPanel: React.FC<NotesPanelProps> = ({
           maxLength={2000}
           onChange={(event) => setBody(event.target.value)}
         />
-        {signIn ? (
-          <p className="notes-panel__signed-in">{`As ${signIn.name} · ${signIn.location} · ${signIn.session}`}</p>
+        {checkIn ? (
+          <p className="notes-panel__checked-in">{`As ${checkIn.name} · ${checkIn.location} · ${checkIn.session}`}</p>
         ) : (
           <Input
             id={`${fieldId}-author`}

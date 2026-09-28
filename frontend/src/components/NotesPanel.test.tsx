@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Note } from "@api/types";
-import { setSignIn } from "@hooks/useSignIn";
+import { setCheckIn } from "@hooks/useCheckIn";
 
 import NotesPanel from "./NotesPanel";
 
@@ -104,8 +104,8 @@ describe("NotesPanel composing", () => {
     });
   });
 
-  it("stamps the note with the sign-in instead of asking for an author", async () => {
-    setSignIn({ location: "Lab 2", name: "Ada", session: "week 1" });
+  it("stamps the note with the check-in instead of asking for an author", async () => {
+    setCheckIn({ location: "Lab 2", name: "Ada", session: "week 1" });
     const user = userEvent.setup();
     const onAdd = vi.fn();
     renderPanel({ onAdd });

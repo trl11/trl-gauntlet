@@ -3,9 +3,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SignIn } from "@hooks/useSignIn";
+import type { CheckIn } from "@hooks/useCheckIn";
 
-import SignInDialog from "./SignInDialog";
+import CheckInDialog from "./CheckInDialog";
 
 const getRunProvenance = vi.fn();
 
@@ -14,17 +14,17 @@ vi.mock("@api/client", async (importOriginal) => {
   return { ...actual, getRunProvenance: () => getRunProvenance() };
 });
 
-function renderDialog(current: SignIn | null = null, onClose = vi.fn()) {
+function renderDialog(current: CheckIn | null = null, onClose = vi.fn()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <SignInDialog current={current} onClose={onClose} />
+      <CheckInDialog current={current} onClose={onClose} />
     </QueryClientProvider>
   );
 }
 
 function stored(): unknown {
-  const raw = localStorage.getItem("gauntlet:sign-in");
+  const raw = localStorage.getItem("gauntlet:check-in");
   return raw === null ? null : JSON.parse(raw);
 }
 
@@ -36,36 +36,36 @@ beforeEach(() => {
   });
 });
 
-describe("SignInDialog", () => {
-  it("will not sign in until every field is filled", async () => {
+describe("CheckInDialog", () => {
+  it("will not check in until every field is filled", async () => {
     const user = userEvent.setup();
     renderDialog();
     await user.type(screen.getByLabelText("Name"), "Ada");
     await user.type(screen.getByLabelText("Location"), "Lab 2");
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Check in" })).toBeDisabled();
   });
 
-  it("keeps the sign-in, trimmed, and closes", async () => {
+  it("keeps the check-in, trimmed, and closes", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     renderDialog(null, onClose);
     await user.type(screen.getByLabelText("Name"), " Ada ");
     await user.type(screen.getByLabelText("Location"), "Lab 2");
     await user.type(screen.getByLabelText("Test session"), "week 1");
-    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await user.click(screen.getByRole("button", { name: "Check in" }));
     expect(stored()).toEqual({ location: "Lab 2", name: "Ada", session: "week 1" });
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("starts from the current sign-in and can sign out", async () => {
+  it("starts from the current check-in and can check out", async () => {
     const user = userEvent.setup();
     localStorage.setItem(
-      "gauntlet:sign-in",
+      "gauntlet:check-in",
       JSON.stringify({ location: "L", name: "N", session: "S" })
     );
     renderDialog({ location: "L", name: "N", session: "S" });
     expect(screen.getByLabelText("Name")).toHaveValue("N");
-    await user.click(screen.getByRole("button", { name: "Sign out" }));
+    await user.click(screen.getByRole("button", { name: "Check out" }));
     expect(stored()).toBeNull();
   });
 

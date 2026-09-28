@@ -23,10 +23,10 @@ import logo from "@assets/logo.svg";
 import ApiErrorBanner from "@components/ApiErrorBanner";
 import ErrorBoundary from "@components/ErrorBoundary";
 import ShortcutsHelp from "@components/ShortcutsHelp";
-import SignInDialog from "@components/SignInDialog";
+import CheckInDialog from "@components/CheckInDialog";
 import StatusPill from "@components/StatusPill";
 import useGlobalShortcuts from "@hooks/useGlobalShortcuts";
-import useSignIn from "@hooks/useSignIn";
+import useCheckIn from "@hooks/useCheckIn";
 import { isLive } from "../utils/run_status";
 
 import "./Layout.scss";
@@ -68,8 +68,8 @@ export const Layout: React.FC = () => {
   const location = useLocation();
   const { closeHelp, helpOpen, shortcuts } = useGlobalShortcuts();
   const [tabsOpen, setTabsOpen] = useState(false);
-  const [signingIn, setSigningIn] = useState(false);
-  const signIn = useSignIn();
+  const [checkingIn, setCheckingIn] = useState(false);
+  const checkIn = useCheckIn();
 
   const version = useQuery({
     queryKey: ["system-info"],
@@ -145,19 +145,19 @@ export const Layout: React.FC = () => {
           )}
 
           <Button
-            className="layout__sign-in"
+            className="layout__check-in"
             size="small"
-            aria-label={signIn ? `Signed in as ${signIn.name}` : "Sign in"}
-            onClick={() => setSigningIn(true)}
+            aria-label={checkIn ? `Checked in as ${checkIn.name}` : "Check in"}
+            onClick={() => setCheckingIn(true)}
           >
             <FontAwesomeIcon icon={faUser} />
-            {signIn ? (
-              <span className="layout__sign-in-text">
-                <span className="layout__sign-in-name">{signIn.name}</span>
-                <span className="layout__sign-in-where">{`${signIn.location} · ${signIn.session}`}</span>
+            {checkIn ? (
+              <span className="layout__check-in-text">
+                <span className="layout__check-in-name">{checkIn.name}</span>
+                <span className="layout__check-in-where">{`${checkIn.location} · ${checkIn.session}`}</span>
               </span>
             ) : (
-              "Sign in"
+              "Check in"
             )}
           </Button>
 
@@ -180,7 +180,7 @@ export const Layout: React.FC = () => {
       </main>
 
       {helpOpen && <ShortcutsHelp shortcuts={shortcuts} onClose={closeHelp} />}
-      {signingIn && <SignInDialog current={signIn} onClose={() => setSigningIn(false)} />}
+      {checkingIn && <CheckInDialog current={checkIn} onClose={() => setCheckingIn(false)} />}
     </div>
   );
 };

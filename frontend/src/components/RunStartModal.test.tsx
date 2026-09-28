@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@api/client";
 import type { Instrument, Suite, Unit } from "@api/types";
-import { setSignIn } from "@hooks/useSignIn";
+import { setCheckIn } from "@hooks/useCheckIn";
 
 import RunStartModal from "./RunStartModal";
 
@@ -215,8 +215,8 @@ describe("RunStartModal", () => {
     ]);
   });
 
-  it("records the run as whoever is signed in", async () => {
-    setSignIn({ location: "Lab 2", name: "Ada", session: "week 1" });
+  it("records the run as whoever is checked in", async () => {
+    setCheckIn({ location: "Lab 2", name: "Ada", session: "week 1" });
     const user = userEvent.setup();
     renderModal();
     await waitFor(() => expect(screen.getByLabelText("Duration (s)")).toHaveValue(300));

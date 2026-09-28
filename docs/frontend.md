@@ -26,7 +26,7 @@ frontend/
     │   ├── client.ts     the only module that calls fetch
     │   └── types.ts      the API vocabulary; one interface per response
     ├── components/       shared components, one X.tsx + X.scss per component
-    ├── hooks/            useEventStream, useGlobalShortcuts, useSignIn, …
+    ├── hooks/            useEventStream, useGlobalShortcuts, useCheckIn, …
     ├── pages/            one per route
     ├── styles/           main.scss (fonts, resets), _chart.scss (mixins)
     ├── test/             vitest setup and captured API fixtures
@@ -67,9 +67,9 @@ point budget is drawn sample for sample. That is what makes zooming show the
 real samples rather than a smoothed copy of them, and it is all in
 `utils/capture.ts`, where it is testable without a chart.
 
-## Signing in
+## Checking in
 
-The top bar's sign-in button opens `SignInDialog`, which asks for a name, a location and a test session. `useSignIn` keeps them in `localStorage`, so a sign-in is per browser and survives a reload, and every component reading it updates together, other tabs included. It is not an account and gates nothing. `RunStartModal` and `CampaignDetail` send it with a run through `provenanceOf`, and `NotesPanel` stamps it on a note in place of asking for an author. History and Units filter on location and session, offering the values `GET /api/runs/provenance` reports, which are also what the dialog completes from, so an operator joining a session spells it the way the first one did.
+The top bar's check-in button opens `CheckInDialog`, which asks for a name, a location and a test session. `useCheckIn` keeps them in `localStorage`, so a check-in is per browser and survives a reload, and every component reading it updates together, other tabs included. It is not an account and gates nothing. `RunStartModal` and `CampaignDetail` send it with a run through `provenanceOf`, and `NotesPanel` stamps it on a note in place of asking for an author. History and Units filter on location and session, offering the values `GET /api/runs/provenance` reports, which are also what the dialog completes from, so an operator joining a session spells it the way the first one did.
 
 ## Aliases
 

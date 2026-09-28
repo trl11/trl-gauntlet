@@ -146,7 +146,7 @@ The web UI renders suite-agnostic forms and views from these endpoints:
 | Starting a run | `POST /api/runs`; `POST /api/runs/{id}/stop` and `/abort` control it |
 | Live run | `GET /api/runs/{id}/events` |
 | History | `GET /api/runs`, filtered by `suite`, `unit_serial`, repeated `status`, `after`, `before`, `has_notes`, `favorite`, `location`, `session`, `q` (a case-insensitive search of run id, suite, profile, unit, target, status, failure reason, operator, location and session), and sorted by `sort` and `direction` |
-| Sign-in completions and the location and session filters | `GET /api/runs/provenance`: every operator, location and session a run was recorded with |
+| Check-in completions and the location and session filters | `GET /api/runs/provenance`: every operator, location and session a run was recorded with |
 | Finished-run charts | `GET /api/runs/{id}/metrics` |
 | Run artifacts | `GET /api/runs/{id}/artifacts` and `/artifacts/{path}`, the one way to read a run's files |
 | Favorite runs | `PUT|DELETE /api/runs/{id}/favorite` |
@@ -176,7 +176,7 @@ and either would drop the mark. Deleting a run drops its mark; exporting one
 does not carry it, since which runs a bench keeps an eye on is that bench's
 business.
 
-Signing in is not authentication: nothing in Gauntlet requires it and nothing checks it. An operator gives a name, a location and a test session, which the browser keeps, and each run that browser starts and each note it writes records them. `POST /api/runs` and `POST /api/campaigns/{key}/members/{suite}/run` take `operator`, `location` and `session`, and a note takes `author`, `location` and `session`. A run's three are stored on its row, and so in its `run.json`; they travel with an exported run, and a note's with its note. Nothing reaches the suite. `location` and `session` filter both history and units: a filtered unit list holds the units with a run recorded there and counts only those runs, and leaves out a unit known only from its metadata.
+Checking in is not authentication: nothing in Gauntlet requires it and nothing checks it. An operator gives a name, a location and a test session, which the browser keeps, and each run that browser starts and each note it writes records them. `POST /api/runs` and `POST /api/campaigns/{key}/members/{suite}/run` take `operator`, `location` and `session`, and a note takes `author`, `location` and `session`. A run's three are stored on its row, and so in its `run.json`; they travel with an exported run, and a note's with its note. Nothing reaches the suite. `location` and `session` filter both history and units: a filtered unit list holds the units with a run recorded there and counts only those runs, and leaves out a unit known only from its metadata.
 
 An instrument panel is generated from what the provider declares: its `state()`
 is rendered as rows and each entry in `commands()` becomes a control built from

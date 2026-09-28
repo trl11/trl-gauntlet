@@ -1,6 +1,6 @@
 @use "@trl11/styles/theme.scss" as *;
 
-.sign-in-dialog {
+.check-in-dialog {
   &__form {
     display: flex;
     flex-direction: column;
@@ -20,7 +20,7 @@
     gap: 10px;
   }
 
-  &__sign-out {
+  &__check-out {
     margin-right: auto;
   }
 }

@@ -282,16 +282,16 @@ export interface RunRow {
   fail_reason: string | null;
   /** Whether an operator has marked this run as a favorite. Absent on a body served before favorites were. */
   favorite?: boolean;
-  /** Where the run was started, as the operator signed in. Absent on a body served before sign-in was. */
+  /** Where the run was started, as the operator checked in. Absent on a body served before check-in was. */
   location?: string | null;
   /** Operator notes against this run. Absent on a body served before counts were. */
   note_count?: number;
-  /** Who started the run, as they signed in. Absent on a body served before sign-in was. */
+  /** Who started the run, as they checked in. Absent on a body served before check-in was. */
   operator?: string | null;
   profile: string | null;
   run_dir: string;
   run_id: string;
-  /** The test session the run belongs to. Absent on a body served before sign-in was. */
+  /** The test session the run belongs to. Absent on a body served before check-in was. */
   session?: string | null;
   started_at: string;
   status: RunStatus;
@@ -308,7 +308,7 @@ export interface RunProvenance {
   sessions: string[];
 }
 
-/** Who did something, where, and in which test session: what signing in records. */
+/** Who did something, where, and in which test session: what checking in records. */
 export interface Provenance {
   location: string | null;
   operator: string | null;
@@ -839,9 +839,9 @@ export interface Note {
   body: string;
   created_at: string;
   id: number;
-  /** Where it was written. Absent on a body served before sign-in was. */
+  /** Where it was written. Absent on a body served before check-in was. */
   location?: string | null;
-  /** The test session it was written in. Absent on a body served before sign-in was. */
+  /** The test session it was written in. Absent on a body served before check-in was. */
   session?: string | null;
 }
 

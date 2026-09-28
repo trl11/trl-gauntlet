@@ -151,16 +151,16 @@ describe("Layout", () => {
     expect(screen.getByRole("button", { name: "Close navigation" })).toBeInTheDocument();
   });
 
-  it("signs in from the bar and shows who is signed in", async () => {
+  it("checks in from the bar and shows who is checked in", async () => {
     const user = userEvent.setup();
     renderLayout();
-    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    await user.click(screen.getByRole("button", { name: "Check in" }));
     await user.type(screen.getByLabelText("Name"), "Ada");
     await user.type(screen.getByLabelText("Location"), "Lab 2");
     await user.type(screen.getByLabelText("Test session"), "week 1");
     const form = screen.getByLabelText("Name").closest("form")!;
-    await user.click(within(form).getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByRole("button", { name: "Signed in as Ada" })).toHaveTextContent(
+    await user.click(within(form).getByRole("button", { name: "Check in" }));
+    expect(await screen.findByRole("button", { name: "Checked in as Ada" })).toHaveTextContent(
       "Lab 2 · week 1"
     );
   });

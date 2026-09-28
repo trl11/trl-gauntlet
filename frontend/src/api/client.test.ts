@@ -404,7 +404,7 @@ describe("endpoint shapes", () => {
     expect(init.body).toBe(JSON.stringify(note));
   });
 
-  it("starts a campaign member with the sign-in as its provenance", async () => {
+  it("starts a campaign member with the check-in as its provenance", async () => {
     fetchMock.mockResolvedValue(jsonResponse({ run_id: "r1" }));
     const provenance = { location: "Lab 2", operator: "Ada", session: "week 1" };
     await runCampaignMember("demo", "alpha", provenance);

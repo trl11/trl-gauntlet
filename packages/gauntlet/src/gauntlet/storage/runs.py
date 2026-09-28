@@ -69,7 +69,7 @@ _COLUMNS = (
     "session",
 )
 
-#: Who ran a run, where, and in which test session, as the operator signed in.
+#: Who ran a run, where, and in which test session, as the operator checked in.
 PROVENANCE_COLUMNS = ("operator", "location", "session")
 
 #: The run's row, as Gauntlet last stored it, beside the artifacts it describes.

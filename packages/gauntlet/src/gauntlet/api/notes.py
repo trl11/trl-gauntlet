@@ -18,7 +18,7 @@ class NoteBody(BaseModel):
     """Request body for writing a note.
 
     ``author``, ``location`` and ``session`` are who wrote it, where, and in
-    which test session, as the operator signed in.
+    which test session, as the operator checked in.
     """
 
     model_config = ConfigDict(extra="forbid")
