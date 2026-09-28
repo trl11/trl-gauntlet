@@ -1,12 +1,14 @@
 """SQLite index of past runs.
 
-Run artifacts on disk are the source of truth. :meth:`RunsIndex.import_tree`
-rebuilds this index from them.
+Run artifacts on disk are the source of truth. Storing a row also writes it
+into its run directory as :data:`RECORD_NAME`, so :meth:`RunsIndex.import_tree`
+can rebuild this index from the directories alone.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import threading
 from collections.abc import Sequence
@@ -16,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from gauntlet.storage.columns import add_missing_columns
-from gauntlet.storage.notes import NOTES_SCHEMA, SUBJECT_RUN
+from gauntlet.storage.notes import NOTES_SCHEMA, SUBJECT_RUN, NotesIndex, read_notes_file
 
 RUNS_SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
@@ -68,11 +70,14 @@ _COLUMNS = (
 )
 
 #: Who ran a run, where, and in which test session, as the operator signed in.
-#: Gauntlet writes it into the run directory as :data:`PROVENANCE_NAME`, so a
-#: reimport from disk recovers it.
 PROVENANCE_COLUMNS = ("operator", "location", "session")
 
-PROVENANCE_NAME = "provenance.json"
+#: The run's row, as Gauntlet last stored it, beside the artifacts it describes.
+RECORD_NAME = "run.json"
+
+_LIVE_STATUSES = frozenset({"aborting", "running", "starting", "stopping"})
+
+_INTERRUPTED = "interrupted: Gauntlet stopped while this run was in progress"
 
 #: Columns :meth:`RunsIndex.list` will sort by. Anything else falls back to
 #: ``started_at``, so caller text never reaches the statement.
@@ -234,7 +239,7 @@ class RunsIndex:
             self._conn.close()
 
     def upsert(self, row: RunRow) -> None:
-        """Insert or replace one run."""
+        """Insert or replace one run, and write it into its run directory."""
         values = [getattr(row, column) for column in _COLUMNS]
         placeholders = ", ".join("?" for _ in _COLUMNS)
         with self._lock:
@@ -243,6 +248,7 @@ class RunsIndex:
                 values,
             )
             self._conn.commit()
+        write_record(row)
 
     def count(self, filters: RunFilters | None = None) -> int:
         """How many rows match, ignoring limit and offset."""
@@ -331,34 +337,97 @@ class RunsIndex:
         """
         with self._lock:
             cursor = self._conn.execute(
-                "UPDATE runs SET status = 'error', verdict = 'ERROR', "
-                "fail_reason = 'interrupted: Gauntlet stopped while this run was in progress' "
-                "WHERE status IN ('starting', 'running', 'stopping', 'aborting')"
+                "UPDATE runs SET status = 'error', verdict = 'ERROR', fail_reason = ? "
+                "WHERE status IN ('starting', 'running', 'stopping', 'aborting')",
+                (_INTERRUPTED,),
             )
             self._conn.commit()
             return cursor.rowcount
 
-    def import_tree(self, runs_dir: Path) -> int:
-        """Index any run directory on disk that is not already known."""
+    def import_tree(self, runs_dir: Path, notes: NotesIndex | None = None) -> int:
+        """Index any run directory on disk that is not already known.
+
+        A directory holding :data:`RECORD_NAME` is restored from it; one from
+        before Gauntlet wrote that is read from its ``verdict.json`` and
+        ``manifest.json``. Given ``notes``, a newly indexed run's ``notes.md``
+        is read back into it.
+        """
         if not runs_dir.is_dir():
             return 0
         imported = 0
-        for verdict_path in sorted(runs_dir.glob("*/*/verdict.json")):
-            run_dir = verdict_path.parent
-            run_id = run_dir.name
-            if self.get(run_id) is not None:
+        for run_dir in sorted(path for path in runs_dir.glob("*/*") if path.is_dir()):
+            if self.get(run_dir.name) is not None:
                 continue
-            row = _row_from_disk(run_dir, verdict_path)
-            if row is not None:
-                self.upsert(row)
-                imported += 1
+            row = _row_from_disk(run_dir)
+            if row is None:
+                continue
+            self.upsert(row)
+            if notes is not None:
+                for note in read_notes_file(run_dir):
+                    notes.add(
+                        SUBJECT_RUN,
+                        row.run_id,
+                        note.body,
+                        note.author,
+                        created_at=note.created_at,
+                        location=note.location,
+                        session=note.session,
+                    )
+            imported += 1
         return imported
 
 
-def _row_from_disk(run_dir: Path, verdict_path: Path) -> RunRow | None:
+def write_record(row: RunRow) -> None:
+    """Write one run's row into its run directory, when that directory exists.
+
+    Replaced whole through a rename, so a crash mid-write leaves the previous
+    record rather than half of one.
+    """
+    run_dir = Path(row.run_dir)
+    if not run_dir.is_dir():
+        return
+    record = row.to_dict()
+    del record["run_dir"]
+    scratch = run_dir / f".{RECORD_NAME}.tmp"
+    scratch.write_text(json.dumps(record, indent=2) + "\n")
+    os.replace(scratch, run_dir / RECORD_NAME)
+
+
+def row_from_record(record: dict[str, Any], run_dir: str) -> RunRow:
+    """A row from its stored fields, each checked for type, with no directory of its own."""
+    return RunRow(
+        run_id=str(record["run_id"]),
+        suite=str(record["suite"]),
+        status=str(record.get("status") or "error"),
+        started_at=str(record.get("started_at") or ""),
+        run_dir=run_dir,
+        ended_at=_as_str(record.get("ended_at")),
+        duration_s=_as_float(record.get("duration_s")),
+        verdict=_as_str(record.get("verdict")),
+        fail_reason=_as_str(record.get("fail_reason")),
+        profile=_as_str(record.get("profile")),
+        target=_as_str(record.get("target")),
+        unit_serial=_as_str(record.get("unit_serial")),
+        operator=_as_str(record.get("operator")),
+        location=_as_str(record.get("location")),
+        session=_as_str(record.get("session")),
+    )
+
+
+def _row_from_disk(run_dir: Path) -> RunRow | None:
+    record = _read_json(run_dir / RECORD_NAME)
+    if record is not None and record.get("run_id") and record.get("suite"):
+        row = row_from_record(record, str(run_dir))
+        # The record was last written while the run was in flight, so
+        # Gauntlet stopped before it could write the ending.
+        if row.status in _LIVE_STATUSES:
+            row.status, row.verdict, row.fail_reason = "error", "ERROR", _INTERRUPTED
+        return row
+    verdict_path = run_dir / "verdict.json"
+    if not verdict_path.is_file():
+        return None
     verdict = _read_json(verdict_path) or {}
     manifest = _read_json(run_dir / "manifest.json") or {}
-    provenance = _read_json(run_dir / PROVENANCE_NAME) or {}
     if verdict.get("passed"):
         status, code = "passed", "PASS"
     elif verdict.get("aborted"):
@@ -378,9 +447,6 @@ def _row_from_disk(run_dir: Path, verdict_path: Path) -> RunRow | None:
         profile=_basename(manifest.get("profile_path")),
         target=_as_str(manifest.get("target")),
         unit_serial=_as_str(manifest.get("unit_serial")),
-        operator=_as_str(provenance.get("operator")),
-        location=_as_str(provenance.get("location")),
-        session=_as_str(provenance.get("session")),
     )
 
 

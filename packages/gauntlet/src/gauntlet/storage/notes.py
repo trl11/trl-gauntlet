@@ -6,6 +6,8 @@ and a unit note differ only in ``subject_kind``.
 
 from __future__ import annotations
 
+import json
+import os
 import sqlite3
 import threading
 from dataclasses import dataclass
@@ -31,6 +33,14 @@ CREATE INDEX IF NOT EXISTS notes_subject ON notes (subject_kind, subject_id);
 
 SUBJECT_RUN = "run"
 SUBJECT_UNIT = "unit"
+
+#: A run's notes, beside its artifacts, so they survive the index being rebuilt.
+NOTES_NAME = "notes.md"
+
+# Opens each note in `notes.md`. The heading after it is for a person; this is
+# what is read back, so a note's author or session never has to be parsed out
+# of prose.
+_MARKER = "<!-- note "
 
 
 @dataclass
@@ -175,3 +185,81 @@ def _to_row(row: sqlite3.Row) -> NoteRow:
 
 def _utc_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def write_notes_file(run_dir: Path, run_id: str, notes: list[NoteRow]) -> None:
+    """Write a run's notes into its directory as markdown, oldest first.
+
+    A run left with no notes has the file removed rather than emptied, and a
+    directory that has gone is left alone.
+    """
+    if not run_dir.is_dir():
+        return
+    path = run_dir / NOTES_NAME
+    if not notes:
+        path.unlink(missing_ok=True)
+        return
+    lines = [f"# Notes on {run_id}", ""]
+    for note in sorted(notes, key=lambda note: note.id):
+        meta = {
+            "author": note.author,
+            "created_at": note.created_at,
+            "location": note.location,
+            "session": note.session,
+        }
+        heading = " · ".join(filter(None, [note.created_at, note.author, note.location, note.session]))
+        lines += [f"{_MARKER}{json.dumps(meta)} -->", f"### {heading}", "", note.body, ""]
+    scratch = run_dir / f".{NOTES_NAME}.tmp"
+    scratch.write_text("\n".join(lines))
+    os.replace(scratch, path)
+
+
+def read_notes_file(run_dir: Path) -> list[NoteRow]:
+    """The notes a run's ``notes.md`` holds, oldest first, or none when it has no such file."""
+    try:
+        text = (run_dir / NOTES_NAME).read_text()
+    except OSError:
+        return []
+    notes: list[NoteRow] = []
+    meta: dict[str, Any] | None = None
+    body: list[str] = []
+
+    def finish() -> None:
+        text = "\n".join(body).strip()
+        if meta is not None and text:
+            notes.append(
+                NoteRow(
+                    id=0,
+                    subject_kind=SUBJECT_RUN,
+                    subject_id=run_dir.name,
+                    body=text,
+                    created_at=str(meta.get("created_at") or _utc_iso()),
+                    author=_text(meta.get("author")),
+                    location=_text(meta.get("location")),
+                    session=_text(meta.get("session")),
+                )
+            )
+
+    lines = text.splitlines()
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        if line.startswith(_MARKER) and line.endswith("-->"):
+            finish()
+            try:
+                parsed = json.loads(line[len(_MARKER) : -len("-->")])
+            except json.JSONDecodeError:
+                parsed = {}
+            meta = parsed if isinstance(parsed, dict) else {}
+            body = []
+            if index + 1 < len(lines) and lines[index + 1].startswith("### "):
+                index += 1
+        elif meta is not None:
+            body.append(line)
+        index += 1
+    finish()
+    return notes
+
+
+def _text(value: Any) -> str | None:
+    return str(value) if isinstance(value, str) and value else None

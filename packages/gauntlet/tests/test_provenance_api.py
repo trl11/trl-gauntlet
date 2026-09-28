@@ -46,13 +46,13 @@ class TestStartingARun:
     def test_it_is_written_beside_the_artifacts(self, client) -> None:
         started = client.post("/api/runs", json={"suite": "alpha", **SIGNED_IN}).json()
         _wait_for_finish(client, started["run_id"])
-        assert json.loads((Path(started["run_dir"]) / "provenance.json").read_text()) == SIGNED_IN
+        record = json.loads((Path(started["run_dir"]) / "run.json").read_text())
+        assert {key: record[key] for key in SIGNED_IN} == SIGNED_IN
 
     def test_blank_values_are_recorded_as_nothing(self, client) -> None:
         started = client.post("/api/runs", json={"suite": "alpha", "operator": "  ", "location": ""}).json()
         finished = _wait_for_finish(client, started["run_id"])
         assert (finished["operator"], finished["location"], finished["session"]) == (None, None, None)
-        assert not (Path(started["run_dir"]) / "provenance.json").exists()
 
 
 class TestFilteringRuns:

@@ -18,7 +18,7 @@ from starlette.background import BackgroundTask
 
 from gauntlet.api.notes import NoteBody, add_note, clean, delete_note, list_notes
 from gauntlet.catalog import campaigns_by_suite
-from gauntlet.storage import SUBJECT_RUN, RunFilters, RunRow
+from gauntlet.storage import SUBJECT_RUN, RunFilters, RunRow, write_notes_file
 from gauntlet.supervisor import Event, RunConflict, RunHandle, RunRejected, RunRequest
 from gauntlet.transfer import TransferError, archive_name, export_run, import_run, read_export
 
@@ -270,14 +270,18 @@ async def get_run_notes(request: Request, run_id: str) -> dict[str, Any]:
 async def post_run_note(request: Request, run_id: str, body: NoteBody) -> dict[str, Any]:
     """Attach a note to one run."""
     _run_or_404(request, run_id)
-    return add_note(request, SUBJECT_RUN, run_id, body)
+    note = add_note(request, SUBJECT_RUN, run_id, body)
+    _write_notes(request, run_id)
+    return note
 
 
 @router.delete("/runs/{run_id}/notes/{note_id}")
 async def delete_run_note(request: Request, run_id: str, note_id: int) -> dict[str, Any]:
     """Remove one note from a run."""
     _run_or_404(request, run_id)
-    return delete_note(request, SUBJECT_RUN, run_id, note_id)
+    deleted = delete_note(request, SUBJECT_RUN, run_id, note_id)
+    _write_notes(request, run_id)
+    return deleted
 
 
 @router.post("/runs/{run_id}/stop")
@@ -357,6 +361,15 @@ def remove_run_dir(request: Request, run_dir: str) -> None:
     if path == runs_dir or runs_dir not in path.parents:
         return
     shutil.rmtree(path, ignore_errors=True)
+
+
+def _write_notes(request: Request, run_id: str) -> None:
+    """Rewrite one run's ``notes.md`` from the index, so its directory carries its notes."""
+    handle = request.app.state.supervisor.get(run_id)
+    row = request.app.state.runs_index.get(run_id)
+    run_dir = handle.run_dir if handle is not None else row.run_dir if row is not None else None
+    if run_dir:
+        write_notes_file(Path(run_dir), run_id, request.app.state.notes_index.list(SUBJECT_RUN, run_id))
 
 
 def _run_or_404(request: Request, run_id: str) -> None:

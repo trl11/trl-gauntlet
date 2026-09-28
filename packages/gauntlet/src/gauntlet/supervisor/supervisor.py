@@ -31,7 +31,6 @@ from typing import Any
 from gauntlet_sdk.contract import Verdict
 
 from gauntlet.capabilities.registry import CapabilityError, CapabilityRegistry
-from gauntlet.storage.runs import PROVENANCE_NAME
 from gauntlet.suites.discovery import SuiteCatalog, resolve_profile
 from gauntlet.supervisor.events import EventBus
 from gauntlet.supervisor.launcher import Launch, LaunchError, RunRequest, build_launch
@@ -203,7 +202,6 @@ class RunSupervisor:
 
             if profile_path is not None:
                 _snapshot_profile(profile_path, run_dir)
-            _write_provenance(request, run_dir)
 
             handle = RunHandle(
                 run_id=run_id,
@@ -563,16 +561,6 @@ def _snapshot_profile(source: Path, run_dir: Path) -> None:
         return
     with contextlib.suppress(OSError):
         destination.write_bytes(source.read_bytes())
-
-
-def _write_provenance(request: RunRequest, run_dir: Path) -> None:
-    """Record who started the run, where, and in which session, beside its artifacts.
-
-    The index is rebuilt from disk, so what is not on disk does not survive it.
-    """
-    provenance = {"operator": request.operator, "location": request.location, "session": request.session}
-    if any(provenance.values()):
-        (run_dir / PROVENANCE_NAME).write_text(json.dumps(provenance, indent=2) + "\n")
 
 
 def _write_scratch_profile(runs_dir: Path, suite_key: str, body: str) -> Path:

@@ -176,7 +176,7 @@ and either would drop the mark. Deleting a run drops its mark; exporting one
 does not carry it, since which runs a bench keeps an eye on is that bench's
 business.
 
-Signing in is not authentication: nothing in Gauntlet requires it and nothing checks it. An operator gives a name, a location and a test session, which the browser keeps, and each run that browser starts and each note it writes records them. `POST /api/runs` and `POST /api/campaigns/{key}/members/{suite}/run` take `operator`, `location` and `session`, and a note takes `author`, `location` and `session`. A run's three are stored on its row and written into its directory as `provenance.json`, because a reimport rebuilds the row from disk; they travel with an exported run, and a note's with its note. Nothing reaches the suite. `location` and `session` filter both history and units: a filtered unit list holds the units with a run recorded there and counts only those runs, and leaves out a unit known only from its metadata.
+Signing in is not authentication: nothing in Gauntlet requires it and nothing checks it. An operator gives a name, a location and a test session, which the browser keeps, and each run that browser starts and each note it writes records them. `POST /api/runs` and `POST /api/campaigns/{key}/members/{suite}/run` take `operator`, `location` and `session`, and a note takes `author`, `location` and `session`. A run's three are stored on its row, and so in its `run.json`; they travel with an exported run, and a note's with its note. Nothing reaches the suite. `location` and `session` filter both history and units: a filtered unit list holds the units with a run recorded there and counts only those runs, and leaves out a unit known only from its metadata.
 
 An instrument panel is generated from what the provider declares: its `state()`
 is rendered as rows and each entry in `commands()` becomes a control built from
@@ -248,8 +248,9 @@ period. No verdict is produced.
 
 ## Storage
 
-Run artifacts on disk are the source of truth. `RunsIndex` mirrors them in
-SQLite for the history view and rebuilds from disk via `import_tree`.
+Run artifacts on disk are the source of truth. `RunsIndex` mirrors them in SQLite for the history view and rebuilds from disk via `import_tree`.
+
+Storing a row writes it into the run's directory as `run.json`, and adding or deleting a run note rewrites `notes.md` there, so the directory alone gives back everything the run page shows except which runs are favorites, which is the bench's view rather than the run's. Renaming a unit rewrites the `run.json` of each of its runs. `import_tree` restores a row from `run.json` where there is one, treating a record still marked in flight as interrupted, and falls back to `verdict.json` and `manifest.json` for a directory from before Gauntlet wrote it; it reads `notes.md` back into the notes. A unit's own notes have no directory and live only in the database.
 
 On startup, runs recorded as in-progress are marked interrupted, and any run
 directory on disk not already indexed is imported.
@@ -265,13 +266,7 @@ export.json   the index row, the operator notes, and the export apiVersion
 run/          the run directory verbatim
 ```
 
-The directory would nearly be enough on its own, since `import_tree` rebuilds a
-row from `verdict.json` and `manifest.json`. `export.json` carries what disk
-cannot give back: a run recorded as `error` has no `verdict.json` to be rebuilt
-from, `manifest.json` is optional so `profile`, `target` and `unit_serial` may
-be missing from it, and notes live in the database rather than beside the
-artifacts. The row travels without its `run_dir`, which is a path on the
-machine that exported it.
+The directory is enough on its own for a run written since Gauntlet kept `run.json` and `notes.md` beside it. `export.json` still carries the row and the notes, so an archive of an older run, whose directory holds neither, arrives whole. The row travels without its `run_dir`, which is a path on the machine that exported it.
 
 | Where | Export | Import |
 |---|---|---|

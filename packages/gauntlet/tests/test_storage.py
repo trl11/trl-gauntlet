@@ -485,8 +485,10 @@ class TestProvenance:
     def test_a_reimport_from_disk_recovers_it(self, runs: RunsIndex, tmp_path: Path) -> None:
         run_dir = tmp_path / "runs" / "alpha" / "r1"
         run_dir.mkdir(parents=True)
-        (run_dir / "verdict.json").write_text('{"passed": true, "started_at_utc": "2026-01-01T00:00:00Z"}')
-        (run_dir / "provenance.json").write_text('{"operator": "Ada", "location": "Lab 2", "session": "week 1"}')
+        (run_dir / "run.json").write_text(
+            '{"run_id": "r1", "suite": "alpha", "status": "passed", "started_at": "2026-01-01T00:00:00Z", '
+            '"operator": "Ada", "location": "Lab 2", "session": "week 1"}'
+        )
         runs.import_tree(tmp_path / "runs")
         row = runs.get("r1")
         assert row is not None

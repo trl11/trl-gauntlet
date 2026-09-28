@@ -82,7 +82,7 @@ class TestRoundTrip:
 
         imported = import_run(tmp_path / "r1.zip", elsewhere.runs_dir, elsewhere.runs, elsewhere.notes)
         assert imported.run_id == "r1"
-        assert list(Path(imported.run_dir).iterdir()) == []
+        assert [path.name for path in Path(imported.run_dir).iterdir()] == ["run.json"]
 
     def test_an_import_replaces_the_artifacts_rather_than_joining_them(
         self, make_run_dir, elsewhere, tmp_path: Path

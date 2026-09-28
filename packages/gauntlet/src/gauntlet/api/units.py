@@ -15,7 +15,15 @@ from pydantic import BaseModel, ConfigDict
 
 from gauntlet.api.notes import NoteBody, add_note, delete_note, list_notes
 from gauntlet.api.runs import remove_run_dir, with_notes_and_favorites
-from gauntlet.storage import SUBJECT_RUN, SUBJECT_UNIT, RunFilters, UnitConflict, UnitRow, UnitsIndex
+from gauntlet.storage import (
+    SUBJECT_RUN,
+    SUBJECT_UNIT,
+    RunFilters,
+    UnitConflict,
+    UnitRow,
+    UnitsIndex,
+    write_record,
+)
 
 router = APIRouter()
 
@@ -59,6 +67,12 @@ async def rename_unit(request: Request, serial: str, body: RenameBody) -> dict[s
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     if renamed is None:
         raise HTTPException(status_code=404, detail=f"unknown unit {serial!r}")
+    # The rename rewrote the rows; each run's record on disk has to follow, or
+    # rebuilding the index would bring the old serial back.
+    index = request.app.state.runs_index
+    filters = RunFilters(unit_serial=new_serial)
+    for row in index.list(filters, limit=index.count(filters)):
+        write_record(row)
     return renamed.to_dict()
 
 

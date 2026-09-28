@@ -215,9 +215,10 @@ def _relative_to_cwd(path: Path) -> str:
 def _export(args: argparse.Namespace) -> int:
     settings = _settings(args)
     runs = RunsIndex(settings.runs_index_path)
+    notes = NotesIndex(settings.runs_index_path)
     # A bench that has never served picks its history up off disk, the same way
     # the app does at startup.
-    runs.import_tree(settings.runs_dir)
+    runs.import_tree(settings.runs_dir, notes)
     row = runs.get(args.run_id)
     if row is None:
         print(f"error: unknown run {args.run_id!r}", file=sys.stderr)
@@ -227,7 +228,6 @@ def _export(args: argparse.Namespace) -> int:
     destination = args.output or Path.cwd() / name
     if destination.is_dir():
         destination = destination / name
-    notes = NotesIndex(settings.runs_index_path)
     export_run(row, notes.list(SUBJECT_RUN, row.run_id), destination)
     print(f"Wrote {_relative_to_cwd(destination)}")
     return 0

@@ -17,7 +17,15 @@ from pathlib import Path
 from typing import Any
 
 from gauntlet import __version__
-from gauntlet.storage import SUBJECT_RUN, NoteRow, NotesIndex, RunRow, RunsIndex
+from gauntlet.storage import (
+    SUBJECT_RUN,
+    NoteRow,
+    NotesIndex,
+    RunRow,
+    RunsIndex,
+    row_from_record,
+    write_notes_file,
+)
 
 EXPORT_API_VERSION = 1
 
@@ -158,6 +166,7 @@ def import_run(archive: Path, runs_dir: Path, runs: RunsIndex, notes: NotesIndex
             location=note.location,
             session=note.session,
         )
+    write_notes_file(run_dir, export.run_id, notes.list(SUBJECT_RUN, export.run_id))
     return row
 
 
@@ -189,24 +198,7 @@ def _unpack(archive: Path, run_dir: Path) -> None:
 
 def _row(run: dict[str, Any]) -> RunRow:
     """The exported row, with its run directory left for the importer to set."""
-    fields = {column: run.get(column) for column in _PORTABLE_COLUMNS}
-    return RunRow(
-        run_id=str(fields["run_id"]),
-        suite=str(fields["suite"]),
-        status=str(fields["status"] or "error"),
-        started_at=str(fields["started_at"] or ""),
-        run_dir="",
-        ended_at=_text(fields["ended_at"]),
-        duration_s=float(fields["duration_s"]) if isinstance(fields["duration_s"], (int, float)) else None,
-        verdict=_text(fields["verdict"]),
-        fail_reason=_text(fields["fail_reason"]),
-        profile=_text(fields["profile"]),
-        target=_text(fields["target"]),
-        unit_serial=_text(fields["unit_serial"]),
-        operator=_text(fields["operator"]),
-        location=_text(fields["location"]),
-        session=_text(fields["session"]),
-    )
+    return row_from_record({column: run.get(column) for column in _PORTABLE_COLUMNS}, "")
 
 
 def _segment(value: str, field: str) -> str:
