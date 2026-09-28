@@ -1,4 +1,4 @@
-import { faChevronDown, faChevronRight } from "@fortawesome/free-solid-svg-icons";
+import { faChevronDown, faChevronRight, faStar } from "@fortawesome/free-solid-svg-icons";
 import { faSort, faSortDown, faSortUp } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Checkbox, Input, Pagination, Select, TableSkeleton } from "@trl11/components/ui";
@@ -38,7 +38,10 @@ export interface RunTableProps {
   loading?: boolean;
   /** Offers "Delete" from a per-row "more actions" menu when set. */
   onDeleteRun?: (run: RunRow) => void;
-  /** Offers marking or unmarking a favorite from the same menu when set. */
+  /**
+   * Offers marking or unmarking a favorite from the same menu when set, and
+   * turns the favorite column's star into a toggle that shows on hover.
+   */
   onToggleFavorite?: (run: RunRow) => void;
   /** Replaces the default navigation to `/runs/:runId`. */
   onSelect?: (run: RunRow) => void;
@@ -150,10 +153,23 @@ export const RunTable: React.FC<RunTableProps> = ({
     else navigate(`/runs/${encodeURIComponent(run.run_id)}`);
   };
 
-  // The row's one real "open" affordance lives in a single cell rather than
-  // on the row itself, so it never nests inside another interactive element.
-  // unit_serial renders its own link, so it can't also hold the row's.
-  const openColumn = columns.find((column) => column !== "unit_serial");
+  // The row's one accessible "open" affordance lives in a single cell, so it
+  // never nests inside another interactive element. A column holding its own
+  // link or toggle can't also hold it, and the favorite column is empty for
+  // most runs, which would leave the target a sliver.
+  const openColumn = columns.find(
+    (column) => column !== "campaign" && column !== "favorite" && column !== "unit_serial"
+  );
+
+  // A pointer can open the row from anywhere on it. A click on one of the
+  // row's own controls or the cell around it, or one that ends a text
+  // selection, is left alone, so a near miss on a checkbox never navigates.
+  const openFromRow = (event: React.MouseEvent<HTMLTableRowElement>, run: RunRow) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("a, button, input, label, .run-table__control")) return;
+    if (window.getSelection()?.toString()) return;
+    openRun(run);
+  };
 
   return (
     <div className="run-table">
@@ -242,9 +258,9 @@ export const RunTable: React.FC<RunTableProps> = ({
             <tbody>
               {rows.map((run) => (
                 <Fragment key={run.run_id}>
-                  <tr>
+                  <tr className="run-table__row" onClick={(event) => openFromRow(event, run)}>
                     {selectable && (
-                      <td className="run-table__pick">
+                      <td className="run-table__pick run-table__control">
                         <Checkbox
                           id={`${fieldId}-pick-${run.run_id}`}
                           aria-label={`Select run ${run.run_id}`}
@@ -254,7 +270,7 @@ export const RunTable: React.FC<RunTableProps> = ({
                       </td>
                     )}
                     {renderExpanded && (
-                      <td>
+                      <td className="run-table__control">
                         <button
                           type="button"
                           className="run-table__expand"
@@ -271,7 +287,23 @@ export const RunTable: React.FC<RunTableProps> = ({
                       </td>
                     )}
                     {columns.map((column) =>
-                      column === openColumn ? (
+                      column === "favorite" && onToggleFavorite ? (
+                        <td key={column} className="run-table__favorite-cell run-table__control">
+                          <button
+                            type="button"
+                            className={clsx("run-table__star", run.favorite && "is-on")}
+                            aria-label={
+                              run.favorite
+                                ? `Remove run ${run.run_id} from favorites`
+                                : `Add run ${run.run_id} to favorites`
+                            }
+                            aria-pressed={Boolean(run.favorite)}
+                            onClick={() => onToggleFavorite(run)}
+                          >
+                            <FontAwesomeIcon icon={faStar} />
+                          </button>
+                        </td>
+                      ) : column === openColumn ? (
                         <td key={column} className="run-table__open-cell">
                           <button
                             type="button"
@@ -291,7 +323,7 @@ export const RunTable: React.FC<RunTableProps> = ({
                       )
                     )}
                     {hasMenu && (
-                      <td className="run-table__menu">
+                      <td className="run-table__menu run-table__control">
                         <RowMenu
                           ariaLabel={`Actions for run ${run.run_id}`}
                           items={[

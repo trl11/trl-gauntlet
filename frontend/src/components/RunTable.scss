@@ -36,11 +36,19 @@
 
     tbody tr {
       transition: background-color 0.15s ease;
+    }
+  }
 
-      &:has(.run-table__open:hover),
-      &:has(.run-table__open:focus-visible) {
-        background-color: rgba($trl-dark-gray, 0.5);
-      }
+  &__row {
+    cursor: pointer;
+
+    .run-table__control {
+      cursor: default;
+    }
+
+    &:hover,
+    &:has(.run-table__open:focus-visible) {
+      background-color: rgba($trl-dark-gray, 0.5);
     }
   }
 
@@ -138,6 +146,40 @@
   &__favorite {
     color: $indicator-yellow;
     font-size: 12px;
+  }
+
+  &__favorite-cell {
+    width: 40px;
+  }
+
+  // Hidden until its row is hovered or it takes focus, so an unmarked run
+  // shows no star; a marked one always shows it. Opacity rather than
+  // visibility keeps it reachable from the keyboard.
+  &__star {
+    padding: 4px 6px;
+    background: none;
+    color: $trl-gray;
+    font-size: 12px;
+    cursor: pointer;
+    opacity: 0;
+
+    &.is-on {
+      color: $indicator-yellow;
+      opacity: 1;
+    }
+
+    &:hover {
+      filter: brightness(1.4);
+    }
+
+    &:focus-visible {
+      opacity: 1;
+      outline: 1px solid $indicator-blue;
+    }
+  }
+
+  &__row:hover &__star {
+    opacity: 1;
   }
 
   &__notes {

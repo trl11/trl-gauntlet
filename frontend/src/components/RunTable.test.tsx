@@ -82,6 +82,48 @@ describe("RunTable", () => {
     expect(screen.queryByText("run page")).not.toBeInTheDocument();
   });
 
+  it("opens a run from anywhere on its row", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    renderTable({ columns: ["run_id", "suite", "status"], onSelect });
+    await user.click(screen.getAllByText("thermal_cycle")[0]);
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ run_id: "r-3" }));
+  });
+
+  it("does not open a run from a click beside its checkbox", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    renderTable({ onSelect, onSelectionChange: vi.fn(), selectedIds: [] });
+    await user.click(screen.getByLabelText("Select run r-2").closest("td")!);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("keeps the row's own button out of the favorite column, which is mostly empty", () => {
+    renderTable({ columns: ["favorite", "run_id"] });
+    expect(screen.getByRole("button", { name: "r-2" })).toBeInTheDocument();
+  });
+
+  it("toggles a favorite from its star without opening the run", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const onToggleFavorite = vi.fn();
+    renderTable({
+      columns: ["favorite", "run_id"],
+      onSelect,
+      onToggleFavorite,
+      runs: [run({ run_id: "r-1", favorite: true }), run({ run_id: "r-2" })],
+    });
+    const star = screen.getByRole("button", { name: "Add run r-2 to favorites" });
+    expect(star).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Remove run r-1 from favorites" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await user.click(star);
+    expect(onToggleFavorite).toHaveBeenCalledWith(expect.objectContaining({ run_id: "r-2" }));
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
   it("keeps the row's own link out of the unit column, which has one of its own", () => {
     renderTable({ columns: ["unit_serial", "run_id"] });
     expect(screen.getByRole("button", { name: "r-2" })).toBeInTheDocument();

@@ -274,7 +274,20 @@ describe("HistoryPage", () => {
       total: 2,
     });
     renderHistory();
-    expect(await screen.findAllByLabelText("Favorite")).toHaveLength(1);
+    expect(
+      await screen.findByRole("button", { name: "Remove run r1 from favorites" })
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Add run r2 to favorites" })).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
+  });
+
+  it("adds a run to the favorites from its star", async () => {
+    setRunFavorite.mockResolvedValue({ favorite: true, run_id: "r1" });
+    renderHistory();
+    await userEvent.click(await screen.findByRole("button", { name: "Add run r1 to favorites" }));
+    await waitFor(() => expect(setRunFavorite).toHaveBeenCalledWith("r1", true));
   });
 
   it("adds a run to the favorites from its row menu", async () => {
