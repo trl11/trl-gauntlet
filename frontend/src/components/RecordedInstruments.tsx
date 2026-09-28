@@ -2,7 +2,7 @@ import { faChevronDown, faChevronRight } from "@fortawesome/free-solid-svg-icons
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useQuery } from "@tanstack/react-query";
 import { Spinner } from "@trl11/components/ui";
-import { Fragment, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -16,6 +16,7 @@ import {
 import { artifactUrl, getRunInstruments, getRunInstrumentTrace } from "@api/client";
 import type { RecordedTick } from "@api/types";
 import EmptyState from "@components/EmptyState";
+import Sparkline from "@components/Sparkline";
 import { formatNumber, formatTimestamp } from "../utils/format";
 import { paddedDomain } from "../utils/metrics";
 
@@ -89,6 +90,34 @@ const ReadingChart: React.FC<ReadingChartProps> = ({ instrument, reading, trace 
   );
 };
 
+/** Most points a row's sparkline draws; a long run is thinned to this. */
+const TREND_POINTS = 120;
+
+/**
+ * Every reading's samples in trace order, keyed `instrument.reading`, thinned
+ * to evenly spaced picks so a day-long run draws as cheaply as a short one.
+ */
+function trends(trace: RecordedTick[]): Map<string, number[]> {
+  const all = new Map<string, number[]>();
+  for (const tick of trace) {
+    for (const [key, value] of Object.entries(tick.values)) {
+      const id = `${tick.instrument}.${key}`;
+      const samples = all.get(id) ?? [];
+      samples.push(value);
+      all.set(id, samples);
+    }
+  }
+  for (const [id, samples] of all) {
+    if (samples.length <= TREND_POINTS) continue;
+    const step = (samples.length - 1) / (TREND_POINTS - 1);
+    all.set(
+      id,
+      Array.from({ length: TREND_POINTS }, (_, index) => samples[Math.round(index * step)])
+    );
+  }
+  return all;
+}
+
 /** A reading to as many decimals as its instrument asked for. */
 function show(value: number, precision: number | null): string {
   return value.toFixed(precision ?? 3);
@@ -118,9 +147,9 @@ export const RecordedInstruments: React.FC<RecordedInstrumentsProps> = ({ runId 
   const trace = useQuery({
     queryKey: ["run-instrument-trace", runId],
     queryFn: () => getRunInstrumentTrace(runId),
-    enabled: open !== null,
     retry: false,
   });
+  const trendById = useMemo(() => trends(trace.data ?? []), [trace.data]);
 
   if (record.isPending) return <Spinner className="recorded-instruments__spinner" />;
 
@@ -160,6 +189,7 @@ export const RecordedInstruments: React.FC<RecordedInstrumentsProps> = ({ runId 
                 <thead>
                   <tr>
                     <th>Reading</th>
+                    <th>Trend</th>
                     <th>Min</th>
                     <th>Mean</th>
                     <th>Max</th>
@@ -201,6 +231,9 @@ export const RecordedInstruments: React.FC<RecordedInstrumentsProps> = ({ runId 
                               )}
                             </button>
                           </td>
+                          <td className="recorded-instruments__trend">
+                            <Sparkline values={trendById.get(id) ?? []} />
+                          </td>
                           <td className="mono">{show(reading.min, reading.precision)}</td>
                           <td className="mono">{show(reading.mean, reading.precision)}</td>
                           <td className="mono">{show(reading.max, reading.precision)}</td>
@@ -209,7 +242,7 @@ export const RecordedInstruments: React.FC<RecordedInstrumentsProps> = ({ runId 
                         </tr>
                         {expanded && (
                           <tr className="recorded-instruments__chart-row">
-                            <td colSpan={6}>
+                            <td colSpan={7}>
                               {trace.isPending && <Spinner />}
                               {trace.isError && (
                                 <p className="recorded-instruments__silent">

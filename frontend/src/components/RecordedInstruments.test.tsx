@@ -110,11 +110,9 @@ describe("RecordedInstruments", () => {
     renderPanel();
     const button = await screen.findByRole("button", { name: /Voltage/ });
     expect(button).toHaveAttribute("aria-expanded", "false");
-    expect(getRunInstrumentTrace).not.toHaveBeenCalled();
 
     await userEvent.click(button);
     expect(button).toHaveAttribute("aria-expanded", "true");
-    expect(getRunInstrumentTrace).toHaveBeenCalledWith("RUN-0001");
     await waitFor(() =>
       expect(document.querySelector(".recorded-instruments__chart")).not.toBeNull()
     );
@@ -122,6 +120,29 @@ describe("RecordedInstruments", () => {
     await userEvent.click(button);
     expect(button).toHaveAttribute("aria-expanded", "false");
     expect(document.querySelector(".recorded-instruments__chart-row")).toBeNull();
+  });
+
+  it("draws each reading's trend in its row from the trace", async () => {
+    renderPanel();
+    const row = (await screen.findByText("Voltage")).closest("tr")!;
+    await waitFor(() => expect(row.querySelector(".sparkline__line")).not.toBeNull());
+    expect(getRunInstrumentTrace).toHaveBeenCalledWith("RUN-0001");
+  });
+
+  it("thins a long trace to a bounded number of points", async () => {
+    getRunInstrumentTrace.mockResolvedValue(
+      Array.from({ length: 1000 }, (_, index) => ({
+        at: "2026-01-01T00:00:00.000Z",
+        instrument: "psu",
+        t: index,
+        values: { voltage: index },
+      }))
+    );
+    renderPanel();
+    const row = (await screen.findByText("Voltage")).closest("tr")!;
+    await waitFor(() => expect(row.querySelector(".sparkline__line")).not.toBeNull());
+    const points = row.querySelector(".sparkline__line")!.getAttribute("points")!.split(" ");
+    expect(points).toHaveLength(120);
   });
 
   it("says so when the run kept no trace to chart from", async () => {

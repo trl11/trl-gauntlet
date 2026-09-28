@@ -92,6 +92,16 @@
     padding: 0;
   }
 
+  &__trend {
+    color: $indicator-blue;
+
+    .sparkline {
+      display: block;
+      width: 120px;
+      height: 20px;
+    }
+  }
+
   &__row--open {
     background-color: rgba($trl-dark-gray, 0.5);
   }
