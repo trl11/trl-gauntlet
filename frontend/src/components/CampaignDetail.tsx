@@ -150,8 +150,6 @@ export const CampaignDetail: React.FC<CampaignDetailProps> = ({ campaignKey }) =
               </tbody>
             </table>
           )}
-
-          <p className="campaign-detail__path mono">{campaign.data.suites_dir}</p>
         </>
       )}
     </section>
