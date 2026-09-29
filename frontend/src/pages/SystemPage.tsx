@@ -69,11 +69,9 @@ function hostRows(data: SystemData): DefinitionRow[] {
   ];
 }
 
-/** Render any settings value as a single line. */
-function text(value: unknown): string {
+/** Render a settings or host value, with a dash for one that is missing. */
+function text(value: string | number | null | undefined): string {
   if (value === null || value === undefined || value === "") return "-";
-  if (typeof value === "boolean") return value ? "yes" : "no";
-  if (Array.isArray(value)) return value.length === 0 ? "-" : value.join("\n");
   return String(value);
 }
 

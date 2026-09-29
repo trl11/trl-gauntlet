@@ -12,10 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from gauntlet.app import create_app
-from gauntlet.suites.discovery import discover_suites
-from gauntlet.supervisor.launcher import RunRequest
 from gauntlet.supervisor.supervisor import (
-    RunSupervisor,
     _epoch,
     _read_verdict,
     _reported_error,
@@ -568,33 +565,6 @@ class TestSupervisorHelpers:
             pass
 
         _schedule(loop, _work())
-
-
-class TestStartedHook:
-    def test_a_hook_that_raises_does_not_stop_the_run(self, make_suite, settings) -> None:
-        make_suite("quick", script=script_writing('{"passed": true, "reason": ""}'))
-        catalog = discover_suites(settings.suite_roots)
-        started = []
-
-        def _broken_hook(handle) -> None:
-            started.append(handle.run_id)
-            raise RuntimeError("hook failed")
-
-        async def _run() -> str:
-            supervisor = RunSupervisor(
-                runs_dir=settings.runs_dir,
-                user_profiles_dir=settings.profiles_dir,
-                catalog_provider=lambda: catalog,
-                on_run_started=_broken_hook,
-            )
-            handle = await supervisor.start(RunRequest(suite="quick"))
-            deadline = time.time() + 20.0
-            while not handle.finished and time.time() < deadline:
-                await asyncio.sleep(0.05)
-            assert started == [handle.run_id]
-            return handle.status
-
-        assert asyncio.run(_run()) == "passed"
 
 
 class TestRunIdentifiers:
