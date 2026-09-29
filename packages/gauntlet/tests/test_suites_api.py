@@ -262,6 +262,19 @@ def test_a_path_leaving_the_suite_directory_is_refused(client, download_suite):
     assert client.get("/api/suites/gamma/downloads/../../../etc/passwd").status_code == 404
 
 
+def test_a_declared_download_linking_outside_the_suite_is_refused(client, make_suite, suite_root, tmp_path):
+    secret = tmp_path / "secret.txt"
+    secret.write_text("not the suite's to give")
+    make_suite("epsilon", downloads=[{"path": "files/image.hex"}])
+    (suite_root / "epsilon" / "files").mkdir()
+    (suite_root / "epsilon" / "files" / "image.hex").symlink_to(secret)
+    client.post("/api/suites/rescan")
+
+    response = client.get("/api/suites/epsilon/downloads/files/image.hex")
+    assert response.status_code == 400
+    assert "escapes" in response.json()["detail"]
+
+
 def test_a_declared_download_that_is_missing_is_reported(client, download_suite):
     (download_suite / "files" / "image.hex").unlink()
     response = client.get("/api/suites/gamma/downloads/files/image.hex")

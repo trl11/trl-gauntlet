@@ -38,9 +38,10 @@ export function naturalCompare(a: string, b: string): number {
     const x = left[i] ?? "";
     const y = right[i] ?? "";
     if (x === y) continue;
-    const xNum = Number(x);
-    const yNum = Number(y);
-    if (!Number.isNaN(xNum) && !Number.isNaN(yNum)) return xNum - yNum;
+    if (x === "") return -1;
+    if (y === "") return 1;
+    const bothNumbers = /^\d+$/.test(x) && /^\d+$/.test(y);
+    if (bothNumbers && Number(x) !== Number(y)) return Number(x) - Number(y);
     return x < y ? -1 : 1;
   }
   return 0;

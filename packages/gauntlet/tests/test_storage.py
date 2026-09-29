@@ -462,6 +462,14 @@ class TestImportTree:
         assert row is not None
         assert row.suite == "beta"
 
+    def test_a_directory_with_neither_a_record_nor_a_verdict_is_skipped(self, runs: RunsIndex, tmp_path: Path) -> None:
+        stray = tmp_path / "alpha" / "r1"
+        stray.mkdir(parents=True)
+        (stray / "metrics.jsonl").write_text('{"kind":"iteration","iteration":1,"success":true}\n')
+
+        assert runs.import_tree(tmp_path) == 0
+        assert runs.get("r1") is None
+
     def test_an_unreadable_verdict_still_indexes_the_run_as_failed(self, runs: RunsIndex, tmp_path: Path) -> None:
         run_dir = tmp_path / "alpha" / "r1"
         run_dir.mkdir(parents=True)

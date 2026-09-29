@@ -2,6 +2,26 @@
 
 from __future__ import annotations
 
+import textwrap
+import time
+
+# Runs until it is aborted.
+_WAITS = textwrap.dedent(
+    """\
+    #!/usr/bin/env bash
+    for _ in $(seq 1 600); do sleep 0.1; done
+    """
+)
+
+
+def _wait_until_finished(client, run_id: str, timeout_s: float = 20.0) -> None:
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        if client.get(f"/api/runs/{run_id}").json()["status"] in {"passed", "failed", "error", "aborted"}:
+            return
+        time.sleep(0.05)
+    raise AssertionError(f"run {run_id} did not finish within {timeout_s:g}s")
+
 
 def _keys(client) -> list[str]:
     return [campaign["key"] for campaign in client.get("/api/campaigns").json()["campaigns"]]
@@ -229,6 +249,20 @@ class TestMemberRuns:
         response = client.post("/api/campaigns/demo_campaign/members/loose/run", json={})
 
         assert response.status_code == 404
+
+    def test_a_member_run_while_another_is_in_flight_is_409(self, client, make_campaign, make_suite):
+        campaign = make_campaign("demo_campaign", members=[{"suite": "beta"}])
+        make_suite("beta", root=campaign.suites_dir, script=_WAITS)
+        client.post("/api/campaigns/rescan")
+        first = client.post("/api/campaigns/demo_campaign/members/beta/run", json={}).json()
+
+        try:
+            second = client.post("/api/campaigns/demo_campaign/members/beta/run", json={})
+            assert second.status_code == 409
+            assert "already in progress" in second.json()["detail"]
+        finally:
+            client.post(f"/api/runs/{first['run_id']}/abort")
+            _wait_until_finished(client, first["run_id"])
 
     def test_a_declared_member_with_no_suite_is_refused(self, client, make_campaign):
         make_campaign("demo_campaign", members=[{"suite": "missing"}])

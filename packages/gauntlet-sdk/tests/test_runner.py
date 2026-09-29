@@ -18,6 +18,7 @@ from gauntlet_sdk import (
     SuiteSpec,
     run_suite,
 )
+from gauntlet_sdk import runner as runner_module
 
 
 class Profile(BaseModel):
@@ -406,6 +407,20 @@ class TestRunSuite:
         worker.join(timeout=10)
 
         assert captured["result"].passed
+
+    def test_a_platform_without_the_stop_signal_runs_without_a_handler(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(runner_module, "_GRACEFUL_STOP_SIGNAL", None)
+        before = signal.getsignal(signal.SIGUSR1)
+        during = []
+
+        def _note_handler(_ctx, _ictx):
+            during.append(signal.getsignal(signal.SIGUSR1))
+            return IterationOutcome(success=True)
+
+        result, _ = run_suite(_spec(_note_handler), Profile(iterations=1), run_dir=tmp_path / "run")
+
+        assert result.passed
+        assert during == [before]
 
     def test_teardown_is_skipped_when_setup_fails(self, tmp_path):
         seen = []

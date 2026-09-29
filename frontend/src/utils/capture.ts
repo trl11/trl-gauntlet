@@ -42,6 +42,7 @@ export function parseCapture(text: string): Capture {
   for (const line of lines.slice(1)) {
     const cells = line.split(",");
     if (cells.length !== header.length) continue;
+    if (cells.some((cell) => cell.trim() === "")) continue;
     const time = Number(cells[0]);
     if (!Number.isFinite(time)) continue;
     const row = cells.slice(1).map(Number);

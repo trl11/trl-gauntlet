@@ -85,4 +85,32 @@ describe("SnapshotGallery", () => {
     expect(screen.getByText("No snapshots")).toBeInTheDocument();
     expect(screen.queryAllByRole("img")).toHaveLength(0);
   });
+
+  it("steps with the arrow keys while one is open, stopping at both ends", async () => {
+    const user = userEvent.setup();
+    renderGallery();
+    await user.click(screen.getByLabelText("Open snapshot_0002.png"));
+
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByText("3 of 3 — iteration 3")).toBeInTheDocument();
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByText("3 of 3 — iteration 3")).toBeInTheDocument();
+
+    await user.keyboard("{ArrowLeft}");
+    await user.keyboard("{ArrowLeft}");
+    await user.keyboard("{ArrowLeft}");
+    expect(screen.getByText("1 of 3 — iteration 1")).toBeInTheDocument();
+  });
+
+  it("steps back with its own button, and closes", async () => {
+    const user = userEvent.setup();
+    renderGallery();
+    await user.click(screen.getByLabelText("Open snapshot_0003.png"));
+
+    await user.click(screen.getByRole("button", { name: "Previous snapshot" }));
+    expect(screen.getByText("2 of 3 — iteration 2")).toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByText(/of 3 — iteration/)).not.toBeInTheDocument();
+  });
 });

@@ -159,4 +159,23 @@ describe("ArtifactList", () => {
     renderList();
     expect(await screen.findByRole("alert")).toHaveTextContent("run directory missing");
   });
+
+  it("previews a JSON file that will not parse exactly as it was written", async () => {
+    text.mockResolvedValue('{"passed": tru');
+    renderList();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Preview" }));
+
+    expect(await screen.findByText('{"passed": tru')).toBeInTheDocument();
+  });
+
+  it("hides a preview on a second press", async () => {
+    renderList();
+    await userEvent.click(await screen.findByRole("button", { name: "Preview" }));
+    await screen.findByText(/"passed": true/);
+
+    await userEvent.click(screen.getByRole("button", { name: "Hide" }));
+
+    expect(screen.queryByText(/"passed": true/)).not.toBeInTheDocument();
+  });
 });

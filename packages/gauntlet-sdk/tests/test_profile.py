@@ -152,6 +152,15 @@ class TestWriteResolvedProfile:
         finally:
             run_dir.chmod(0o700)
 
+    def test_a_profile_that_cannot_be_serialised_writes_nothing(self, tmp_path):
+        class HoldsAnObject(BaseModel):
+            model_config = ConfigDict(arbitrary_types_allowed=True)
+
+            handle: object = None
+
+        assert write_resolved_profile(HoldsAnObject(handle=object()), tmp_path) is None
+        assert not (tmp_path / "profile.yaml").exists()
+
 
 class TestSnapshotProfile:
     def test_the_profile_is_copied_into_the_run_directory(self, tmp_path):

@@ -59,11 +59,15 @@ class MockI2c:
             if name == "write":
                 data = _parse_hex(args)
                 result = {"address": address, "data_hex": _to_hex(data), "direction": "write", "length": len(data)}
-            else:
+            elif name == "read":
                 length = int(number_arg("i2c", args, "length", 1, 512))
                 read = self._read(address, length)
-                direction = "read" if name == "read" else "write_read"
-                result = {"address": address, "data_hex": _to_hex(read), "direction": direction, "length": length}
+                result = {"address": address, "data_hex": _to_hex(read), "direction": "read", "length": length}
+            else:
+                _parse_hex(args)
+                length = int(number_arg("i2c", args, "read_length", 1, 512))
+                read = self._read(address, length)
+                result = {"address": address, "data_hex": _to_hex(read), "direction": "write_read", "length": length}
             self._last = result
             return result
 
@@ -71,6 +75,7 @@ class MockI2c:
         """The commands this instrument offers."""
         address_field = command_field("address", "Address (7-bit)", minimum=0, maximum=0x7F)
         length_field = command_field("length", "Length", minimum=1, maximum=512)
+        read_length_field = command_field("read_length", "Read-back Length", minimum=1, maximum=512)
         data_field = command_field("data", "Data (hex)", "string")
         return [
             {"name": "write", "label": "Write", "fields": [address_field, data_field]},
@@ -78,7 +83,7 @@ class MockI2c:
             {
                 "name": "write_read",
                 "label": "Write then Read",
-                "fields": [address_field, data_field, length_field],
+                "fields": [address_field, data_field, read_length_field],
             },
         ]
 

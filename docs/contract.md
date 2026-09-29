@@ -107,7 +107,8 @@ downloads:
 ```
 
 Each is fetched from `GET /api/suites/{key}/downloads/{path}`. `label`
-defaults to the filename.
+defaults to the filename. A `path` with a leading slash or a `..` segment is
+a manifest error, reported by discovery like any other.
 
 `requires` lists capabilities the suite needs. Gauntlet checks each against its
 capability registry before spawning and rejects the run when one is

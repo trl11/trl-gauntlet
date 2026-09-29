@@ -203,6 +203,29 @@ class TestRefusals:
         with pytest.raises(TransferError, match="names no run"):
             read_export(tmp_path / "empty.zip")
 
+    def test_a_manifest_that_is_not_json_is_refused(self, tmp_path: Path) -> None:
+        with zipfile.ZipFile(tmp_path / "garbled.zip", "w") as archive:
+            archive.writestr(MANIFEST_NAME, "{not json")
+
+        with pytest.raises(TransferError, match="is not JSON"):
+            read_export(tmp_path / "garbled.zip")
+
+    def test_a_manifest_that_is_not_an_object_is_refused(self, tmp_path: Path) -> None:
+        with zipfile.ZipFile(tmp_path / "list.zip", "w") as archive:
+            archive.writestr(MANIFEST_NAME, json.dumps([{"apiVersion": 1}]))
+
+        with pytest.raises(TransferError, match="is not an object"):
+            read_export(tmp_path / "list.zip")
+
+    def test_notes_that_are_not_a_list_are_dropped(self, tmp_path: Path) -> None:
+        with zipfile.ZipFile(tmp_path / "odd.zip", "w") as archive:
+            manifest = {"apiVersion": 1, "run": {"run_id": "r1", "suite": "alpha"}, "notes": {"body": "stray"}}
+            archive.writestr(MANIFEST_NAME, json.dumps(manifest))
+
+        export = read_export(tmp_path / "odd.zip")
+        assert export.run_id == "r1"
+        assert export.notes == []
+
 
 class TestArchiveName:
     def test_names_the_file_after_the_run(self) -> None:

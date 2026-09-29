@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import MetricsChart, { type MetricSample } from "./MetricsChart";
 
@@ -105,5 +105,35 @@ describe("MetricsChart", () => {
     render(<MetricsChart runId="run-2" samples={SAMPLES} defaultMetrics={[]} />);
     expect(screen.getByRole("heading", { name: "rail.volts" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "temp_c" })).toBeInTheDocument();
+  });
+
+  describe("once laid out", () => {
+    beforeEach(() => {
+      // jsdom lays nothing out, and the charts draw nothing into no space.
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+        new DOMRect(0, 0, 800, 200)
+      );
+    });
+
+    it("zooms every chart to the window picked on the brush, until reset", async () => {
+      const third: MetricSample = {
+        elapsed_s: 4,
+        iteration: 3,
+        seq: 3,
+        ts: 104,
+        values: { "rail.volts": 3.1, temp_c: 42 },
+      };
+      render(<MetricsChart runId="run-1" samples={[...SAMPLES, third]} defaultMetrics={[]} />);
+      expect(screen.queryByRole("button", { name: "Reset zoom" })).not.toBeInTheDocument();
+
+      const [start] = await screen.findAllByRole("slider");
+      start.focus();
+      await userEvent.keyboard("{ArrowRight}");
+
+      const reset = screen.getByRole("button", { name: "Reset zoom" });
+      await userEvent.click(reset);
+
+      expect(screen.queryByRole("button", { name: "Reset zoom" })).not.toBeInTheDocument();
+    });
   });
 });

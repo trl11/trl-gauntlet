@@ -15,6 +15,8 @@ const rescanSuites = vi.fn();
 const listCampaigns = vi.fn();
 const rescanCampaigns = vi.fn();
 const getCampaign = vi.fn();
+const getProfile = vi.fn();
+const getProfileSchema = vi.fn();
 const verifySuite = vi.fn();
 
 vi.mock("@api/client", async (importOriginal) => {
@@ -27,6 +29,9 @@ vi.mock("@api/client", async (importOriginal) => {
     listCampaigns: () => listCampaigns(),
     rescanCampaigns: () => rescanCampaigns(),
     getCampaign: (...args: unknown[]) => getCampaign(...args),
+    getProfile: (...args: unknown[]) => getProfile(...args),
+    getProfileSchema: (...args: unknown[]) => getProfileSchema(...args),
+    listUnits: () => Promise.resolve({ units: [] }),
     verifySuite: (...args: unknown[]) => verifySuite(...args),
   };
 });
@@ -142,6 +147,8 @@ beforeEach(() => {
   listCampaigns.mockResolvedValue({ campaigns: [BENCH], errors: [] });
   rescanCampaigns.mockResolvedValue({ campaigns: [BENCH], errors: [] });
   getCampaign.mockResolvedValue({ ...BENCH, members: [MEMBER] });
+  getProfile.mockResolvedValue({ body: "cycles: 3\n", name: "mock.yaml", path: "/p/mock.yaml" });
+  getProfileSchema.mockResolvedValue({ type: "object", properties: {} });
   verifySuite.mockResolvedValue({
     checks: [{ detail: "manifest parses", fatal: true, name: "manifest", passed: true }],
     directory: "/suites/thermal_cycle",
@@ -435,5 +442,84 @@ describe("TestsPage remembered view", () => {
     expect(await screen.findByRole("region", { name: "Hardware Bench" })).toBeInTheDocument();
     getItem.mockRestore();
     setItem.mockRestore();
+  });
+});
+
+describe("TestsPage picking and editing", () => {
+  it("shows the suite picked from the rail", async () => {
+    const user = userEvent.setup();
+    renderPage("/tests?suite=thermal_cycle");
+    const smoke = await screen.findByRole("button", { name: "Smoke" });
+
+    await user.click(smoke);
+
+    expect(smoke).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: "Thermal Cycle" })).not.toHaveAttribute(
+      "aria-current"
+    );
+  });
+
+  it("shows the campaign picked from the rail", async () => {
+    const user = userEvent.setup();
+    const other: Campaign = { ...BENCH, key: "soak", member_count: 3, title: "Soak Lab" };
+    listCampaigns.mockResolvedValue({ campaigns: [BENCH, other], errors: [] });
+    renderPage("/tests?view=campaigns");
+    await screen.findByRole("region", { name: "Hardware Bench" });
+
+    await user.click(screen.getByRole("button", { name: /Soak Lab/ }));
+
+    expect(screen.getByRole("button", { name: /Soak Lab/ })).toHaveAttribute(
+      "aria-current",
+      "true"
+    );
+    await waitFor(() => expect(getCampaign).toHaveBeenLastCalledWith("soak"));
+  });
+
+  it("rescans from the empty suite list", async () => {
+    const user = userEvent.setup();
+    listSuites.mockResolvedValue({ errors: [], suites: [] });
+    renderPage();
+    await screen.findByText("No suites discovered");
+
+    const rescans = screen.getAllByRole("button", { name: "Rescan" });
+    await user.click(rescans[rescans.length - 1]);
+
+    await waitFor(() => expect(rescanSuites).toHaveBeenCalled());
+  });
+
+  it("rescans from the empty campaign list", async () => {
+    const user = userEvent.setup();
+    listCampaigns.mockResolvedValue({ campaigns: [], errors: [] });
+    renderPage("/tests?view=campaigns");
+    await screen.findByText("No campaigns discovered");
+
+    const rescans = screen.getAllByRole("button", { name: "Rescan" });
+    await user.click(rescans[rescans.length - 1]);
+
+    await waitFor(() => expect(rescanCampaigns).toHaveBeenCalled());
+  });
+
+  it("opens a profile in the editor, and closes it again", async () => {
+    const user = userEvent.setup();
+    renderPage("/tests?suite=thermal_cycle");
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+
+    expect(await screen.findByText("Profile mock.yaml")).toBeInTheDocument();
+    expect(getProfile).toHaveBeenCalledWith("thermal_cycle", "mock.yaml");
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByText("Profile mock.yaml")).not.toBeInTheDocument();
+  });
+
+  it("closes the run dialog without starting anything", async () => {
+    const user = userEvent.setup();
+    renderPage("/tests?suite=thermal_cycle");
+    await user.click(await screen.findByRole("button", { name: "Start run" }));
+    await screen.findByText("Run Thermal Cycle");
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByText("Run Thermal Cycle")).not.toBeInTheDocument();
   });
 });

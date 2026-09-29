@@ -299,6 +299,20 @@ class TestTailMetrics:
 
         assert [event["iteration"] for event in _events(bus, "iteration")] == [1]
 
+    def test_a_file_that_first_appears_as_the_suite_exits_is_still_read(self, bus, tmp_path):
+        metrics = tmp_path / "metrics.jsonl"
+
+        class _WritesAsItExits:
+            """A suite whose only write lands between the last look and its exit."""
+
+            def poll(self) -> int:
+                metrics.write_text('{"iteration":1,"success":true}\n')
+                return 0
+
+        tail_metrics(metrics, _WritesAsItExits(), bus, poll_s=0.05)
+
+        assert [event["iteration"] for event in _events(bus, "iteration")] == [1]
+
     def test_a_run_that_writes_no_metrics_publishes_nothing(self, bus, tmp_path):
         proc = _spawn("pass")
         tail_metrics(tmp_path / "metrics.jsonl", proc, bus, poll_s=0.05)

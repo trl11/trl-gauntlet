@@ -266,6 +266,39 @@ describe("InstrumentPanel shows an image a command answered with", () => {
     expect(mode("Stop")).toBeInTheDocument();
   });
 
+  it("goes back to single captures when snapshot is picked again", async () => {
+    const onCommand = vi.fn();
+    render(<InstrumentPanel instrument={camera()} onCommand={onCommand} preview={shot} />);
+
+    await userEvent.click(mode("Continuous"));
+    await userEvent.click(mode("Start"));
+    await userEvent.click(mode("Snapshot"));
+
+    expect(mode("Snapshot")).toHaveAttribute("aria-pressed", "true");
+    expect(mode("Capture")).toBeInTheDocument();
+  });
+
+  it("shows a reading pinned to the viewer beside its controls", () => {
+    const withPinned = camera({
+      readouts: [
+        {
+          group: "",
+          key: "sensor.temp_c",
+          label: "Sensor",
+          precision: 1,
+          role: "viewer",
+          unit: "°C",
+        },
+      ],
+      state: { sensor: { temp_c: 41.26 } },
+    });
+    render(<InstrumentPanel instrument={withPinned} onCommand={vi.fn()} />);
+
+    const reading = screen.getByText("Sensor").closest(".instrument-panel__pinned");
+    expect(reading).toHaveTextContent("Sensor41.3 °C");
+    expect(reading?.closest(".instrument-panel__modes")).not.toBeNull();
+  });
+
   it("asks for the next image only once the last one has arrived", async () => {
     const onCommand = vi.fn();
     const { rerender } = render(
@@ -942,5 +975,127 @@ describe("InstrumentPanel offers a numeric field's declared control", () => {
       />
     );
     expect(document.querySelector(".instrument-panel__picks")).toBeNull();
+  });
+});
+
+describe("InstrumentPanel draws commands that share a group as one card", () => {
+  const address = {
+    name: "address",
+    label: "Address",
+    type: "integer" as const,
+    unit: "",
+    min: null,
+    max: null,
+    choices: [],
+    format: "hex",
+    choices_from: "found",
+  };
+  const register = {
+    name: "register",
+    label: "Register",
+    type: "integer" as const,
+    unit: "",
+    min: null,
+    max: null,
+    choices: [],
+  };
+  const bus = instrument({
+    commands: [
+      { name: "write", label: "Write", group: "bus", fields: [address, register] },
+      { name: "detect", label: "Detect", fields: [] },
+      { name: "read", label: "Read", group: "bus", fields: [address] },
+    ],
+    state: { found: [0x10] },
+  });
+
+  it("enters a shared field once, with a key per command", () => {
+    render(<InstrumentPanel instrument={bus} onCommand={vi.fn()} />);
+
+    expect(screen.getAllByLabelText("Address")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Write" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Read" })).toBeInTheDocument();
+  });
+
+  it("sends the key's command with the fields it declares", async () => {
+    const onCommand = vi.fn();
+    render(<InstrumentPanel instrument={bus} onCommand={onCommand} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "10" }));
+    await userEvent.type(screen.getByLabelText("Register"), "3");
+    await userEvent.click(screen.getByRole("button", { name: "Read" }));
+
+    expect(onCommand).toHaveBeenCalledWith("read", { address: 16 });
+  });
+
+  it("puts a command with no fields ahead of the card that uses what it finds", () => {
+    render(<InstrumentPanel instrument={bus} onCommand={vi.fn()} />);
+
+    const detect = screen.getByRole("button", { name: "Detect" });
+    const write = screen.getByRole("button", { name: "Write" });
+    expect(detect.compareDocumentPosition(write) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("draws a group of one as an ordinary command", () => {
+    const lone = instrument({
+      commands: [{ name: "read", label: "Read", group: "bus", fields: [register] }],
+    });
+    render(<InstrumentPanel instrument={lone} onCommand={vi.fn()} />);
+
+    expect(document.querySelector(".instrument-panel__command--group")).toBeNull();
+    expect(screen.getByRole("button", { name: "Read" })).toBeInTheDocument();
+  });
+});
+
+describe("InstrumentPanel summarises a collapsed instrument", () => {
+  it("carries the identifying details into the collapsed line", async () => {
+    const meter = instrument({
+      readouts: [
+        { group: "Rail", key: "volts", label: "Volts", precision: 2, role: "headline", unit: "V" },
+        {
+          group: "Format",
+          key: "width",
+          label: "Width",
+          precision: 0,
+          role: "summary",
+          unit: "px",
+        },
+        { group: "Format", key: "mode", label: "Mode", precision: null, role: "summary", unit: "" },
+      ],
+      state: { mode: "raw", volts: 3.3049, width: 3840 },
+    });
+    render(<InstrumentPanel instrument={meter} onCommand={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Collapse thing" }));
+
+    // Only a group with nothing to burn large is identifying detail; the
+    // rail's reading is what the expanded panel is for.
+    expect(screen.getByText("Collapsed · Width 3840 px · Mode raw")).toBeInTheDocument();
+  });
+
+  it("says only that it is collapsed when nothing is declared", async () => {
+    render(<InstrumentPanel instrument={instrument({ readouts: [] })} onCommand={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Collapse thing" }));
+
+    expect(screen.getByText("Collapsed")).toBeInTheDocument();
+  });
+
+  it("still collapses and expands where storage is blocked", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    render(<InstrumentPanel instrument={instrument()} onCommand={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Collapse thing" }));
+    expect(screen.queryByRole("button", { name: "Set Level" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Expand thing" }));
+    expect(screen.getByRole("button", { name: "Set Level" })).toBeInTheDocument();
   });
 });

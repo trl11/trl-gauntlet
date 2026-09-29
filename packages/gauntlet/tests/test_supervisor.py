@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import signal
 import textwrap
 import time
+from functools import partial
 
 import pytest
 from fastapi.testclient import TestClient
@@ -46,6 +48,17 @@ _STUBBORN = textwrap.dedent(
     """\
     #!/usr/bin/env bash
     trap '' USR1
+    echo "waiting"
+    for _ in $(seq 1 600); do sleep 0.1; done
+    """
+)
+
+
+# Ignores SIGTERM as well, so only SIGKILL ends it.
+_DEAF = textwrap.dedent(
+    """\
+    #!/usr/bin/env bash
+    trap '' USR1 TERM
     echo "waiting"
     for _ in $(seq 1 600); do sleep 0.1; done
     """
@@ -224,6 +237,17 @@ class TestAbort:
             finished = wait_for_status(client, run_id, {"error", "aborted", "failed", "passed"})
             assert finished["status"] == "error"
             assert "without writing verdict.json" in finished["fail_reason"]
+
+    def test_a_suite_that_ignores_sigterm_is_killed_after_the_grace(self, app_with) -> None:
+        with app_with(slow=_DEAF) as client:
+            run_id = start(client)
+            wait_for_output(client, run_id)
+            supervisor = client.app.state.supervisor
+
+            assert client.portal.call(partial(supervisor.abort, run_id, sigkill_grace_s=0.2)) is True
+            finished = wait_for_status(client, run_id, {"error", "aborted", "failed", "passed"}, timeout_s=5.0)
+            assert finished["status"] == "error"
+            assert supervisor.get(run_id).process.returncode == -signal.SIGKILL
 
     def test_aborting_a_finished_run_is_409(self, app_with) -> None:
         with app_with(slow=script_writing('{"passed": true, "reason": ""}')) as client:
@@ -523,6 +547,9 @@ class TestSupervisorHelpers:
         path.write_text("error: no unit\nexiting\n")
 
         assert _reported_error(path) == "no unit"
+
+    def test_a_run_that_left_no_log_reports_no_error(self, tmp_path) -> None:
+        assert _reported_error(tmp_path / "test.log") == ""
 
     def test_a_timestamp_that_cannot_be_parsed_falls_back_to_now(self) -> None:
         assert _epoch("not a timestamp") == pytest.approx(time.time(), abs=5)

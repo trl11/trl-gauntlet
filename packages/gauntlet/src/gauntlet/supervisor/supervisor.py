@@ -118,7 +118,6 @@ class RunSupervisor:
         catalog_provider: Callable[[], SuiteCatalog],
         capabilities: CapabilityRegistry | None = None,
         api_base: str | None = None,
-        on_run_started: Callable[[RunHandle], None] | None = None,
         on_run_completed: Callable[[RunHandle], Awaitable[None]] | None = None,
         history_size: int = 32,
     ) -> None:
@@ -127,7 +126,6 @@ class RunSupervisor:
         self._catalog_provider = catalog_provider
         self._capabilities = capabilities or CapabilityRegistry(api_base=api_base)
         self._api_base = api_base
-        self._on_started = on_run_started
         self._on_completed = on_run_completed
         self._history_size = history_size
         self._runs: dict[str, RunHandle] = {}
@@ -373,9 +371,6 @@ class RunSupervisor:
             target=handle.target,
             unit_serial=handle.unit_serial,
         )
-        if self._on_started is not None:
-            with contextlib.suppress(Exception):
-                self._on_started(handle)
 
         run_dir = Path(handle.run_dir)
         threading.Thread(

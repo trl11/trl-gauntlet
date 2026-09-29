@@ -56,4 +56,52 @@ describe("VerdictSummary", () => {
     expect(screen.getByRole("heading", { name: "Cycle report" })).toBeInTheDocument();
     expect(screen.queryByText("# Cycle report")).not.toBeInTheDocument();
   });
+
+  it("formats integers, durations, decimals and anything else the suite reports", () => {
+    const row = { highlight: false, label: "", precision: null, unit: "" };
+    render(
+      <VerdictSummary
+        verdict={{
+          results: [
+            { ...row, format: "int", key: "frames", value: 12345.6 },
+            { ...row, format: "duration", key: "soak", value: 90 },
+            { ...row, format: "decimal", key: "ripple", precision: 3, unit: "mV", value: 0.12345 },
+            { ...row, format: "text", key: "count", value: 42 },
+            { ...row, format: "text", key: "firmware", value: "v2.1" },
+            { ...row, format: "int", key: "missing", value: null },
+          ],
+        }}
+      />
+    );
+
+    expect(screen.getByText("12,346")).toBeInTheDocument();
+    expect(screen.getByText("1m 30s")).toBeInTheDocument();
+    expect(screen.getByText("0.123")).toBeInTheDocument();
+    expect(screen.getByText("mV")).toBeInTheDocument();
+    expect(screen.getByText("42")).toBeInTheDocument();
+    expect(screen.getByText("v2.1")).toBeInTheDocument();
+    expect(screen.getByText("-")).toBeInTheDocument();
+    // A figure with no label of its own is named by its key.
+    expect(screen.getByText("firmware")).toBeInTheDocument();
+  });
+
+  it("counts nothing for a partial verdict with no counters yet", () => {
+    render(<VerdictSummary verdict={{}} />);
+    expect(screen.getAllByText("0")).toHaveLength(3);
+    expect(screen.queryByText("Results")).not.toBeInTheDocument();
+  });
+
+  it("says when a run stopped early or was aborted, and why", () => {
+    const { rerender } = render(
+      <VerdictSummary
+        verdict={{ abort_reason: "operator abort", aborted: true, stopped_early: true }}
+      />
+    );
+    expect(screen.getByText("Stopped early")).toBeInTheDocument();
+    expect(screen.getByText("operator abort")).toBeInTheDocument();
+
+    rerender(<VerdictSummary verdict={{ abort_reason: "", aborted: true }} />);
+    expect(screen.getByText("Aborted")).toBeInTheDocument();
+    expect(screen.getByText("yes")).toBeInTheDocument();
+  });
 });

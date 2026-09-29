@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 import types
+from pathlib import Path
+
+from gauntlet_sdk.reporting import manifest
+from gauntlet_sdk.reporting.manifest import GitState
 
 import gauntlet
 
@@ -24,9 +29,26 @@ class TestGitSha:
 
     def test_a_live_checkout_falls_back_to_git(self, monkeypatch):
         monkeypatch.delenv("GAUNTLET_GIT_SHA", raising=False)
-        monkeypatch.delitem(sys.modules, "gauntlet._build_info", raising=False)
+        # A None entry makes the import fail as it does where no build has
+        # written the module, whether or not this checkout has one on disk.
+        monkeypatch.setitem(sys.modules, "gauntlet._build_info", None)
 
         # This checkout has a real .git, so the fallback finds a real commit
         # rather than needing one faked up.
-        sha = gauntlet.git_sha()
-        assert sha is None or len(sha) == 40
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=Path(gauntlet.__file__).parent,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        assert gauntlet.git_sha() == head
+
+    def test_an_empty_baked_in_commit_falls_back_to_git(self, monkeypatch):
+        monkeypatch.delenv("GAUNTLET_GIT_SHA", raising=False)
+        module = types.ModuleType("gauntlet._build_info")
+        module.GIT_SHA = ""
+        monkeypatch.setitem(sys.modules, "gauntlet._build_info", module)
+        monkeypatch.setattr(manifest, "git_state", lambda cwd: GitState(sha="from-git"))
+
+        assert gauntlet.git_sha() == "from-git"

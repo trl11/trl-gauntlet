@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { abortRun, stopRun } from "@api/client";
 import type { RunRow } from "@api/types";
 
 import ActiveRun from "./ActiveRun";
@@ -157,5 +159,100 @@ describe("ActiveRun", () => {
     });
 
     expect(screen.getByRole("button", { name: "#1 · passed · 1s" })).toBeInTheDocument();
+  });
+});
+
+describe("ActiveRun ends a run", () => {
+  function renderRoutes(run: RunRow = RUN) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <Routes>
+            <Route
+              path="/"
+              element={<ActiveRun now={Date.parse("2026-01-01T00:00:30Z")} run={run} />}
+            />
+            <Route path="/runs/:runId" element={<p>run page</p>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    FakeEventSource.instances = [];
+    vi.stubGlobal("EventSource", FakeEventSource);
+  });
+
+  it("stops the run once the operator confirms", async () => {
+    vi.mocked(stopRun).mockResolvedValue({ run_id: "r1", status: "stopping" });
+    renderRoutes();
+
+    await userEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(screen.getByText(/Stop thermal_cycle\? The suite finishes early/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(stopRun).toHaveBeenCalledWith("r1");
+    expect(abortRun).not.toHaveBeenCalled();
+  });
+
+  it("aborts the run once the operator confirms", async () => {
+    vi.mocked(abortRun).mockResolvedValue({ run_id: "r1", status: "aborting" });
+    renderRoutes();
+
+    await userEvent.click(screen.getByRole("button", { name: "Abort" }));
+    expect(screen.getByText(/Abort thermal_cycle\? The process is killed/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(abortRun).toHaveBeenCalledWith("r1");
+  });
+
+  it("does nothing when the operator dismisses the question", async () => {
+    renderRoutes();
+
+    await userEvent.click(screen.getByRole("button", { name: "Abort" }));
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+
+    expect(screen.queryByText(/Abort thermal_cycle\?/)).not.toBeInTheDocument();
+    expect(abortRun).not.toHaveBeenCalled();
+  });
+
+  it("shows why the server refused", async () => {
+    vi.mocked(stopRun).mockRejectedValue(new Error("run already finished"));
+    renderRoutes();
+
+    await userEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(await screen.findByText("run already finished")).toBeInTheDocument();
+  });
+
+  it("opens the run from a square of its progress", async () => {
+    renderRoutes();
+    act(() => {
+      stream().emit("phase", {
+        detail: {},
+        elapsed_s: 1,
+        iteration: 1,
+        phase: "soak",
+        seq: 0,
+        success: true,
+        ts: 1767225600,
+      });
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "#1 · passed · 1s" }));
+
+    await waitFor(() => expect(screen.getByText("run page")).toBeInTheDocument());
+  });
+
+  it("says when the run names no unit, and times nothing it cannot read", () => {
+    renderRoutes({ ...RUN, started_at: "not a time", unit_serial: null });
+
+    expect(screen.getByText("no unit")).toBeInTheDocument();
+    expect(screen.getByText("Phase").nextElementSibling).toHaveTextContent("-");
+    expect(screen.getByText("Elapsed").nextElementSibling).toHaveTextContent("-");
   });
 });

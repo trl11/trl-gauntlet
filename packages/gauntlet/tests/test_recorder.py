@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import textwrap
 import time
 from pathlib import Path
@@ -226,6 +227,21 @@ class TestRecording:
         recorded = {instrument["name"]: instrument["readings"] for instrument in summary["instruments"]}
         assert recorded["daq"] == []
         assert [entry["key"] for entry in recorded["psu"]] == ["output_enabled", "voltage"]
+
+    def test_a_run_directory_that_cannot_be_written_records_nothing_and_says_so(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        registry = CapabilityRegistry(api_base="http://127.0.0.1:7100/api")
+        registry.register(_Supply())  # type: ignore[arg-type]
+        missing = tmp_path / "missing"
+        recorder = InstrumentRecorder(registry, ["psu"], missing, interval_s=0.01)
+
+        with caplog.at_level(logging.WARNING, logger="gauntlet.supervisor.recorder"):
+            recorder.start()
+            recorder.stop()
+
+        assert "cannot record instruments" in caplog.text
+        assert not missing.exists()
 
 
 class TestWhatARunRecords:

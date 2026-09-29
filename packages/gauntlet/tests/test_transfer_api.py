@@ -105,3 +105,21 @@ class TestImport:
 
     def test_something_that_is_not_an_export_is_422(self, client) -> None:
         assert client.post("/api/runs/import", content=b"not a zip").status_code == 422
+
+    def test_a_run_still_in_flight_here_is_409_even_with_overwrite(self, client, exported: bytes, monkeypatch) -> None:
+        monkeypatch.setattr(client.app.state.supervisor, "get", lambda _: SimpleNamespace(finished=False))
+
+        response = client.post("/api/runs/import?overwrite=true", content=exported)
+        assert response.status_code == 409
+        assert response.json()["detail"] == "run is still in flight"
+
+    def test_an_archive_escaping_the_run_directory_is_422(self, client, exported: bytes) -> None:
+        client.delete("/api/runs/r1")
+        buffer = io.BytesIO(exported)
+        with zipfile.ZipFile(buffer, "a") as archive:
+            archive.writestr("run/../../escaped.txt", "gotcha")
+
+        response = client.post("/api/runs/import", content=buffer.getvalue())
+        assert response.status_code == 422
+        assert "escapes" in response.json()["detail"]
+        assert client.get("/api/runs/r1").status_code == 404
