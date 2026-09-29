@@ -280,17 +280,45 @@ export interface RunRow {
   duration_s: number | null;
   ended_at: string | null;
   fail_reason: string | null;
+  /** Whether an operator has marked this run as a favorite. Absent on a body served before favorites were. */
+  favorite?: boolean;
+  /** Where the run was started, as the operator checked in. Absent on a body served before check-in was. */
+  location?: string | null;
   /** Operator notes against this run. Absent on a body served before counts were. */
   note_count?: number;
+  /** Who started the run, as they checked in. Absent on a body served before check-in was. */
+  operator?: string | null;
   profile: string | null;
   run_dir: string;
   run_id: string;
+  /** The test session the run belongs to. Absent on a body served before check-in was. */
+  session?: string | null;
   started_at: string;
   status: RunStatus;
   suite: string;
   target: string | null;
   unit_serial: string | null;
   verdict: RunVerdictCode | null;
+}
+
+/** `GET /api/runs/provenance`: every value any run was recorded with, sorted. */
+export interface RunProvenance {
+  locations: string[];
+  operators: string[];
+  sessions: string[];
+}
+
+/** Who did something, where, and in which test session: what checking in records. */
+export interface Provenance {
+  location: string | null;
+  operator: string | null;
+  session: string | null;
+}
+
+/** `PUT|DELETE /api/runs/{id}/favorite` */
+export interface RunFavorite {
+  favorite: boolean;
+  run_id: string;
 }
 
 /** `GET /api/runs`. `total` counts every match, not just this page. */
@@ -300,7 +328,7 @@ export interface RunList {
 }
 
 /** Body of `POST /api/runs`. */
-export interface StartRunBody {
+export interface StartRunBody extends Partial<Provenance> {
   /** Instruments to record alongside the ones the suite requires, by instance key. */
   observe?: string[];
   overrides?: Record<string, unknown>;
@@ -334,7 +362,7 @@ export interface RecordedReading {
  * lets a line be plotted alongside the others from that tick.
  */
 export interface RecordedTick {
-  /** When the tick was taken, to the second, as UTC. */
+  /** When the tick was taken, to the millisecond, as UTC. */
   at: string;
   /** Instance key of the instrument this line read. */
   instrument: string;
@@ -811,6 +839,18 @@ export interface Note {
   body: string;
   created_at: string;
   id: number;
+  /** Where it was written. Absent on a body served before check-in was. */
+  location?: string | null;
+  /** The test session it was written in. Absent on a body served before check-in was. */
+  session?: string | null;
+}
+
+/** Body of `POST /api/runs/{id}/notes` and `POST /api/units/{serial}/notes`. */
+export interface NoteBody {
+  author: string | null;
+  body: string;
+  location: string | null;
+  session: string | null;
 }
 
 /** `GET /api/units/{serial}/notes` and `GET /api/runs/{id}/notes`. */

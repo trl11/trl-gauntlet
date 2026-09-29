@@ -20,6 +20,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from gauntlet.api.notes import clean
 from gauntlet.api.runs import to_row
 from gauntlet.campaigns import CampaignMember, json_schema
 from gauntlet.supervisor import RunConflict, RunRejected, RunRequest
@@ -31,7 +32,8 @@ class MemberRunBody(BaseModel):
     """Overrides applied on top of what a member declares.
 
     Every field is optional: an empty body runs the member exactly as the
-    campaign declares it.
+    campaign declares it. ``operator``, ``location`` and ``session`` are the
+    run's provenance, as the operator checked in, and nothing a campaign declares.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -40,6 +42,9 @@ class MemberRunBody(BaseModel):
     target: str | None = None
     unit_serial: str | None = None
     overrides: dict[str, Any] = Field(default_factory=dict)
+    operator: str | None = None
+    location: str | None = None
+    session: str | None = None
 
 
 def _campaigns(request: Request) -> Any:
@@ -167,6 +172,9 @@ async def run_member(request: Request, key: str, suite: str, body: MemberRunBody
                 target=body.target or declared_target or request.app.state.settings.default_target or None,
                 unit_serial=body.unit_serial or declared_serial or None,
                 overrides=overrides,
+                operator=clean(body.operator),
+                location=clean(body.location),
+                session=clean(body.session),
             )
         )
     except RunConflict as exc:

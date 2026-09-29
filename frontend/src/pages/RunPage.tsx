@@ -1,7 +1,9 @@
+import { faStar } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Confirm, Spinner } from "@trl11/components/ui";
 import clsx from "clsx";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 
 import {
@@ -18,8 +20,10 @@ import {
   listRunNotes,
   listSuites,
   runExportUrl,
+  setRunFavorite,
   stopRun,
 } from "@api/client";
+import type { NoteBody } from "@api/types";
 import ArtifactList from "@components/ArtifactList";
 import DefinitionRows from "@components/DefinitionRows";
 import EmptyState from "@components/EmptyState";
@@ -36,7 +40,6 @@ import TraceTimeline from "@components/TraceTimeline";
 import VerdictBanner from "@components/VerdictBanner";
 import VerdictSummary from "@components/VerdictSummary";
 import useEventStream from "@hooks/useEventStream";
-import { metricsSeriesKey } from "@hooks/usePersistedSeries";
 import { formatDuration, formatTimestamp } from "../utils/format";
 import { traceToSamples } from "../utils/instrument_trace";
 import { elapsedSeconds, parseLog, replay, type AnomalyRow } from "../utils/run_history";
@@ -75,7 +78,8 @@ type Tab = (typeof TABS)[number];
 export const RunPage: React.FC = () => {
   const { runId = "" } = useParams<{ runId: string }>();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState<Tab>("overview");
+  // Null until the operator picks a tab or the run's first answer picks one.
+  const [tab, setTab] = useState<Tab | null>(null);
   const [pending, setPending] = useState<"abort" | "stop" | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
 
@@ -86,6 +90,13 @@ export const RunPage: React.FC = () => {
   });
   const live = isLive(run.data?.status);
   const settled = run.data !== undefined && !live;
+
+  // A run still in flight opens on its log, which is the only thing moving;
+  // a finished one opens on its overview. Decided once, so a run finishing
+  // under an operator watching its log does not take the log away.
+  useEffect(() => {
+    if (tab === null && run.data !== undefined) setTab(live ? "log" : "overview");
+  }, [live, run.data, tab]);
 
   // Cached alongside every other page that lists suites, so this rarely
   // triggers its own request. Only its manifest's default_metrics is used
@@ -158,13 +169,20 @@ export const RunPage: React.FC = () => {
   });
   const refreshNotes = () => queryClient.invalidateQueries({ queryKey: ["run-notes", runId] });
   const addNote = useMutation({
-    mutationFn: (note: { author: string | null; body: string }) =>
-      addRunNote(runId, note.body, note.author),
+    mutationFn: (note: NoteBody) => addRunNote(runId, note),
     onSuccess: refreshNotes,
   });
   const removeNote = useMutation({
     mutationFn: (noteId: number) => deleteRunNote(runId, noteId),
     onSuccess: refreshNotes,
+  });
+
+  const favorite = useMutation({
+    mutationFn: (next: boolean) => setRunFavorite(runId, next),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["run", runId] });
+      queryClient.invalidateQueries({ queryKey: ["runs"] });
+    },
   });
 
   const control = useMutation({
@@ -180,27 +198,12 @@ export const RunPage: React.FC = () => {
   const samples = replayed.samples.length > 0 ? replayed.samples : stream.metrics;
   // The bench's own readings, alongside whatever the suite reported, so a
   // channel recorded rather than published still shows up on the Metrics
-  // tab's picker. Merged rather than kept on the Instruments tab, which stays
-  // the tab for what a reading came to rather than for charting it.
+  // tab's picker, where it can be charted against the suite's own series.
   const metricsSamples = useMemo(() => {
     const recorded = traceToSamples(instrumentTrace.data ?? []);
     if (recorded.length === 0) return samples;
     return [...samples, ...recorded].sort((a, b) => (a.elapsed_s ?? a.ts) - (b.elapsed_s ?? b.ts));
   }, [samples, instrumentTrace.data]);
-  // Presets the Metrics tab's series pick before switching to it, so a
-  // reading clicked on the Instruments tab is what the operator sees there.
-  // Written to the same storage `MetricsChart` reads on mount, since the
-  // chart is unmounted while the Instruments tab is open and always remounts
-  // fresh when this tab switch brings it back.
-  const showReading = (key: string) => {
-    try {
-      localStorage.setItem(metricsSeriesKey(runId), JSON.stringify([key]));
-    } catch {
-      // Storage can be full or disabled (private browsing); the tab switch
-      // still gets the operator there, just without the series preselected.
-    }
-    setTab("metrics");
-  };
   const phases = replayed.phases.length > 0 ? replayed.phases : stream.phases;
   const iterations = replayed.iterations.length > 0 ? replayed.iterations : stream.iterations;
   const anomalies: AnomalyRow[] =
@@ -210,7 +213,9 @@ export const RunPage: React.FC = () => {
   // iterations recorded them.
   const snapshots = useMemo(
     () =>
-      iterations.flatMap((row) => row.images.map((path) => ({ iteration: row.iteration, path }))),
+      iterations.flatMap((row) =>
+        row.images.map((path) => ({ iteration: row.iteration, path, ts: row.ts }))
+      ),
     [iterations]
   );
   // The same, for what the run named in `metrics.traces`. A trace is an image
@@ -219,7 +224,9 @@ export const RunPage: React.FC = () => {
   // picture of the unit, and a run recording both should not interleave them.
   const traces = useMemo(
     () =>
-      iterations.flatMap((row) => row.traces.map((path) => ({ iteration: row.iteration, path }))),
+      iterations.flatMap((row) =>
+        row.traces.map((path) => ({ iteration: row.iteration, path, ts: row.ts }))
+      ),
     [iterations]
   );
 
@@ -288,7 +295,7 @@ export const RunPage: React.FC = () => {
     traces: traces.length === 0,
   };
   const visibleTabs = TABS.filter((name) => !empty[name]);
-  const active = visibleTabs.includes(tab) ? tab : "overview";
+  const active = tab !== null && visibleTabs.includes(tab) ? tab : "overview";
 
   return (
     <div className="run-page">
@@ -296,6 +303,16 @@ export const RunPage: React.FC = () => {
         title={detail.suite}
         actions={
           <div className="run-page__actions">
+            <Button
+              aria-pressed={Boolean(detail.favorite)}
+              className={clsx("run-page__favorite", detail.favorite && "is-favorite")}
+              disabled={favorite.isPending}
+              size="small"
+              onClick={() => favorite.mutate(!detail.favorite)}
+            >
+              <FontAwesomeIcon icon={faStar} />
+              {detail.favorite ? "Favorite" : "Add to favorites"}
+            </Button>
             {live ? (
               <>
                 <Button
@@ -351,7 +368,29 @@ export const RunPage: React.FC = () => {
               ),
             },
             { label: "target", value: detail.target ?? "-" },
+            { label: "operator", value: detail.operator ?? "-" },
+            {
+              label: "location",
+              value: detail.location ? (
+                <Link to={`/history?location=${encodeURIComponent(detail.location)}`}>
+                  {detail.location}
+                </Link>
+              ) : (
+                "-"
+              ),
+            },
+            {
+              label: "session",
+              value: detail.session ? (
+                <Link to={`/history?session=${encodeURIComponent(detail.session)}`}>
+                  {detail.session}
+                </Link>
+              ) : (
+                "-"
+              ),
+            },
             { label: "started", value: formatTimestamp(detail.started_at) },
+            { label: "ended", value: formatTimestamp(detail.ended_at) },
             {
               label: live ? "elapsed" : "duration",
               value: formatDuration(
@@ -453,9 +492,7 @@ export const RunPage: React.FC = () => {
           />
         )}
         {active === "captures" && <CaptureViewer key={runId} paths={captures} runId={runId} />}
-        {active === "instruments" && (
-          <RecordedInstruments key={runId} runId={runId} onSelectReading={showReading} />
-        )}
+        {active === "instruments" && <RecordedInstruments key={runId} runId={runId} />}
         {active === "iterations" && (
           <IterationTable
             key={runId}
@@ -486,7 +523,7 @@ export const RunPage: React.FC = () => {
           <NotesPanel
             busy={addNote.isPending || removeNote.isPending || notes.isPending}
             notes={notes.data?.notes ?? []}
-            onAdd={(body, author) => addNote.mutateAsync({ author, body })}
+            onAdd={(note) => addNote.mutateAsync(note)}
             onDelete={(noteId) => removeNote.mutateAsync(noteId)}
           />
         )}

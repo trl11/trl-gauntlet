@@ -277,6 +277,22 @@ class TestRunHistoryFilters:
         body = client.get("/api/runs", params={"after": "2026-03-02", "before": "2026-03-02"}).json()
         assert [r["run_id"] for r in body["runs"]] == ["wanted"]
 
+    def test_q_finds_a_run_by_part_of_its_id(self, client, add_run):
+        add_run("20260912T220722Z-e346")
+        add_run("20260913T043157Z-30f5", suite="beta")
+        body = client.get("/api/runs", params={"q": " e346 "}).json()
+        assert [r["run_id"] for r in body["runs"]] == ["20260912T220722Z-e346"]
+        assert body["total"] == 1
+
+    def test_q_finds_runs_by_suite(self, client, add_run):
+        add_run("r1")
+        add_run("r2", suite="beta")
+        assert [r["run_id"] for r in client.get("/api/runs", params={"q": "BET"}).json()["runs"]] == ["r2"]
+
+    def test_a_blank_q_filters_nothing(self, client, add_run):
+        add_run("r1")
+        assert client.get("/api/runs", params={"q": "  "}).json()["total"] == 1
+
     def test_sort_column_and_direction_are_honoured(self, client, add_run):
         add_run("b-run", suite="beta")
         add_run("a-run", suite="alpha")

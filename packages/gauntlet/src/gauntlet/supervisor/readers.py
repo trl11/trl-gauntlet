@@ -10,6 +10,7 @@ import json
 import re
 import subprocess
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +21,22 @@ from gauntlet.supervisor.events import EventBus
 _ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 _ERROR_RE = re.compile(r"\b(?:ERROR|FAILED|FATAL|Traceback)\b")
 _WARN_RE = re.compile(r"\b(?:WARNING|WARN)\b", re.IGNORECASE)
+_STAMP_RE = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z ")
+
+
+def stamped(message: str, ts: float) -> str:
+    """One ``test.log`` line: the UTC time Gauntlet read it, then the line itself."""
+    stamp = datetime.fromtimestamp(ts, timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+    return f"{stamp}Z {message}"
+
+
+def unstamped(line: str) -> str:
+    """A ``test.log`` line as the suite printed it.
+
+    A run recorded before lines were stamped has no stamp to remove.
+    """
+    match = _STAMP_RE.match(line)
+    return line[match.end() :] if match else line
 
 
 def classify_log_line(line: str) -> tuple[str, str]:
@@ -54,10 +71,10 @@ def pump_stdout(proc: subprocess.Popen[str], bus: EventBus, log_path: Path) -> N
             if not line:
                 continue
             level, message = classify_log_line(line)
+            event = bus.publish_threadsafe("log", level=level, message=message)
             if handle is not None:
                 with contextlib.suppress(OSError):
-                    handle.write(line + "\n")
-            bus.publish_threadsafe("log", level=level, message=message)
+                    handle.write(stamped(line, event.ts) + "\n")
     finally:
         if handle is not None:
             with contextlib.suppress(OSError):

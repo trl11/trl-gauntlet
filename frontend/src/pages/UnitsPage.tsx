@@ -13,7 +13,7 @@ import clsx from "clsx";
 import { useId, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
-import { deleteUnit, listUnits } from "@api/client";
+import { deleteUnit, getRunProvenance, listUnits } from "@api/client";
 import type { Unit } from "@api/types";
 import EmptyState from "@components/EmptyState";
 import ListToolbar from "@components/ListToolbar";
@@ -108,14 +108,27 @@ const UnitsList: React.FC = () => {
   const navigate = useNavigate();
   const fieldId = useId();
 
-  const [filters, setFilters] = useState<Filters>({ serial: "all" });
+  const [filters, setFilters] = useState<Filters>({
+    location: "all",
+    serial: "all",
+    session: "all",
+  });
   const [sortKey, setSortKey] = useState<SortKey>("last_seen");
   const [ascending, setAscending] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [deleting, setDeleting] = useState<string[] | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
-  const units = useQuery({ queryKey: ["units"], queryFn: listUnits });
+  const where = {
+    location: filters.location === "all" ? null : String(filters.location),
+    session: filters.session === "all" ? null : String(filters.session),
+  };
+  const narrowed = where.location !== null || where.session !== null;
+  const units = useQuery({ queryKey: ["units", where], queryFn: () => listUnits(where) });
+  // Deleting a unit takes every run it has, not just the ones a location or
+  // session filter counts, so the confirmation counts from the whole list.
+  const everyUnit = useQuery({ queryKey: ["units"], queryFn: () => listUnits() });
+  const provenance = useQuery({ queryKey: ["runs", "provenance"], queryFn: getRunProvenance });
 
   const remove = useMutation({
     mutationFn: (targets: string[]) => deleteUnits(targets),
@@ -183,6 +196,20 @@ const UnitsList: React.FC = () => {
                   })),
                 ],
               },
+              {
+                id: "location",
+                options: [
+                  { value: "all", label: "Any location" },
+                  ...(provenance.data?.locations ?? []).map((value) => ({ value, label: value })),
+                ],
+              },
+              {
+                id: "session",
+                options: [
+                  { value: "all", label: "Any session" },
+                  ...(provenance.data?.sessions ?? []).map((value) => ({ value, label: value })),
+                ],
+              },
             ]}
           />
         }
@@ -213,8 +240,12 @@ const UnitsList: React.FC = () => {
 
       {units.isSuccess && rows.length === 0 && (
         <EmptyState
-          title="No units yet"
-          message="Start a run with a unit serial and it will appear here."
+          title={narrowed ? "No units match" : "No units yet"}
+          message={
+            narrowed
+              ? "No unit was run at this location or in this session."
+              : "Start a run with a unit serial and it will appear here."
+          }
         />
       )}
 
@@ -316,7 +347,7 @@ const UnitsList: React.FC = () => {
 
       {deleting !== null && (
         <Confirm onConfirm={() => remove.mutate(deleting)} onDismiss={() => setDeleting(null)}>
-          {confirmationFor(deleting, units.data?.units ?? [])}
+          {confirmationFor(deleting, everyUnit.data?.units ?? [])}
         </Confirm>
       )}
     </div>

@@ -14,7 +14,9 @@ from gauntlet.supervisor.readers import (
     flatten,
     publish_record,
     pump_stdout,
+    stamped,
     tail_metrics,
+    unstamped,
 )
 
 
@@ -183,6 +185,14 @@ class TestPublishRecord:
         assert _events(bus) == []
 
 
+class TestStamps:
+    def test_a_line_is_stamped_with_its_utc_time(self):
+        assert stamped("boot ok", 1_767_225_600.25) == "2026-01-01T00:00:00.250Z boot ok"
+
+    def test_a_line_from_before_stamping_is_left_as_it_was(self):
+        assert unstamped("boot ok") == "boot ok"
+
+
 class TestPumpStdout:
     def test_every_line_reaches_the_bus_and_the_log_file(self, bus, tmp_path):
         proc = _spawn(
@@ -196,7 +206,9 @@ class TestPumpStdout:
 
         levels = [(event["level"], event["message"]) for event in _events(bus, "log")]
         assert levels == [("info", "iter 1: ok"), ("error", "link down")]
-        assert (tmp_path / "test.log").read_text() == "iter 1: ok\nerror: link down\n"
+        written = (tmp_path / "test.log").read_text().splitlines()
+        assert [unstamped(line) for line in written] == ["iter 1: ok", "error: link down"]
+        assert written[0] == stamped("iter 1: ok", _events(bus, "log")[0]["ts"])
 
     def test_blank_lines_are_dropped(self, bus, tmp_path):
         proc = _spawn(

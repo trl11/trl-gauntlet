@@ -34,7 +34,7 @@ from gauntlet.capabilities.registry import CapabilityError, CapabilityRegistry
 from gauntlet.suites.discovery import SuiteCatalog, resolve_profile
 from gauntlet.supervisor.events import EventBus
 from gauntlet.supervisor.launcher import Launch, LaunchError, RunRequest, build_launch
-from gauntlet.supervisor.readers import pump_stdout, tail_metrics
+from gauntlet.supervisor.readers import pump_stdout, stamped, tail_metrics, unstamped
 from gauntlet.supervisor.recorder import InstrumentRecorder
 
 log = logging.getLogger("gauntlet.supervisor")
@@ -62,6 +62,9 @@ class RunHandle:
     profile: str | None = None
     target: str | None = None
     unit_serial: str | None = None
+    operator: str | None = None
+    location: str | None = None
+    session: str | None = None
     ended_at: str | None = None
     duration_s: float | None = None
     verdict: str | None = None
@@ -96,6 +99,9 @@ class RunHandle:
             "profile": self.profile,
             "target": self.target,
             "unit_serial": self.unit_serial,
+            "operator": self.operator,
+            "location": self.location,
+            "session": self.session,
             "run_dir": self.run_dir,
             "argv": list(self.argv),
         }
@@ -206,6 +212,9 @@ class RunSupervisor:
                 profile=profile_path.name if profile_path else None,
                 target=request.target,
                 unit_serial=request.unit_serial,
+                operator=request.operator,
+                location=request.location,
+                session=request.session,
                 argv=list(launch.argv),
                 observing=observing,
                 bus=EventBus(),
@@ -260,10 +269,11 @@ class RunSupervisor:
         exactly the one somebody comes back to read. `pump_stdout` appends, so
         the suite's own output follows these rather than replacing them.
         """
+        ts = time.time()
         if handle.bus is not None:
-            await handle.bus.publish("log", level=level, message=message)
+            ts = (await handle.bus.publish("log", level=level, message=message)).ts
         with contextlib.suppress(OSError), (Path(handle.run_dir) / "test.log").open("a", encoding="utf-8") as file:
-            file.write(message + "\n")
+            file.write(stamped(message, ts) + "\n")
 
     async def stop(self, run_id: str) -> bool:
         """Request that a run finish early and still produce a verdict.
@@ -524,7 +534,7 @@ def _reported_error(log_path: Path) -> str:
         lines = log_path.read_text(errors="replace").splitlines()
     except OSError:
         return ""
-    for line in reversed(lines):
+    for line in map(unstamped, reversed(lines)):
         # The explicit prefix only. `classify_log_line` also infers a level
         # from the wording, which a traceback mentioning an error would trip.
         if line[:6].lower().startswith("error:"):

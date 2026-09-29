@@ -26,7 +26,7 @@ frontend/
     │   ├── client.ts     the only module that calls fetch
     │   └── types.ts      the API vocabulary; one interface per response
     ├── components/       shared components, one X.tsx + X.scss per component
-    ├── hooks/            useEventStream, useGlobalShortcuts
+    ├── hooks/            useEventStream, useGlobalShortcuts, useCheckIn, …
     ├── pages/            one per route
     ├── styles/           main.scss (fonts, resets), _chart.scss (mixins)
     ├── test/             vitest setup and captured API fixtures
@@ -45,15 +45,14 @@ it. A run whose files include `instruments.json` grows an **Instruments** tab; a
 run that wrote `captures/*.csv` grows a **Captures** tab, drawn by
 `CaptureViewer`; the galleries appear only for a run that recorded images.
 
-The Instruments tab stays a summary table; `instruments.jsonl` is charted on
-the **Metrics** tab instead, merged in beside whatever the suite reported.
-`traceToSamples` turns the instruments' independent lines back into one row
+The Instruments tab is a summary table, and clicking a reading's row expands
+it into a chart of that reading from `instruments.jsonl`. The same trace is
+also charted on the **Metrics** tab, merged in beside whatever the suite
+reported. `traceToSamples` turns the instruments' independent lines back into one row
 per tick, prefixing each reading with the instrument it came from so two
 instruments naming a reading alike do not collide — `daq.channels.ai0.value`
 sits in the same `MetricsChart` and the same series picker as the suite's own
-`rail.volts`. Clicking a reading's row on the Instruments tab presets that
-series (`metricsSeriesKey`, in `usePersistedSeries`) and switches to the
-Metrics tab to show it, the same storage `MetricsChart` reads from on mount.
+`rail.volts`.
 
 Every chart scales its own vertical axis and offers no control for it: the
 window is the data's range with a tenth of that range as air at each end, from
@@ -67,6 +66,10 @@ sample, so a peak survives the thinning — and a window brushed down below the
 point budget is drawn sample for sample. That is what makes zooming show the
 real samples rather than a smoothed copy of them, and it is all in
 `utils/capture.ts`, where it is testable without a chart.
+
+## Checking in
+
+The top bar's check-in button opens `CheckInDialog`, which asks for a name, a location and a test session. `useCheckIn` keeps them in `localStorage`, so a check-in is per browser and survives a reload, and every component reading it updates together, other tabs included. It is not an account and gates nothing. `RunStartModal` and `CampaignDetail` send it with a run through `provenanceOf`, and `NotesPanel` stamps it on a note in place of asking for an author. History and Units filter on location and session, offering the values `GET /api/runs/provenance` reports, which are also what the dialog completes from, so an operator joining a session spells it the way the first one did.
 
 ## Aliases
 

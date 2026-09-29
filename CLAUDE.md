@@ -215,19 +215,21 @@ and neither is on a package registry.
 - `campaign.yaml` is read, never written. No endpoint edits one, so nothing
   Gauntlet serves can disagree with the file on disk; a change is made with an
   editor and picked up by a rescan.
+- Checking in is provenance, not authentication: nothing requires it. The name, location and test session live in the browser, and reach the server only as fields on a run or a note. A run's are part of its row, so its `run.json` keeps them, and they never reach the suite.
 - Renaming a unit rewrites `unit_serial` on its run rows. `DELETE
   /api/units/{serial}` drops only its metadata and notes, never a run, so a
   unit with runs is derived from them again; `?runs=true` deletes those runs
   too, which is what the UI sends, and is refused while any of them is in
   flight.
+- A run's directory rebuilds it: storing a row writes `run.json` beside the artifacts, and a run note written or deleted rewrites `notes.md`. Anything that changes a stored row, a unit rename included, has to go through `RunsIndex.upsert` or `write_record`, or a reimport undoes it. Favorites are the one thing kept out of the directory.
 - A run id ends in randomness, not anything constant within a process. Two runs
   starting in the same second must not share a directory.
 - A run exported by one instance and imported by another keeps its run id, so
   importing the same archive twice leaves one run. `gauntlet.transfer` is the
   only place an archive is written or read, and it carries the index row
-  because disk cannot rebuild a run recorded as `error`. An imported run whose
-  suite is not installed here still lists and still serves its artifacts: run
-  history never depends on the catalog.
+  and notes so an archive of a run older than `run.json` arrives whole. An
+  imported run whose suite is not installed here still lists and still serves
+  its artifacts: run history never depends on the catalog.
 - `manifest.json` and the other artifacts exist only once the suite process
   ends, and `cpu_percent` is null until a second sample. Callers wait rather
   than treating either as an error.

@@ -151,13 +151,13 @@ Paths are relative to `GAUNTLET_RUN_DIR`.
 | `frames/` | no | suite, during the run | Images referenced from `metrics.images`. |
 | `traces/` | no | suite, during the run | Captured signals referenced from `metrics.traces`. |
 | `profile.yaml` | no | Gauntlet at start, the suite at exit | The profile as run: every field, defaults and overrides included. |
-| `test.log` | no | Gauntlet | Captured stdout and stderr. |
+| `test.log` | no | Gauntlet | Captured stdout and stderr, each line prefixed with the UTC time Gauntlet read it, as `2026-01-01T00:00:00.000Z`. |
 | `instruments.jsonl` | no | Gauntlet, during the run | What the bench's instruments read, one line per instrument per second. |
 | `instruments.json` | no | Gauntlet, at exit | The same readings summarised: count, extremes, mean and last. |
+| `run.json` | no | Gauntlet, at start and whenever the run's record changes | The run as Gauntlet indexes it: status, verdict, times, profile, target, unit, and who started it where. |
+| `notes.md` | no | Gauntlet, whenever a note is added or deleted | The operators' notes on the run, oldest first. Absent while there are none. |
 
-The last two are Gauntlet's own and a suite neither writes nor reads them: it
-is not told which instruments are being recorded, and a run is identical
-whether they are or not.
+The last four are Gauntlet's own and a suite neither writes nor reads them: it is not told which instruments are being recorded, and a run is identical whether they are or not. `run.json` and `notes.md` are there so the directory alone rebuilds the run and its notes.
 
 `profile.yaml` starts as the file the run was handed and is replaced at exit
 with the profile the suite resolved — every field, the defaults the model

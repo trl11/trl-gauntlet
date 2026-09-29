@@ -17,7 +17,15 @@ from pathlib import Path
 from typing import Any
 
 from gauntlet import __version__
-from gauntlet.storage import SUBJECT_RUN, NoteRow, NotesIndex, RunRow, RunsIndex
+from gauntlet.storage import (
+    SUBJECT_RUN,
+    NoteRow,
+    NotesIndex,
+    RunRow,
+    RunsIndex,
+    row_from_record,
+    write_notes_file,
+)
 
 EXPORT_API_VERSION = 1
 
@@ -39,6 +47,9 @@ _PORTABLE_COLUMNS = (
     "profile",
     "target",
     "unit_serial",
+    "operator",
+    "location",
+    "session",
 )
 
 
@@ -74,7 +85,16 @@ def export_run(row: RunRow, notes: list[NoteRow], destination: Path) -> Path:
         "exported_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "gauntletVersion": __version__,
         "run": {column: getattr(row, column) for column in _PORTABLE_COLUMNS},
-        "notes": [{"body": n.body, "author": n.author, "created_at": n.created_at} for n in notes],
+        "notes": [
+            {
+                "body": n.body,
+                "author": n.author,
+                "location": n.location,
+                "session": n.session,
+                "created_at": n.created_at,
+            }
+            for n in notes
+        ],
     }
     run_dir = Path(row.run_dir) if row.run_dir else None
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -137,7 +157,16 @@ def import_run(archive: Path, runs_dir: Path, runs: RunsIndex, notes: NotesIndex
     runs.upsert(row)
     notes.delete_subject(SUBJECT_RUN, export.run_id)
     for note in reversed(export.notes):
-        notes.add(SUBJECT_RUN, export.run_id, note.body, note.author, created_at=note.created_at)
+        notes.add(
+            SUBJECT_RUN,
+            export.run_id,
+            note.body,
+            note.author,
+            created_at=note.created_at,
+            location=note.location,
+            session=note.session,
+        )
+    write_notes_file(run_dir, export.run_id, notes.list(SUBJECT_RUN, export.run_id))
     return row
 
 
@@ -169,21 +198,7 @@ def _unpack(archive: Path, run_dir: Path) -> None:
 
 def _row(run: dict[str, Any]) -> RunRow:
     """The exported row, with its run directory left for the importer to set."""
-    fields = {column: run.get(column) for column in _PORTABLE_COLUMNS}
-    return RunRow(
-        run_id=str(fields["run_id"]),
-        suite=str(fields["suite"]),
-        status=str(fields["status"] or "error"),
-        started_at=str(fields["started_at"] or ""),
-        run_dir="",
-        ended_at=_text(fields["ended_at"]),
-        duration_s=float(fields["duration_s"]) if isinstance(fields["duration_s"], (int, float)) else None,
-        verdict=_text(fields["verdict"]),
-        fail_reason=_text(fields["fail_reason"]),
-        profile=_text(fields["profile"]),
-        target=_text(fields["target"]),
-        unit_serial=_text(fields["unit_serial"]),
-    )
+    return row_from_record({column: run.get(column) for column in _PORTABLE_COLUMNS}, "")
 
 
 def _segment(value: str, field: str) -> str:
@@ -208,6 +223,8 @@ def _notes(raw: Any, run_id: str) -> list[NoteRow]:
             body=str(entry.get("body") or ""),
             created_at=str(entry.get("created_at") or ""),
             author=_text(entry.get("author")),
+            location=_text(entry.get("location")),
+            session=_text(entry.get("session")),
         )
         for entry in raw
         if isinstance(entry, dict) and entry.get("body")

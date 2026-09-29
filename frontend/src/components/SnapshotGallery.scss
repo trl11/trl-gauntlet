@@ -50,13 +50,25 @@
     border-top: 1px solid $trl-dark-gray;
   }
 
-  &__iteration {
+  &__label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  &__iteration,
+  &__time {
     font-family: $font-mono;
     font-size: 11px;
     color: $trl-gray;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  &__time {
+    font-size: 10px;
   }
 
   &__download {

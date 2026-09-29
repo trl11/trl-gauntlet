@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from gauntlet.storage.notes import SUBJECT_RUN, SUBJECT_UNIT, NoteRow, NotesIndex
-from gauntlet.storage.runs import RunFilters, RunRow, RunsIndex
+from gauntlet.storage.notes import SUBJECT_RUN, SUBJECT_UNIT, NoteRow, NotesIndex, write_notes_file
+from gauntlet.storage.runs import RunFilters, RunRow, RunsIndex, row_from_record, write_record
 from gauntlet.storage.units import UnitConflict, UnitRow, UnitsIndex
 
 __all__ = [
@@ -17,4 +17,7 @@ __all__ = [
     "UnitConflict",
     "UnitRow",
     "UnitsIndex",
+    "row_from_record",
+    "write_notes_file",
+    "write_record",
 ]

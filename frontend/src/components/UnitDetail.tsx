@@ -24,7 +24,7 @@ import {
   listUnitNotes,
   renameUnit,
 } from "@api/client";
-import type { RunRow } from "@api/types";
+import type { NoteBody, RunRow } from "@api/types";
 import EmptyState from "@components/EmptyState";
 import ListToolbar from "@components/ListToolbar";
 import NotesPanel from "@components/NotesPanel";
@@ -89,8 +89,7 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
   };
 
   const addNote = useMutation({
-    mutationFn: (input: { author: string | null; body: string }) =>
-      addUnitNote(serial, input.body, input.author),
+    mutationFn: (note: NoteBody) => addUnitNote(serial, note),
     onSuccess: refreshNotes,
   });
 
@@ -267,7 +266,7 @@ export const UnitDetail: React.FC<UnitDetailProps> = ({ serial }) => {
           className="unit-detail__notes"
           notes={notes.data?.notes ?? []}
           busy={notes.isPending || addNote.isPending || removeNote.isPending}
-          onAdd={(body, author) => addNote.mutateAsync({ author, body })}
+          onAdd={(note) => addNote.mutateAsync(note)}
           onDelete={(noteId) => removeNote.mutateAsync(noteId)}
           titled={false}
         />

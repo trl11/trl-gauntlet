@@ -35,6 +35,11 @@ class RunRequest:
     # key. Nothing here reaches the suite: it is what Gauntlet watches, not
     # what the run is given.
     observe: list[str] = field(default_factory=list)
+    # Who started the run, where, and in which test session, as the operator
+    # checked in. Like `observe`, nothing here reaches the suite.
+    operator: str | None = None
+    location: str | None = None
+    session: str | None = None
 
 
 @dataclass

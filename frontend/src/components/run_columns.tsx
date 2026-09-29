@@ -4,7 +4,7 @@
  * Kept beside {@link RunTable} so the table file is only about the table.
  */
 
-import { faNoteSticky } from "@fortawesome/free-solid-svg-icons";
+import { faNoteSticky, faStar } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Link } from "react-router";
 
@@ -17,9 +17,13 @@ export type RunTableColumn =
   | "campaign"
   | "duration_s"
   | "fail_reason"
+  | "favorite"
+  | "location"
   | "note_count"
+  | "operator"
   | "profile"
   | "run_id"
+  | "session"
   | "started_at"
   | "status"
   | "suite"
@@ -39,11 +43,16 @@ export const COLUMNS: Record<RunTableColumn, ColumnSpec> = {
   campaign: { header: "Campaign", sortable: false },
   duration_s: { header: "Duration", sortable: true, align: "right" },
   fail_reason: { header: "Reason", sortable: false },
+  // Not sortable: favorites live in their own table, not a column of runs.
+  favorite: { header: "Favorite", sortable: false },
+  location: { header: "Location", sortable: true },
   // Not sortable: the count is read from the notes table per request, so the
   // index has no column to order by.
   note_count: { header: "Notes", sortable: false },
+  operator: { header: "Operator", sortable: true },
   profile: { header: "Profile", sortable: true },
   run_id: { header: "Run", sortable: true },
+  session: { header: "Session", sortable: true },
   started_at: { header: "Started", sortable: true },
   status: { header: "Status", sortable: true },
   suite: { header: "Suite", sortable: true },
@@ -84,6 +93,9 @@ export function matches(run: RunRow, needle: string): boolean {
     run.unit_serial,
     run.status,
     run.fail_reason,
+    run.operator,
+    run.location,
+    run.session,
     run.campaign?.title,
   ]
     .filter(Boolean)
@@ -118,6 +130,14 @@ export function renderCell(run: RunRow, column: RunTableColumn): React.ReactNode
       );
     case "fail_reason":
       return <span className="run-table__reason">{run.fail_reason || "-"}</span>;
+    case "favorite":
+      return run.favorite ? (
+        <span className="run-table__favorite" aria-label="Favorite">
+          <FontAwesomeIcon icon={faStar} aria-hidden="true" />
+        </span>
+      ) : (
+        ""
+      );
     case "note_count": {
       const notes = run.note_count ?? 0;
       if (notes === 0) return "-";

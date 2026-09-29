@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,7 +21,9 @@ vi.mock("@api/client", async (importOriginal) => {
     getUnit: () => Promise.resolve({ ...unit("HC-001", 4, 3, 1), notes: [] }),
     getUnitHistory: () => Promise.resolve({ runs: [] }),
     listUnitNotes: () => Promise.resolve({ notes: [] }),
-    listUnits: () => listUnits(),
+    getRunProvenance: () =>
+      Promise.resolve({ locations: ["Lab 2"], operators: ["Ada"], sessions: ["week 1"] }),
+    listUnits: (...args: unknown[]) => listUnits(...args),
     renameUnit: (...args: unknown[]) => renameUnit(...args),
   };
 });
@@ -84,10 +86,21 @@ describe("UnitsPage", () => {
     await screen.findByText("HC-001");
     const filterButton = document.querySelector(".fa-filter")!.closest("button")!;
     await userEvent.click(filterButton);
-    await userEvent.selectOptions(screen.getByRole("combobox"), "HC-002");
+    await userEvent.selectOptions(screen.getAllByRole("combobox")[0], "HC-002");
     const table = screen.getByRole("table");
     expect(within(table).queryByText("HC-001")).toBeNull();
     expect(within(table).getByText("HC-002")).toBeInTheDocument();
+  });
+
+  it("asks for the units run at one location", async () => {
+    renderUnits();
+    await screen.findByText("HC-001");
+    const filterButton = document.querySelector(".fa-filter")!.closest("button")!;
+    await userEvent.click(filterButton);
+    await userEvent.selectOptions(screen.getAllByRole("combobox")[1], "Lab 2");
+    await waitFor(() =>
+      expect(listUnits).toHaveBeenCalledWith({ location: "Lab 2", session: null })
+    );
   });
 
   it("sorts by a column when its header is pressed", async () => {

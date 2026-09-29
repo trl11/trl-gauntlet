@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -77,6 +78,54 @@ class TestRunsIndex:
         runs.upsert(_run("r1", minute=0, serial="SN1"))
         notes.add(SUBJECT_UNIT, "r1", "on the unit")
         assert runs.list(RunFilters(has_notes=True)) == []
+
+    def test_filtering_on_favorites_keeps_only_the_marked_runs(self, runs: RunsIndex) -> None:
+        runs.upsert(_run("r1", minute=0, serial="SN1"))
+        runs.upsert(_run("r2", minute=1, serial="SN1"))
+        runs.set_favorite("r2", True)
+        filters = RunFilters(favorite=True)
+        assert [row.run_id for row in runs.list(filters)] == ["r2"]
+        assert runs.count(filters) == 1
+
+    def test_a_favorite_survives_its_row_being_stored_again(self, runs: RunsIndex) -> None:
+        runs.upsert(_run("r1", minute=0, serial="SN1"))
+        runs.set_favorite("r1", True)
+        runs.upsert(_run("r1", minute=0, serial="SN1", status="failed"))
+        assert runs.favorites() == {"r1"}
+
+    def test_unmarking_a_favorite_twice_is_harmless(self, runs: RunsIndex) -> None:
+        runs.upsert(_run("r1", minute=0, serial="SN1"))
+        runs.set_favorite("r1", True)
+        runs.set_favorite("r1", True)
+        runs.set_favorite("r1", False)
+        runs.set_favorite("r1", False)
+        assert runs.favorites() == set()
+
+    def test_deleting_a_run_drops_its_favorite(self, runs: RunsIndex) -> None:
+        runs.upsert(_run("r1", minute=0, serial="SN1"))
+        runs.set_favorite("r1", True)
+        runs.delete("r1")
+        runs.upsert(_run("r1", minute=0, serial="SN1"))
+        assert runs.favorites() == set()
+
+    def test_searching_matches_part_of_a_run_id(self, runs: RunsIndex) -> None:
+        runs.upsert(_run("20260912T220722Z-e346", minute=0, serial="SN1"))
+        runs.upsert(_run("20260913T043157Z-30f5", minute=1, serial="SN2"))
+        filters = RunFilters(search="E346")
+        assert [row.run_id for row in runs.list(filters)] == ["20260912T220722Z-e346"]
+        assert runs.count(filters) == 1
+
+    def test_searching_looks_at_the_unit_and_the_failure_reason(self, runs: RunsIndex) -> None:
+        runs.upsert(_run("r1", minute=0, serial="HC-001"))
+        runs.upsert(replace(_run("r2", minute=1, serial=None), fail_reason="rail low"))
+        assert [row.run_id for row in runs.list(RunFilters(search="hc-0"))] == ["r1"]
+        assert [row.run_id for row in runs.list(RunFilters(search="rail"))] == ["r2"]
+
+    def test_an_underscore_in_a_search_is_not_a_wildcard(self, runs: RunsIndex) -> None:
+        runs.upsert(replace(_run("r1", minute=0, serial=None), suite="tid_ssd"))
+        runs.upsert(replace(_run("r2", minute=1, serial=None), suite="tidXssd"))
+        assert [row.run_id for row in runs.list(RunFilters(search="tid_ssd"))] == ["r1"]
+        assert runs.list(RunFilters(search="100%")) == []
 
 
 class TestNotesIndex:
@@ -430,3 +479,37 @@ def _write_run(run_dir: Path, *, verdict: dict, manifest: dict | None = None) ->
     (run_dir / "verdict.json").write_text(json.dumps(verdict))
     if manifest is not None:
         (run_dir / "manifest.json").write_text(json.dumps(manifest))
+
+
+class TestProvenance:
+    def test_a_reimport_from_disk_recovers_it(self, runs: RunsIndex, tmp_path: Path) -> None:
+        run_dir = tmp_path / "runs" / "alpha" / "r1"
+        run_dir.mkdir(parents=True)
+        (run_dir / "run.json").write_text(
+            '{"run_id": "r1", "suite": "alpha", "status": "passed", "started_at": "2026-01-01T00:00:00Z", '
+            '"operator": "Ada", "location": "Lab 2", "session": "week 1"}'
+        )
+        runs.import_tree(tmp_path / "runs")
+        row = runs.get("r1")
+        assert row is not None
+        assert (row.operator, row.location, row.session) == ("Ada", "Lab 2", "week 1")
+
+    def test_a_database_from_before_it_gains_the_columns(self, index_path: Path) -> None:
+        conn = sqlite3.connect(index_path)
+        conn.executescript(
+            "CREATE TABLE runs (run_id TEXT PRIMARY KEY, suite TEXT NOT NULL, status TEXT NOT NULL, "
+            "started_at TEXT NOT NULL, ended_at TEXT, duration_s REAL, verdict TEXT, fail_reason TEXT, "
+            "profile TEXT, target TEXT, unit_serial TEXT, run_dir TEXT NOT NULL);"
+            "CREATE TABLE notes (id INTEGER PRIMARY KEY AUTOINCREMENT, subject_kind TEXT NOT NULL, "
+            "subject_id TEXT NOT NULL, body TEXT NOT NULL, author TEXT, created_at TEXT NOT NULL);"
+            "INSERT INTO runs VALUES ('old', 'alpha', 'passed', '2026-01-01', NULL, NULL, NULL, NULL, NULL, NULL, "
+            "NULL, '/runs/old');"
+        )
+        conn.close()
+        runs = RunsIndex(index_path)
+        notes = NotesIndex(index_path)
+        runs.upsert(replace(_run("new", minute=1, serial=None), location="Lab 2"))
+        notes.add(SUBJECT_RUN, "new", "hello", "Ada", session="week 1")
+        assert [row.run_id for row in runs.list(RunFilters(location="Lab 2"))] == ["new"]
+        assert runs.get("old") is not None
+        assert notes.list(SUBJECT_RUN, "new")[0].session == "week 1"

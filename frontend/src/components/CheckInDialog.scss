@@ -1,0 +1,26 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.check-in-dialog {
+  &__form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px;
+    min-width: min(420px, 80vw);
+  }
+
+  &__note {
+    font-size: 13px;
+    color: $trl-gray;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+
+  &__check-out {
+    margin-right: auto;
+  }
+}

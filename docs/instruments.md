@@ -575,7 +575,7 @@ Two files land in the run directory. `instruments.jsonl` is the trace, a line
 per instrument per second:
 
 ```json
-{"at": "2026-09-10T18:12:03Z", "instrument": "psu", "t": 12.0,
+{"at": "2026-09-10T18:12:03.000Z", "instrument": "psu", "t": 12.0,
  "values": {"current": 0.42, "output_enabled": 1.0, "voltage": 5.01}}
 ```
 

@@ -5,7 +5,7 @@ import clsx from "clsx";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import usePersistedSeries from "@hooks/usePersistedSeries";
-import { formatDuration, formatNumber } from "../utils/format";
+import { formatDuration, formatNumber, formatTimestamp } from "../utils/format";
 import { naturalCompare } from "../utils/metrics";
 import type { MetricSample } from "./MetricsChart";
 import SeriesPicker from "./SeriesPicker";
@@ -23,6 +23,8 @@ export interface IterationRow {
   reason: string;
   success: boolean;
   traces: string[];
+  /** When the iteration was recorded, in seconds since the epoch. */
+  ts: number | null;
 }
 
 /** Props for {@link IterationTable}. */
@@ -129,6 +131,7 @@ export const IterationTable: React.FC<IterationTableProps> = ({
           <thead>
             <tr>
               <th scope="col">#</th>
+              <th scope="col">Time</th>
               <th scope="col">Result</th>
               <th scope="col">Duration</th>
               <th scope="col">Reason</th>
@@ -171,6 +174,7 @@ export const IterationTable: React.FC<IterationTableProps> = ({
                   }}
                 >
                   <td className="iteration-table__mono">{row.iteration ?? "-"}</td>
+                  <td className="iteration-table__mono">{formatTimestamp(row.ts)}</td>
                   <td>
                     <Badge color={row.success ? "green" : "red"}>
                       {row.success ? "PASS" : "FAIL"}

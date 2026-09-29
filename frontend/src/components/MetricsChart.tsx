@@ -16,7 +16,7 @@ import {
 
 import SeriesPicker from "@components/SeriesPicker";
 import usePersistedSeries, { metricsSeriesKey } from "@hooks/usePersistedSeries";
-import { formatNumber } from "../utils/format";
+import { formatNumber, formatTimestamp } from "../utils/format";
 import { naturalCompare, paddedDomain } from "../utils/metrics";
 
 import "./MetricsChart.scss";
@@ -87,6 +87,18 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({ runId, samples, defa
     const firstTs = samples[0].ts;
     return samples.map((sample) => ({ x: elapsed(sample, firstTs), ...sample.values }));
   }, [samples]);
+  // Kept apart from the rows because a row's keys are the suite's series, and
+  // a suite may report one of any name.
+  const timeAt = useMemo(() => {
+    const times = new Map<number, number>();
+    rows.forEach((row, index) => times.set(row.x, samples[index].ts));
+    return times;
+  }, [rows, samples]);
+  const label = (x: number) => {
+    const ts = timeAt.get(x);
+    const elapsedLabel = `${formatNumber(x, 2)} s`;
+    return ts === undefined ? elapsedLabel : `${elapsedLabel} · ${formatTimestamp(ts)}`;
+  };
 
   const reported = defaultMetrics.filter((name) => names.includes(name));
   const selected = chosen ?? (reported.length > 0 ? reported : names.slice(0, DEFAULT_SERIES));
@@ -153,7 +165,7 @@ export const MetricsChart: React.FC<MetricsChartProps> = ({ runId, samples, defa
                 />
                 <ChartTooltip
                   formatter={(value: number | string) => formatNumber(Number(value))}
-                  labelFormatter={(value: number | string) => `${formatNumber(Number(value), 2)} s`}
+                  labelFormatter={(value: number | string) => label(Number(value))}
                 />
                 {/* rows also carries recorded-instrument samples merged in on the run page, so a
                     series only the suite reports has a gap at every one of those; unconnected,

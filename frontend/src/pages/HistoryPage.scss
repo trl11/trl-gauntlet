@@ -15,6 +15,25 @@
     color: $trl-gray;
   }
 
+  &__search {
+    width: 280px;
+    max-width: 100%;
+  }
+
+  &__favorites {
+    svg {
+      color: $trl-gray;
+    }
+
+    &.is-active svg {
+      color: $indicator-yellow;
+    }
+  }
+
+  &__import svg {
+    color: $trl-gray;
+  }
+
   &__archive {
     display: none;
   }

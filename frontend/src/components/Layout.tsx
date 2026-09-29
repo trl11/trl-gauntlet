@@ -7,6 +7,7 @@ import {
   faMicrochip,
   faPlay,
   faSliders,
+  faUser,
   faXmark,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -22,8 +23,10 @@ import logo from "@assets/logo.svg";
 import ApiErrorBanner from "@components/ApiErrorBanner";
 import ErrorBoundary from "@components/ErrorBoundary";
 import ShortcutsHelp from "@components/ShortcutsHelp";
+import CheckInDialog from "@components/CheckInDialog";
 import StatusPill from "@components/StatusPill";
 import useGlobalShortcuts from "@hooks/useGlobalShortcuts";
+import useCheckIn from "@hooks/useCheckIn";
 import { isLive } from "../utils/run_status";
 
 import "./Layout.scss";
@@ -65,6 +68,8 @@ export const Layout: React.FC = () => {
   const location = useLocation();
   const { closeHelp, helpOpen, shortcuts } = useGlobalShortcuts();
   const [tabsOpen, setTabsOpen] = useState(false);
+  const [checkingIn, setCheckingIn] = useState(false);
+  const checkIn = useCheckIn();
 
   const version = useQuery({
     queryKey: ["system-info"],
@@ -139,6 +144,23 @@ export const Layout: React.FC = () => {
             </Link>
           )}
 
+          <Button
+            className="layout__check-in"
+            size="small"
+            aria-label={checkIn ? `Checked in as ${checkIn.name}` : "Check in"}
+            onClick={() => setCheckingIn(true)}
+          >
+            <FontAwesomeIcon icon={faUser} />
+            {checkIn ? (
+              <span className="layout__check-in-text">
+                <span className="layout__check-in-name">{checkIn.name}</span>
+                <span className="layout__check-in-where">{`${checkIn.location} · ${checkIn.session}`}</span>
+              </span>
+            ) : (
+              "Check in"
+            )}
+          </Button>
+
           <Button color="blue" size="small" onClick={() => navigate("/tests")}>
             <FontAwesomeIcon icon={faPlay} />
             Run a test
@@ -158,6 +180,7 @@ export const Layout: React.FC = () => {
       </main>
 
       {helpOpen && <ShortcutsHelp shortcuts={shortcuts} onClose={closeHelp} />}
+      {checkingIn && <CheckInDialog current={checkIn} onClose={() => setCheckingIn(false)} />}
     </div>
   );
 };

@@ -14,8 +14,16 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict
 
 from gauntlet.api.notes import NoteBody, add_note, delete_note, list_notes
-from gauntlet.api.runs import remove_run_dir, with_note_counts
-from gauntlet.storage import SUBJECT_RUN, SUBJECT_UNIT, RunFilters, UnitConflict, UnitRow, UnitsIndex
+from gauntlet.api.runs import remove_run_dir, with_notes_and_favorites
+from gauntlet.storage import (
+    SUBJECT_RUN,
+    SUBJECT_UNIT,
+    RunFilters,
+    UnitConflict,
+    UnitRow,
+    UnitsIndex,
+    write_record,
+)
 
 router = APIRouter()
 
@@ -29,9 +37,13 @@ class RenameBody(BaseModel):
 
 
 @router.get("/units")
-async def get_units(request: Request) -> dict[str, Any]:
-    """Every unit any run has named, most recently seen first."""
-    units = [unit.to_dict() for unit in _index(request).list()]
+async def get_units(request: Request, location: str | None = None, session: str | None = None) -> dict[str, Any]:
+    """Every unit any run has named, most recently seen first.
+
+    ``location`` and ``session`` keep the units run at that location and in that
+    test session, with counters over those runs alone.
+    """
+    units = [unit.to_dict() for unit in _index(request).list(location=location, session=session)]
     return {"units": units, "total": len(units)}
 
 
@@ -55,6 +67,12 @@ async def rename_unit(request: Request, serial: str, body: RenameBody) -> dict[s
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     if renamed is None:
         raise HTTPException(status_code=404, detail=f"unknown unit {serial!r}")
+    # The rename rewrote the rows; each run's record on disk has to follow, or
+    # rebuilding the index would bring the old serial back.
+    index = request.app.state.runs_index
+    filters = RunFilters(unit_serial=new_serial)
+    for row in index.list(filters, limit=index.count(filters)):
+        write_record(row)
     return renamed.to_dict()
 
 
@@ -79,7 +97,7 @@ async def get_unit_history(request: Request, serial: str, limit: int = 100, offs
     index = request.app.state.runs_index
     filters = RunFilters(unit_serial=serial)
     rows = index.list(filters, limit=limit, offset=offset)
-    payloads = with_note_counts(request, [row.to_dict() for row in rows])
+    payloads = with_notes_and_favorites(request, [row.to_dict() for row in rows])
     return {"runs": payloads, "total": index.count(filters)}
 
 

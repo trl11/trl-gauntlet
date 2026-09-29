@@ -120,7 +120,7 @@ class InstrumentRecorder:
         """One reading of every instrument, as the lines to write."""
         self._ticks += 1
         elapsed = round(time.monotonic() - self._began, 3)
-        at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         lines = []
         for key in self._keys:
             state = self._read(key)

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Note } from "@api/types";
+import { setCheckIn } from "@hooks/useCheckIn";
 
 import NotesPanel from "./NotesPanel";
 
@@ -79,7 +80,12 @@ describe("NotesPanel composing", () => {
     await user.type(screen.getByLabelText("Author"), " gabe ");
     await user.click(screen.getByRole("button", { name: "Add note" }));
 
-    expect(onAdd).toHaveBeenCalledWith("cracked lid", "gabe");
+    expect(onAdd).toHaveBeenCalledWith({
+      author: "gabe",
+      body: "cracked lid",
+      location: null,
+      session: null,
+    });
   });
 
   it("posts no author when the field is left empty", async () => {
@@ -90,7 +96,36 @@ describe("NotesPanel composing", () => {
     await user.type(screen.getByLabelText("Add a note"), "cracked lid");
     await user.click(screen.getByRole("button", { name: "Add note" }));
 
-    expect(onAdd).toHaveBeenCalledWith("cracked lid", null);
+    expect(onAdd).toHaveBeenCalledWith({
+      author: null,
+      body: "cracked lid",
+      location: null,
+      session: null,
+    });
+  });
+
+  it("stamps the note with the check-in instead of asking for an author", async () => {
+    setCheckIn({ location: "Lab 2", name: "Ada", session: "week 1" });
+    const user = userEvent.setup();
+    const onAdd = vi.fn();
+    renderPanel({ onAdd });
+
+    expect(screen.queryByLabelText("Author")).not.toBeInTheDocument();
+    expect(screen.getByText("As Ada · Lab 2 · week 1")).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Add a note"), "cracked lid");
+    await user.click(screen.getByRole("button", { name: "Add note" }));
+
+    expect(onAdd).toHaveBeenCalledWith({
+      author: "Ada",
+      body: "cracked lid",
+      location: "Lab 2",
+      session: "week 1",
+    });
+  });
+
+  it("shows where and in which session a note was written", () => {
+    renderPanel({ notes: [note({ id: 1, location: "Lab 2", session: "week 1" })] });
+    expect(screen.getByText("Lab 2 · week 1")).toBeInTheDocument();
   });
 
   it("clears the body once the note is accepted, keeping the author", async () => {

@@ -44,6 +44,7 @@ vi.mock("@api/client", () => ({
   listSuites: vi.fn(),
   runEventsUrl: (runId: string) => `/api/runs/${runId}/events`,
   runExportUrl: (runId: string) => `/api/runs/${runId}/export`,
+  setRunFavorite: vi.fn(),
   stopRun: vi.fn(),
 }));
 
@@ -120,7 +121,7 @@ const RECORDS = [
   },
 ];
 
-const LOG_TEXT = "boot ok\nERROR rail low";
+const LOG_TEXT = "2026-01-01T00:00:00.000Z boot ok\n2026-01-01T00:00:03.000Z ERROR rail low";
 
 /** `verdict.json`, and the same object inside the live verdict event. */
 const VERDICT = {
@@ -361,11 +362,11 @@ describe("RunPage renders a run the same live and from history", () => {
     expect(live.logLines).toEqual(stored.logLines);
   });
 
-  it("times the live log lines, because test.log carries no timestamps", async () => {
+  it("times the log lines the same way", async () => {
     const live = await fromStream("log");
     const stored = await fromHistory("log");
     expect(live.logTimes).toEqual(["00:00:00", "00:00:03"]);
-    expect(stored.logTimes).toEqual(["", ""]);
+    expect(stored.logTimes).toEqual(live.logTimes);
   });
 
   it("discovers the same metric series", async () => {

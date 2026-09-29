@@ -37,6 +37,7 @@ output/
 .ci-cache/
 .env
 .plan/
+.rig
 .todo
 files/
 tmp/

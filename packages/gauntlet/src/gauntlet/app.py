@@ -90,7 +90,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     stale = runs_index.reconcile_stale()
     if stale:
         log.warning("marked %d interrupted run(s) from a previous session", stale)
-    imported = runs_index.import_tree(settings.runs_dir)
+    imported = runs_index.import_tree(settings.runs_dir, notes_index)
     if imported:
         log.info("imported %d run(s) found on disk", imported)
 
@@ -109,6 +109,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 profile=handle.profile,
                 target=handle.target,
                 unit_serial=handle.unit_serial,
+                operator=handle.operator,
+                location=handle.location,
+                session=handle.session,
             )
         )
 

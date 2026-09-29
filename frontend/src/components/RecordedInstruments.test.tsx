@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,12 +9,14 @@ import type { InstrumentRecord } from "@api/types";
 import RecordedInstruments from "./RecordedInstruments";
 
 const getRunInstruments = vi.fn();
+const getRunInstrumentTrace = vi.fn();
 
 vi.mock("@api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@api/client")>();
   return {
     ...actual,
     getRunInstruments: (...args: unknown[]) => getRunInstruments(...args),
+    getRunInstrumentTrace: (...args: unknown[]) => getRunInstrumentTrace(...args),
   };
 });
 
@@ -50,17 +52,21 @@ const record: InstrumentRecord = {
   ticks: 42,
 };
 
-function renderPanel(onSelectReading: (key: string) => void = vi.fn()) {
+function renderPanel() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <RecordedInstruments runId="RUN-0001" onSelectReading={onSelectReading} />
+      <RecordedInstruments runId="RUN-0001" />
     </QueryClientProvider>
   );
 }
 
 beforeEach(() => {
   getRunInstruments.mockResolvedValue(record);
+  getRunInstrumentTrace.mockResolvedValue([
+    { at: "2026-01-01T00:00:00.000Z", instrument: "psu", t: 0, values: { voltage: 5.0 } },
+    { at: "2026-01-01T00:00:01.000Z", instrument: "psu", t: 1, values: { voltage: 5.01 } },
+  ]);
 });
 
 afterEach(() => {
@@ -100,10 +106,49 @@ describe("RecordedInstruments", () => {
     expect(await screen.findByText("Nothing recorded")).toBeInTheDocument();
   });
 
-  it("sends the instrument-prefixed key of the reading clicked", async () => {
-    const onSelectReading = vi.fn();
-    renderPanel(onSelectReading);
+  it("expands a clicked reading's row into its chart and collapses it again", async () => {
+    renderPanel();
+    const button = await screen.findByRole("button", { name: /Voltage/ });
+    expect(button).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.click(button);
+    expect(button).toHaveAttribute("aria-expanded", "true");
+    await waitFor(() =>
+      expect(document.querySelector(".recorded-instruments__chart")).not.toBeNull()
+    );
+
+    await userEvent.click(button);
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(document.querySelector(".recorded-instruments__chart-row")).toBeNull();
+  });
+
+  it("draws each reading's trend in its row from the trace", async () => {
+    renderPanel();
+    const row = (await screen.findByText("Voltage")).closest("tr")!;
+    await waitFor(() => expect(row.querySelector(".sparkline__line")).not.toBeNull());
+    expect(getRunInstrumentTrace).toHaveBeenCalledWith("RUN-0001");
+  });
+
+  it("thins a long trace to a bounded number of points", async () => {
+    getRunInstrumentTrace.mockResolvedValue(
+      Array.from({ length: 1000 }, (_, index) => ({
+        at: "2026-01-01T00:00:00.000Z",
+        instrument: "psu",
+        t: index,
+        values: { voltage: index },
+      }))
+    );
+    renderPanel();
+    const row = (await screen.findByText("Voltage")).closest("tr")!;
+    await waitFor(() => expect(row.querySelector(".sparkline__line")).not.toBeNull());
+    const points = row.querySelector(".sparkline__line")!.getAttribute("points")!.split(" ");
+    expect(points).toHaveLength(120);
+  });
+
+  it("says so when the run kept no trace to chart from", async () => {
+    getRunInstrumentTrace.mockRejectedValue(new ApiError(404, "no such artifact", "/api"));
+    renderPanel();
     await userEvent.click(await screen.findByRole("button", { name: /Voltage/ }));
-    expect(onSelectReading).toHaveBeenCalledWith("psu.voltage");
+    expect(await screen.findByText(/kept no trace/)).toBeInTheDocument();
   });
 });

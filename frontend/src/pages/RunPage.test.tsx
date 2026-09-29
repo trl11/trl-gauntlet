@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -13,9 +13,11 @@ import {
   listArtifacts,
   listRunNotes,
   listSuites,
+  setRunFavorite,
   stopRun,
 } from "@api/client";
 import type { RunRow } from "@api/types";
+import { formatTimestamp } from "../utils/format";
 import RunPage from "./RunPage";
 import { pending, spinners } from "../test/queries";
 
@@ -35,6 +37,7 @@ vi.mock("@api/client", () => ({
   listSuites: vi.fn(),
   runEventsUrl: (runId: string) => `/api/runs/${runId}/events`,
   runExportUrl: (runId: string) => `/api/runs/${runId}/export`,
+  setRunFavorite: vi.fn(),
   stopRun: vi.fn(),
 }));
 
@@ -104,6 +107,26 @@ describe("RunPage campaign", () => {
     vi.mocked(listRunNotes).mockResolvedValue({ notes: [] });
   });
 
+  it("adds the run to the favorites", async () => {
+    vi.mocked(getRun).mockResolvedValue(FINISHED);
+    vi.mocked(setRunFavorite).mockResolvedValue({ favorite: true, run_id: "run-1" });
+    renderPage();
+    const star = await screen.findByRole("button", { name: "Add to favorites" });
+    expect(star).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(star);
+    expect(setRunFavorite).toHaveBeenCalledWith("run-1", true);
+  });
+
+  it("takes a favorite back out of the favorites", async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...FINISHED, favorite: true });
+    vi.mocked(setRunFavorite).mockResolvedValue({ favorite: false, run_id: "run-1" });
+    renderPage();
+    const star = await screen.findByRole("button", { name: "Favorite" });
+    expect(star).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(star);
+    expect(setRunFavorite).toHaveBeenCalledWith("run-1", false);
+  });
+
   it("names the campaign that groups the run's suite", async () => {
     vi.mocked(getRun).mockResolvedValue({
       ...FINISHED,
@@ -158,6 +181,7 @@ describe("RunPage", () => {
     expect(screen.getByText("SN-42")).toBeInTheDocument();
     expect(screen.getByText("10.0.0.4")).toBeInTheDocument();
     expect(screen.getByText("12s")).toBeInTheDocument();
+    expect(screen.getByText(formatTimestamp("2026-01-01T00:00:12Z"))).toBeInTheDocument();
   });
 
   it("hydrates the verdict of a finished run from the stored files", async () => {
@@ -209,6 +233,21 @@ describe("RunPage", () => {
     const link = await screen.findByRole("link", { name: "Export run" });
     expect(link).toHaveAttribute("href", "/api/runs/run-1/export");
     expect(link).toHaveAttribute("download");
+  });
+
+  it("opens a run still in flight on its log", async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...FINISHED, status: "running", ended_at: null });
+    renderPage();
+    await screen.findByRole("button", { name: "Stop" });
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: /log/ })).toHaveAttribute("aria-selected", "true")
+    );
+  });
+
+  it("opens a finished run on its overview", async () => {
+    renderPage();
+    await screen.findByText("FAILED");
+    expect(screen.getByRole("tab", { name: "overview" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("does not offer to export a run that is still writing artifacts", async () => {

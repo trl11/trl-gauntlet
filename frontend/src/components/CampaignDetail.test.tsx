@@ -145,7 +145,13 @@ describe("CampaignDetail", () => {
 
     await user.click(screen.getByRole("button", { name: /Run/ }));
 
-    await waitFor(() => expect(runCampaignMember).toHaveBeenCalledWith("bench", "ssd"));
+    await waitFor(() =>
+      expect(runCampaignMember).toHaveBeenCalledWith("bench", "ssd", {
+        location: null,
+        operator: null,
+        session: null,
+      })
+    );
     expect(await screen.findByText("run page")).toBeInTheDocument();
   });
 

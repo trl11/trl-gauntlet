@@ -8,6 +8,7 @@ import { useNavigate } from "react-router";
 import { getCampaign, runCampaignMember } from "@api/client";
 import type { CampaignMember } from "@api/types";
 import EmptyState from "@components/EmptyState";
+import useCheckIn, { provenanceOf } from "@hooks/useCheckIn";
 
 import "./CampaignDetail.scss";
 
@@ -77,6 +78,7 @@ export interface CampaignDetailProps {
  */
 export const CampaignDetail: React.FC<CampaignDetailProps> = ({ campaignKey }) => {
   const navigate = useNavigate();
+  const checkIn = useCheckIn();
 
   const campaign = useQuery({
     queryKey: ["campaign", campaignKey],
@@ -84,7 +86,7 @@ export const CampaignDetail: React.FC<CampaignDetailProps> = ({ campaignKey }) =
   });
 
   const start = useMutation({
-    mutationFn: (suite: string) => runCampaignMember(campaignKey, suite),
+    mutationFn: (suite: string) => runCampaignMember(campaignKey, suite, provenanceOf(checkIn)),
     onSuccess: (run) => navigate(`/runs/${encodeURIComponent(run.run_id)}`),
   });
 
@@ -148,8 +150,6 @@ export const CampaignDetail: React.FC<CampaignDetailProps> = ({ campaignKey }) =
               </tbody>
             </table>
           )}
-
-          <p className="campaign-detail__path mono">{campaign.data.suites_dir}</p>
         </>
       )}
     </section>

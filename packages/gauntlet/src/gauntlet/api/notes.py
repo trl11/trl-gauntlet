@@ -15,12 +15,18 @@ from gauntlet.storage import NotesIndex
 
 
 class NoteBody(BaseModel):
-    """Request body for writing a note."""
+    """Request body for writing a note.
+
+    ``author``, ``location`` and ``session`` are who wrote it, where, and in
+    which test session, as the operator checked in.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     body: str
     author: str | None = None
+    location: str | None = None
+    session: str | None = None
 
 
 def add_note(request: Request, subject_kind: str, subject_id: str, payload: NoteBody) -> dict[str, Any]:
@@ -28,8 +34,23 @@ def add_note(request: Request, subject_kind: str, subject_id: str, payload: Note
     body = payload.body.strip()
     if not body:
         raise HTTPException(status_code=422, detail="`body` must not be empty")
-    author = (payload.author or "").strip() or None
-    return _notes(request).add(subject_kind, subject_id, body, author).to_dict()
+    return (
+        _notes(request)
+        .add(
+            subject_kind,
+            subject_id,
+            body,
+            author=clean(payload.author),
+            location=clean(payload.location),
+            session=clean(payload.session),
+        )
+        .to_dict()
+    )
+
+
+def clean(value: str | None) -> str | None:
+    """Trimmed text, or None when nothing is left."""
+    return (value or "").strip() or None
 
 
 def delete_note(request: Request, subject_kind: str, subject_id: str, note_id: int) -> dict[str, Any]:

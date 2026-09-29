@@ -16,9 +16,9 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.background import BackgroundTask
 
-from gauntlet.api.notes import NoteBody, add_note, delete_note, list_notes
+from gauntlet.api.notes import NoteBody, add_note, clean, delete_note, list_notes
 from gauntlet.catalog import campaigns_by_suite
-from gauntlet.storage import SUBJECT_RUN, RunFilters, RunRow
+from gauntlet.storage import SUBJECT_RUN, RunFilters, RunRow, write_notes_file
 from gauntlet.supervisor import Event, RunConflict, RunHandle, RunRejected, RunRequest
 from gauntlet.transfer import TransferError, archive_name, export_run, import_run, read_export
 
@@ -47,6 +47,9 @@ class StartRunBody(BaseModel):
         description="Instruments to record for the run's duration, by instance key, "
         "beyond the ones its suite requires.",
     )
+    operator: str | None = Field(default=None, description="Who started the run, as they checked in.")
+    location: str | None = Field(default=None, description="Where the run was started, as the operator checked in.")
+    session: str | None = Field(default=None, description="The test session the run belongs to.")
 
 
 @router.get("/runs")
@@ -58,6 +61,10 @@ async def list_runs(
     after: str | None = None,
     before: str | None = None,
     has_notes: bool = False,
+    favorite: bool = False,
+    location: str | None = None,
+    session: str | None = None,
+    q: str | None = None,
     sort: str = "started_at",
     direction: str = "desc",
     limit: int = 100,
@@ -67,7 +74,11 @@ async def list_runs(
 
     ``status`` may be repeated to accept several. ``after`` and ``before`` are
     inclusive bounds on ``started_at``, as a date or a full timestamp.
-    ``has_notes`` keeps only the runs an operator has written a note against.
+    ``has_notes`` keeps only the runs an operator has written a note against,
+    and ``favorite`` only the runs marked as one. ``location`` and ``session``
+    keep the runs recorded at that location and in that test session. ``q``
+    keeps the runs whose id, suite, profile, unit, target, status, failure
+    reason, operator, location or session contains it.
     ``total`` counts every run matching the filters, not just this page.
     """
     supervisor = request.app.state.supervisor
@@ -79,6 +90,10 @@ async def list_runs(
         after=after,
         before=before,
         has_notes=has_notes,
+        favorite=favorite,
+        location=location,
+        session=session,
+        search=q.strip() if q else None,
     )
     live = {h.run_id: h.to_dict() for h in supervisor.list_runs() if not h.finished}
     rows = index.list(filters, limit=limit, offset=offset, sort=sort, descending=direction != "asc")
@@ -87,7 +102,7 @@ async def list_runs(
     # row wins, because that is what a rename or any later edit rewrites.
     owners = _campaign_owners(request)
     payloads = [_with_campaign(live.get(row.run_id, row.to_dict()), owners) for row in rows]
-    return {"runs": with_note_counts(request, payloads), "total": index.count(filters)}
+    return {"runs": with_notes_and_favorites(request, payloads), "total": index.count(filters)}
 
 
 @router.post("/runs", status_code=201)
@@ -104,6 +119,9 @@ async def start_run(request: Request, body: StartRunBody) -> dict[str, Any]:
                 overrides=body.overrides,
                 profile_body=body.profile_body,
                 observe=body.observe,
+                operator=clean(body.operator),
+                location=clean(body.location),
+                session=clean(body.session),
             )
         )
     except RunConflict as exc:
@@ -112,6 +130,17 @@ async def start_run(request: Request, body: StartRunBody) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     request.app.state.runs_index.upsert(to_row(handle))
     return handle.to_dict()
+
+
+@router.get("/runs/provenance")
+async def get_run_provenance(request: Request) -> dict[str, Any]:
+    """Every operator, location and test session any run was recorded with.
+
+    What the history and unit filters offer, so a value no run carries is never
+    one of them.
+    """
+    values = request.app.state.runs_index.provenance()
+    return {"operators": values["operator"], "locations": values["location"], "sessions": values["session"]}
 
 
 @router.get("/runs/{run_id}")
@@ -125,12 +154,12 @@ async def get_run(request: Request, run_id: str) -> dict[str, Any]:
     owners = _campaign_owners(request)
     handle = request.app.state.supervisor.get(run_id)
     if handle is not None and not handle.finished:
-        return _with_notes(request, _with_campaign(handle.to_dict(), owners))
+        return _with_notes_and_favorite(request, _with_campaign(handle.to_dict(), owners))
     row = request.app.state.runs_index.get(run_id)
     if row is not None:
-        return _with_notes(request, _with_campaign(row.to_dict(), owners))
+        return _with_notes_and_favorite(request, _with_campaign(row.to_dict(), owners))
     if handle is not None:
-        return _with_notes(request, _with_campaign(handle.to_dict(), owners))
+        return _with_notes_and_favorite(request, _with_campaign(handle.to_dict(), owners))
     raise HTTPException(status_code=404, detail=f"unknown run {run_id!r}")
 
 
@@ -150,6 +179,26 @@ async def delete_run(request: Request, run_id: str) -> dict[str, Any]:
     request.app.state.notes_index.delete_subject(SUBJECT_RUN, run_id)
     remove_run_dir(request, row.run_dir)
     return {"id": run_id, "deleted": True}
+
+
+@router.put("/runs/{run_id}/favorite")
+async def favorite_run(request: Request, run_id: str) -> dict[str, Any]:
+    """Mark a run as a favorite."""
+    return _set_favorite(request, run_id, True)
+
+
+@router.delete("/runs/{run_id}/favorite")
+async def unfavorite_run(request: Request, run_id: str) -> dict[str, Any]:
+    """Stop marking a run as a favorite."""
+    return _set_favorite(request, run_id, False)
+
+
+def _set_favorite(request: Request, run_id: str, favorite: bool) -> dict[str, Any]:
+    index = request.app.state.runs_index
+    if index.get(run_id) is None:
+        raise HTTPException(status_code=404, detail=f"unknown run {run_id!r}")
+    index.set_favorite(run_id, favorite)
+    return {"run_id": run_id, "favorite": favorite}
 
 
 @router.get("/runs/{run_id}/export")
@@ -221,14 +270,18 @@ async def get_run_notes(request: Request, run_id: str) -> dict[str, Any]:
 async def post_run_note(request: Request, run_id: str, body: NoteBody) -> dict[str, Any]:
     """Attach a note to one run."""
     _run_or_404(request, run_id)
-    return add_note(request, SUBJECT_RUN, run_id, body)
+    note = add_note(request, SUBJECT_RUN, run_id, body)
+    _write_notes(request, run_id)
+    return note
 
 
 @router.delete("/runs/{run_id}/notes/{note_id}")
 async def delete_run_note(request: Request, run_id: str, note_id: int) -> dict[str, Any]:
     """Remove one note from a run."""
     _run_or_404(request, run_id)
-    return delete_note(request, SUBJECT_RUN, run_id, note_id)
+    deleted = delete_note(request, SUBJECT_RUN, run_id, note_id)
+    _write_notes(request, run_id)
+    return deleted
 
 
 @router.post("/runs/{run_id}/stop")
@@ -310,6 +363,15 @@ def remove_run_dir(request: Request, run_dir: str) -> None:
     shutil.rmtree(path, ignore_errors=True)
 
 
+def _write_notes(request: Request, run_id: str) -> None:
+    """Rewrite one run's ``notes.md`` from the index, so its directory carries its notes."""
+    handle = request.app.state.supervisor.get(run_id)
+    row = request.app.state.runs_index.get(run_id)
+    run_dir = handle.run_dir if handle is not None else row.run_dir if row is not None else None
+    if run_dir:
+        write_notes_file(Path(run_dir), run_id, request.app.state.notes_index.list(SUBJECT_RUN, run_id))
+
+
 def _run_or_404(request: Request, run_id: str) -> None:
     """Reject a run id no live run and no history row answers to."""
     if request.app.state.supervisor.get(run_id) is not None:
@@ -335,22 +397,25 @@ def _with_campaign(payload: dict[str, Any], owners: dict[str, Any]) -> dict[str,
     return payload
 
 
-def with_note_counts(request: Request, payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Tell each run in a listing how many notes it carries.
+def with_notes_and_favorites(request: Request, payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Tell each run in a listing how many notes it carries and whether it is a favorite.
 
     One query for the whole page, so a list of any length costs the same as a
     single run. Read at request time like the campaign, because a note written
     or deleted after the row was stored still has to show.
     """
     counts = request.app.state.notes_index.counts(SUBJECT_RUN)
+    favorites = request.app.state.runs_index.favorites()
     for payload in payloads:
         payload["note_count"] = counts.get(str(payload["run_id"]), 0)
+        payload["favorite"] = payload["run_id"] in favorites
     return payloads
 
 
-def _with_notes(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
-    """The same count for one run."""
+def _with_notes_and_favorite(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
+    """The same count for one run, and whether it is a favorite."""
     payload["note_count"] = request.app.state.notes_index.count(SUBJECT_RUN, str(payload["run_id"]))
+    payload["favorite"] = payload["run_id"] in request.app.state.runs_index.favorites()
     return payload
 
 
@@ -369,4 +434,7 @@ def to_row(handle: RunHandle) -> RunRow:
         profile=handle.profile,
         target=handle.target,
         unit_serial=handle.unit_serial,
+        operator=handle.operator,
+        location=handle.location,
+        session=handle.session,
     )

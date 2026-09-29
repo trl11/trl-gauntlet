@@ -81,8 +81,10 @@ unit.
 6. Whichever required instruments are not already owned are opened, on a worker
    thread. One that will not open ends the run as an `error`, and nothing is
    spawned.
-7. The process is spawned. Two threads run: one reads stdout into `test.log`
-   and the event bus, one tails `metrics.jsonl`.
+7. The process is spawned. Two threads run: one reads stdout into the event
+   bus and into `test.log`, stamping each line with the time the bus gave it
+   so a finished run's log is timed the same as a live one, and one tails
+   `metrics.jsonl`.
 8. On exit, `verdict.json` determines the outcome, the event bus publishes it,
    and the run is written to the index.
 
@@ -143,11 +145,13 @@ The web UI renders suite-agnostic forms and views from these endpoints:
 | Result views offered | `produces[]` in the manifest |
 | Starting a run | `POST /api/runs`; `POST /api/runs/{id}/stop` and `/abort` control it |
 | Live run | `GET /api/runs/{id}/events` |
-| History | `GET /api/runs`, filtered by `suite`, `unit_serial`, repeated `status`, `after`, `before`, `has_notes`, and sorted by `sort` and `direction` |
+| History | `GET /api/runs`, filtered by `suite`, `unit_serial`, repeated `status`, `after`, `before`, `has_notes`, `favorite`, `location`, `session`, `q` (a case-insensitive search of run id, suite, profile, unit, target, status, failure reason, operator, location and session), and sorted by `sort` and `direction` |
+| Check-in completions and the location and session filters | `GET /api/runs/provenance`: every operator, location and session a run was recorded with |
 | Finished-run charts | `GET /api/runs/{id}/metrics` |
 | Run artifacts | `GET /api/runs/{id}/artifacts` and `/artifacts/{path}`, the one way to read a run's files |
+| Favorite runs | `PUT|DELETE /api/runs/{id}/favorite` |
 | Run and unit notes | `GET|POST /api/{runs,units}/{id}/notes`, `DELETE .../notes/{note_id}` |
-| Units under test | `GET /api/units`, `GET|PATCH|DELETE /api/units/{serial}`, `GET /api/units/{serial}/history` |
+| Units under test | `GET /api/units`, filtered by `location` and `session`, `GET|PATCH|DELETE /api/units/{serial}`, `GET /api/units/{serial}/history` |
 | Instrument panels | `GET /api/instruments`, `GET /api/instruments/{name}`, `POST /api/instruments/rescan`, `POST /api/instruments/{name}/command` |
 | Host health | `GET /api/system/info` for static facts, `GET /api/system/data` for sampled figures |
 | Settings | `GET /api/settings`, `GET /api/system/info`, `GET /api/health` |
@@ -163,6 +167,16 @@ written against is marked wherever runs are listed. Like `campaign` it is read
 when the run is read rather than stored on it, because a note written after the
 row was stored is still a note about that run. `has_notes` filters on the same
 thing, in SQL rather than in the page, so `total` and the paging stay right.
+
+A run listing also reports `favorite`, and the `favorite` filter keeps only the
+runs so marked. Favorites are the bench's, not a browser's, so every operator
+sees the same ones. They live in their own table rather than on the run's row,
+because storing a run replaces its row and a reimport rebuilds it from disk,
+and either would drop the mark. Deleting a run drops its mark; exporting one
+does not carry it, since which runs a bench keeps an eye on is that bench's
+business.
+
+Checking in is not authentication: nothing in Gauntlet requires it and nothing checks it. An operator gives a name, a location and a test session, which the browser keeps, and each run that browser starts and each note it writes records them. `POST /api/runs` and `POST /api/campaigns/{key}/members/{suite}/run` take `operator`, `location` and `session`, and a note takes `author`, `location` and `session`. A run's three are stored on its row, and so in its `run.json`; they travel with an exported run, and a note's with its note. Nothing reaches the suite. `location` and `session` filter both history and units: a filtered unit list holds the units with a run recorded there and counts only those runs, and leaves out a unit known only from its metadata.
 
 An instrument panel is generated from what the provider declares: its `state()`
 is rendered as rows and each entry in `commands()` becomes a control built from
@@ -234,8 +248,9 @@ period. No verdict is produced.
 
 ## Storage
 
-Run artifacts on disk are the source of truth. `RunsIndex` mirrors them in
-SQLite for the history view and rebuilds from disk via `import_tree`.
+Run artifacts on disk are the source of truth. `RunsIndex` mirrors them in SQLite for the history view and rebuilds from disk via `import_tree`.
+
+Storing a row writes it into the run's directory as `run.json`, and adding or deleting a run note rewrites `notes.md` there, so the directory alone gives back everything the run page shows except which runs are favorites, which is the bench's view rather than the run's. Renaming a unit rewrites the `run.json` of each of its runs. `import_tree` restores a row from `run.json` where there is one, treating a record still marked in flight as interrupted, and falls back to `verdict.json` and `manifest.json` for a directory from before Gauntlet wrote it; it reads `notes.md` back into the notes. A unit's own notes have no directory and live only in the database.
 
 On startup, runs recorded as in-progress are marked interrupted, and any run
 directory on disk not already indexed is imported.
@@ -251,13 +266,7 @@ export.json   the index row, the operator notes, and the export apiVersion
 run/          the run directory verbatim
 ```
 
-The directory would nearly be enough on its own, since `import_tree` rebuilds a
-row from `verdict.json` and `manifest.json`. `export.json` carries what disk
-cannot give back: a run recorded as `error` has no `verdict.json` to be rebuilt
-from, `manifest.json` is optional so `profile`, `target` and `unit_serial` may
-be missing from it, and notes live in the database rather than beside the
-artifacts. The row travels without its `run_dir`, which is a path on the
-machine that exported it.
+The directory is enough on its own for a run written since Gauntlet kept `run.json` and `notes.md` beside it. `export.json` still carries the row and the notes, so an archive of an older run, whose directory holds neither, arrives whole. The row travels without its `run_dir`, which is a path on the machine that exported it.
 
 | Where | Export | Import |
 |---|---|---|
