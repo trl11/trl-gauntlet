@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gauntlet-sdk"
-version = "0.1.0"
+version = "1.0.0"
 description = "Library for writing test suites that conform to the Gauntlet contract"
 readme = "README.md"
 requires-python = ">=3.10"
