@@ -234,8 +234,14 @@ class TestMockI2c:
         assert data[4] == data[0]
 
     def test_a_write_read_is_reported_as_one(self) -> None:
-        result = MockI2c(clock=_Clock()).command("write_read", {"address": 0x48, "data": "00", "length": 2})
-        assert result["direction"] == "write_read"
+        result = MockI2c(clock=_Clock()).command("write_read", {"address": 0x48, "data": "00", "read_length": 3})
+        assert (result["direction"], result["length"]) == ("write_read", 3)
+
+    def test_a_write_read_takes_the_real_bridge_s_arguments(self) -> None:
+        with pytest.raises(CommandRejected, match="not valid hex"):
+            MockI2c(clock=_Clock()).command("write_read", {"address": 0x48, "data": "zz", "read_length": 1})
+        fields = [field["name"] for field in MockI2c(clock=_Clock()).commands()[2]["fields"]]
+        assert fields == ["address", "data", "read_length"]
 
     def test_a_write_echoes_the_bytes_it_was_given(self) -> None:
         result = MockI2c(clock=_Clock()).command("write", {"address": 0x48, "data": "01:02 ab"})

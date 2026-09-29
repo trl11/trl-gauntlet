@@ -85,6 +85,7 @@ export const CaptureViewer: React.FC<CaptureViewerProps> = ({ paths, runId }) =>
   const shownSamples = to - from + 1;
   const period = depth > 1 ? capture.times[1] - capture.times[0] : 0;
   const rate = period > 0 ? 1 / period : 0;
+  const samples = depth === 1 ? "1 sample" : `${formatNumber(depth, 0)} samples`;
 
   return (
     <div className="capture-viewer">
@@ -111,7 +112,7 @@ export const CaptureViewer: React.FC<CaptureViewerProps> = ({ paths, runId }) =>
 
       <p className="capture-viewer__note">
         {[
-          `${formatNumber(depth, 0)} samples at ${formatNumber(rate / 1000)} kS/s`,
+          rate > 0 ? `${samples} at ${formatNumber(rate / 1000)} kS/s` : samples,
           shownSamples < depth ? `showing ${formatNumber(shownSamples, 0)} of them` : "all shown",
           shownSamples > BUDGET ? "as an envelope — zoom in for sample-for-sample" : "",
         ]

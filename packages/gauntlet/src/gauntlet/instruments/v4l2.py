@@ -236,8 +236,8 @@ class Frame:
 
 def capture_devices() -> list[Path]:
     """Every `/dev/video*` node, in the order the kernel numbered them."""
-    nodes = sorted(Path("/dev").glob("video*"), key=lambda path: int(path.name[5:] or 0))
-    return [path for path in nodes if path.name[5:].isdigit()]
+    nodes = [path for path in Path("/dev").glob("video*") if path.name[5:].isdigit()]
+    return sorted(nodes, key=lambda path: int(path.name[5:]))
 
 
 class V4l2Camera:
@@ -370,12 +370,14 @@ class V4l2Camera:
 
     def stop(self) -> None:
         """Stop streaming and release the mapped buffers."""
-        if self._streaming:
-            self._streaming = False
-            self._ioctl(VIDIOC_STREAMOFF, ctypes.c_uint32(BUF_TYPE_VIDEO_CAPTURE))
-        for region in self._maps:
-            region.close()
-        self._maps = []
+        try:
+            if self._streaming:
+                self._streaming = False
+                self._ioctl(VIDIOC_STREAMOFF, ctypes.c_uint32(BUF_TYPE_VIDEO_CAPTURE))
+        finally:
+            for region in self._maps:
+                region.close()
+            self._maps = []
 
     def grab(self, *, timeout_s: float = 5.0) -> Frame:
         """Dequeue the next complete frame, copy it, and hand the buffer back.
@@ -463,6 +465,8 @@ class V4l2Camera:
                 break
 
         corrupt = 0
+        corrupt_in_span = 0
+        corrupt_since_good = 0
         counted = 0
         total_bytes = 0
         first_sequence = -1
@@ -476,6 +480,8 @@ class V4l2Camera:
             flags, sequence, bytesused = recycled
             if flags & BUF_FLAG_ERROR or not bytesused:
                 corrupt += 1
+                if started:
+                    corrupt_since_good += 1
                 continue
             if not started:
                 # Timing opens on the first good frame, so the wait for the
@@ -487,6 +493,10 @@ class V4l2Camera:
             counted += 1
             last_sequence = sequence
             total_bytes += bytesused
+            # A corrupt frame between two good ones holds a sequence number of
+            # its own, so it is taken out of the span rather than read as lost.
+            corrupt_in_span += corrupt_since_good
+            corrupt_since_good = 0
 
         elapsed = time.monotonic() - started if started else 0.0
         intervals = max(0, counted - 1)
@@ -494,7 +504,7 @@ class V4l2Camera:
         return {
             "bytes": float(total_bytes),
             "corrupt": float(corrupt),
-            "dropped": float(max(0, span - intervals)),
+            "dropped": float(max(0, span - intervals - corrupt_in_span)),
             "elapsed_s": round(elapsed, 4),
             "fps": round(intervals / elapsed, 2) if elapsed > 0 else 0.0,
             "frames": float(counted),

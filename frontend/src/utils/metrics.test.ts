@@ -19,6 +19,12 @@ describe("naturalCompare ties", () => {
     expect(naturalCompare("cpu1", "cpu")).toBeGreaterThan(0);
   });
 
+  it("never reads two different names as equal", () => {
+    expect(naturalCompare("a", "a0")).toBeLessThan(0);
+    expect(naturalCompare("a0", "a")).toBeGreaterThan(0);
+    expect(naturalCompare("cpu01", "cpu1")).not.toBe(0);
+  });
+
   it("orders text chunks alphabetically", () => {
     expect(naturalCompare("disk1", "cpu1")).toBeGreaterThan(0);
   });

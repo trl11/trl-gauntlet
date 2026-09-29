@@ -124,6 +124,18 @@ class _FakeCamera:
         return {"dropped": 0.0, "fps": 19.0, "frames": float(frames)}
 
 
+@pytest.fixture(autouse=True)
+def no_real_gmsl_link(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Keep a camera's link probe off whatever node this machine really has.
+
+    `UvcCamera` probes for GMSL chips behind the node it opened, and every
+    stand-in device is named `/dev/video0`, so without this a test would send
+    extension-unit ioctls to real hardware. A test that wants a link patches
+    `GmslLink` again.
+    """
+    monkeypatch.setattr("gauntlet.instruments.uvc_camera.GmslLink", lambda node: gmsl.GmslLink(tmp_path / "no-node"))
+
+
 def camera_with(fake: _FakeCamera, *, present: bool = True, **kwargs: Any) -> UvcCamera:
     """A driver wired to one stand-in device, presumed present unless said otherwise."""
     return UvcCamera(
@@ -1583,6 +1595,30 @@ class TestV4l2Opening:
         assert camera._streaming is False
         assert camera.format() == {}
 
+    def test_a_stream_that_will_not_stop_still_unmaps_its_buffers(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        camera, node = capture_node(monkeypatch, tmp_path)
+        camera.open()
+        region = _Region()
+        camera._maps = [region]  # type: ignore[list-item]
+        camera._streaming = True
+        node.errors[v4l2.VIDIOC_STREAMOFF] = errno.ENODEV
+        with pytest.raises(V4l2Error, match="device has gone"):
+            camera.stop()
+        assert region.closed is True
+        assert camera._maps == []
+
+
+class _Region:
+    """Stands in for one mapped buffer, recording whether it was released."""
+
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
 
 class TestCaptureDevices:
     def test_nodes_come_back_in_the_order_the_kernel_numbered_them(
@@ -1592,6 +1628,12 @@ class TestCaptureDevices:
             (tmp_path / name).write_bytes(b"")
         monkeypatch.setattr(v4l2, "Path", lambda _root: tmp_path)
         assert [path.name for path in v4l2.capture_devices()] == ["video0", "video2", "video10"]
+
+    def test_a_node_not_named_by_number_is_skipped(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        for name in ("video1", "videofoo", "video0"):
+            (tmp_path / name).write_bytes(b"")
+        monkeypatch.setattr(v4l2, "Path", lambda _root: tmp_path)
+        assert [path.name for path in v4l2.capture_devices()] == ["video0", "video1"]
 
 
 class TestV4l2Streaming:
@@ -1639,6 +1681,23 @@ class TestMeasureStream:
         assert measured["corrupt"] == 2.0
         assert measured["frames"] == 2.0
         assert measured["dropped"] == 0.0
+
+    def test_a_corrupt_frame_inside_the_burst_is_not_also_dropped(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        frames = [(0, 16, 0, 5), (1, 0, v4l2.BUF_FLAG_ERROR, 6), (2, 16, 0, 7)]
+        camera, _ = streaming_camera(monkeypatch, frames)
+        _scripted_select(monkeypatch, [False, True])
+        measured = camera.measure_stream(frames=2, timeout_s=1.0)
+        assert measured["corrupt"] == 1.0
+        assert measured["dropped"] == 0.0
+
+    def test_a_gap_beside_a_corrupt_frame_is_still_dropped(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        frames = [(0, 16, 0, 5), (1, 0, v4l2.BUF_FLAG_ERROR, 6), (2, 16, 0, 9)]
+        camera, _ = streaming_camera(monkeypatch, frames)
+        _scripted_select(monkeypatch, [False, True])
+        measured = camera.measure_stream(frames=2, timeout_s=1.0)
+        assert measured["corrupt"] == 1.0
+        # Sequence 7 and 8 never arrived.
+        assert measured["dropped"] == 2.0
 
     def test_the_backlog_is_drained_before_timing_starts(self, monkeypatch: pytest.MonkeyPatch) -> None:
         # The queue sat full while nothing read it, so the jump from 2 to 100

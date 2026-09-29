@@ -69,6 +69,16 @@ class TestSuiteManifest:
         with pytest.raises(ValidationError, match="more than once"):
             SuiteManifest.model_validate(_manifest(requires=["i2c.dut", "i2c.dut"]))
 
+    @pytest.mark.parametrize("path", ["firmware/image.hex", "notes..txt", "a/b/c.pdf"])
+    def test_a_download_inside_the_suite_is_accepted(self, path):
+        manifest = SuiteManifest.model_validate(_manifest(downloads=[{"path": path}]))
+        assert manifest.downloads[0].path == path
+
+    @pytest.mark.parametrize("path", ["/etc/passwd", "../other/suite.yaml", "files/../../secret"])
+    def test_a_download_outside_the_suite_is_rejected(self, path):
+        with pytest.raises(ValidationError, match="relative to the suite directory"):
+            SuiteManifest.model_validate(_manifest(downloads=[{"path": path}]))
+
 
 class TestVerdict:
     def test_failing_verdict_needs_a_reason(self):

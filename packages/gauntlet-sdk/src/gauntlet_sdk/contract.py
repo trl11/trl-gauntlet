@@ -113,6 +113,14 @@ class DownloadSpec(BaseModel):
     label: str = Field(default="", max_length=80, description="What to call it. Defaults to the filename.")
     description: str = Field(default="", max_length=200, description="One line on what it is for.")
 
+    @field_validator("path")
+    @classmethod
+    def _inside_the_suite(cls, value: str) -> str:
+        """A path that names somewhere outside the suite directory is refused on load."""
+        if value.startswith("/") or ".." in value.split("/"):
+            raise ValueError(f"downloads: {value!r} must be relative to the suite directory, with no `..`")
+        return value
+
 
 class SuiteManifest(BaseModel):
     """A ``suite.yaml``. The entire registration surface for a suite."""

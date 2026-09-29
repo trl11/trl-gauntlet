@@ -111,7 +111,7 @@ describe("CaptureViewer", () => {
     getArtifactText.mockResolvedValue("t_s,ch0\n0,0.0025");
     renderViewer();
 
-    expect(await screen.findByText(/1 samples at 0 kS\/s, all shown/)).toBeInTheDocument();
+    expect(await screen.findByText(/^1 sample, all shown/)).toBeInTheDocument();
   });
 
   it("draws a long capture as an envelope and says so", async () => {

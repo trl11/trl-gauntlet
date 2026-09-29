@@ -748,6 +748,9 @@ class TestMockLogicEdges:
     def test_it_is_addressed_as_the_simulated_analyzer(self) -> None:
         assert MockLogic().instance_id() == "logic-sim"
 
+    def test_it_is_addressed_by_the_instance_it_was_registered_under(self) -> None:
+        assert MockLogic(instance="logic.dut").instance_id() == "logic.dut"
+
     def test_capture_is_what_the_panel_is_for(self) -> None:
         assert MockLogic().primary_command() == "capture"
 

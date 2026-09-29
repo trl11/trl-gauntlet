@@ -31,6 +31,11 @@ describe("parseCapture", () => {
     expect(capture.times).toEqual([0, 0.00004, 0.00008]);
   });
 
+  it("drops a half-written last row rather than reading its empty cell as zero", () => {
+    const capture = parseCapture(`${CSV}\n0.00012,0.0027,\n0.00016, ,0.5`);
+    expect(capture.times).toEqual([0, 0.00004, 0.00008]);
+  });
+
   it("reads a file with no samples as empty", () => {
     expect(parseCapture("t_s,ch0").times).toEqual([]);
     expect(parseCapture("").channels).toEqual([]);
