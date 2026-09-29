@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import ctypes
+import errno
 import struct
 import zlib
 from pathlib import Path
@@ -61,6 +62,8 @@ class _FakeCamera:
     """Enough of a V4L2 device to answer the driver."""
 
     def __init__(self, path: Path) -> None:
+        self.bursts: list[int] = []
+        self.close_error: Exception | None = None
         self.closed = False
         self.frames_grabbed = 0
         self.grab_error: Exception | None = None
@@ -78,6 +81,8 @@ class _FakeCamera:
     def close(self) -> None:
         self.closed = True
         self.started = False
+        if self.close_error is not None:
+            raise self.close_error
 
     def describe(self) -> dict[str, str]:
         return {"bus_info": "usb-0000:07:00.1-4.4", "card": "LI-IMX728", "driver": "uvcvideo"}
@@ -111,6 +116,12 @@ class _FakeCamera:
             sequence=self.frames_grabbed,
             width=self.width,
         )
+
+    def measure_stream(self, *, frames: int = 10, timeout_s: float = 5.0) -> dict[str, float]:
+        if self.grab_error is not None:
+            raise self.grab_error
+        self.bursts.append(frames)
+        return {"dropped": 0.0, "fps": 19.0, "frames": float(frames)}
 
 
 def camera_with(fake: _FakeCamera, *, present: bool = True, **kwargs: Any) -> UvcCamera:
@@ -822,22 +833,28 @@ class _FakeLink:
         self.streaming_when_scanned = True
         self.locked = True
         self.link_error = False
+        self.chips = [0x84]
+        self.open_error: Exception | None = None
+        self.read_error: Exception | None = None
 
     def open(self) -> None:
-        return None
+        if self.open_error is not None:
+            raise self.open_error
 
     def close(self) -> None:
         self.closed = True
 
     def scan(self) -> list[int]:
         self.streaming_when_scanned = self.camera.started
-        return [0x84]
+        return self.chips
 
     def identity(self) -> dict[str, str]:
         return {"uuid": "fake"}
 
     def status(self, address: int) -> gmsl.ChipStatus:
         self.streaming_when_read.append(self.camera.started)
+        if self.read_error is not None:
+            raise self.read_error
         return gmsl.ChipStatus(
             address=address,
             decode_errors_a=0,
@@ -851,14 +868,16 @@ class _FakeLink:
 
     def link_state(self, address: int) -> tuple[bool, bool]:
         self.streaming_when_read.append(self.camera.started)
+        if self.read_error is not None:
+            raise self.read_error
         return self.locked, self.link_error
 
 
-def linked_camera(monkeypatch: pytest.MonkeyPatch, fake: _FakeCamera) -> tuple[UvcCamera, _FakeLink]:
+def linked_camera(monkeypatch: pytest.MonkeyPatch, fake: _FakeCamera, **kwargs: Any) -> tuple[UvcCamera, _FakeLink]:
     """An owned camera with a stand-in GMSL link behind its node."""
     link = _FakeLink(fake)
     monkeypatch.setattr("gauntlet.instruments.uvc_camera.GmslLink", lambda node: link)
-    camera = camera_with(fake)
+    camera = camera_with(fake, **kwargs)
     assert camera.own() is True
     return camera, link
 
@@ -1142,3 +1161,532 @@ class TestStreamSettling:
         camera, _ = streaming_camera(monkeypatch, [(0, 0, v4l2.BUF_FLAG_ERROR, 0)])
         with pytest.raises(V4l2Error, match="frames in a row"):
             camera._settle()
+
+
+def unlinked_camera(monkeypatch: pytest.MonkeyPatch, fake: _FakeCamera, **kwargs: Any) -> UvcCamera:
+    """A camera whose node has no GMSL chips behind it, so no real link is probed."""
+    link = _FakeLink(fake)
+    link.chips = []
+    monkeypatch.setattr("gauntlet.instruments.uvc_camera.GmslLink", lambda node: link)
+    return camera_with(fake, **kwargs)
+
+
+class TestUvcCameraSurface:
+    """What the panel and a suite read off the provider, owned or not."""
+
+    def test_an_explicit_node_is_present_only_while_it_exists(self, tmp_path: Path) -> None:
+        node = tmp_path / "video9"
+        camera = UvcCamera(device=str(node))
+        assert camera.available() is False
+        assert camera.describe()["unavailable_reason"] == f"{node}: not present"
+        node.write_bytes(b"")
+        assert camera.available() is True
+
+    def test_no_capture_node_at_all_is_reported(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr("gauntlet.instruments.uvc_camera.capture_devices", lambda: [])
+        camera = UvcCamera(device="")
+        assert camera.available() is False
+        assert camera.own() is False
+        assert camera.describe()["unavailable_reason"] == "no /dev/video* node is present"
+
+    def test_an_owned_camera_is_available_without_looking_again(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        presence_checks: list[str] = []
+
+        def presence(device: str) -> bool:
+            presence_checks.append(device)
+            return True
+
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera = unlinked_camera(monkeypatch, fake)
+        camera._presence = presence
+        camera.own()
+        assert camera.available() is True
+        assert presence_checks == []
+
+    def test_disowning_releases_the_device(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera = unlinked_camera(monkeypatch, fake)
+        camera.own()
+        camera.disown()
+        assert fake.closed is True
+        assert camera.owned() is False
+
+    def test_a_device_that_fails_to_close_is_still_released(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        fake.close_error = V4l2Error("/dev/video0: device has gone")
+        camera = unlinked_camera(monkeypatch, fake)
+        camera.own()
+        camera.close()
+        assert camera.owned() is False
+
+    def test_connection_names_the_node_and_the_bus(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera = unlinked_camera(monkeypatch, _FakeCamera(Path("/dev/video0")))
+        assert camera.connection() == "no camera"
+        camera.own()
+        assert camera.connection() == "/dev/video0 usb-0000:07:00.1-4.4"
+
+    def test_the_instance_is_the_one_it_was_built_with(self) -> None:
+        camera = camera_with(_FakeCamera(Path("/dev/video0")), instance="camera.dut")
+        assert camera.instance_id() == "camera.dut"
+
+    def test_read_is_the_state(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera = unlinked_camera(monkeypatch, _FakeCamera(Path("/dev/video0")))
+        camera.own()
+        assert camera.read() == camera.state()
+
+    def test_the_link_readouts_appear_only_behind_an_adapter(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        plain = unlinked_camera(monkeypatch, _FakeCamera(Path("/dev/video0")))
+        plain.own()
+        assert not [entry for entry in plain.readouts() if entry["key"].startswith("link.")]
+
+        linked, _ = linked_camera(monkeypatch, _FakeCamera(Path("/dev/video0")))
+        assert [entry["key"] for entry in linked.readouts() if entry["key"].startswith("link.")] == [
+            "link.errors",
+            "link.total_errors",
+            "link.locked",
+        ]
+
+    def test_every_readout_names_a_path_that_state_carries(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera, _ = linked_camera(monkeypatch, _FakeCamera(Path("/dev/video0")), warmup_frames=0)
+        camera.command("snapshot", {})
+        state = camera.state()
+        for entry in camera.readouts():
+            cursor: Any = state
+            for part in entry["key"].split("."):
+                assert part in cursor, f"{entry['key']} is not in state()"
+                cursor = cursor[part]
+
+    def test_link_status_is_offered_only_behind_an_adapter(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        plain = unlinked_camera(monkeypatch, _FakeCamera(Path("/dev/video0")))
+        plain.own()
+        assert "link_status" not in [row["name"] for row in plain.commands()]
+
+        linked, _ = linked_camera(monkeypatch, _FakeCamera(Path("/dev/video0")))
+        assert "link_status" in [row["name"] for row in linked.commands()]
+
+    def test_a_write_of_anything_but_a_reading_answers_with_the_state(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera = unlinked_camera(monkeypatch, _FakeCamera(Path("/dev/video0")))
+        answered = camera.write({"command": "set_owned", "args": {"owned": True}})
+        assert answered["streaming"] is True
+        assert answered["format"]["fourcc"] == "YUYV"
+
+    def test_the_key_on_an_unavailable_camera_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        fake.open_error = V4l2Error("/dev/video0: device busy")
+        camera = unlinked_camera(monkeypatch, fake)
+        with pytest.raises(CommandRejected, match="unavailable: /dev/video0: device busy"):
+            camera.command("set_owned", {"owned": True})
+
+
+class TestUvcArguments:
+    """What the panel's presets and a suite's numbers turn into."""
+
+    def test_the_full_preset_is_the_whole_frame(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        fake.width = 32
+        camera = unlinked_camera(monkeypatch, fake, warmup_frames=0)
+        camera.own()
+        assert camera.command("snapshot", {"max_width": "Full"})["width"] == 32
+
+    def test_a_preset_named_by_its_width_caps_the_picture(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        fake.width = 32
+        camera = unlinked_camera(monkeypatch, fake, warmup_frames=0)
+        camera.own()
+        assert camera.command("snapshot", {"max_width": "16"})["width"] == 16
+
+    def test_a_warmup_given_as_a_flag_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera = unlinked_camera(monkeypatch, _FakeCamera(Path("/dev/video0")))
+        camera.own()
+        with pytest.raises(CommandRejected, match="'warmup' must be a number"):
+            camera.command("snapshot", {"warmup": True})
+
+    def test_an_address_that_is_not_a_string_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera, _ = linked_camera(monkeypatch, _FakeCamera(Path("/dev/video0")))
+        with pytest.raises(CommandRejected, match="must be a string"):
+            camera.command("link_register", {"address": 0x84})
+
+
+class TestUvcStreamStats:
+    """A burst of frames read back to back, for a suite measuring the link."""
+
+    def test_a_burst_is_measured_at_the_default_length(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera = unlinked_camera(monkeypatch, fake)
+        camera.own()
+        assert camera.command("stream_stats", {})["fps"] == 19.0
+        assert fake.bursts == [8]
+
+    def test_write_answers_with_the_measurement(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera = unlinked_camera(monkeypatch, _FakeCamera(Path("/dev/video0")))
+        camera.own()
+        result = camera.write({"command": "stream_stats", "args": {"frames": 30}})
+        assert result == {"dropped": 0.0, "fps": 19.0, "frames": 30.0}
+
+    def test_a_burst_too_short_to_time_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera = unlinked_camera(monkeypatch, _FakeCamera(Path("/dev/video0")))
+        camera.own()
+        with pytest.raises(CommandRejected, match="between 2 and 120"):
+            camera.command("stream_stats", {"frames": 1})
+
+    def test_a_camera_that_stops_answering_is_dropped(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera = unlinked_camera(monkeypatch, fake)
+        camera.own()
+        fake.grab_error = V4l2Error("/dev/video0: device has gone")
+        with pytest.raises(CommandRejected, match="device has gone"):
+            camera.command("stream_stats", {})
+        assert fake.closed is True
+        assert camera.owned() is False
+
+
+class TestUvcLinkFailures:
+    """A link that stops answering is a reading, not a crash."""
+
+    def test_a_link_that_will_not_open_leaves_a_plain_camera(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        link = _FakeLink(fake)
+        link.open_error = gmsl.GmslError("/dev/video0: no extension unit")
+        monkeypatch.setattr("gauntlet.instruments.uvc_camera.GmslLink", lambda node: link)
+        camera = camera_with(fake)
+        assert camera.own() is True
+        assert link.closed is True
+        with pytest.raises(CommandRejected, match="not behind a GMSL adapter"):
+            camera.command("link_status", {})
+
+    def test_the_panel_poll_reads_the_chips_at_most_once_per_interval(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        clock = _Clock()
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera, link = linked_camera(monkeypatch, fake, clock=clock, link_interval_s=15.0)
+
+        assert camera.state()["link"]["locked"] is True
+        camera.state()
+        assert len(link.streaming_when_read) == 1
+
+        clock.advance(15.0)
+        camera.state()
+        assert len(link.streaming_when_read) == 2
+
+    def test_a_status_read_that_fails_is_reported_in_the_same_shape(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera, link = linked_camera(monkeypatch, fake)
+        link.read_error = gmsl.GmslError("0x84: no answer")
+
+        reading = camera.command("link_status", {})
+
+        assert reading == {"chips": {}, "error": "0x84: no answer", "identity": {}, "locked": False, "total_errors": 0}
+        assert fake.started is True
+        assert camera.owned() is True
+
+    def test_a_register_read_that_fails_restarts_the_stream(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera, link = linked_camera(monkeypatch, fake)
+        link.read_error = OSError(5, "Input/output error")
+
+        reading = camera.command("link_register", {"address": "0x84"})
+
+        assert reading["error"] == "[Errno 5] Input/output error"
+        assert reading["locked"] is False
+        assert fake.started is True
+        assert camera.owned() is True
+
+
+class TestMockCameraSurface:
+    def test_it_offers_only_a_snapshot(self) -> None:
+        camera = MockCamera()
+        assert [row["name"] for row in camera.commands()] == ["snapshot"]
+        assert camera.primary_command() == "snapshot"
+
+    def test_it_says_it_is_simulated(self) -> None:
+        assert MockCamera().connection() == "simulated"
+
+    def test_the_instance_is_the_one_it_was_built_with(self) -> None:
+        assert MockCamera(instance="camera.ref").instance_id() == "camera.ref"
+
+    def test_read_is_the_state(self) -> None:
+        camera = MockCamera()
+        camera.command("snapshot", {})
+        assert camera.read() == camera.state()
+
+    def test_every_readout_names_a_path_that_state_carries(self) -> None:
+        camera = MockCamera()
+        camera.command("snapshot", {"max_width": 160})
+        state = camera.state()
+        for entry in camera.readouts():
+            cursor: Any = state
+            for part in entry["key"].split("."):
+                assert part in cursor, f"{entry['key']} is not in state()"
+                cursor = cursor[part]
+
+    def test_a_write_of_a_snapshot_answers_with_the_picture(self) -> None:
+        result = MockCamera().write({"command": "snapshot", "args": {"max_width": 160}})
+        assert base64.b64decode(result["image_base64"]).startswith(_PNG_SIGNATURE)
+
+
+class TestImagingEdges:
+    def test_a_live_frame_is_written_as_a_jpeg(self) -> None:
+        frame = Frame(yuyv_frame(8, 8), PIXELFORMAT_YUYV, 8, 8, sequence=1)
+        payload, measured = encode_frame(frame, lossy=True)
+        assert payload.startswith(b"\xff\xd8")
+        assert measured["width"] == 8
+
+    def test_an_empty_image_measures_as_nothing(self) -> None:
+        assert measure(bytearray(), 0, 0) == {"mean_luma": 0.0, "sharpness": 0.0}
+
+    def test_a_colour_past_the_top_of_the_range_is_held_at_full(self) -> None:
+        pixels, _, _ = yuyv_to_rgb(bytes((255, 255, 255, 255)), 2, 1)
+        assert pixels[0] == 255
+        assert pixels[2] == 255
+
+
+class TestGmslLinkOpening:
+    def test_a_node_that_will_not_open_is_a_link_error(self, tmp_path: Path) -> None:
+        with pytest.raises(gmsl.GmslError, match="No such file"):
+            gmsl.GmslLink(tmp_path / "video9").open()
+
+    def test_opening_an_open_link_keeps_its_descriptor(self, tmp_path: Path) -> None:
+        link = gmsl.GmslLink(tmp_path / "video9")
+        link._fd = 7
+        link.open()
+        assert link._fd == 7
+
+
+class _FakeNode:
+    """The ioctls a capture node answers while being opened and described."""
+
+    def __init__(self) -> None:
+        self.capabilities = 0
+        self.device_caps = v4l2.CAP_VIDEO_CAPTURE | v4l2.CAP_STREAMING
+        self.errors: dict[int, int] = {}
+        self.formats = [(PIXELFORMAT_YUYV, b"YUYV 4:2:2"), (0x3231564E, b"Y/UV 4:2:0")]
+
+    def ioctl(self, fd: int, request: int, argument: Any) -> None:
+        if request in self.errors:
+            code = self.errors[request]
+            raise OSError(code, errno.errorcode[code])
+        if request == v4l2.VIDIOC_QUERYCAP:
+            argument.driver = b"uvcvideo"
+            argument.card = b"LI-IMX728"
+            argument.bus_info = b"usb-0000:07:00.1-4.4"
+            argument.capabilities = self.capabilities
+            argument.device_caps = self.device_caps
+        elif request == v4l2.VIDIOC_G_FMT:
+            argument.pix.width = 3840
+            argument.pix.height = 2160
+            argument.pix.pixelformat = PIXELFORMAT_YUYV
+            argument.pix.bytesperline = 7680
+            argument.pix.sizeimage = 3840 * 2160 * 2
+        elif request == v4l2.VIDIOC_ENUM_FMT:
+            if argument.index >= len(self.formats):
+                raise OSError(errno.EINVAL, "Invalid argument")
+            argument.pixelformat, argument.description = self.formats[argument.index]
+
+
+def capture_node(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[v4l2.V4l2Camera, _FakeNode]:
+    """A camera on a plain file, whose ioctls the fake answers."""
+    path = tmp_path / "video0"
+    path.write_bytes(b"")
+    node = _FakeNode()
+    monkeypatch.setattr("gauntlet.instruments.v4l2.fcntl.ioctl", node.ioctl)
+    return v4l2.V4l2Camera(path), node
+
+
+class TestV4l2Opening:
+    """Opening a node confirms it can stream before anything relies on it."""
+
+    def test_opening_reads_the_format_in_force(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        camera, _ = capture_node(monkeypatch, tmp_path)
+        camera.open()
+        assert camera.path == tmp_path / "video0"
+        assert camera.format() == {
+            "bytesperline": 7680,
+            "fourcc": "YUYV",
+            "height": 2160,
+            "pixelformat": PIXELFORMAT_YUYV,
+            "sizeimage": 3840 * 2160 * 2,
+            "width": 3840,
+        }
+
+    def test_opening_an_open_node_keeps_its_descriptor(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        camera, _ = capture_node(monkeypatch, tmp_path)
+        camera.open()
+        descriptor = camera._fd
+        camera.open()
+        assert camera._fd == descriptor
+
+    def test_older_drivers_that_report_no_device_caps_still_open(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        camera, node = capture_node(monkeypatch, tmp_path)
+        node.capabilities, node.device_caps = node.device_caps, 0
+        camera.open()
+        assert camera.format()["width"] == 3840
+
+    def test_a_node_that_does_not_capture_is_refused_and_released(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        camera, node = capture_node(monkeypatch, tmp_path)
+        node.device_caps = v4l2.CAP_STREAMING
+        with pytest.raises(V4l2Error, match="not a video capture device"):
+            camera.open()
+        with pytest.raises(V4l2Error, match="not open"):
+            camera.describe()
+
+    def test_a_node_that_cannot_stream_is_refused(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        camera, node = capture_node(monkeypatch, tmp_path)
+        node.device_caps = v4l2.CAP_VIDEO_CAPTURE
+        with pytest.raises(V4l2Error, match="does not support streaming"):
+            camera.open()
+        assert camera.format() == {}
+
+    def test_a_refused_ioctl_names_the_reason(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        camera, node = capture_node(monkeypatch, tmp_path)
+        node.errors[v4l2.VIDIOC_G_FMT] = errno.EBUSY
+        with pytest.raises(V4l2Error, match="another process is streaming"):
+            camera.open()
+
+    def test_a_missing_node_names_the_reason(self, tmp_path: Path) -> None:
+        with pytest.raises(V4l2Error, match="No such file or directory"):
+            v4l2.V4l2Camera(tmp_path / "video9").open()
+
+    def test_describe_is_what_the_driver_calls_itself(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        camera, _ = capture_node(monkeypatch, tmp_path)
+        camera.open()
+        assert camera.describe() == {
+            "bus_info": "usb-0000:07:00.1-4.4",
+            "card": "LI-IMX728",
+            "driver": "uvcvideo",
+        }
+
+    def test_formats_lists_every_offer_and_marks_the_usable_ones(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        camera, _ = capture_node(monkeypatch, tmp_path)
+        camera.open()
+        assert camera.formats() == [
+            {"description": "YUYV 4:2:2", "fourcc": "YUYV", "pixelformat": PIXELFORMAT_YUYV, "supported": True},
+            {"description": "Y/UV 4:2:0", "fourcc": "NV12", "pixelformat": 0x3231564E, "supported": False},
+        ]
+
+    def test_closing_a_closed_node_does_nothing(self) -> None:
+        camera = v4l2.V4l2Camera(Path("/dev/video0"))
+        camera.close()
+        assert camera._fd is None
+
+    def test_a_node_that_has_gone_is_still_released(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        camera, node = capture_node(monkeypatch, tmp_path)
+        camera.open()
+        camera._streaming = True
+        node.errors[v4l2.VIDIOC_STREAMOFF] = errno.ENODEV
+        camera.close()
+        assert camera._fd is None
+        assert camera._streaming is False
+        assert camera.format() == {}
+
+
+class TestCaptureDevices:
+    def test_nodes_come_back_in_the_order_the_kernel_numbered_them(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        for name in ("video10", "video2", "video0", "video"):
+            (tmp_path / name).write_bytes(b"")
+        monkeypatch.setattr(v4l2, "Path", lambda _root: tmp_path)
+        assert [path.name for path in v4l2.capture_devices()] == ["video0", "video2", "video10"]
+
+
+class TestV4l2Streaming:
+    def test_starting_a_running_stream_does_nothing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera, driver = streaming_camera(monkeypatch, [(0, 16, 0, 1)])
+        camera.start()
+        assert driver.queued == []
+
+    def test_a_driver_that_grants_no_buffers_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera, _ = starting_camera(monkeypatch, silent=False)
+
+        def grant_nothing(request: int, argument: Any) -> None:
+            if request == v4l2.VIDIOC_REQBUFS:
+                argument.count = 0
+
+        monkeypatch.setattr(camera, "_ioctl", grant_nothing)
+        with pytest.raises(V4l2Error, match="granted no buffers"):
+            camera.start()
+        assert camera._streaming is False
+
+    def test_grabbing_before_streaming_is_refused(self) -> None:
+        with pytest.raises(V4l2Error, match="not streaming"):
+            v4l2.V4l2Camera(Path("/dev/video0")).grab()
+
+
+class TestMeasureStream:
+    """A burst read back to back, so the rate and the gaps are the link's own."""
+
+    def test_the_frames_and_the_gaps_between_them_are_counted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera, _ = streaming_camera(monkeypatch, [(0, 16, 0, 10), (1, 16, 0, 11), (2, 16, 0, 14)])
+        _scripted_select(monkeypatch, [False, True])
+        measured = camera.measure_stream(frames=3, timeout_s=1.0)
+        assert measured["frames"] == 3.0
+        assert measured["corrupt"] == 0.0
+        # Sequence 12 and 13 never arrived.
+        assert measured["dropped"] == 2.0
+        # The first frame only opens the timing, so its bytes are not counted.
+        assert measured["bytes"] == 32.0
+
+    def test_corrupt_frames_are_counted_rather_than_timed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        frames = [(0, 0, v4l2.BUF_FLAG_ERROR, 0), (1, 0, 0, 0), (2, 16, 0, 5), (3, 16, 0, 6)]
+        camera, _ = streaming_camera(monkeypatch, frames)
+        _scripted_select(monkeypatch, [False, True])
+        measured = camera.measure_stream(frames=2, timeout_s=1.0)
+        assert measured["corrupt"] == 2.0
+        assert measured["frames"] == 2.0
+        assert measured["dropped"] == 0.0
+
+    def test_the_backlog_is_drained_before_timing_starts(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # The queue sat full while nothing read it, so the jump from 2 to 100
+        # belongs to the caller's pause and not to the link.
+        frames = [(0, 16, 0, 1), (1, 16, 0, 2), (2, 16, 0, 100), (3, 16, 0, 101)]
+        camera, driver = streaming_camera(monkeypatch, frames)
+        _scripted_select(monkeypatch, [True, True, True, True, False, True])
+        measured = camera.measure_stream(frames=2, timeout_s=1.0)
+        assert measured["dropped"] == 0.0
+        assert measured["frames"] == 2.0
+        assert driver.queued == [0, 1, 2, 3]
+
+    def test_a_silent_stream_measures_as_nothing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera, _ = streaming_camera(monkeypatch, [(0, 16, 0, 1)])
+        _scripted_select(monkeypatch, [True, False])
+        measured = camera.measure_stream(frames=4, timeout_s=0.05)
+        assert measured == {
+            "bytes": 0.0,
+            "corrupt": 0.0,
+            "dropped": 0.0,
+            "elapsed_s": 0.0,
+            "fps": 0.0,
+            "frames": 0.0,
+            "mbps": 0.0,
+        }
+
+    def test_measuring_before_streaming_is_refused(self) -> None:
+        with pytest.raises(V4l2Error, match="not streaming"):
+            v4l2.V4l2Camera(Path("/dev/video0")).measure_stream()
+
+    def test_a_burst_of_one_frame_is_refused(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        camera, _ = streaming_camera(monkeypatch, [(0, 16, 0, 1)])
+        with pytest.raises(V4l2Error, match="at least two frames"):
+            camera.measure_stream(frames=1)
+
+
+class TestV4l2Reasons:
+    """An errno turned into what the operator does about it."""
+
+    @pytest.mark.parametrize(
+        ("code", "reason"),
+        [
+            (errno.EPERM, "device cgroup"),
+            (errno.EACCES, "not in the 'video' group"),
+            (errno.EBUSY, "device busy"),
+            (errno.ENODEV, "device has gone"),
+            (errno.ENOENT, "No such file or directory"),
+        ],
+    )
+    def test_each_errno_reads_as_its_cause(self, code: int, reason: str) -> None:
+        assert reason in v4l2._reason(OSError(code, "raw"))

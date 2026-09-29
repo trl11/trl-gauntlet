@@ -289,8 +289,17 @@ class TestInterfaces:
         found = {nic["name"]: nic for nic in host_stats.interfaces()}
         assert found["eth0"]["state"] == "unknown"
 
+    def test_a_line_with_a_non_numeric_counter_is_skipped(self, net: Path) -> None:
+        dev = net / "net" / "dev"
+        dev.write_text(dev.read_text() + "  eth2: 1 2 3 4 5 6 7 8 nine 10 11 12 13 14 15 16\n")
+        assert [nic["name"] for nic in host_stats.interfaces()] == ["eth0", "eth1"]
+
     def test_no_net_dev_reports_nothing(self, proc: Path) -> None:
         assert host_stats.interfaces() == []
+
+    def test_a_platform_without_fcntl_reports_no_address(self, monkeypatch) -> None:
+        monkeypatch.setattr(host_stats, "fcntl", None)
+        assert host_stats._ipv4_address("lo") is None
 
 
 class TestLoadAvg:
@@ -405,3 +414,29 @@ class TestDiskFor:
 
         assert disk is not None
         assert set(disk) == {"free", "mount", "percent", "total", "used"}
+
+    def test_a_path_under_no_listed_mount_is_measured_where_it_is(self, monkeypatch, tmp_path: Path):
+        monkeypatch.setattr(host_stats, "disks", lambda: [])
+
+        disk = host_stats.disk_for(tmp_path)
+
+        assert disk is not None
+        assert disk["mount"] == str(tmp_path)
+        assert disk["total"] > 0
+
+    def test_a_path_behind_a_directory_it_cannot_search_reports_nothing(self, tmp_path: Path):
+        locked = tmp_path / "locked"
+        locked.mkdir()
+        locked.chmod(0o000)
+        try:
+            assert host_stats.disk_for(locked / "runs") is None
+        finally:
+            locked.chmod(0o700)
+
+    def test_a_relative_path_from_a_removed_working_directory_reports_nothing(self, monkeypatch, tmp_path: Path):
+        gone = tmp_path / "gone"
+        gone.mkdir()
+        monkeypatch.chdir(gone)
+        gone.rmdir()
+
+        assert host_stats.disk_for(Path("runs")) is None

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 
 import pytest
 from fastapi.testclient import TestClient
@@ -60,6 +61,17 @@ class TestStartupRecovery:
         with TestClient(create_app(settings)) as client:
             assert client.get("/api/suites").json()["errors"]
             assert client.get("/api/health").status_code == 200
+
+    def test_a_broken_campaign_is_logged_and_does_not_stop_startup(self, settings, campaign_root, caplog):
+        broken = campaign_root / "broken"
+        broken.mkdir()
+        (broken / "campaign.yaml").write_text("apiVersion: 99\nkey: broken\n")
+
+        with caplog.at_level(logging.WARNING, logger="gauntlet"), TestClient(create_app(settings)) as client:
+            assert client.get("/api/campaigns").json()["errors"]
+            assert client.get("/api/health").status_code == 200
+
+        assert any(record.getMessage().startswith("campaign discovery:") for record in caplog.records)
 
 
 class TestWithoutABundle:

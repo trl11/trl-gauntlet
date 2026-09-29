@@ -9,6 +9,21 @@ describe("naturalCompare", () => {
   });
 });
 
+describe("naturalCompare ties", () => {
+  it("reads two identical names as equal", () => {
+    expect(naturalCompare("rail.volts", "rail.volts")).toBe(0);
+  });
+
+  it("sorts a name before a longer one it begins", () => {
+    expect(naturalCompare("cpu", "cpu1")).toBeLessThan(0);
+    expect(naturalCompare("cpu1", "cpu")).toBeGreaterThan(0);
+  });
+
+  it("orders text chunks alphabetically", () => {
+    expect(naturalCompare("disk1", "cpu1")).toBeGreaterThan(0);
+  });
+});
+
 describe("groupSeriesNames", () => {
   it("groups by the part before the first dot", () => {
     const groups = groupSeriesNames([

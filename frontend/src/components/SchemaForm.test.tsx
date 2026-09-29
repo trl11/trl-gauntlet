@@ -130,4 +130,15 @@ describe("SchemaForm", () => {
     render(<Harness schema={{ type: "string" }} />);
     expect(screen.getByText(/not an object/)).toBeInTheDocument();
   });
+
+  it("drops a number when its control is cleared", async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    await user.type(screen.getByLabelText("Cycles"), "12");
+    expect(state()).toEqual({ cycles: 12 });
+
+    await user.clear(screen.getByLabelText("Cycles"));
+
+    expect(state()).toEqual({});
+  });
 });

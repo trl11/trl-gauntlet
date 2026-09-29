@@ -151,4 +151,38 @@ describe("RecordedInstruments", () => {
     await userEvent.click(await screen.findByRole("button", { name: /Voltage/ }));
     expect(await screen.findByText(/kept no trace/)).toBeInTheDocument();
   });
+
+  it("names the group a reading belongs to, and a single reading in the singular", async () => {
+    getRunInstruments.mockResolvedValue({
+      ...record,
+      instruments: [
+        {
+          ...record.instruments[0],
+          readings: [{ ...record.instruments[0].readings[0], group: "CH1", precision: null }],
+        },
+      ],
+      ticks: 1,
+    });
+    renderPanel();
+
+    const button = await screen.findByRole("button", { name: /Voltage/ });
+    expect(button).toHaveTextContent("CH1VoltageV");
+    expect(screen.getByText(/1 time over the run/)).toBeInTheDocument();
+    // A reading that asked for no particular precision is shown to three places.
+    expect(screen.getByText("4.980")).toBeInTheDocument();
+  });
+
+  it("says so when the trace holds nothing of the reading opened", async () => {
+    getRunInstrumentTrace.mockResolvedValue([
+      { at: "2026-01-01T00:00:00.000Z", instrument: "logic", t: 0, values: { voltage: 1 } },
+      { at: "2026-01-01T00:00:00.000Z", instrument: "psu", t: 0, values: { current: 0.2 } },
+    ]);
+    renderPanel();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Voltage/ }));
+
+    expect(
+      await screen.findByText("The trace holds no samples of this reading.")
+    ).toBeInTheDocument();
+  });
 });

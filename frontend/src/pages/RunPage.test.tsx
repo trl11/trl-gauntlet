@@ -5,8 +5,13 @@ import { MemoryRouter, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  abortRun,
+  addRunNote,
+  deleteRunNote,
   getArtifactText,
   getRun,
+  getRunInstrumentTrace,
+  getRunInstruments,
   getRunManifest,
   getRunMetrics,
   getRunVerdict,
@@ -29,6 +34,7 @@ vi.mock("@api/client", () => ({
   getArtifactText: vi.fn(),
   getRun: vi.fn(),
   getRunInstrumentTrace: vi.fn(),
+  getRunInstruments: vi.fn(),
   getRunManifest: vi.fn(),
   getRunMetrics: vi.fn(),
   getRunVerdict: vi.fn(),
@@ -380,5 +386,203 @@ describe("RunPage snapshots", () => {
     const images = screen.getAllByRole("img");
     expect(images).toHaveLength(2);
     expect(images[0]).toHaveAttribute("src", "/api/runs/run-1/artifacts/frames/snapshot_0001.png");
+  });
+});
+
+describe("RunPage moves between its views", () => {
+  beforeEach(() => {
+    vi.mocked(getRun).mockResolvedValue(FINISHED);
+    vi.mocked(listSuites).mockResolvedValue({ errors: [], suites: [] });
+    vi.mocked(getRunVerdict).mockResolvedValue({ passed: false } as never);
+    vi.mocked(getRunManifest).mockResolvedValue({} as never);
+    vi.mocked(listArtifacts).mockResolvedValue({ artifacts: [], run_dir: "", run_id: "run-1" });
+    vi.mocked(listRunNotes).mockResolvedValue({ notes: [] });
+    vi.mocked(getRunMetrics).mockResolvedValue({
+      count: RECORDS.length,
+      records: RECORDS as never,
+      run_id: "run-1",
+    });
+  });
+
+  it("opens the iterations on the one picked from the overview's map", async () => {
+    // jsdom does not scroll, and the table scrolls the picked row into view.
+    Element.prototype.scrollIntoView = vi.fn();
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: /^#2 · / }));
+
+    expect(screen.getByRole("tab", { name: /iterations/ })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+    expect(screen.getByText("rail low")).toBeInTheDocument();
+  });
+
+  it("opens the traces tab from the timeline's row in the artifact list", async () => {
+    vi.mocked(getRunMetrics).mockResolvedValue({
+      count: 1,
+      records: [
+        {
+          iteration: 1,
+          kind: "iteration",
+          metrics: { traces: ["traces/captures.jsonl"] },
+          success: true,
+          timestamp: 1767225600,
+        },
+      ] as never,
+      run_id: "run-1",
+    });
+    vi.mocked(listArtifacts).mockResolvedValue({
+      artifacts: [{ path: "traces/captures.jsonl", size: 80, text: true }],
+      run_dir: "",
+      run_id: "run-1",
+    });
+    vi.mocked(getArtifactText).mockResolvedValue(JSON.stringify({ channels: ["SCL"] }));
+    renderPage();
+    await userEvent.click(await screen.findByRole("tab", { name: /artifacts/ }));
+
+    await userEvent.click(await screen.findByRole("button", { name: "Preview" }));
+
+    expect(screen.getByRole("tab", { name: /traces/ })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByText("No traces")).toBeInTheDocument();
+  });
+
+  it("offers a captures tab for a run that captured waveforms", async () => {
+    vi.mocked(listArtifacts).mockResolvedValue({
+      artifacts: [
+        { path: "captures/capture_0002.csv", size: 80, text: true },
+        { path: "captures/capture_0001.csv", size: 80, text: true },
+        { path: "captures/readme.txt", size: 8, text: true },
+      ],
+      run_dir: "",
+      run_id: "run-1",
+    });
+    vi.mocked(getArtifactText).mockResolvedValue("t_s,ch0\n0,1\n0.001,2");
+    renderPage();
+
+    const tab = await screen.findByRole("tab", { name: /captures/ });
+    expect(tab).toHaveTextContent("2");
+    await userEvent.click(tab);
+
+    expect(await screen.findByText(/2 samples/)).toBeInTheDocument();
+    expect(getArtifactText).toHaveBeenCalledWith("run-1", "captures/capture_0001.csv");
+  });
+
+  it("offers an instruments tab for a run that recorded its instruments", async () => {
+    vi.mocked(listArtifacts).mockResolvedValue({
+      artifacts: [{ path: "instruments.json", size: 80, text: true }],
+      run_dir: "",
+      run_id: "run-1",
+    });
+    vi.mocked(getRunInstruments).mockResolvedValue({ instruments: [], interval_s: 2, ticks: 6 });
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("tab", { name: /instruments/ }));
+
+    expect(await screen.findByText(/Read every 2s, 6 times over the run/)).toBeInTheDocument();
+  });
+
+  it("charts the bench's recorded readings beside the suite's own series", async () => {
+    vi.mocked(listArtifacts).mockResolvedValue({
+      artifacts: [{ path: "instruments.jsonl", size: 80, text: true }],
+      run_dir: "",
+      run_id: "run-1",
+    });
+    vi.mocked(getRunInstrumentTrace).mockResolvedValue([
+      { at: "2026-01-01T00:00:01.000Z", instrument: "psu", t: 1, values: { voltage: 5 } },
+      { at: "2026-01-01T00:00:03.000Z", instrument: "psu", t: 3, values: { voltage: 5.1 } },
+    ]);
+    renderPage();
+    await screen.findByText("FAILED");
+    await waitFor(() => expect(getRunInstrumentTrace).toHaveBeenCalledWith("run-1"));
+
+    await userEvent.click(screen.getByRole("tab", { name: "metrics" }));
+    await userEvent.click(screen.getByRole("button", { name: /measurements/i }));
+
+    expect(await screen.findByLabelText("psu.voltage")).toBeInTheDocument();
+    expect(screen.getByLabelText("rail.volts")).toBeInTheDocument();
+  });
+
+  it("links the location and session the run was started from to the history", async () => {
+    vi.mocked(getRun).mockResolvedValue({
+      ...FINISHED,
+      location: "Bench 3",
+      operator: "Ada",
+      session: "TID 7",
+    });
+    renderPage();
+
+    expect(await screen.findByRole("link", { name: "Bench 3" })).toHaveAttribute(
+      "href",
+      "/history?location=Bench%203"
+    );
+    expect(screen.getByRole("link", { name: "TID 7" })).toHaveAttribute(
+      "href",
+      "/history?session=TID%207"
+    );
+    expect(screen.getByText("Ada")).toBeInTheDocument();
+  });
+
+  it("adds a note to the run, and deletes one once confirmed", async () => {
+    vi.mocked(listRunNotes).mockResolvedValue({
+      notes: [
+        { author: "Ada", body: "rail sagged at 40C", created_at: "2026-01-01T00:00:00Z", id: 7 },
+      ],
+    });
+    vi.mocked(addRunNote).mockResolvedValue({
+      author: null,
+      body: "retest tomorrow",
+      created_at: "2026-01-01T00:01:00Z",
+      id: 8,
+    });
+    vi.mocked(deleteRunNote).mockResolvedValue({ deleted: true, id: "7" });
+    renderPage();
+    await userEvent.click(await screen.findByRole("tab", { name: /notes/ }));
+
+    await userEvent.type(screen.getByLabelText("Add a note"), "retest tomorrow");
+    await userEvent.click(screen.getByRole("button", { name: "Add note" }));
+    await waitFor(() =>
+      expect(addRunNote).toHaveBeenCalledWith(
+        "run-1",
+        expect.objectContaining({ body: "retest tomorrow" })
+      )
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Delete note 7" }));
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(deleteRunNote).toHaveBeenCalledWith("run-1", 7));
+  });
+});
+
+describe("RunPage aborts a live run", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getRun).mockResolvedValue({ ...FINISHED, status: "running", ended_at: null });
+    vi.mocked(listSuites).mockResolvedValue({ errors: [], suites: [] });
+    vi.mocked(listArtifacts).mockResolvedValue({ artifacts: [], run_dir: "", run_id: "run-1" });
+    vi.mocked(listRunNotes).mockResolvedValue({ notes: [] });
+    vi.mocked(abortRun).mockResolvedValue({ run_id: "run-1", status: "aborting" });
+  });
+
+  it("aborts once the operator confirms", async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "Abort" }));
+    expect(
+      screen.getByText("Abort this run? It is terminated without a verdict.")
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(abortRun).toHaveBeenCalledWith("run-1");
+  });
+
+  it("does nothing when the operator dismisses the confirmation", async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "Abort" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+
+    expect(screen.queryByText(/Abort this run\?/)).not.toBeInTheDocument();
+    expect(abortRun).not.toHaveBeenCalled();
   });
 });

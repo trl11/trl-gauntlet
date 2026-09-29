@@ -357,4 +357,47 @@ describe("RunStartModal", () => {
       "capability 'chamber' is unavailable"
     );
   });
+
+  it("records nothing the operator ticked and then unticked", async () => {
+    const user = userEvent.setup();
+    renderModal(suite({ overrides: [], requires: ["psu"] }));
+    const recording = await screen.findByRole("region", { name: "Recording" });
+    const chamber = within(recording).getByLabelText("chamber");
+
+    await user.click(chamber);
+    await user.click(chamber);
+    await user.click(screen.getByRole("button", { name: "Start run" }));
+
+    await waitFor(() => expect(startRun).toHaveBeenCalled());
+    expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ observe: [] }));
+  });
+
+  it("says why every instrument picked is recorded when the suite drives none", async () => {
+    renderModal(suite({ requires: [] }));
+    const recording = await screen.findByRole("region", { name: "Recording" });
+
+    expect(recording).toHaveTextContent(
+      "Every instrument picked here is read for as long as the run lasts."
+    );
+  });
+
+  it("names the instruments recorded because the suite drives them", async () => {
+    renderModal(suite({ requires: ["psu", "i2c"] }));
+    const recording = await screen.findByRole("region", { name: "Recording" });
+
+    expect(recording).toHaveTextContent("psu, i2c are recorded because this suite drives them.");
+  });
+
+  it("says so when the suite offers no profiles", async () => {
+    renderModal(suite({ profiles_available: [] }));
+
+    expect(await screen.findByText("This suite offers no profiles.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Profile")).not.toBeInTheDocument();
+  });
+
+  it("marks a profile the operator has edited", async () => {
+    renderModal();
+
+    expect(await screen.findByRole("option", { name: "Long (edited)" })).toBeInTheDocument();
+  });
 });

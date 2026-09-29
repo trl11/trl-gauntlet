@@ -54,6 +54,17 @@ class TestLoadManifest:
         with pytest.raises(CampaignError, match="invalid YAML"):
             load_manifest(path)
 
+    def test_an_unreadable_file_names_the_file(self, tmp_path: Path):
+        with pytest.raises(CampaignError, match="cannot read"):
+            load_manifest(tmp_path / "absent.yaml")
+
+    def test_a_document_that_is_not_a_mapping_is_refused(self, tmp_path: Path):
+        path = tmp_path / "campaign.yaml"
+        path.write_text("- key: demo\n")
+
+        with pytest.raises(CampaignError, match="expected a mapping"):
+            load_manifest(path)
+
     def test_a_member_key_must_be_a_suite_key(self, tmp_path: Path):
         directory = _write(tmp_path / "demo", _manifest(members=[{"suite": "Not A Key"}]))
 
@@ -114,6 +125,38 @@ class TestDiscovery:
         catalog = discover_campaigns([tmp_path])
 
         assert sorted(catalog.campaigns) == ["outer"]
+
+    def test_a_campaign_nested_deeper_than_the_walk_is_not_found(self, tmp_path: Path):
+        _write(tmp_path / "a" / "b" / "c", _manifest("shallow"))
+        _write(tmp_path / "a" / "b" / "c2" / "d", _manifest("deep"))
+
+        catalog = discover_campaigns([tmp_path])
+
+        assert sorted(catalog.campaigns) == ["shallow"]
+
+    def test_hidden_private_and_tooling_directories_are_not_searched(self, tmp_path: Path):
+        _write(tmp_path / "visible", _manifest("visible"))
+        _write(tmp_path / ".git", _manifest("dotted"))
+        _write(tmp_path / "_drafts", _manifest("drafts"))
+        _write(tmp_path / "__pycache__", _manifest("cached"))
+        _write(tmp_path / "node_modules", _manifest("vendored"))
+
+        catalog = discover_campaigns([tmp_path])
+
+        assert sorted(catalog.campaigns) == ["visible"]
+
+    def test_a_directory_that_cannot_be_read_is_skipped(self, tmp_path: Path):
+        _write(tmp_path / "open", _manifest("open"))
+        locked = tmp_path / "locked"
+        _write(locked / "inner", _manifest("inner"))
+        locked.chmod(0o000)
+        try:
+            catalog = discover_campaigns([tmp_path])
+        finally:
+            locked.chmod(0o700)
+
+        assert sorted(catalog.campaigns) == ["open"]
+        assert catalog.errors == []
 
     def test_suite_roots_are_the_campaigns_suite_directories(self, tmp_path: Path):
         _write(tmp_path / "one", _manifest("one"))

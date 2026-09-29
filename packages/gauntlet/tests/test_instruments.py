@@ -6,6 +6,7 @@ import pytest
 
 from gauntlet.capabilities import CommandRejected
 from gauntlet.instruments import MockChamber, MockDaq, MockPsu
+from gauntlet.instruments.mock_i2c import MockI2c
 
 
 class _Clock:
@@ -217,3 +218,61 @@ class TestMockChamber:
     def test_write_runs_a_command_and_returns_the_new_state(self) -> None:
         chamber = MockChamber(clock=_Clock())
         assert chamber.write({"command": "start"})["running"] is True
+
+
+class TestMockI2c:
+    def test_a_read_of_the_simulated_sensor_is_its_temperature(self) -> None:
+        result = MockI2c(clock=_Clock()).command("read", {"address": 0x48, "length": 2})
+        centidegrees = int.from_bytes(bytes.fromhex(result["data_hex"]), "big", signed=True)
+        assert centidegrees / 100 == pytest.approx(24.0, abs=0.2)
+        assert (result["direction"], result["length"]) == ("read", 2)
+
+    def test_a_longer_read_repeats_the_reading(self) -> None:
+        data = bytes.fromhex(MockI2c(clock=_Clock()).command("read", {"address": 0x48, "length": 5})["data_hex"])
+        assert len(data) == 5
+        assert data[2:4] == data[:2]
+        assert data[4] == data[0]
+
+    def test_a_write_read_is_reported_as_one(self) -> None:
+        result = MockI2c(clock=_Clock()).command("write_read", {"address": 0x48, "data": "00", "length": 2})
+        assert result["direction"] == "write_read"
+
+    def test_a_write_echoes_the_bytes_it_was_given(self) -> None:
+        result = MockI2c(clock=_Clock()).command("write", {"address": 0x48, "data": "01:02 ab"})
+        assert result == {"address": 0x48, "data_hex": "01 02 ab", "direction": "write", "length": 3}
+
+    def test_a_write_of_nothing_moves_nothing(self) -> None:
+        assert MockI2c(clock=_Clock()).command("write", {"address": 0x48})["length"] == 0
+
+    def test_bad_hex_is_rejected(self) -> None:
+        with pytest.raises(CommandRejected, match="not valid hex"):
+            MockI2c(clock=_Clock()).command("write", {"address": 0x48, "data": "zz"})
+
+    def test_nothing_answers_at_any_other_address(self) -> None:
+        with pytest.raises(CommandRejected, match="nothing answering at address 0x20"):
+            MockI2c(clock=_Clock()).command("read", {"address": 0x20, "length": 1})
+
+    def test_unknown_command_is_rejected(self) -> None:
+        with pytest.raises(CommandRejected, match="no command"):
+            MockI2c(clock=_Clock()).command("scan", {})
+
+    def test_state_is_empty_until_a_transaction(self) -> None:
+        i2c = MockI2c(clock=_Clock())
+        assert set(i2c.state().values()) == {None}
+        i2c.command("write", {"address": 0x48, "data": "ff"})
+        assert i2c.read() == i2c.state()
+        assert i2c.state()["data_hex"] == "ff"
+
+    def test_write_runs_a_command_and_returns_the_new_state(self) -> None:
+        state = MockI2c(clock=_Clock()).write({"command": "write", "args": {"address": 0x10, "data": "7f"}})
+        assert state == {"address": 0x10, "data_hex": "7f", "direction": "write", "length": 1}
+
+    def test_it_is_simulated_and_always_available(self) -> None:
+        i2c = MockI2c(clock=_Clock(), instance="i2c-dut")
+        assert i2c.available() is True
+        assert i2c.describe()["driver"] == "mock"
+        assert i2c.connection() == "simulated"
+        assert i2c.instance_id() == "i2c-dut"
+        assert i2c.primary_command() == "read"
+        assert [entry["name"] for entry in i2c.commands()] == ["write", "read", "write_read"]
+        assert [entry["key"] for entry in i2c.readouts()] == ["address", "direction", "data_hex", "length"]

@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { RunRow } from "@api/types";
 
@@ -183,5 +184,45 @@ describe("campaign column", () => {
       true
     );
     expect(matches(run(), "bench")).toBe(false);
+  });
+});
+
+describe("cells inside a clickable row", () => {
+  function inRow(column: Parameters<typeof renderCell>[1], row: RunRow) {
+    const openRow = vi.fn();
+    render(
+      <MemoryRouter>
+        <div onClick={openRow}>{renderCell(row, column)}</div>
+      </MemoryRouter>
+    );
+    return openRow;
+  }
+
+  it("follows a unit link without also opening the row", async () => {
+    const openRow = inRow("unit_serial", run({ unit_serial: "SN-1" }));
+
+    await userEvent.click(screen.getByRole("link", { name: "SN-1" }));
+
+    expect(openRow).not.toHaveBeenCalled();
+  });
+
+  it("follows a campaign link without also opening the row", async () => {
+    const openRow = inRow("campaign", run({ campaign: { key: "hw", title: "Hardware" } }));
+
+    await userEvent.click(screen.getByRole("link", { name: "Hardware" }));
+
+    expect(openRow).not.toHaveBeenCalled();
+  });
+});
+
+describe("favorite column", () => {
+  it("stars a favorite run", () => {
+    cell("favorite", run({ favorite: true }));
+
+    expect(screen.getByLabelText("Favorite")).toBeInTheDocument();
+  });
+
+  it("leaves any other run blank", () => {
+    expect(cell("favorite", run({ favorite: false })).container.textContent).toBe("");
   });
 });

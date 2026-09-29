@@ -82,4 +82,102 @@ describe("CaptureViewer", () => {
     renderViewer();
     expect(await screen.findByText("No samples")).toBeInTheDocument();
   });
+
+  it("switches a channel back on", async () => {
+    renderViewer();
+    await screen.findByText(/4 samples/);
+    const channel = screen.getByRole("button", { name: "ch1" });
+
+    await userEvent.click(channel);
+    await userEvent.click(channel);
+
+    expect(channel).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("names a capture whose file carries no iteration by its path", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <CaptureViewer paths={["captures/scope.csv"]} runId="RUN-0001" />
+      </QueryClientProvider>
+    );
+
+    expect(
+      await screen.findByRole("option", { name: "Iteration captures/scope.csv" })
+    ).toBeInTheDocument();
+  });
+
+  it("gives no rate for a capture of a single sample", async () => {
+    getArtifactText.mockResolvedValue("t_s,ch0\n0,0.0025");
+    renderViewer();
+
+    expect(await screen.findByText(/1 samples at 0 kS\/s, all shown/)).toBeInTheDocument();
+  });
+
+  it("draws a long capture as an envelope and says so", async () => {
+    const rows = Array.from({ length: 2000 }, (_, index) => `${index * 4e-5},${index % 7}`);
+    getArtifactText.mockResolvedValue(["t_s,ch0", ...rows].join("\n"));
+    renderViewer();
+
+    expect(
+      await screen.findByText(/2,000 samples .* all shown, as an envelope — zoom in/)
+    ).toBeInTheDocument();
+  });
+
+  it("says why a capture that cannot be fetched is not drawn", async () => {
+    getArtifactText.mockRejectedValue(new Error("gone"));
+    renderViewer();
+
+    expect(await screen.findByText("No samples")).toBeInTheDocument();
+    expect(
+      screen.getByText("Nothing could be read from captures/capture_0001.csv.")
+    ).toBeInTheDocument();
+  });
+
+  it("offers nothing to read when the run holds no captures", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <CaptureViewer paths={[]} runId="RUN-0001" />
+      </QueryClientProvider>
+    );
+
+    expect(screen.getByText("Nothing could be read from this run's captures.")).toBeInTheDocument();
+    expect(getArtifactText).not.toHaveBeenCalled();
+  });
+
+  describe("once laid out", () => {
+    beforeEach(() => {
+      // jsdom lays nothing out, and the chart draws nothing into no space.
+      vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+        new DOMRect(0, 0, 800, 360)
+      );
+    });
+
+    it("zooms to the window picked on the brush, and resets back to the whole capture", async () => {
+      renderViewer();
+      await screen.findByText(/4 samples/);
+      const reset = screen.getByRole("button", { name: "Reset zoom" });
+      expect(reset).toBeDisabled();
+
+      const [start] = await screen.findAllByRole("slider");
+      start.focus();
+      await userEvent.keyboard("{ArrowRight}");
+
+      expect(screen.getByText(/showing 3 of them/)).toBeInTheDocument();
+      expect(reset).toBeEnabled();
+
+      await userEvent.click(reset);
+
+      expect(screen.getByText(/all shown/)).toBeInTheDocument();
+      expect(reset).toBeDisabled();
+    });
+
+    it("reads the time axis in milliseconds", async () => {
+      renderViewer();
+      await screen.findByText(/4 samples/);
+
+      expect(await screen.findAllByText(/^[\d.]+ms$/)).not.toHaveLength(0);
+    });
+  });
 });

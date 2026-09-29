@@ -111,3 +111,14 @@ class TestBuildArtifacts:
         destination = generator.render("my_probe", tmp_path / "out")
         assert not list(destination.rglob("__pycache__"))
         assert not list(destination.rglob("*.pyc"))
+
+    def test_a_binary_file_is_copied_byte_for_byte(self, tmp_path, monkeypatch):
+        """Substituting inside an image would corrupt it, even where it holds a placeholder."""
+        staged = tmp_path / "templates" / "python"
+        shutil.copytree(generator.TEMPLATES_DIR / "python", staged)
+        icon = b"\x89PNG\r\n\x1a\n__SUITE_KEY__\xff\x00"
+        (staged / "icon.png").write_bytes(icon)
+        monkeypatch.setattr(generator, "TEMPLATES_DIR", tmp_path / "templates")
+
+        destination = generator.render("my_probe", tmp_path / "out")
+        assert (destination / "icon.png").read_bytes() == icon

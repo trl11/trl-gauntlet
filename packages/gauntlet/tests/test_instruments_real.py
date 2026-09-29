@@ -9,6 +9,7 @@ from __future__ import annotations
 import ctypes
 import socket
 import struct
+from pathlib import Path
 from typing import Any, ClassVar
 
 import pytest
@@ -28,6 +29,7 @@ from gauntlet.instruments.di2008_daq import (
     strip_echo,
     value_from_code,
 )
+from gauntlet.instruments.fx2_logic import Fx2Logic
 from gauntlet.instruments.hm310t_psu import (
     Hm310tPsu,
     ModbusError,
@@ -514,6 +516,12 @@ class TestDi2008Daq:
         with pytest.raises(CommandRejected):
             daq.command("configure", {"rows": {"99": {"label": "Rail 3V3"}}})
 
+    def test_a_row_that_is_not_an_object_is_refused(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock), clock)
+        with pytest.raises(CommandRejected, match="settings for channel '1' must be an object"):
+            daq.command("configure", {"rows": {"1": "tc_k"}})
+
     def test_the_label_column_takes_free_text_rather_than_a_choice(self) -> None:
         clock = _Clock()
         daq = _daq(_FakeDaq(clock), clock)
@@ -815,6 +823,104 @@ class TestCp2112I2c:
         probe_calls = [call for call in bus.calls if len(call) == 1 and call[0][0] == 0x20]
         assert probe_calls
         assert probe_calls[-1][0][2] == b"\x00"  # one byte read, not zero
+
+    def test_a_write_of_no_bytes_is_an_empty_message(self, monkeypatch: Any) -> None:
+        bus = _FakeI2cBus()
+        result = _bridge(monkeypatch, bus).command("write", {"address": 0x48, "data": " "})
+        assert bus.calls[-1] == [(0x48, 0, b"")]
+        assert result["length"] == 0
+
+    def test_a_command_on_a_bridge_that_will_not_open_is_refused(self, monkeypatch: Any) -> None:
+        def refuse(node: str, flags: int) -> int:
+            raise OSError("no such device")
+
+        monkeypatch.setattr(cp2112.os, "open", refuse)
+        bridge = Cp2112I2c("/dev/i2c-9", clock=_Clock())
+        with pytest.raises(CommandRejected, match="i2c is unavailable: cannot open /dev/i2c-9"):
+            bridge.command("read", {"address": 0x48, "length": 1})
+
+    def test_write_runs_a_command_and_returns_the_new_state(self, monkeypatch: Any) -> None:
+        bridge = _bridge(monkeypatch, _FakeI2cBus())
+        state = bridge.write({"command": "write", "args": {"address": 0x20, "data": "0a0b"}})
+        assert state == {
+            "address": 0x20,
+            "data_hex": "0a 0b",
+            "direction": "write",
+            "length": 2,
+            "known_addresses": [],
+        }
+        assert bridge.read() == state
+
+    def test_it_names_itself_and_what_it_reads_out(self, monkeypatch: Any) -> None:
+        monkeypatch.setattr(cp2112.os, "open", lambda node, flags: 7)
+        bridge = Cp2112I2c("/dev/i2c-9", instance="i2c-CP-1")
+        assert bridge.instance_id() == "i2c-CP-1"
+        assert [entry["key"] for entry in bridge.readouts()] == ["address", "direction", "data_hex", "length"]
+
+    def test_a_close_that_fails_still_lets_go_of_the_node(self, monkeypatch: Any) -> None:
+        clock = _Clock()
+        bridge = _bridge(monkeypatch, _FakeI2cBus(), clock=clock)
+        assert bridge.available()
+
+        def refuse(fd: int) -> None:
+            raise OSError("bad file descriptor")
+
+        monkeypatch.setattr(cp2112.os, "close", refuse)
+        bridge.close()
+        assert bridge.available() is False
+
+    def test_without_a_node_open_nothing_is_probed_or_transferred(self, monkeypatch: Any) -> None:
+        bus = _FakeI2cBus()
+        bridge = _bridge(monkeypatch, bus)
+        assert bridge._probe(0x48) is False
+        with pytest.raises(CommandRejected, match="not connected"):
+            bridge._transfer([(0x48, 0, b"\x00")])
+        assert bus.calls == []
+
+
+class TestCandidateAdapters:
+    """Finding the CP2112 among the I2C adapters sysfs lists."""
+
+    def _sysfs(self, monkeypatch: Any, tmp_path: Any) -> Any:
+        """Point the lookups at a sysfs tree under ``tmp_path``, returned."""
+        root = tmp_path / "sys"
+        real_glob = cp2112.glob.glob
+
+        def moved(path: str) -> str:
+            return str(root) + path.removeprefix("/sys")
+
+        monkeypatch.setattr(cp2112.glob, "glob", lambda pattern: real_glob(moved(pattern)))
+        monkeypatch.setattr(cp2112, "Path", lambda path: Path(moved(path) if path.startswith("/sys/") else path))
+        return root
+
+    def _adapter(self, root: Any, adapter: str, name: str) -> None:
+        folder = root / "class" / "i2c-dev" / adapter
+        folder.mkdir(parents=True)
+        (folder / "name").write_text(name + "\n")
+
+    def _hidraw(self, root: Any, hidraw: str, uevent: str) -> None:
+        folder = root / "class" / "hidraw" / hidraw / "device"
+        folder.mkdir(parents=True)
+        (folder / "uevent").write_text(uevent)
+
+    def test_only_a_cp2112_adapter_is_a_candidate_and_carries_its_serial(self, monkeypatch: Any, tmp_path: Any) -> None:
+        root = self._sysfs(monkeypatch, tmp_path)
+        self._adapter(root, "i2c-0", "Synopsys DesignWare I2C adapter")
+        self._adapter(root, "i2c-18", "CP2112 SMBus Bridge on hidraw3")
+        self._hidraw(root, "hidraw3", "HID_ID=0003:000010C4:0000EA90\nHID_UNIQ=00A1B2C3\n")
+        assert cp2112.candidate_adapters() == [("/dev/i2c-18", "00A1B2C3")]
+
+    def test_an_adapter_whose_name_cannot_be_read_is_passed_over(self, monkeypatch: Any, tmp_path: Any) -> None:
+        root = self._sysfs(monkeypatch, tmp_path)
+        (root / "class" / "i2c-dev" / "i2c-5" / "name").mkdir(parents=True)
+        assert cp2112.candidate_adapters() == []
+
+    def test_a_bridge_without_a_serial_is_still_a_candidate(self, monkeypatch: Any, tmp_path: Any) -> None:
+        root = self._sysfs(monkeypatch, tmp_path)
+        self._adapter(root, "i2c-18", "CP2112 SMBus Bridge on hidraw3")
+        self._hidraw(root, "hidraw3", "HID_ID=0003:000010C4:0000EA90\n")
+        self._adapter(root, "i2c-19", "CP2112 SMBus Bridge on hidraw4")
+        assert cp2112.candidate_adapters() == [("/dev/i2c-18", ""), ("/dev/i2c-19", "")]
 
 
 class TestDetection:
@@ -1599,6 +1705,33 @@ class TestDetectionChoices:
         registry = CapabilityRegistry()
         detect_instruments(registry, self._settings(tmp_path, i2c_serial="auto", camera_device=""))
         assert registry.provider("i2c") is None
+
+    def test_auto_keeps_a_di2008_that_answers(self, monkeypatch: Any, tmp_path: Any) -> None:
+        """A bench that has a DI-2008 keeps it, whatever else is attached beside it."""
+        from gauntlet.instruments import detect
+
+        clock = _Clock()
+        monkeypatch.setattr(
+            detect, "Di2008Daq", lambda **kwargs: Di2008Daq(clock=clock, open_transport=lambda _: _FakeDaq(clock))
+        )
+        monkeypatch.setattr(detect, "NiDaqmxDaq", lambda **kwargs: pytest.fail("NI-DAQmx must not be asked"))
+        registry = CapabilityRegistry()
+        detect_instruments(registry, self._settings(tmp_path, daq_serial="auto"))
+        daq = registry.provider("daq")
+        assert daq is not None
+        assert daq.describe()["driver"] == "di2008"
+
+    def test_auto_registers_an_analyzer_that_is_on_the_bus(self, monkeypatch: Any, tmp_path: Any) -> None:
+        from gauntlet.instruments import detect
+
+        class _AttachedAnalyzer(Fx2Logic):
+            def attached(self) -> bool:
+                return True
+
+        monkeypatch.setattr(detect, "Fx2Logic", _AttachedAnalyzer)
+        registry = CapabilityRegistry()
+        detect_instruments(registry, self._settings(tmp_path, camera_device="", logic_serial="auto"))
+        assert isinstance(registry.provider("logic"), _AttachedAnalyzer)
 
     def test_a_real_device_replaces_the_simulation_standing_in_for_it(self, tmp_path: Any) -> None:
         registry = CapabilityRegistry()
