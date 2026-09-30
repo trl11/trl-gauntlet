@@ -362,6 +362,8 @@ refused there, because probing would hand both roles whichever device answered
 first, and one device may not be given two roles. A role is lowercase letters
 and digits.
 
+The one exception is `daq_serial: "auto"` on a bench with more than one DI-2008 attached. Probing cannot say which unit is which, but a suite that only needs to pick one does not need it to, so the units are bound to their position among the USB serial numbers on the bus, sorted: `daq.0`, `daq.1`, and so on, each reporting the instance id `daq0`, `daq1`. Sorting makes the same unit `daq0` on every scan whatever order the bus lists them in. A bench with one unit keeps the bare `daq`, and a second one plugged in replaces it with `daq.0` and `daq.1` on the next scan, so a suite that names the bare `daq` is refused on the two-unit bench until `default_instruments` says which it means. Bind roles in `daq_serial` when the units are wired to different things, because the position says nothing about that. The `daq_select` suite is the one that takes a choice of units per run.
+
 Gauntlet attaches no meaning to a role. It is the operator's word for what the
 instrument is wired to, and it reaches a suite only as the name it asked for
 in `requires:`.

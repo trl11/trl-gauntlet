@@ -161,8 +161,8 @@ def strip_echo(buf: bytes) -> bytes:
     return buf[len(_START_ECHO) :] if buf.startswith(_START_ECHO) else buf
 
 
-def open_usb(serial_filter: str = "") -> UsbTransport:
-    """Claim the first DI-2008 on the bus, or one matching ``serial_filter``.
+def _find_units() -> list[Any]:
+    """Every DI-2008 on the bus.
 
     pyusb is imported here rather than at module scope so that a host without
     a usable libusb reports an unavailable instrument instead of failing to
@@ -171,7 +171,6 @@ def open_usb(serial_filter: str = "") -> UsbTransport:
     try:
         import usb.backend.libusb1
         import usb.core
-        import usb.util
     except ImportError as exc:
         raise Di2008Error(f"pyusb is not importable: {exc}") from exc
 
@@ -185,6 +184,30 @@ def open_usb(serial_filter: str = "") -> UsbTransport:
     found = list(usb.core.find(find_all=True, idVendor=VENDOR_ID, idProduct=PRODUCT_ID) or [])
     if not found:
         raise Di2008Error("no DI-2008 on the USB bus")
+    return found
+
+
+def candidate_serials() -> list[str]:
+    """USB serial numbers of every DI-2008 on the bus, in order.
+
+    Empty when there is none or pyusb cannot look, so a bench without the
+    hardware is not an error. The order is by serial number, which makes the
+    unit called ``daq0`` the same one on every scan whatever order the bus
+    enumerates them in.
+    """
+    try:
+        found = _find_units()
+    except Di2008Error:
+        return []
+    import usb.util
+
+    return sorted(_usb_string(usb.util, unit, unit.iSerialNumber) for unit in found)
+
+
+def open_usb(serial_filter: str = "") -> UsbTransport:
+    """Claim the first DI-2008 on the bus, or one matching ``serial_filter``."""
+    found = _find_units()
+    import usb.util
 
     device = None
     if serial_filter:

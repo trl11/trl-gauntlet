@@ -1,0 +1,32 @@
+description: >
+  Half a minute of every analog input on every DAQ on the bench. Name the DAQs
+  in the DAQs field to measure only some.
+driver: real
+daqs: ""
+duration_s: 30
+sample_period_s: 1
+channels:
+  - channel: "1"
+    mode: 10v
+    label: CH 1
+  - channel: "2"
+    mode: 10v
+    label: CH 2
+  - channel: "3"
+    mode: 10v
+    label: CH 3
+  - channel: "4"
+    mode: 10v
+    label: CH 4
+  - channel: "5"
+    mode: 10v
+    label: CH 5
+  - channel: "6"
+    mode: 10v
+    label: CH 6
+  - channel: "7"
+    mode: 10v
+    label: CH 7
+  - channel: "8"
+    mode: 10v
+    label: CH 8

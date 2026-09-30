@@ -22,6 +22,7 @@ from gauntlet.instruments.cp2112_i2c import Cp2112I2c
 from gauntlet.instruments.di2008_daq import (
     Di2008Daq,
     Di2008Error,
+    candidate_serials,
     decode_scans,
     mode_unit,
     open_usb,
@@ -1000,6 +1001,39 @@ class TestDetection:
         # name one bridge rather than the same one twice.
         assert registry.provider("i2c.dut").instance_id() != registry.provider("i2c.ref").instance_id()
 
+    def test_two_units_on_auto_register_as_daq_0_and_daq_1(self, tmp_path: Any, monkeypatch: Any) -> None:
+        monkeypatch.setattr("gauntlet.instruments.detect.candidate_serials", lambda: ["AAA", "BBB"])
+        registry = CapabilityRegistry()
+        detect_instruments(registry, self._settings(tmp_path, daq_serial="auto"))
+        assert registry.instance_keys() == ["daq.0", "daq.1"]
+        assert [registry.provider(key).instance_id() for key in ("daq.0", "daq.1")] == ["daq0", "daq1"]
+        assert [registry.provider(key).describe()["driver"] for key in ("daq.0", "daq.1")] == ["di2008"] * 2
+
+    def test_each_unit_is_bound_to_its_own_serial(self, tmp_path: Any, monkeypatch: Any) -> None:
+        monkeypatch.setattr("gauntlet.instruments.detect.candidate_serials", lambda: ["AAA", "BBB"])
+        registry = CapabilityRegistry()
+        detect_instruments(registry, self._settings(tmp_path, daq_serial="auto"))
+        assert registry.provider("daq.0")._serial_filter == "AAA"
+        assert registry.provider("daq.1")._serial_filter == "BBB"
+
+    def test_a_second_unit_arriving_replaces_the_bare_name(self, tmp_path: Any, monkeypatch: Any) -> None:
+        serials = ["AAA"]
+        monkeypatch.setattr("gauntlet.instruments.detect.candidate_serials", lambda: serials)
+        monkeypatch.setattr(Di2008Daq, "available", lambda self: True)
+        registry = CapabilityRegistry()
+        settings = self._settings(tmp_path, daq_serial="auto")
+        detect_instruments(registry, settings)
+        assert registry.instance_keys() == ["daq"]
+        serials.append("BBB")
+        detect_instruments(registry, settings)
+        assert registry.instance_keys() == ["daq.0", "daq.1"]
+
+    def test_a_named_role_gets_an_instance_id_of_its_own(self, tmp_path: Any) -> None:
+        registry = CapabilityRegistry()
+        detect_instruments(registry, self._settings(tmp_path, daq_serial={"dut": "AAA", "ref": "BBB"}))
+        assert registry.provider("daq.dut").instance_id() == "daq-dut"
+        assert registry.provider("daq.ref").instance_id() == "daq-ref"
+
     def test_the_bench_default_reaches_the_registry(self, tmp_path: Any) -> None:
         registry = CapabilityRegistry()
         detect_instruments(
@@ -1233,6 +1267,20 @@ class TestOpenUsb:
         _install_pyusb(monkeypatch, devices=[_FakeUsbDevice(serial="AAA")])
         with pytest.raises(Di2008Error, match="no DI-2008 with serial matching"):
             open_usb("ZZZ")
+
+    def test_every_serial_on_the_bus_is_listed_in_order(self, monkeypatch: Any) -> None:
+        _install_pyusb(monkeypatch, devices=[_FakeUsbDevice(serial="BBB"), _FakeUsbDevice(serial="AAA")])
+        assert candidate_serials() == ["AAA", "BBB"]
+
+    def test_listing_serials_claims_nothing(self, monkeypatch: Any) -> None:
+        device = _FakeUsbDevice(serial="AAA")
+        _install_pyusb(monkeypatch, devices=[device])
+        candidate_serials()
+        assert device.configured is False
+
+    def test_an_empty_bus_lists_no_serials(self, monkeypatch: Any) -> None:
+        _install_pyusb(monkeypatch, devices=[])
+        assert candidate_serials() == []
 
     def test_a_kernel_driver_is_detached_first(self, monkeypatch: Any) -> None:
         device = _FakeUsbDevice(kernel_driver=True)

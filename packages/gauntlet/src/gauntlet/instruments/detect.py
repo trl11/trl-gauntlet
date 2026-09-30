@@ -36,7 +36,7 @@ from gauntlet.capabilities.registry import (
 from gauntlet.config import Settings, instrument_roles
 from gauntlet.instruments.alvium_camera import AlviumCamera, candidate_cameras
 from gauntlet.instruments.cp2112_i2c import Cp2112I2c, candidate_adapters
-from gauntlet.instruments.di2008_daq import Di2008Daq
+from gauntlet.instruments.di2008_daq import Di2008Daq, candidate_serials
 from gauntlet.instruments.fx2_logic import Fx2Logic
 from gauntlet.instruments.hm310t_psu import Hm310tPsu, candidate_ports
 from gauntlet.instruments.mock_camera import MockCamera
@@ -84,8 +84,8 @@ def detect_instruments(registry: CapabilityRegistry, settings: Settings) -> None
     _settle_roles(
         registry,
         "daq",
-        settings.daq_serial,
-        (lambda where, key: MockDaq(instance=key)) if "daq" in simulated else (lambda where, key: _daq(where)),
+        _daq_units(settings.daq_serial),
+        (lambda where, key: MockDaq(instance=key)) if "daq" in simulated else (lambda where, key: _daq(where, key)),
     )
     _settle_roles(
         registry,
@@ -165,7 +165,31 @@ def _camera(device: str, frame_format: str = "auto") -> CapabilityProvider | Non
     return None
 
 
-def _daq(serial: str) -> CapabilityProvider | None:
+def _daq_units(setting: str | dict[str, str]) -> str | dict[str, str]:
+    """The DAQ setting, with ``"auto"`` given a role per DI-2008 when several are attached.
+
+    Two units cannot both answer to the bare name, and probing cannot say
+    which is which, so each is bound to its position among the serial numbers
+    on the bus: ``daq.0``, ``daq.1``. A bench with one unit keeps the bare
+    name.
+    """
+    if setting != "auto":
+        return setting
+    serials = candidate_serials()
+    if len(serials) < 2:
+        return setting
+    return {str(position): serial for position, serial in enumerate(serials)}
+
+
+def _daq_instance(key: str) -> str:
+    """The instance id a DAQ registered under ``key`` reports: ``daq0``, ``daq1``, or ``daq-<role>``."""
+    role = role_of(key)
+    if not role:
+        return "daq0"
+    return f"daq{role}" if role.isdigit() else f"daq-{role}"
+
+
+def _daq(serial: str, key: str) -> CapabilityProvider | None:
     """The acquisition unit, if one is asked for and one answers.
 
     Two drivers answer this capability and the setting says which. A
@@ -188,7 +212,7 @@ def _daq(serial: str) -> CapabilityProvider | None:
     if serial.startswith(_DAQMX_PREFIX):
         return NiDaqmxDaq(target=parse_target(serial[len(_DAQMX_PREFIX) :]))
     if serial != "auto":
-        return Di2008Daq(serial_filter=serial)
+        return Di2008Daq(instance=_daq_instance(key), serial_filter=serial)
     daq = Di2008Daq()
     if daq.available():
         return daq
@@ -292,15 +316,16 @@ def _settle_roles(
     that is a mapping asks for an instrument per role, and each is settled on
     its own: unplugging the reference bridge drops ``i2c.ref`` and leaves
     ``i2c.dut`` connected. Dropping what the mapping no longer names is what
-    makes an edit to it take effect on the next scan.
+    makes an edit to it take effect on the next scan, and doing it first
+    releases a unit before the instance that replaces it asks for it.
     """
     roles = instrument_roles(setting)
-    for role, where in roles.items():
-        key = instance_key(name, role)
-        _settle(registry, key, partial(build, where, key))
     for key in registry.instance_keys():
         if capability_of(key) == name and role_of(key) not in roles:
             _drop(registry, key)
+    for role, where in roles.items():
+        key = instance_key(name, role)
+        _settle(registry, key, partial(build, where, key))
 
 
 def _settle(registry: CapabilityRegistry, key: str, build: Callable[[], CapabilityProvider | None]) -> None:
