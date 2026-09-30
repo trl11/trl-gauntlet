@@ -42,6 +42,7 @@ import {
   importRun,
   runEventsUrl,
   runExportUrl,
+  runReportUrl,
   saveProfile,
   rescanInstruments,
   sendInstrumentCommand,
@@ -99,6 +100,10 @@ describe("url building", () => {
 
   it("encodes the run id in the export url", () => {
     expect(runExportUrl("2026 01")).toBe("/api/runs/2026%2001/export");
+  });
+
+  it("encodes the run id in the report url", () => {
+    expect(runReportUrl("2026 01")).toBe("/api/runs/2026%2001/report");
   });
 });
 

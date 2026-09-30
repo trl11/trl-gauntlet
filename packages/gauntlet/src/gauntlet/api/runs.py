@@ -12,12 +12,13 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.background import BackgroundTask
 
 from gauntlet.api.notes import NoteBody, add_note, clean, delete_note, list_notes
 from gauntlet.catalog import campaigns_by_suite
+from gauntlet.report import render_report, report_name
 from gauntlet.storage import SUBJECT_RUN, RunFilters, RunRow, write_notes_file
 from gauntlet.supervisor import Event, RunConflict, RunHandle, RunRejected, RunRequest
 from gauntlet.transfer import TransferError, archive_name, export_run, import_run, read_export
@@ -223,6 +224,27 @@ async def export_run_archive(request: Request, run_id: str) -> FileResponse:
         media_type="application/zip",
         filename=name,
         background=BackgroundTask(shutil.rmtree, directory, True),
+    )
+
+
+@router.get("/runs/{run_id}/report")
+async def get_run_report(request: Request, run_id: str) -> HTMLResponse:
+    """One run as a single self-contained HTML page, offered as a download.
+
+    Refused while the run is in flight, for the same reason as an export.
+    """
+    handle = request.app.state.supervisor.get(run_id)
+    if handle is not None and not handle.finished:
+        raise HTTPException(status_code=409, detail="run is still in flight")
+    row = request.app.state.runs_index.get(run_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"unknown run {run_id!r}")
+    notes = request.app.state.notes_index.list(SUBJECT_RUN, run_id)
+    owner = _campaign_owners(request).get(row.suite)
+    campaign = None if owner is None else owner.manifest.title
+    return HTMLResponse(
+        render_report(row, notes, campaign),
+        headers={"Content-Disposition": f'attachment; filename="{report_name(run_id)}"'},
     )
 
 
