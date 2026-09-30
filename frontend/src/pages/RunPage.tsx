@@ -20,6 +20,7 @@ import {
   listRunNotes,
   listSuites,
   runExportUrl,
+  runReportUrl,
   setRunFavorite,
   stopRun,
 } from "@api/client";
@@ -331,14 +332,24 @@ export const RunPage: React.FC = () => {
                 </Button>
               </>
             ) : (
-              <a
-                className="run-page__export"
-                href={runExportUrl(runId)}
-                download
-                title="The run directory, its result and its notes, as one archive another Gauntlet can import"
-              >
-                Export run
-              </a>
+              <>
+                <a
+                  className="run-page__export"
+                  href={runReportUrl(runId)}
+                  download
+                  title="The run's result, metrics, instruments and notes, as one page to share or print"
+                >
+                  Download report
+                </a>
+                <a
+                  className="run-page__export"
+                  href={runExportUrl(runId)}
+                  download
+                  title="The run directory, its result and its notes, as one archive another Gauntlet can import"
+                >
+                  Export run
+                </a>
+              </>
             )}
           </div>
         }

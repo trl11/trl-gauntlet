@@ -43,6 +43,7 @@ vi.mock("@api/client", () => ({
   listSuites: vi.fn(),
   runEventsUrl: (runId: string) => `/api/runs/${runId}/events`,
   runExportUrl: (runId: string) => `/api/runs/${runId}/export`,
+  runReportUrl: (runId: string) => `/api/runs/${runId}/report`,
   setRunFavorite: vi.fn(),
   stopRun: vi.fn(),
 }));
@@ -241,6 +242,13 @@ describe("RunPage", () => {
     expect(link).toHaveAttribute("download");
   });
 
+  it("offers a finished run as a report", async () => {
+    renderPage();
+    const link = await screen.findByRole("link", { name: "Download report" });
+    expect(link).toHaveAttribute("href", "/api/runs/run-1/report");
+    expect(link).toHaveAttribute("download");
+  });
+
   it("opens a run still in flight on its log", async () => {
     vi.mocked(getRun).mockResolvedValue({ ...FINISHED, status: "running", ended_at: null });
     renderPage();
@@ -261,6 +269,7 @@ describe("RunPage", () => {
     renderPage();
     await screen.findByRole("button", { name: "Stop" });
     expect(screen.queryByRole("link", { name: "Export run" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Download report" })).not.toBeInTheDocument();
   });
 
   it("stops a live run once the operator confirms", async () => {

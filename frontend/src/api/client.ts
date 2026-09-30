@@ -384,6 +384,11 @@ export function runExportUrl(runId: string): string {
   return apiUrl(`/api/runs/${encodeSegment(runId)}/export`);
 }
 
+/** URL of one run's self-contained HTML report, for a download link. */
+export function runReportUrl(runId: string): string {
+  return apiUrl(`/api/runs/${encodeSegment(runId)}/report`);
+}
+
 /**
  * `POST /api/runs/import`
  *

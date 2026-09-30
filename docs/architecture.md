@@ -286,3 +286,11 @@ when the run is read, so a run whose suite is not installed on the importing
 instance still lists, still serves its artifacts, and reports no campaign. Its
 unit appears on the Units page with correct counters, because a unit is an
 aggregate over the runs table rather than a record of its own.
+
+## Reporting a run
+
+`GET /api/runs/{id}/report` answers one finished run as a single HTML page, `<run-id>.report.html`, for someone who does not have Gauntlet. The run page offers it as "Download report" beside "Export run". `gauntlet.report` is the whole implementation.
+
+The page holds the run's row and campaign, its verdict with results and tests, every numeric metric summarised and charted against run time where it changed, the failed iterations, the instruments recorded, the notes, the profile one setting to a row, the provenance from `manifest.json` and a list of the artifacts. No file is shown raw: `summary.md` is left out because the SDK writes it from `verdict.json` and `manifest.json`, which the report already lays out. It is built from the row, the notes and the run directory alone, so an imported run reports the same as it did where it ran. A missing or unreadable file leaves its section out rather than failing the report.
+
+Nothing is fetched when the page is opened: the charts are inline SVG and the styles are in the page, so it can be mailed, archived or printed to PDF as it is. It is light, not dark like the UI, because it is read on paper as often as on a screen. Images and traces are listed but not embedded, which keeps a long run's report small; the export archive is what carries them. A chart thins a long series to a few hundred points, and the summary table still counts every sample.
