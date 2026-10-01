@@ -7,8 +7,12 @@ hardware attached.
 from __future__ import annotations
 
 import ctypes
+import itertools
 import socket
 import struct
+import threading
+import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -137,8 +141,10 @@ class _FakeDaq:
         clock: _Clock,
         codes: tuple[int, ...] = (),
         scans: int = 8,
-        clock_hz: str = "800",
+        clock_hz: str | None = None,
         echoes_start: bool = True,
+        stream: Iterator[tuple[int, ...]] | None = None,
+        stream_every: int = 2,
     ) -> None:
         self.clock = clock
         self.closed = False
@@ -149,6 +155,10 @@ class _FakeDaq:
         self._pending = b""
         self._scanning = False
         self._scans = scans
+        self._stream = stream
+        self._reads = 0
+        self._every = stream_every
+        self._slots: dict[str, str] = {}
 
     def close(self) -> None:
         self.closed = True
@@ -160,7 +170,13 @@ class _FakeDaq:
     def read(self, size: int, timeout_ms: int) -> bytes:
         # Every read costs time, so a capture loop bounded by the clock ends.
         self.clock.advance(0.05)
-        if self._scanning and self._scans:
+        self._reads += 1
+        # A real unit times out between packets, which is what ends a drain.
+        if self._scanning and self._stream is not None and self._reads % self._every == 1:
+            codes = next(self._stream, None)
+            if codes is not None:
+                self._pending += struct.pack(f"<{len(codes)}h", *codes)
+        elif self._scanning and self._scans:
             self._scans -= 1
             self._pending += struct.pack(f"<{len(self._codes)}h", *self._codes)
         taken, self._pending = self._pending[:size], self._pending[size:]
@@ -179,9 +195,19 @@ class _FakeDaq:
         elif line == "stop":
             self._scanning = False
             self._pending = b""
+        elif line.startswith("slist "):
+            _, slot, word = line.split()
+            if word == "65535":
+                self._slots = {key: value for key, value in self._slots.items() if int(key) < int(slot)}
+            else:
+                self._slots[slot] = word
         elif line.startswith("info "):
             number = line.split()[1]
-            answer = self._clock_hz if number == "9" else self.INFO.get(number, "")
+            # A unit scanning one channel runs an order of magnitude faster.
+            derived = "8000" if len(self._slots) == 1 else "800"
+            answer = (
+                (derived if self._clock_hz is None else self._clock_hz) if number == "9" else self.INFO.get(number, "")
+            )
             self._pending += f"{line} {answer}\r".encode("ascii")
 
 
@@ -405,6 +431,16 @@ class TestDi2008Daq:
         # Without this the device holds samples back until a packet is full.
         assert "ps 0" in transport.commands
 
+    def test_packet_size_is_set_after_the_rate_so_a_slow_scan_is_not_held_back(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock)
+        _daq(transport, clock).available()
+        # srate puts the packet size back, and at a slow rate a full packet
+        # is minutes of samples.
+        assert transport.commands.index("ps 0") > max(
+            at for at, line in enumerate(transport.commands) if line.startswith("srate ")
+        )
+
     def test_sampling_decodes_every_channel(self) -> None:
         clock = _Clock()
         codes = tuple(range(0, 8 * 4096, 4096))
@@ -465,7 +501,7 @@ class TestDi2008Daq:
         daq.command("configure", {"rows": {"1": {"mode": "tc_k"}}})
         daq.command("configure", {"rows": {"1": {"label": "Ambient"}}})
         channel = daq.state()["channels"]["1"]
-        assert channel == {"label": "Ambient", "mode": "tc_k", "unit": "C", "value": channel["value"]}
+        assert channel == {"enabled": True, "label": "Ambient", "mode": "tc_k", "unit": "C", "value": channel["value"]}
 
     def test_a_channel_reads_as_its_number_until_it_is_named(self) -> None:
         clock = _Clock()
@@ -540,7 +576,7 @@ class TestDi2008Daq:
         row = next(entry for entry in command["rows"] if entry["key"] == "2")
         # The row is what the operator's controls start at, so an edit to one
         # channel does not blank out what the others are set to.
-        assert row == {"key": "2", "label": "CH 2", "values": {"label": "Shunt", "mode": "tc_j"}}
+        assert row == {"key": "2", "label": "CH 2", "values": {"enabled": True, "label": "Shunt", "mode": "tc_j"}}
 
     def test_a_row_offers_an_empty_label_rather_than_the_channel_number(self) -> None:
         clock = _Clock()
@@ -1353,6 +1389,321 @@ class TestLibusbTransport:
         transport.close()  # does not raise
 
 
+def _wait_for_scans(daq: Di2008Daq, count: int, seq: int = 1) -> Any:
+    """The stream slice once it holds ``count`` scans from ``seq``, or fail."""
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        streamed = daq.stream_since(seq, 10_000)
+        if len(streamed.scans) >= count:
+            return streamed
+        time.sleep(0.005)
+    raise AssertionError(f"fewer than {count} scans arrived")
+
+
+class TestDi2008Stream:
+    def _streaming(self, **options: Any) -> tuple[Di2008Daq, _FakeDaq]:
+        clock = _Clock()
+        transport = _FakeDaq(
+            clock, stream=(tuple(range(at % 1000, at % 1000 + 8)) for at in itertools.count()), **options
+        )
+        return _daq(transport, clock), transport
+
+    def test_a_lease_starts_the_scan_and_the_last_release_stops_it(self) -> None:
+        daq, transport = self._streaming()
+        assert daq.stream_open() is True
+        assert daq.stream_open() is True
+        assert transport.commands.count("start") == 1
+        daq.stream_close()
+        assert transport._scanning
+        daq.stream_close()
+        assert not transport._scanning
+
+    def test_scans_are_numbered_from_one_with_a_value_per_channel(self) -> None:
+        daq, _ = self._streaming()
+        daq.stream_open()
+        streamed = _wait_for_scans(daq, 5)
+        daq.stream_close()
+        assert [scan[0] for scan in streamed.scans[:5]] == [1, 2, 3, 4, 5]
+        assert len(streamed.channels) == 8
+        assert len(streamed.scans[0][3]) == 8
+        assert streamed.scans[0][3][0] == value_from_code(0, "10v")
+        assert streamed.scans[1][3][0] == value_from_code(1, "10v")
+
+    def test_each_channel_says_the_range_it_can_read(self) -> None:
+        daq, _ = self._streaming()
+        daq.command("configure", {"rows": {"2": {"mode": "5v"}, "3": {"mode": "tc_k"}}})
+        daq.stream_open()
+        channels = {channel["key"]: channel for channel in daq.stream_since(1, 0).channels}
+        daq.stream_close()
+        assert (channels["1"]["min"], channels["1"]["max"]) == (-10.0, pytest.approx(10.0, abs=0.001))
+        assert (channels["2"]["min"], channels["2"]["max"]) == (-5.0, pytest.approx(5.0, abs=0.001))
+        assert channels["3"]["min"] == value_from_code(-32768, "tc_k")
+        assert channels["3"]["max"] == value_from_code(32767, "tc_k")
+
+    def test_every_channel_is_listed_with_whether_it_is_in_the_scan_list(self) -> None:
+        daq, _ = self._streaming()
+        daq.command("configure", {"rows": {"3": {"enabled": False}}})
+        channels = daq.stream_channels()
+        assert [channel["key"] for channel in channels] == [str(n) for n in range(1, 9)]
+        assert {channel["key"]: channel["enabled"] for channel in channels}["3"] is False
+        assert channels[0]["enabled"] is True
+        assert (channels[0]["min"], channels[0]["unit"]) == (-10.0, "V")
+
+    def test_channels_can_be_enabled_and_disabled_without_a_lease(self) -> None:
+        daq, _ = self._streaming()
+        daq.stream_enable({"2": False, "3": False})
+        assert [channel["key"] for channel in daq.stream_since(1, 0).channels] == ["1", "4", "5", "6", "7", "8"]
+        assert daq.state()["scan"]["rate_hz"] == pytest.approx(800 / (4 * 6))
+
+    def test_the_last_enabled_channel_cannot_be_turned_off(self) -> None:
+        daq, _ = self._streaming()
+        with pytest.raises(CommandRejected, match="at least one"):
+            daq.stream_enable({str(n): False for n in range(1, 9)})
+
+    def test_what_is_recorded_but_not_shown_is_the_scan_and_the_enabled_flags(self) -> None:
+        daq, _ = self._streaming()
+        assert sorted(daq.trace_only()) == sorted(
+            ["scan.auto", "scan.max_hz", "scan.rate_hz", *(f"channels.{n}.enabled" for n in range(1, 9))]
+        )
+
+    def test_the_rate_is_the_one_the_scan_list_gives(self) -> None:
+        daq, _ = self._streaming()
+        daq.stream_open()
+        assert daq.stream_since(1, 1).rate_hz == pytest.approx(25.0)
+        daq.stream_close()
+
+    def test_since_returns_only_scans_from_that_number_on(self) -> None:
+        daq, _ = self._streaming()
+        daq.stream_open()
+        _wait_for_scans(daq, 6)
+        scans = daq.stream_since(4, 3).scans
+        daq.stream_close()
+        assert [scan[0] for scan in scans] == [4, 5, 6]
+
+    def test_next_seq_follows_the_last_scan_returned(self) -> None:
+        daq, _ = self._streaming()
+        daq.stream_open()
+        _wait_for_scans(daq, 3)
+        streamed = daq.stream_since(1, 2)
+        daq.stream_close()
+        assert streamed.next_seq == 3
+
+    def test_a_history_older_than_the_ring_is_clipped_to_its_oldest_scan(self) -> None:
+        daq, _ = self._streaming()
+        daq.stream_open()
+        _wait_for_scans(daq, 5)
+        daq.stream_close()
+        daq._ring = type(daq._ring)(list(daq._ring)[-3:], maxlen=3)
+        first = daq.stream_since(1, 10).scans[0][0]
+        assert first == daq._ring[0][0]
+
+    def test_sample_returns_the_newest_buffered_scan_without_restarting(self) -> None:
+        daq, transport = self._streaming()
+        daq.stream_open()
+        _wait_for_scans(daq, 3)
+        channels = daq.command("sample", {})["channels"]
+        daq.stream_close()
+        assert transport.commands.count("start") == 1
+        assert len(channels) == 8
+
+    def test_without_a_lease_sample_starts_and_stops_a_scan_as_before(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock, tuple(range(8)))
+        daq = _daq(transport, clock)
+        daq.command("sample", {})
+        assert "start" in transport.commands
+        assert transport.commands[-1] == "stop"
+
+    def test_configure_restarts_the_stream_and_the_numbers_keep_rising(self) -> None:
+        daq, transport = self._streaming()
+        daq.stream_open()
+        before = _wait_for_scans(daq, 3).scans[-1][0]
+        daq.command("configure", {"rows": {"3": {"mode": "tc_k"}}})
+        after = _wait_for_scans(daq, 1, seq=before + 1).scans[0][0]
+        daq.stream_close()
+        assert transport.commands.count("start") == 2
+        assert after > before
+
+    def test_sample_after_configure_reads_the_restarted_stream_not_the_old_reading(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        daq, _ = self._streaming()
+        daq.stream_open()
+        _wait_for_scans(daq, 2)
+        daq.command("sample", {})
+        # With the reader held up, only a sample that reads the stream itself
+        # can see the scan list the configure just loaded.
+        monkeypatch.setattr(daq, "_stream_loop", lambda generation: threading.Event().wait(2.0))
+        daq.command("configure", {"rows": {"2": {"enabled": False}}})
+        channels = daq.command("sample", {})["channels"]
+        daq.stream_close()
+        assert channels["2"] is None
+        assert channels["1"] is not None
+
+    def test_scans_are_timed_by_the_unit_s_clock_not_by_when_they_were_read(self) -> None:
+        daq, _ = self._streaming()
+        daq.stream_open()
+        scans = _wait_for_scans(daq, 6).scans
+        daq.stream_close()
+        spacing = [later[1] - earlier[1] for earlier, later in itertools.pairwise(scans)]
+        wall = [later[2] - earlier[2] for earlier, later in itertools.pairwise(scans)]
+        assert spacing == pytest.approx([1 / 25.0] * len(spacing))
+        assert wall == pytest.approx([1 / 25.0] * len(wall), abs=1e-6)
+
+    def test_a_slow_requested_rate_does_not_look_like_a_dead_stream(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock, stream=(tuple(range(8)) for _ in itertools.count()), stream_every=40)
+        daq = _daq(transport, clock)
+        daq.command("scan_rate", {"rate": "0.5"})
+        daq.stream_open()
+        _wait_for_scans(daq, 3)
+        reason = daq.describe()["unavailable_reason"]
+        daq.stream_close()
+        assert reason == ""
+
+    def test_packets_of_a_slow_scan_are_minutes_apart_not_a_dead_stream(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock, stream=(tuple(range(2)) for _ in itertools.count()), stream_every=160)
+        daq = _daq(transport, clock)
+        rows = {str(number): {"enabled": number < 3} for number in range(1, 9)}
+        daq.command("configure", {"rows": rows})
+        daq.command("scan_rate", {"rate": "0.5"})
+        daq.stream_open()
+        _wait_for_scans(daq, 2)
+        reason = daq.describe()["unavailable_reason"]
+        daq.stream_close()
+        assert reason == ""
+
+    def test_a_unit_that_goes_quiet_ends_the_stream_and_is_reported_unavailable(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock, stream=iter([tuple(range(8))] * 3))
+        daq = _daq(transport, clock)
+        daq.stream_open()
+        deadline = time.monotonic() + 5.0
+        while daq._streaming() and time.monotonic() < deadline:
+            time.sleep(0.005)
+        assert daq.describe()["unavailable_reason"] == "the stream stopped delivering scans"
+        daq.stream_close()
+
+    def test_a_lease_cannot_be_taken_on_a_unit_that_is_not_there(self) -> None:
+        def refuse(_: str) -> Any:
+            raise Di2008Error("no DI-2008 on the USB bus")
+
+        assert Di2008Daq(clock=_Clock(), open_transport=refuse).stream_open() is False
+
+
+class TestDi2008ScanRate:
+    def _daq(self) -> tuple[Di2008Daq, _FakeDaq]:
+        clock = _Clock()
+        transport = _FakeDaq(clock, tuple(range(8)))
+        return _daq(transport, clock), transport
+
+    @staticmethod
+    def _only(daq: Di2008Daq, *keep: str) -> None:
+        rows = {str(n): {"enabled": str(n) in keep} for n in range(1, 9)}
+        daq.command("configure", {"rows": rows})
+
+    def test_the_rate_is_auto_and_fastest_for_the_channels_enabled(self) -> None:
+        daq, transport = self._daq()
+        scan = daq.state()["scan"]
+        assert (scan["auto"], scan["max_hz"], scan["rate_hz"]) == (True, 25.0, 25.0)
+        self._only(daq, "1", "2", "3", "4")
+        assert daq.state()["scan"]["rate_hz"] == pytest.approx(50.0)
+        self._only(daq, "5")
+        assert daq.state()["scan"]["rate_hz"] == pytest.approx(2000.0)
+        assert "srate 4" in transport.commands
+
+    def test_only_enabled_channels_are_in_the_scan_list(self) -> None:
+        daq, transport = self._daq()
+        self._only(daq, "2", "5")
+        assert f"slist 0 {slist_word(1, '10v')}" in transport.commands
+        assert f"slist 1 {slist_word(4, '10v')}" in transport.commands
+        assert "slist 2 65535" in transport.commands
+        assert list(transport._slots) == ["0", "1"]
+
+    def test_a_disabled_channel_reads_nothing_and_the_others_keep_their_values(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, (10, 20)), clock)
+        self._only(daq, "2", "5")
+        channels = daq.command("sample", {})["channels"]
+        assert channels["2"] == value_from_code(10, "10v")
+        assert channels["5"] == value_from_code(20, "10v")
+        assert channels["1"] is None
+        assert daq.state()["channels"]["1"]["enabled"] is False
+
+    def test_a_slower_rate_is_set_by_srate_and_is_no_faster_than_asked(self) -> None:
+        daq, transport = self._daq()
+        self._only(daq, "1", "2", "3", "4")
+        result = daq.command("scan_rate", {"rate": "20"})
+        assert result["auto"] is False
+        assert result["rate_hz"] == pytest.approx(800 / (10 * 4))
+        assert "srate 10" in transport.commands
+        assert daq.command("scan_rate", {"rate": "auto"})["rate_hz"] == pytest.approx(50.0)
+
+    def test_the_rates_on_offer_follow_the_channels_and_name_the_one_chosen(self) -> None:
+        daq, _ = self._daq()
+        scan = daq.state()["scan"]
+        assert scan["selected"] == "auto"
+        assert scan["choices"][0] == "auto"
+        assert scan["choices"][1] == "25"
+        assert "12.5" in scan["choices"]
+        self._only(daq, "1", "2", "3", "4")
+        assert daq.state()["scan"]["choices"][1] == "50"
+        daq.command("scan_rate", {"rate": "20"})
+        assert daq.state()["scan"]["selected"] == "20"
+        assert "20" in daq.state()["scan"]["choices"]
+
+    def test_every_rate_on_offer_can_be_chosen(self) -> None:
+        daq, _ = self._daq()
+        for choice in daq.state()["scan"]["choices"]:
+            result = daq.command("scan_rate", {"rate": choice})
+            assert result["selected"] == choice
+            assert result["rate_hz"] <= result["max_hz"] + 1e-9
+
+    def test_the_scan_rate_is_offered_in_the_header_with_what_it_is_now(self) -> None:
+        daq, _ = self._daq()
+        command = next(entry for entry in daq.commands() if entry["name"] == "scan_rate")
+        assert command["role"] == "header"
+        assert (command["selected"], command["current"], command["unit"]) == ("scan.selected", "scan.rate_hz", "Hz")
+        assert command["fields"][0]["choices_from"] == "scan.choices"
+
+    def test_a_requested_rate_above_what_the_channels_allow_is_refused(self) -> None:
+        daq, _ = self._daq()
+        with pytest.raises(CommandRejected, match="between"):
+            daq.command("scan_rate", {"rate": "26"})
+        with pytest.raises(CommandRejected, match="between"):
+            daq.command("scan_rate", {"rate": "fast"})
+
+    def test_a_requested_rate_stays_when_channels_change_and_is_capped_by_them(self) -> None:
+        daq, _ = self._daq()
+        self._only(daq, "1", "2", "3", "4")
+        daq.command("scan_rate", {"rate": "40"})
+        assert daq.state()["scan"]["rate_hz"] == pytest.approx(40.0)
+        self._only(daq, *map(str, range(1, 9)))
+        scan = daq.state()["scan"]
+        assert (scan["auto"], scan["max_hz"], scan["rate_hz"]) == (False, 25.0, 25.0)
+
+    def test_the_last_channel_cannot_be_disabled(self) -> None:
+        daq, _ = self._daq()
+        self._only(daq, "1")
+        with pytest.raises(CommandRejected, match="at least one"):
+            daq.command("configure", {"rows": {"1": {"enabled": False}}})
+        with pytest.raises(CommandRejected, match="true or false"):
+            daq.command("configure", {"rows": {"2": {"enabled": "yes"}}})
+
+    def test_the_stream_follows_the_enabled_channels_and_the_rate(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock, stream=(tuple(range(at % 1000, at % 1000 + 2)) for at in itertools.count()))
+        daq = _daq(transport, clock)
+        self._only(daq, "3", "7")
+        daq.stream_open()
+        streamed = _wait_for_scans(daq, 2)
+        daq.stream_close()
+        assert [channel["key"] for channel in streamed.channels] == ["3", "7"]
+        assert streamed.rate_hz == pytest.approx(100.0)
+        assert len(streamed.scans[0][3]) == 2
+
+
 class TestDi2008Failures:
     """What the DAQ does when the device stops behaving."""
 
@@ -1798,7 +2149,7 @@ class TestDi2008Quiet:
         daq = Di2008Daq(clock=_Clock(), open_transport=lambda _: _FakeDaq(_Clock()))
         commands = {entry["name"]: entry for entry in daq.commands()}
 
-        assert set(commands) == {"configure", "sample"}
+        assert set(commands) == {"configure", "sample", "scan_rate"}
         configure = commands["configure"]
         fields = {field["name"]: field for field in configure["fields"]}
         assert "tc_k" in fields["mode"]["choices"]
