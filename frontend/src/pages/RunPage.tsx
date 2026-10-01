@@ -1,4 +1,4 @@
-import { faStar } from "@fortawesome/free-solid-svg-icons";
+import { faChevronDown, faChevronRight, faStar } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Confirm, Spinner } from "@trl11/components/ui";
@@ -32,6 +32,7 @@ import IterationMap from "@components/IterationMap";
 import IterationTable from "@components/IterationTable";
 import LogStream from "@components/LogStream";
 import CaptureViewer from "@components/CaptureViewer";
+import DaqViewer from "@components/DaqViewer";
 import MetricsChart from "@components/MetricsChart";
 import RecordedInstruments from "@components/RecordedInstruments";
 import NotesPanel from "@components/NotesPanel";
@@ -40,6 +41,7 @@ import SnapshotGallery from "@components/SnapshotGallery";
 import TraceTimeline from "@components/TraceTimeline";
 import VerdictBanner from "@components/VerdictBanner";
 import VerdictSummary from "@components/VerdictSummary";
+import useDaq from "@hooks/useDaq";
 import useEventStream from "@hooks/useEventStream";
 import { formatDuration, formatTimestamp } from "../utils/format";
 import { traceToSamples } from "../utils/instrument_trace";
@@ -60,6 +62,7 @@ const TABS = [
   "metrics",
   "captures",
   "instruments",
+  "daq",
   "iterations",
   "snapshots",
   "traces",
@@ -75,6 +78,19 @@ const CAPTURE_DIR = "captures/";
 
 type Tab = (typeof TABS)[number];
 
+/** Tabs whose name is not the tab's key with its first letter raised. */
+const TAB_LABELS: Partial<Record<Tab, string>> = { daq: "DAQ" };
+
+/** Opens the DAQ view of a run in a window of its own, without the rest of the page. */
+function popOutDaq(runId: string): void {
+  const page = window.location.href.split("#")[0];
+  window.open(
+    `${page}#/runs/${encodeURIComponent(runId)}/daq`,
+    `gauntlet-daq-${runId}`,
+    "popup,width=1200,height=900"
+  );
+}
+
 /** One run: its log, metrics, iterations, artifacts, verdict and notes. */
 export const RunPage: React.FC = () => {
   const { runId = "" } = useParams<{ runId: string }>();
@@ -82,6 +98,9 @@ export const RunPage: React.FC = () => {
   // Null until the operator picks a tab or the run's first answer picks one.
   const [tab, setTab] = useState<Tab | null>(null);
   const [pending, setPending] = useState<"abort" | "stop" | null>(null);
+  // A run in flight keeps its details folded away until asked, since it is the
+  // graphs being watched. Once it is over they are always shown.
+  const [infoOpen, setInfoOpen] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
 
   const run = useQuery({
@@ -114,6 +133,11 @@ export const RunPage: React.FC = () => {
     maxMetricSamples: MAX_METRIC_SAMPLES,
   });
 
+  // What the DAQ monitor is watching and has recorded. A run that streams
+  // nothing and recorded nothing has no tab, so the answer decides it.
+  const upsetCount = stream.upsets.length;
+  const { flashing, upsets } = useDaq(runId, live, upsetCount);
+
   const metrics = useQuery({
     queryKey: ["run-metrics", runId],
     queryFn: () => getRunMetrics(runId),
@@ -140,6 +164,13 @@ export const RunPage: React.FC = () => {
     enabled: run.data !== undefined,
     refetchInterval: live ? 5000 : false,
   });
+
+  // The run writes its instrument summary, its verdict and the rest as it
+  // ends, after the last poll of a run in flight, so the list is read again
+  // once it has.
+  useEffect(() => {
+    if (settled) queryClient.invalidateQueries({ queryKey: ["artifacts", runId] });
+  }, [queryClient, runId, settled]);
 
   const files = artifacts.data?.artifacts ?? [];
   const hasFile = (path: string) => files.some((file) => file.path === path);
@@ -280,6 +311,7 @@ export const RunPage: React.FC = () => {
     notes: notes.data?.notes.length ?? 0,
     snapshots: snapshots.length,
     traces: traces.length,
+    daq: Math.max(upsets.data?.events.length ?? 0, upsetCount),
   };
 
   // A gallery tab is offered only by a run that recorded something for it,
@@ -294,6 +326,10 @@ export const RunPage: React.FC = () => {
     instruments: !files.some((file) => file.path === RECORD_FILE),
     snapshots: snapshots.length === 0,
     traces: traces.length === 0,
+    // A run that watched a DAQ has its recording even when no limit was crossed.
+    daq:
+      !files.some((file) => file.path.startsWith("daq/")) &&
+      (!upsets.data || (upsets.data.instruments.length === 0 && upsets.data.events.length === 0)),
   };
   const visibleTabs = TABS.filter((name) => !empty[name]);
   const active = tab !== null && visibleTabs.includes(tab) ? tab : "overview";
@@ -355,61 +391,74 @@ export const RunPage: React.FC = () => {
         }
       >
         <span className="run-page__id">{detail.run_id}</span>
-        <DefinitionRows
-          rows={[
-            { label: "profile", value: detail.profile ?? "-" },
-            {
-              label: "campaign",
-              value: detail.campaign ? (
-                <Link
-                  to={`/tests?view=campaigns&campaign=${encodeURIComponent(detail.campaign.key)}`}
-                >
-                  {detail.campaign.title}
-                </Link>
-              ) : (
-                "-"
-              ),
-            },
-            {
-              label: "unit",
-              value: detail.unit_serial ? (
-                <Link to={`/units/${detail.unit_serial}`}>{detail.unit_serial}</Link>
-              ) : (
-                "-"
-              ),
-            },
-            { label: "target", value: detail.target ?? "-" },
-            { label: "operator", value: detail.operator ?? "-" },
-            {
-              label: "location",
-              value: detail.location ? (
-                <Link to={`/history?location=${encodeURIComponent(detail.location)}`}>
-                  {detail.location}
-                </Link>
-              ) : (
-                "-"
-              ),
-            },
-            {
-              label: "session",
-              value: detail.session ? (
-                <Link to={`/history?session=${encodeURIComponent(detail.session)}`}>
-                  {detail.session}
-                </Link>
-              ) : (
-                "-"
-              ),
-            },
-            { label: "started", value: formatTimestamp(detail.started_at) },
-            { label: "ended", value: formatTimestamp(detail.ended_at) },
-            {
-              label: live ? "elapsed" : "duration",
-              value: formatDuration(
-                elapsedSeconds(detail.started_at, detail.ended_at, detail.duration_s)
-              ),
-            },
-          ]}
-        />
+        {live && (
+          <button
+            aria-expanded={infoOpen}
+            className="run-page__info-toggle"
+            onClick={() => setInfoOpen(!infoOpen)}
+            type="button"
+          >
+            <FontAwesomeIcon icon={infoOpen ? faChevronDown : faChevronRight} />
+            Run info
+          </button>
+        )}
+        {(infoOpen || !live) && (
+          <DefinitionRows
+            rows={[
+              { label: "profile", value: detail.profile ?? "-" },
+              {
+                label: "campaign",
+                value: detail.campaign ? (
+                  <Link
+                    to={`/tests?view=campaigns&campaign=${encodeURIComponent(detail.campaign.key)}`}
+                  >
+                    {detail.campaign.title}
+                  </Link>
+                ) : (
+                  "-"
+                ),
+              },
+              {
+                label: "unit",
+                value: detail.unit_serial ? (
+                  <Link to={`/units/${detail.unit_serial}`}>{detail.unit_serial}</Link>
+                ) : (
+                  "-"
+                ),
+              },
+              { label: "target", value: detail.target ?? "-" },
+              { label: "operator", value: detail.operator ?? "-" },
+              {
+                label: "location",
+                value: detail.location ? (
+                  <Link to={`/history?location=${encodeURIComponent(detail.location)}`}>
+                    {detail.location}
+                  </Link>
+                ) : (
+                  "-"
+                ),
+              },
+              {
+                label: "session",
+                value: detail.session ? (
+                  <Link to={`/history?session=${encodeURIComponent(detail.session)}`}>
+                    {detail.session}
+                  </Link>
+                ) : (
+                  "-"
+                ),
+              },
+              { label: "started", value: formatTimestamp(detail.started_at) },
+              { label: "ended", value: formatTimestamp(detail.ended_at) },
+              {
+                label: live ? "elapsed" : "duration",
+                value: formatDuration(
+                  elapsedSeconds(detail.started_at, detail.ended_at, detail.duration_s)
+                ),
+              },
+            ]}
+          />
+        )}
         {reconnecting && (
           <p className="run-page__reconnect" role="status">
             Event stream lost; reconnecting.
@@ -445,13 +494,17 @@ export const RunPage: React.FC = () => {
           return (
             <button
               aria-selected={active === name}
-              className={clsx("run-page__tab", active === name && "run-page__tab--active")}
+              className={clsx(
+                "run-page__tab",
+                active === name && "run-page__tab--active",
+                name === "daq" && flashing && "run-page__tab--flash"
+              )}
               key={name}
               onClick={() => setTab(name)}
               role="tab"
               type="button"
             >
-              {name}
+              {TAB_LABELS[name] ?? name}
               {count !== undefined && count > 0 && (
                 <span className="run-page__tab-count" aria-hidden="true">
                   {count}
@@ -504,6 +557,16 @@ export const RunPage: React.FC = () => {
         )}
         {active === "captures" && <CaptureViewer key={runId} paths={captures} runId={runId} />}
         {active === "instruments" && <RecordedInstruments key={runId} runId={runId} />}
+        {active === "daq" && upsets.data && (
+          <DaqViewer
+            flashing={flashing}
+            key={runId}
+            live={live}
+            onPopOut={() => popOutDaq(runId)}
+            runId={runId}
+            summary={upsets.data}
+          />
+        )}
         {active === "iterations" && (
           <IterationTable
             key={runId}

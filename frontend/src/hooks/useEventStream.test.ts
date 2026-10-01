@@ -117,6 +117,18 @@ describe("useEventStream", () => {
     expect(result.current.ended).toBe(false);
   });
 
+  it("collects the upsets the monitor publishes", async () => {
+    const { result } = renderHook(() => useEventStream({ runId: "r1" }));
+    const source = latest();
+    act(() => {
+      source.open();
+      source.emit("upset", { seq: 1, ts: 1, index: 1, instrument: "daq.0" });
+      source.emit("upset", { seq: 2, ts: 2, index: 2, instrument: "daq.0" });
+    });
+    await waitFor(() => expect(result.current.upsets).toHaveLength(2));
+    expect(result.current.upsets.map((upset) => upset.index)).toEqual([1, 2]);
+  });
+
   it("caps the log buffer at the newest lines", async () => {
     const { result } = renderHook(() => useEventStream({ runId: "r1", maxLogLines: 2 }));
     const source = latest();

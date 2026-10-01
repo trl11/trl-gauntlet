@@ -114,3 +114,16 @@ export function decimate(
   }
   return points;
 }
+
+/**
+ * The time axis of an event's window: the whole span that was asked for, so a
+ * crossing near the start of a run sits where it happened instead of filling
+ * the axis, and what was brushed once the window is zoomed.
+ */
+export function windowDomain(
+  event: { post_s: number; pre_s: number },
+  zoom: [number, number] | null,
+  times: number[]
+): [number, number] {
+  return zoom === null ? [-event.pre_s, event.post_s] : [times[zoom[0]], times[zoom[1]]];
+}

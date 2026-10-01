@@ -9,19 +9,22 @@ import {
   addRunNote,
   deleteRunNote,
   getArtifactText,
+  getDaqRecording,
+  getDaqWindow,
   getRun,
   getRunInstrumentTrace,
   getRunInstruments,
   getRunManifest,
   getRunMetrics,
   getRunVerdict,
+  getUpsets,
   listArtifacts,
   listRunNotes,
   listSuites,
   setRunFavorite,
   stopRun,
 } from "@api/client";
-import type { RunRow } from "@api/types";
+import type { RunRow, UpsetSummary } from "@api/types";
 import { formatTimestamp } from "../utils/format";
 import RunPage from "./RunPage";
 import { pending, spinners } from "../test/queries";
@@ -32,12 +35,15 @@ vi.mock("@api/client", () => ({
   artifactUrl: (runId: string, path: string) => `/api/runs/${runId}/artifacts/${path}`,
   deleteRunNote: vi.fn(),
   getArtifactText: vi.fn(),
+  getDaqRecording: vi.fn(),
+  getDaqWindow: vi.fn(),
   getRun: vi.fn(),
   getRunInstrumentTrace: vi.fn(),
   getRunInstruments: vi.fn(),
   getRunManifest: vi.fn(),
   getRunMetrics: vi.fn(),
   getRunVerdict: vi.fn(),
+  getUpsets: vi.fn(),
   listArtifacts: vi.fn(),
   listRunNotes: vi.fn(),
   listSuites: vi.fn(),
@@ -47,6 +53,18 @@ vi.mock("@api/client", () => ({
   setRunFavorite: vi.fn(),
   stopRun: vi.fn(),
 }));
+
+const NO_UPSETS: UpsetSummary = {
+  events: [],
+  instruments: [],
+  stop_after: 0,
+  stopped_run: false,
+  thresholds: {},
+};
+
+beforeEach(() => {
+  vi.mocked(getUpsets).mockResolvedValue(NO_UPSETS);
+});
 
 const FINISHED: RunRow = {
   duration_s: 12,
@@ -593,5 +611,158 @@ describe("RunPage aborts a live run", () => {
 
     expect(screen.queryByText(/Abort this run\?/)).not.toBeInTheDocument();
     expect(abortRun).not.toHaveBeenCalled();
+  });
+});
+
+describe("RunPage run info", () => {
+  beforeEach(() => {
+    vi.mocked(listSuites).mockResolvedValue({ errors: [], suites: [] });
+    vi.mocked(getRunMetrics).mockResolvedValue({ count: 0, records: [], run_id: "run-1" });
+    vi.mocked(getRunVerdict).mockResolvedValue({ passed: true } as never);
+    vi.mocked(getRunManifest).mockResolvedValue({} as never);
+    vi.mocked(listArtifacts).mockResolvedValue({ artifacts: [], run_dir: "", run_id: "run-1" });
+    vi.mocked(listRunNotes).mockResolvedValue({ notes: [] });
+  });
+
+  it("folds the run's details away while it is in flight", async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...FINISHED, ended_at: null, status: "running" });
+    renderPage();
+    const toggle = await screen.findByRole("button", { name: "Run info" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("campaign")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stop" })).toBeInTheDocument();
+  });
+
+  it("opens them again when asked", async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...FINISHED, ended_at: null, status: "running" });
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "Run info" }));
+    expect(screen.getByRole("button", { name: "Run info" })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    expect(screen.getByText("campaign")).toBeInTheDocument();
+  });
+
+  it("always shows a finished run's details, with nothing to fold them", async () => {
+    vi.mocked(getRun).mockResolvedValue(FINISHED);
+    renderPage();
+    expect(await screen.findByText("campaign")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Run info" })).not.toBeInTheDocument();
+  });
+
+  it("reads the run's files again when it ends, so what it wrote at the end is offered", async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...FINISHED, ended_at: null, status: "running" });
+    vi.mocked(listArtifacts).mockResolvedValue({ artifacts: [], run_dir: "", run_id: "run-1" });
+    renderPage();
+    await screen.findByRole("button", { name: "Run info" });
+    expect(screen.queryByRole("tab", { name: /instruments/i })).not.toBeInTheDocument();
+    vi.mocked(listArtifacts).mockResolvedValue({
+      artifacts: [{ path: "instruments.json", size: 10, text: true }],
+      run_dir: "",
+      run_id: "run-1",
+    });
+    vi.mocked(getRun).mockResolvedValue(FINISHED);
+    expect(
+      await screen.findByRole("tab", { name: /instruments/i }, { timeout: 4000 })
+    ).toBeInTheDocument();
+  });
+
+  it("opens the details of a run that was folded when it ends", async () => {
+    vi.mocked(getRun).mockResolvedValue({ ...FINISHED, ended_at: null, status: "running" });
+    renderPage();
+    await screen.findByRole("button", { name: "Run info" });
+    expect(screen.queryByText("campaign")).not.toBeInTheDocument();
+    vi.mocked(getRun).mockResolvedValue(FINISHED);
+    await waitFor(() => expect(screen.getByText("campaign")).toBeInTheDocument(), {
+      timeout: 4000,
+    });
+    expect(screen.queryByRole("button", { name: "Run info" })).not.toBeInTheDocument();
+  });
+});
+
+describe("RunPage upsets", () => {
+  beforeEach(() => {
+    vi.mocked(getRun).mockResolvedValue(FINISHED);
+    vi.mocked(listSuites).mockResolvedValue({ errors: [], suites: [] });
+    vi.mocked(getRunMetrics).mockResolvedValue({ count: 0, records: [], run_id: "run-1" });
+    vi.mocked(getRunVerdict).mockResolvedValue({ passed: true } as never);
+    vi.mocked(getRunManifest).mockResolvedValue({} as never);
+    vi.mocked(listArtifacts).mockResolvedValue({ artifacts: [], run_dir: "", run_id: "run-1" });
+    vi.mocked(listRunNotes).mockResolvedValue({ notes: [] });
+  });
+
+  it("offers no DAQ tab to a run that watched nothing and recorded nothing", async () => {
+    renderPage();
+    await screen.findByRole("tab", { name: /overview/i });
+    expect(screen.queryByRole("tab", { name: /daq/i })).not.toBeInTheDocument();
+  });
+
+  it("offers the tab, with a count, to a run that recorded an upset", async () => {
+    vi.mocked(getUpsets).mockResolvedValue({
+      ...NO_UPSETS,
+      events: [
+        {
+          at: "2026-01-01T00:00:05Z",
+          channel: "1",
+          direction: "high",
+          elapsed_s: 5,
+          file: "upsets/upset_0001.csv",
+          index: 1,
+          instance_id: "daq0",
+          instrument: "daq.0",
+          label: "Rail",
+          limit: 2,
+          post_s: 2,
+          pre_s: 2,
+          truncated: false,
+          unit: "V",
+          value: 3.3,
+        },
+      ],
+    });
+    renderPage();
+    const tab = await screen.findByRole("tab", { name: /daq/i });
+    expect(tab).toHaveTextContent("1");
+    await userEvent.click(tab);
+    expect(await screen.findByText("Rail")).toBeInTheDocument();
+  });
+
+  it("offers the tab to a run that recorded a DAQ even though no limit was crossed", async () => {
+    vi.mocked(listArtifacts).mockResolvedValue({
+      artifacts: [{ path: "daq/daq.0.001.json", size: 90, text: true }],
+      run_dir: "",
+      run_id: "run-1",
+    });
+    renderPage();
+    expect(await screen.findByRole("tab", { name: /daq/i })).toBeInTheDocument();
+  });
+
+  it("opens the DAQ view in a window of its own", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    vi.mocked(getUpsets).mockResolvedValue({ ...NO_UPSETS, instruments: ["daq.0"] });
+    vi.mocked(getDaqRecording).mockResolvedValue({
+      instruments: [
+        {
+          channels: [{ key: "1", label: "CH 1", unit: "V" }],
+          end_s: 5,
+          instrument: "daq.0",
+          rate_hz: 25,
+          rows: 125,
+          start_s: 0,
+        },
+      ],
+      origin: 1,
+    });
+    vi.mocked(getDaqWindow).mockResolvedValue({ instrument: "daq.0", origin: 1, segments: [] });
+    renderPage();
+    await userEvent.click(await screen.findByRole("tab", { name: /daq/i }));
+    await userEvent.click(await screen.findByRole("button", { name: "Open in a window" }));
+    expect(open).toHaveBeenCalledWith(
+      expect.stringMatching(/#\/runs\/run-1\/daq$/),
+      "gauntlet-daq-run-1",
+      expect.stringContaining("popup")
+    );
+    open.mockRestore();
   });
 });

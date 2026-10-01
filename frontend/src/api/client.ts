@@ -46,6 +46,10 @@ import type {
   UnitList,
   Verdict,
   VerifyReport,
+  DaqRecording,
+  DaqWindow,
+  UpsetSummary,
+  UpsetTrace,
 } from "./types";
 
 /** Base URL every request is prefixed with. Empty means the current origin. */
@@ -450,6 +454,42 @@ export const getRunInstrumentTrace = async (runId: string): Promise<RecordedTick
     .filter((line) => line.length > 0)
     .map((line) => JSON.parse(line) as RecordedTick);
 };
+
+/** `GET /api/runs/{id}/upsets` */
+export const getUpsets = (runId: string): Promise<UpsetSummary> =>
+  request<UpsetSummary>(`/api/runs/${encodeSegment(runId)}/upsets`);
+
+/** `GET /api/runs/{id}/daq` */
+export const getDaqRecording = (runId: string): Promise<DaqRecording> =>
+  request<DaqRecording>(`/api/runs/${encodeSegment(runId)}/daq`);
+
+/** `GET /api/runs/{id}/daq/data` */
+export const getDaqWindow = (
+  runId: string,
+  instrument: string,
+  start: number,
+  end: number,
+  points: number
+): Promise<DaqWindow> =>
+  request<DaqWindow>(
+    `/api/runs/${encodeSegment(runId)}/daq/data${query({ end, instrument, points, start })}`
+  );
+
+/** `GET /api/runs/{id}/upsets/trace` */
+export const getUpsetTrace = (
+  runId: string,
+  instrument: string,
+  since: number,
+  options: { displayHz?: number; tailS?: number } = {}
+): Promise<UpsetTrace> =>
+  request<UpsetTrace>(
+    `/api/runs/${encodeSegment(runId)}/upsets/trace${query({
+      display_hz: options.displayHz,
+      instrument,
+      since,
+      tail_s: options.tailS,
+    })}`
+  );
 
 /** `GET /api/runs/{id}/metrics` */
 export const getRunMetrics = (runId: string, limit?: number): Promise<MetricsResponse> =>

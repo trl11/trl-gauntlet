@@ -141,6 +141,27 @@
     }
   }
 
+  &__info-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    background: none;
+    color: $trl-gray;
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+    padding: 4px 0;
+
+    &:hover {
+      color: $trl-light-gray;
+    }
+  }
+
+  &__tab--flash {
+    animation: run-page-tab-flash 1.5s ease-out;
+  }
+
   &__tab-count {
     font-family: $font-mono;
     font-size: 11px;
@@ -161,5 +182,21 @@
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: $trl-gray;
+  }
+}
+
+@keyframes run-page-tab-flash {
+  0%,
+  40% {
+    background-color: $trl-red;
+    color: $trl-light-gray;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-page__tab--flash {
+    animation: none;
+    background-color: $trl-red;
+    color: $trl-light-gray;
   }
 }

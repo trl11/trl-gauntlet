@@ -4,6 +4,7 @@ import { HashRouter, Route, Routes } from "react-router";
 import { ApiError } from "@api/client";
 import ErrorBoundary from "@components/ErrorBoundary";
 import Layout from "@components/Layout";
+import DaqWindowPage from "@pages/DaqWindowPage";
 import DashboardPage from "@pages/DashboardPage";
 import HistoryPage from "@pages/HistoryPage";
 import InstrumentsPage from "@pages/InstrumentsPage";
@@ -35,6 +36,7 @@ export const App: React.FC = () => (
     <ErrorBoundary>
       <HashRouter>
         <Routes>
+          <Route path="/runs/:runId/daq" element={<DaqWindowPage />} />
           <Route path="/" element={<Layout />}>
             <Route index element={<DashboardPage />} />
             <Route path="tests" element={<TestsPage />} />

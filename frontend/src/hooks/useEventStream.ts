@@ -10,6 +10,7 @@ import type {
   RunPhaseEvent,
   RunStatus,
   RunStatusEvent,
+  RunUpsetEvent,
   RunVerdictEvent,
 } from "@api/types";
 
@@ -22,6 +23,7 @@ const EVENT_TYPES = [
   "metrics",
   "phase",
   "status",
+  "upset",
   "verdict",
 ] as const;
 
@@ -60,6 +62,8 @@ interface Accumulated {
   status: RunStatus | null;
   /** The most recent status event, which carries argv and exit code. */
   statusEvent: RunStatusEvent | null;
+  /** Upsets the monitor recorded, oldest first. */
+  upsets: RunUpsetEvent[];
   /** The verdict event, once the run has finished. */
   verdict: RunVerdictEvent | null;
 }
@@ -83,6 +87,7 @@ function empty(): Accumulated {
     phases: [],
     status: null,
     statusEvent: null,
+    upsets: [],
     verdict: null,
   };
 }
@@ -124,6 +129,8 @@ function withEvent(
       return { ...state, phases: [...state.phases, event] };
     case "status":
       return { ...state, status: event.status, statusEvent: event };
+    case "upset":
+      return { ...state, upsets: [...state.upsets, event] };
     case "verdict":
       return { ...state, verdict: event };
     default:

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { decimate, parseCapture, type Capture } from "./capture";
+import { decimate, parseCapture, windowDomain, type Capture } from "./capture";
 
 const CSV = ["t_s,ch0,ch1", "0,0.0025,0.5", "4e-05,0.0026,0.51", "8e-05,0.0024,0.52"].join("\n");
 
@@ -109,5 +109,17 @@ describe("decimate", () => {
       const at = capture.times.indexOf(point.t);
       expect(point.ch1).toBe(capture.values[1][at]);
     }
+  });
+});
+
+describe("windowDomain", () => {
+  it("spans everything that was asked for, however little of it was captured", () => {
+    expect(windowDomain({ post_s: 2, pre_s: 0.5 }, null, [])).toEqual([-0.5, 2]);
+  });
+
+  it("is exactly the window that was zoomed to", () => {
+    expect(windowDomain({ post_s: 2, pre_s: 0.5 }, [1, 3], [-0.5, -0.4, 0, 0.2, 1])).toEqual([
+      -0.4, 0.2,
+    ]);
   });
 });

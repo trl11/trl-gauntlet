@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { getProfile, listInstruments, listUnits, startRun } from "@api/client";
-import type { Instrument, Suite } from "@api/types";
+import type { Instrument, StartRunBody, Suite } from "@api/types";
 import OverrideForm from "@components/OverrideForm";
 import useCheckIn, { provenanceOf } from "@hooks/useCheckIn";
 import {
@@ -16,7 +16,33 @@ import {
   type OverrideValues,
 } from "../utils/overrides";
 
+import DaqLimits from "@components/DaqLimits";
+import { pickableSettings, startInstrument, type DaqSettings } from "../utils/daq_limits";
+
 import "./RunStartModal.scss";
+
+/**
+ * What the run is started with for the DAQs it records: the limits moved inside
+ * a channel's range and `stop_after`, or nothing at all when none was set.
+ */
+function upsetsOf(
+  streaming: Instrument[],
+  settings: Record<string, DaqSettings>,
+  stop: string
+): Pick<StartRunBody, "upsets"> {
+  const stopAfter = Number(stop);
+  if (stop.trim() === "" || !Number.isInteger(stopAfter)) {
+    throw new Error("Stop after must be a whole number");
+  }
+  const instruments: NonNullable<StartRunBody["upsets"]>["instruments"] = {};
+  for (const entry of streaming) {
+    const channels = entry.stream?.channels ?? [];
+    const chosen = startInstrument(settings[entry.name] ?? pickableSettings(channels), channels);
+    if (chosen !== null) instruments[entry.name] = chosen;
+  }
+  if (Object.keys(instruments).length === 0 && stopAfter === 0) return {};
+  return { upsets: { instruments, stop_after: stopAfter } };
+}
 
 /**
  * Is this instrument one the suite already drives?
@@ -63,6 +89,8 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
     initialOverrideValues(suite.overrides)
   );
   const [watched, setWatched] = useState<string[]>([]);
+  const [daq, setDaq] = useState<Record<string, DaqSettings>>({});
+  const [daqStop, setDaqStop] = useState("0");
 
   // Everything the bench has, so the operator can record an instrument this
   // suite does not drive — the supply feeding the unit, the chamber it sits
@@ -73,6 +101,11 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
   });
   const available = (instruments.data?.instruments ?? []).filter((entry) => entry.available);
   const optional = available.filter((entry) => !isRequired(entry, suite.requires));
+  // A DAQ the run records, whether the suite drives it or the operator asked
+  // for it, can be given limits for what it reads.
+  const streaming = available.filter(
+    (entry) => entry.stream && (isRequired(entry, suite.requires) || watched.includes(entry.name))
+  );
 
   // The selected profile holds the values the run would use, so the override
   // controls are seeded from it and reseeded whenever the profile changes. A
@@ -116,6 +149,7 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
         unit_serial: suite.supports.unit_serial ? unitSerial.trim() || null : null,
         overrides: overridePayload(suite.overrides, values),
         observe: watched,
+        ...upsetsOf(streaming, daq, daqStop),
         ...provenanceOf(checkIn),
       }),
     onSuccess: (run) => {
@@ -236,6 +270,36 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
                 />
               ))}
             </div>
+          </section>
+        )}
+
+        {streaming.length > 0 && (
+          <section className="run-start-modal__section" aria-label="DAQ limits">
+            <h2 className="run-start-modal__heading">DAQ limits</h2>
+            <p className="run-start-modal__note">
+              Each channel starts at the range it can read. Move a limit inside that range to have
+              the run keep what the DAQ read around each time a reading crosses it.
+            </p>
+            {streaming.map((entry) => (
+              <div className="run-start-modal__daq" key={entry.name}>
+                <h3 className="run-start-modal__daq-name">{entry.name}</h3>
+                <DaqLimits
+                  channels={entry.stream?.channels ?? []}
+                  disabled={start.isPending}
+                  idPrefix={`${fieldId}-daq-${entry.name}`}
+                  selectable
+                  onChange={(next) => setDaq((current) => ({ ...current, [entry.name]: next }))}
+                  value={daq[entry.name] ?? pickableSettings(entry.stream?.channels ?? [])}
+                />
+              </div>
+            ))}
+            <Input
+              disabled={start.isPending}
+              id={`${fieldId}-daq-stop`}
+              label="Stop after (0 = never)"
+              onChange={(event) => setDaqStop(event.target.value)}
+              value={daqStop}
+            />
           </section>
         )}
 

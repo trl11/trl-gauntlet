@@ -1,0 +1,129 @@
+@use "@trl11/styles/theme.scss" as *;
+@use "@styles/chart";
+
+.daq-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  &__spinner {
+    margin: 24px auto;
+  }
+
+  &__note {
+    color: $trl-gray;
+    font-size: 13px;
+  }
+
+  &__stopped {
+    border: 1px solid $trl-amber;
+    color: $trl-amber;
+    font-size: 14px;
+    padding: 8px 12px;
+  }
+
+  &__watch,
+  &__capture,
+  &__events {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  &__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  &__trace {
+    @include chart.chrome;
+
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border: 1px solid $trl-dark-gray;
+    background-color: $trl-dark;
+    padding: 10px 8px 4px;
+
+    &--flash {
+      animation: daq-flash 1.5s ease-out;
+    }
+  }
+
+  &__chart {
+    @include chart.chrome;
+
+    border: 1px solid $trl-dark-gray;
+    background-color: $trl-dark;
+    padding: 10px 8px 4px;
+  }
+
+  &__table {
+    border-collapse: collapse;
+    width: 100%;
+
+    th,
+    td {
+      border-bottom: 1px solid $trl-dark-gray;
+      font-size: 13px;
+      padding: 6px 10px;
+      text-align: left;
+    }
+
+    th {
+      color: $trl-gray;
+      font-weight: 500;
+    }
+
+    td {
+      font-family: $font-mono;
+    }
+
+    tbody tr {
+      cursor: pointer;
+    }
+
+    tbody tr.is-selected {
+      background-color: $trl-dark-gray;
+    }
+  }
+
+  &__open {
+    background: none;
+    color: $indicator-blue;
+    cursor: pointer;
+    font: inherit;
+  }
+
+  &__crossing {
+    stroke: $trl-amber;
+  }
+
+  &__limit {
+    stroke: $trl-red;
+    stroke-dasharray: 4 4;
+  }
+}
+
+@keyframes daq-flash {
+  0%,
+  40% {
+    border-color: $trl-red;
+    box-shadow: 0 0 0 2px $trl-red;
+  }
+
+  100% {
+    border-color: $trl-dark-gray;
+    box-shadow: 0 0 0 0 $trl-dark-gray;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .daq-viewer__trace--flash {
+    animation: none;
+    border-color: $trl-red;
+  }
+}
