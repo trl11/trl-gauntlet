@@ -36,6 +36,7 @@ from gauntlet.supervisor.events import EventBus
 from gauntlet.supervisor.launcher import Launch, LaunchError, RunRequest, build_launch
 from gauntlet.supervisor.readers import pump_stdout, stamped, tail_metrics, unstamped
 from gauntlet.supervisor.recorder import InstrumentRecorder
+from gauntlet.supervisor.upsets import UpsetMonitor
 
 log = logging.getLogger("gauntlet.supervisor")
 
@@ -76,6 +77,8 @@ class RunHandle:
     bus: EventBus | None = None
     process: subprocess.Popen[str] | None = None
     recorder: InstrumentRecorder | None = field(default=None, repr=False)
+    upsets: UpsetMonitor | None = field(default=None, repr=False)
+    upsets_request: dict[str, Any] = field(default_factory=dict, repr=False)
     # Closes whatever capability this run itself claimed ownership of — a
     # camera the operator already had open is left as it was found. Not
     # serialized: it is machinery, not something a caller reads.
@@ -215,6 +218,7 @@ class RunSupervisor:
                 session=request.session,
                 argv=list(launch.argv),
                 observing=observing,
+                upsets_request=request.upsets,
                 bus=EventBus(),
             )
             self._runs[run_id] = handle
@@ -361,6 +365,8 @@ class RunSupervisor:
         handle.recorder.start()
         loop = asyncio.get_running_loop()
         self._loop = loop
+        handle.upsets = self._upset_monitor(handle, bus, loop)
+        handle.upsets.start()
 
         await bus.publish(
             "status",
@@ -385,6 +391,27 @@ class RunSupervisor:
             daemon=True,
             name=f"gauntlet-wait-{handle.run_id}",
         ).start()
+
+    def _upset_monitor(self, handle: RunHandle, bus: EventBus, loop: asyncio.AbstractEventLoop) -> UpsetMonitor:
+        """A monitor for this run, writing to its log and stopping it through :meth:`stop`."""
+        log_path = Path(handle.run_dir) / "test.log"
+
+        def log_line(level: str, message: str) -> None:
+            with contextlib.suppress(OSError), log_path.open("a", encoding="utf-8") as file:
+                file.write(stamped(f"{level} {message}", time.time()) + "\n")
+
+        def stop_run() -> bool:
+            return asyncio.run_coroutine_threadsafe(self.stop(handle.run_id), loop).result(timeout=5.0)
+
+        return UpsetMonitor(
+            self._capabilities,
+            handle.observing,
+            Path(handle.run_dir),
+            log_line=log_line,
+            publish=bus.publish_threadsafe,
+            stop_run=stop_run,
+            initial=handle.upsets_request,
+        )
 
     def _await_exit(
         self,
@@ -417,6 +444,8 @@ class RunSupervisor:
     ) -> None:
         # Stopped before anything is published, so the summary is on disk by
         # the time a caller is told the run has finished.
+        if handle.upsets is not None:
+            handle.upsets.stop()
         if handle.recorder is not None:
             handle.recorder.stop()
         verdict = _read_verdict(Path(handle.run_dir) / "verdict.json")

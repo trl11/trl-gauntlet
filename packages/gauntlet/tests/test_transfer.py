@@ -61,6 +61,18 @@ class TestRoundTrip:
         assert (landed / "metrics.jsonl").read_text().startswith('{"kind":"iteration"')
         assert (landed / "frames" / "0001.png").read_bytes() == b"\x89PNG\r\n\x1a\n"
 
+    def test_the_upsets_of_a_run_travel_with_it(self, make_run_dir, elsewhere, tmp_path: Path) -> None:
+        run_dir = make_run_dir()
+        (run_dir / "upsets").mkdir()
+        (run_dir / "upsets" / "upset_0001.csv").write_text("t_s,Rail\n0.0,5\n")
+        (run_dir / "upsets.json").write_text('{"events": []}')
+        export_run(make_row(run_dir), [], tmp_path / "r1.zip")
+
+        imported = import_run(tmp_path / "r1.zip", elsewhere.runs_dir, elsewhere.runs, elsewhere.notes)
+        landed = Path(imported.run_dir)
+        assert (landed / "upsets" / "upset_0001.csv").read_text() == "t_s,Rail\n0.0,5\n"
+        assert json.loads((landed / "upsets.json").read_text()) == {"events": []}
+
     def test_the_exporting_machines_path_does_not_travel(self, make_run_dir, elsewhere, tmp_path: Path) -> None:
         export_run(make_row(make_run_dir()), [], tmp_path / "r1.zip")
 

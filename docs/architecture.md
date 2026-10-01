@@ -148,6 +148,7 @@ The web UI renders suite-agnostic forms and views from these endpoints:
 | History | `GET /api/runs`, filtered by `suite`, `unit_serial`, repeated `status`, `after`, `before`, `has_notes`, `favorite`, `location`, `session`, `q` (a case-insensitive search of run id, suite, profile, unit, target, status, failure reason, operator, location and session), and sorted by `sort` and `direction` |
 | Check-in completions and the location and session filters | `GET /api/runs/provenance`: every operator, location and session a run was recorded with |
 | Finished-run charts | `GET /api/runs/{id}/metrics` |
+| DAQ events | `GET /api/runs/{id}/upsets` (thresholds and events, live or finished), `PUT /api/runs/{id}/upsets/thresholds`, `GET /api/runs/{id}/upsets/trace?instrument=&since=` (live), `GET /api/runs/{id}/upsets/{index}` (the capture, as CSV) |
 | Run artifacts | `GET /api/runs/{id}/artifacts` and `/artifacts/{path}`, the one way to read a run's files |
 | Favorite runs | `PUT|DELETE /api/runs/{id}/favorite` |
 | Run and unit notes | `GET|POST /api/{runs,units}/{id}/notes`, `DELETE .../notes/{note_id}` |
@@ -157,7 +158,8 @@ The web UI renders suite-agnostic forms and views from these endpoints:
 | Settings | `GET /api/settings`, `GET /api/system/info`, `GET /api/health` |
 
 SSE event types are `status`, `log`, `metrics`, `phase`, `iteration`,
-`anomaly`, `verdict`, and `end`.
+`anomaly`, `upset`, `verdict`, and `end`. `upset` is published by Gauntlet's
+DAQ monitor, never by a suite, and carries one `upsets.json` entry.
 
 `GET /api/runs` returns `total` alongside `runs`, counting every run matching
 the filters rather than the page, so the history view can page server-side.

@@ -99,6 +99,16 @@ class _Daq:
         return [readout("channels.ai0.value", self.named or "AI 0", precision=6, unit="V")]
 
 
+class _Scanner(_Daq):
+    """A provider that records more than it wants shown."""
+
+    def state(self) -> dict[str, object]:
+        return {**super().state(), "scan": {"rate_hz": 25.0}}
+
+    def trace_only(self) -> list[str]:
+        return ["scan.rate_hz"]
+
+
 class _Silent:
     """A provider that refuses to be read, the way an unplugged one does."""
 
@@ -132,6 +142,23 @@ def record(providers: dict[str, object], run_dir: Path, ticks: int = 2) -> dict:
         time.sleep(0.01)
     recorder.stop()
     return json.loads((run_dir / "instruments.json").read_text())
+
+
+class TestTraceOnly:
+    def test_a_reading_the_provider_keeps_for_the_trace_is_flagged_in_the_summary(self, tmp_path: Path) -> None:
+        summary = record({"daq": _Scanner()}, tmp_path)
+        readings = {entry["key"]: entry for entry in summary["instruments"][0]["readings"]}
+        assert readings["scan.rate_hz"]["trace_only"] is True
+        assert readings["channels.ai0.value"]["trace_only"] is False
+
+    def test_it_is_still_in_the_trace(self, tmp_path: Path) -> None:
+        record({"daq": _Scanner()}, tmp_path)
+        first = json.loads((tmp_path / "instruments.jsonl").read_text().splitlines()[0])
+        assert first["values"]["scan.rate_hz"] == 25.0
+
+    def test_a_provider_that_says_nothing_shows_everything(self, tmp_path: Path) -> None:
+        summary = record({"daq": _Daq()}, tmp_path)
+        assert not any(entry["trace_only"] for entry in summary["instruments"][0]["readings"])
 
 
 class TestNumbers:

@@ -35,6 +35,10 @@ class RunRequest:
     # key. Nothing here reaches the suite: it is what Gauntlet watches, not
     # what the run is given.
     observe: list[str] = field(default_factory=list)
+    # The limits the upset monitor starts with, as `{"stop_after": n,
+    # "instruments": {key: {"channels": {channel: (low, high)}, "pre_s": s,
+    # "post_s": s}}}`. Like `observe`, nothing here reaches the suite.
+    upsets: dict[str, Any] = field(default_factory=dict)
     # Who started the run, where, and in which test session, as the operator
     # checked in. Like `observe`, nothing here reaches the suite.
     operator: str | None = None

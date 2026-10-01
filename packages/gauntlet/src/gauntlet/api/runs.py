@@ -13,20 +13,61 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from starlette.background import BackgroundTask
 
+from gauntlet.api.artifacts import run_directory
 from gauntlet.api.notes import NoteBody, add_note, clean, delete_note, list_notes
 from gauntlet.catalog import campaigns_by_suite
+from gauntlet.daq_recording import MAX_POINTS, recordings, window
 from gauntlet.report import render_report, report_name
 from gauntlet.storage import SUBJECT_RUN, RunFilters, RunRow, write_notes_file
 from gauntlet.supervisor import Event, RunConflict, RunHandle, RunRejected, RunRequest
+from gauntlet.supervisor.upsets import (
+    MAX_STOP_AFTER,
+    SUMMARY_NAME,
+    UpsetMonitor,
+    check_limits,
+    check_stop_after,
+    check_window,
+)
 from gauntlet.transfer import TransferError, archive_name, export_run, import_run, read_export
 
 router = APIRouter()
 
 # How long to wait before emitting an SSE comment to keep the connection warm.
 _HEARTBEAT_S = 20.0
+
+
+class UpsetLimits(BaseModel):
+    """One channel's limits. A limit left out is not watched."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    high: float | None = None
+    low: float | None = None
+
+
+class UpsetInstrumentBody(BaseModel):
+    """The limits and capture window one streaming instrument starts a run with."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    channels: dict[str, UpsetLimits] = Field(default_factory=dict)
+    enabled: dict[str, bool] = Field(
+        default_factory=dict, description="Channels to put in or out of the scan list before the run starts."
+    )
+    pre_s: float | None = None
+    post_s: float | None = None
+
+
+class UpsetStartBody(BaseModel):
+    """The upset monitor's settings at the start of a run."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    instruments: dict[str, UpsetInstrumentBody] = Field(default_factory=dict)
+    stop_after: StrictInt | None = None
 
 
 class StartRunBody(BaseModel):
@@ -47,6 +88,10 @@ class StartRunBody(BaseModel):
         default_factory=list,
         description="Instruments to record for the run's duration, by instance key, "
         "beyond the ones its suite requires.",
+    )
+    upsets: UpsetStartBody | None = Field(
+        default=None,
+        description="Limits for the streaming instruments the run watches, in force from its first scan.",
     )
     operator: str | None = Field(default=None, description="Who started the run, as they checked in.")
     location: str | None = Field(default=None, description="Where the run was started, as the operator checked in.")
@@ -111,6 +156,10 @@ async def start_run(request: Request, body: StartRunBody) -> dict[str, Any]:
     """Start a run. Fails fast when the request cannot be honoured."""
     supervisor = request.app.state.supervisor
     try:
+        upsets = _start_upsets(body.upsets)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
         handle = await supervisor.start(
             RunRequest(
                 suite=body.suite,
@@ -120,6 +169,7 @@ async def start_run(request: Request, body: StartRunBody) -> dict[str, Any]:
                 overrides=body.overrides,
                 profile_body=body.profile_body,
                 observe=body.observe,
+                upsets=upsets,
                 operator=clean(body.operator),
                 location=clean(body.location),
                 session=clean(body.session),
@@ -131,6 +181,28 @@ async def start_run(request: Request, body: StartRunBody) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     request.app.state.runs_index.upsert(to_row(handle))
     return handle.to_dict()
+
+
+def _start_upsets(body: UpsetStartBody | None) -> dict[str, Any]:
+    """The monitor's starting settings as the supervisor takes them, refused if they could never apply."""
+    if body is None:
+        return {}
+    if body.stop_after is not None:
+        check_stop_after(body.stop_after)
+    instruments: dict[str, Any] = {}
+    for key, given in body.instruments.items():
+        check_window("pre_s", given.pre_s)
+        check_window("post_s", given.post_s)
+        channels = {channel: (limits.low, limits.high) for channel, limits in given.channels.items()}
+        for bounds in channels.values():
+            check_limits(bounds)
+        instruments[key] = {
+            "channels": channels,
+            "enabled": dict(given.enabled),
+            "post_s": given.post_s,
+            "pre_s": given.pre_s,
+        }
+    return {"instruments": instruments, "stop_after": body.stop_after}
 
 
 @router.get("/runs/provenance")
@@ -324,6 +396,143 @@ async def abort_run(request: Request, run_id: str) -> dict[str, Any]:
     return {"run_id": run_id, "status": "aborting"}
 
 
+class UpsetThresholdsBody(BaseModel):
+    """Replaces one instrument's limits, and optionally the run's ``stop_after``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    instrument: str
+    channels: dict[str, UpsetLimits] = Field(default_factory=dict)
+    pre_s: float | None = None
+    post_s: float | None = None
+    stop_after: StrictInt | None = None
+
+
+@router.get("/runs/{run_id}/upsets")
+async def get_upsets(request: Request, run_id: str) -> dict[str, Any]:
+    """The thresholds and the upsets recorded so far, for a live or a finished run.
+
+    Answers empty for a run that never watched anything. While the run is in
+    flight the thresholds are the monitor's own, so a change shows at once
+    rather than when the file is next written.
+    """
+    _run_or_404(request, run_id)
+    body: dict[str, Any] = {"events": [], "stop_after": 0, "stopped_run": False, "thresholds": {}}
+    with contextlib.suppress(OSError, ValueError):
+        body.update(json.loads((run_directory(request, run_id) / SUMMARY_NAME).read_text(encoding="utf-8")))
+    monitor = _live_monitor(request, run_id)
+    body["instruments"] = monitor.followed() if monitor is not None else []
+    if monitor is not None:
+        body.update(monitor.settings())
+    return body
+
+
+@router.put("/runs/{run_id}/upsets/thresholds")
+async def put_upset_thresholds(request: Request, run_id: str, body: UpsetThresholdsBody) -> dict[str, Any]:
+    """Set the limits on one streaming instrument of a run in flight."""
+    _run_or_404(request, run_id)
+    monitor = _live_monitor(request, run_id)
+    if monitor is None:
+        raise HTTPException(status_code=409, detail="run is not in flight")
+    if body.stop_after is not None and not 0 <= body.stop_after <= MAX_STOP_AFTER:
+        raise HTTPException(status_code=422, detail=f"stop_after must be a whole number from 0 to {MAX_STOP_AFTER}")
+    try:
+        monitor.set_thresholds(
+            body.instrument,
+            {channel: (limits.low, limits.high) for channel, limits in body.channels.items()},
+            post_s=body.post_s,
+            pre_s=body.pre_s,
+        )
+        if body.stop_after is not None:
+            monitor.set_stop_after(body.stop_after)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"instruments": monitor.followed(), **monitor.settings()}
+
+
+@router.get("/runs/{run_id}/upsets/trace")
+async def get_upset_trace(
+    request: Request,
+    run_id: str,
+    instrument: str,
+    since: int = 1,
+    display_hz: float = Query(0.0, ge=0),
+    tail_s: float = Query(0.0, ge=0, le=35),
+) -> dict[str, Any]:
+    """Scans a streaming instrument has produced from ``since`` on, for a run in flight.
+
+    ``display_hz`` thins the answer to about that many scans a second, for a
+    view that cannot draw the stream's own rate, and ``tail_s`` has a first
+    request start from the last seconds. Recording is unaffected by either.
+    """
+    _run_or_404(request, run_id)
+    monitor = _live_monitor(request, run_id)
+    if monitor is None:
+        raise HTTPException(status_code=409, detail="run is not in flight")
+    streamed = await asyncio.to_thread(lambda: monitor.trace(instrument, since, display_hz=display_hz, tail_s=tail_s))
+    if streamed is None:
+        raise HTTPException(status_code=404, detail=f"run does not watch {instrument!r}")
+    return {
+        "channels": streamed.channels,
+        "instrument": instrument,
+        "next_seq": streamed.next_seq,
+        "rate_hz": streamed.rate_hz,
+        "scans": [[seq, wall, values] for seq, _, wall, values in streamed.scans],
+    }
+
+
+@router.get("/runs/{run_id}/daq")
+async def get_daq_recording(request: Request, run_id: str) -> dict[str, Any]:
+    """What a run recorded from its streaming instruments, at the rate they scanned.
+
+    Times are seconds from ``origin``, the first scan any of them gave.
+    """
+    _run_or_404(request, run_id)
+    return await asyncio.to_thread(recordings, run_directory(request, run_id))
+
+
+@router.get("/runs/{run_id}/daq/data")
+async def get_daq_window(
+    request: Request,
+    run_id: str,
+    instrument: str,
+    start: float = 0.0,
+    end: float = 1e12,
+    points: int = Query(2000, ge=1, le=MAX_POINTS),
+) -> dict[str, Any]:
+    """The scans of one instrument between two times, thinned to about ``points``.
+
+    A window with no more scans than that is returned as it is; a larger one as
+    an envelope of each bucket's lowest and highest reading, so a spike
+    survives however far the view is zoomed out.
+    """
+    _run_or_404(request, run_id)
+    found = await asyncio.to_thread(window, run_directory(request, run_id), instrument, start, end, points)
+    if found is None:
+        raise HTTPException(status_code=404, detail=f"run recorded nothing from {instrument!r}")
+    return found
+
+
+@router.get("/runs/{run_id}/upsets/{index}")
+async def get_upset_capture(request: Request, run_id: str, index: int) -> FileResponse:
+    """The captured window of one upset, as CSV.
+
+    The file is the one the upset's own entry names, never a path from the
+    request.
+    """
+    _run_or_404(request, run_id)
+    run_dir = run_directory(request, run_id)
+    try:
+        events = json.loads((run_dir / SUMMARY_NAME).read_text(encoding="utf-8"))["events"]
+    except (OSError, ValueError, KeyError) as exc:
+        raise HTTPException(status_code=404, detail=f"run has no upset {index}") from exc
+    named = next((event["file"] for event in events if event.get("index") == index), None)
+    path = (run_dir / named).resolve() if named else None
+    if path is None or not path.is_file() or run_dir not in path.parents:
+        raise HTTPException(status_code=404, detail=f"run has no upset {index}")
+    return FileResponse(path, media_type="text/csv")
+
+
 @router.get("/runs/{run_id}/events")
 async def stream_events(request: Request, run_id: str, since: int = 0) -> StreamingResponse:
     """Server-sent events for one run.
@@ -392,6 +601,12 @@ def _write_notes(request: Request, run_id: str) -> None:
     run_dir = handle.run_dir if handle is not None else row.run_dir if row is not None else None
     if run_dir:
         write_notes_file(Path(run_dir), run_id, request.app.state.notes_index.list(SUBJECT_RUN, run_id))
+
+
+def _live_monitor(request: Request, run_id: str) -> UpsetMonitor | None:
+    """The upset monitor of a run in flight, ``None`` for any other run."""
+    handle = request.app.state.supervisor.get(run_id)
+    return handle.upsets if handle is not None and not handle.finished else None
 
 
 def _run_or_404(request: Request, run_id: str) -> None:

@@ -49,6 +49,8 @@ what decides whether a capture window long enough to hold a scan is 0.1 s or a
 second. It also sizes its capture from that rate, so a sample costs what the
 configured rate needs and no longer.
 
+A row also takes `enabled`. Only enabled channels are in the scan list, at least one must stay enabled, and a disabled channel reads `null`. The scan rate is `auto` by default, which is the fastest the list allows: `clock / (4 * channels)`, so 25 Hz for eight channels, 50 Hz for four and 2000 Hz for one. The `scan_rate` command is a drop-down in the instrument's heading, which also shows the rate the unit is running at; it lists `auto` and the rates the unit can run the enabled channels at, and takes `auto` or a rate in Hz no higher than that, and the driver rounds `srate` up so the unit never scans faster than asked. A requested rate survives a change of channels and is capped by the new list. `state()` reports `scan.rate_hz`, `scan.max_hz` and `scan.auto`. The unit sends samples in 16-byte packets however slowly it scans, so a slow rate arrives in bursts: a request for 0.5 Hz on two channels delivers a packet every 8 s. The driver allows for that before it calls a stream dead, and `srate` is sent before `ps 0` because it puts the packet size back.
+
 ### The acquisition unit that is really two devices
 
 The other unit is a National Instruments one, reached through NI-DAQmx rather
@@ -72,6 +74,18 @@ here — the NI-9238 will not run below 1.613 kS/s at all, and the slowest rate
 it does run at is the one that averages its noise down best. Every channel is
 converted at once, so unlike the DI-2008 the rate is not divided across the
 channel list.
+
+**The DI-2008 streams at 25 scans per second across eight channels.** Fewer enabled channels stream faster, as below. Measured with `tools/bench/di2008_stream.py` on both units, ten seconds per scan list, `srate 4`, `dec 1`. The unit clamps `srate` below 4, so the rate cannot be raised from the host.
+
+| Scan list | Claimed rate | Delivered rate | Longest gap between packets | Bytes per second |
+|---|---|---|---|---|
+| 1 channel | 2000 Hz | 1998 Hz | 13 ms | 3996 |
+| 4 channels | 50 Hz | 50 Hz | 45 ms | 400 |
+| 8 channels | 25 Hz | 25 Hz | 45 ms | 400 |
+
+The unit delivers what it claims and loses nothing. Its multi-channel clock is 800 Hz shared across the list, which is what caps the rate.
+
+**A streaming instrument can be watched for DAQ events.** A provider with the `StreamingCapability` facet (`stream_open`, `stream_close`, `stream_since`, `stream_channels`, `stream_enable`) keeps scanning while something holds a lease on it, and `GET /api/instruments` lists its channels, with the `min` and `max` each can read, and its rate under `stream`. Every channel is listed, each with an `enabled` flag, and `POST /api/runs` can put channels in or out of the scan list before the run starts, which changes the rate. The DAQ monitor leases every such instrument a run observes. An operator sets a high or low limit per channel, in the `upsets` field of `POST /api/runs` or later through `PUT /api/runs/{id}/upsets/thresholds`; a limit at a channel's `min` or `max` is not watched. The first scan outside a limit keeps the scans from `pre_s` before it to `post_s` after it in `upsets/upset_NNNN.csv`, appends a line to `test.log`, and publishes an `upset` event. A channel makes one event per excursion and rearms when the reading is back inside its limits. `stop_after` ends the run gracefully after that many events, so the suite still decides the verdict. Every scan the stream gives is also kept in the run's `daq/` directory, whatever the limits, so a finished run can be viewed and zoomed at the rate the instrument scanned. At 2000 scans a second on one channel that is about 85 MB an hour, and about 4 MB an hour for eight channels at 25. The monitor names no instrument and sends nothing to the suite.
 
 The task is built and torn down around each acquisition. Holding one open would
 leave the module clocking for as long as the instrument is registered, where
