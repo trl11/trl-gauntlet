@@ -13,7 +13,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { artifactUrl, getRunInstruments, getRunInstrumentTrace } from "@api/client";
+import { getRunInstruments, getRunInstrumentTrace } from "@api/client";
 import type { RecordedTick } from "@api/types";
 import EmptyState from "@components/EmptyState";
 import Sparkline from "@components/Sparkline";
@@ -167,107 +167,115 @@ export const RecordedInstruments: React.FC<RecordedInstrumentsProps> = ({ runId 
   return (
     <div className="recorded-instruments">
       <p className="recorded-instruments__note">
-        Read every {interval_s}s, {ticks} {ticks === 1 ? "time" : "times"} over the run.{" "}
-        <a href={artifactUrl(runId, "instruments.jsonl")}>Download the trace</a>
+        Read every {interval_s}s, {ticks} {ticks === 1 ? "time" : "times"} over the run.
       </p>
 
-      {instruments.map((instrument) => (
-        <section key={instrument.name} className="recorded-instruments__instrument">
-          <h3 className="recorded-instruments__name">
-            {instrument.name}
-            {instrument.description && (
-              <span className="recorded-instruments__description">{instrument.description}</span>
-            )}
-          </h3>
-          {instrument.readings.length === 0 ? (
-            <p className="recorded-instruments__silent">
-              This instrument published no readings while the run was in flight.
-            </p>
-          ) : (
-            <div className="recorded-instruments__scroll">
-              <table className="recorded-instruments__table">
-                <thead>
-                  <tr>
-                    <th>Reading</th>
-                    <th>Trend</th>
-                    <th>Min</th>
-                    <th>Mean</th>
-                    <th>Max</th>
-                    <th>Last</th>
-                    <th>Samples</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {instrument.readings.map((reading) => {
-                    const id = `${instrument.name}.${reading.key}`;
-                    const expanded = open === id;
-                    return (
-                      <Fragment key={reading.key}>
-                        <tr className={expanded ? "recorded-instruments__row--open" : undefined}>
-                          <td className="recorded-instruments__open-cell">
-                            <button
-                              type="button"
-                              className="recorded-instruments__open"
-                              aria-expanded={expanded}
-                              onClick={() => setOpen(expanded ? null : id)}
-                            >
-                              <FontAwesomeIcon
-                                className="recorded-instruments__caret"
-                                icon={expanded ? faChevronDown : faChevronRight}
-                              />
-                              <span className="recorded-instruments__label">
-                                {reading.group && (
-                                  <span className="recorded-instruments__group">
-                                    {reading.group}
-                                  </span>
-                                )}
-                                {reading.label}
-                                {reading.unit && (
-                                  <span className="recorded-instruments__unit">{reading.unit}</span>
-                                )}
-                              </span>
-                              {reading.label !== reading.key && (
-                                <span className="recorded-instruments__key">{reading.key}</span>
-                              )}
-                            </button>
-                          </td>
-                          <td className="recorded-instruments__trend">
-                            <Sparkline values={trendById.get(id) ?? []} />
-                          </td>
-                          <td className="mono">{show(reading.min, reading.precision)}</td>
-                          <td className="mono">{show(reading.mean, reading.precision)}</td>
-                          <td className="mono">{show(reading.max, reading.precision)}</td>
-                          <td className="mono">{show(reading.last, reading.precision)}</td>
-                          <td className="mono">{reading.count}</td>
-                        </tr>
-                        {expanded && (
-                          <tr className="recorded-instruments__chart-row">
-                            <td colSpan={7}>
-                              {trace.isPending && <Spinner />}
-                              {trace.isError && (
-                                <p className="recorded-instruments__silent">
-                                  This run kept no trace to chart the reading from.
-                                </p>
-                              )}
-                              {trace.isSuccess && (
-                                <ReadingChart
-                                  instrument={instrument.name}
-                                  reading={reading.key}
-                                  trace={trace.data}
+      {instruments.map((recorded) => {
+        // What the provider keeps only for the trace is not shown here.
+        const instrument = {
+          ...recorded,
+          readings: recorded.readings.filter((reading) => !reading.trace_only),
+        };
+        return (
+          <section key={instrument.name} className="recorded-instruments__instrument">
+            <h3 className="recorded-instruments__name">
+              {instrument.name}
+              {instrument.description && (
+                <span className="recorded-instruments__description">{instrument.description}</span>
+              )}
+            </h3>
+            {instrument.readings.length === 0 ? (
+              <p className="recorded-instruments__silent">
+                This instrument published no readings while the run was in flight.
+              </p>
+            ) : (
+              <div className="recorded-instruments__scroll">
+                <table className="recorded-instruments__table">
+                  <thead>
+                    <tr>
+                      <th>Reading</th>
+                      <th>Trend</th>
+                      <th>Min</th>
+                      <th>Mean</th>
+                      <th>Max</th>
+                      <th>Last</th>
+                      <th>Samples</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {instrument.readings.map((reading) => {
+                      const id = `${instrument.name}.${reading.key}`;
+                      const expanded = open === id;
+                      return (
+                        <Fragment key={reading.key}>
+                          <tr className={expanded ? "recorded-instruments__row--open" : undefined}>
+                            <td className="recorded-instruments__open-cell">
+                              <button
+                                type="button"
+                                className="recorded-instruments__open"
+                                aria-expanded={expanded}
+                                onClick={() => setOpen(expanded ? null : id)}
+                              >
+                                <FontAwesomeIcon
+                                  className="recorded-instruments__caret"
+                                  icon={expanded ? faChevronDown : faChevronRight}
                                 />
-                              )}
+                                <span className="recorded-instruments__label">
+                                  {reading.group && (
+                                    <span className="recorded-instruments__group">
+                                      {reading.group}
+                                    </span>
+                                  )}
+                                  {reading.label}
+                                  {reading.unit && (
+                                    <span className="recorded-instruments__unit">
+                                      {reading.unit}
+                                    </span>
+                                  )}
+                                </span>
+                                {reading.label !== reading.key && (
+                                  <span className="recorded-instruments__key">{reading.key}</span>
+                                )}
+                              </button>
                             </td>
+                            <td className="recorded-instruments__trend">
+                              <Sparkline values={trendById.get(id) ?? []} />
+                            </td>
+                            <td className="mono">{show(reading.min, reading.precision)}</td>
+                            <td className="mono">{show(reading.mean, reading.precision)}</td>
+                            <td className="mono">{show(reading.max, reading.precision)}</td>
+                            <td className="mono">{show(reading.last, reading.precision)}</td>
+                            <td className="mono">{reading.count}</td>
                           </tr>
-                        )}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      ))}
+                          {expanded && (
+                            <tr className="recorded-instruments__chart-row">
+                              <td colSpan={7}>
+                                {trace.isPending && <Spinner />}
+                                {trace.isError && (
+                                  <p className="recorded-instruments__silent">
+                                    This run kept no trace to chart the reading from.
+                                  </p>
+                                )}
+                                {trace.isSuccess && (
+                                  <ReadingChart
+                                    instrument={instrument.name}
+                                    reading={reading.key}
+                                    trace={trace.data}
+                                  />
+                                )}
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        );
+      })}
     </div>
   );
 };

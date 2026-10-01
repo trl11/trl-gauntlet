@@ -73,6 +73,50 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+describe("RecordedInstruments trace-only readings", () => {
+  const reading = (key: string, label: string, traceOnly: boolean) => ({
+    count: 10,
+    group: "",
+    key,
+    label,
+    last: 1,
+    max: 1,
+    mean: 1,
+    min: 1,
+    precision: null,
+    trace_only: traceOnly,
+    unit: "",
+  });
+
+  it("shows what the provider wants shown and not what it keeps for the trace", async () => {
+    getRunInstruments.mockResolvedValue({
+      ...record,
+      instruments: [
+        {
+          description: "",
+          kind: "daq",
+          name: "daq.0",
+          readings: [
+            reading("channels.1.value", "CH 1", false),
+            reading("channels.1.enabled", "CH 1 enabled", true),
+            reading("scan.rate_hz", "scan rate_hz", true),
+          ],
+        },
+      ],
+    });
+    renderPanel();
+    expect(await screen.findByText("CH 1")).toBeInTheDocument();
+    expect(screen.queryByText("CH 1 enabled")).not.toBeInTheDocument();
+    expect(screen.queryByText("scan rate_hz")).not.toBeInTheDocument();
+  });
+
+  it("offers no link to the trace, which is among the artifacts", async () => {
+    renderPanel();
+    await screen.findByText("Voltage");
+    expect(screen.queryByRole("link", { name: /download the trace/i })).not.toBeInTheDocument();
+  });
+});
+
 describe("RecordedInstruments", () => {
   it("shows each reading under the label its instrument gave it", async () => {
     renderPanel();

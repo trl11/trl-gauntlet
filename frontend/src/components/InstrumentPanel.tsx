@@ -85,15 +85,17 @@ const Reading: React.FC<{
   tone: ReadingTone;
 }> = ({ history, readout, state, tone }) => {
   const value = valueAt(state, readout.key);
+  // A number keeps the place of its sign, blank when there is none, so the
+  // digits stay where they are as a reading crosses zero.
+  const text = readingText(value, readout.precision);
+  const shown = typeof value === "number" && value >= 0 ? ` ${text}` : text;
+  const idle = value === null || value === undefined;
   const trend = history
     .map((sample) => sample[readout.key])
     .filter((sample): sample is number => typeof sample === "number");
   return (
-    <div className="instrument-panel__reading">
-      <SevenSegment
-        tone={value === true ? "green" : tone}
-        value={readingText(value, readout.precision)}
-      />
+    <div className={clsx("instrument-panel__reading", idle && "instrument-panel__reading--idle")}>
+      <SevenSegment tone={value === true ? "green" : tone} value={shown} />
       {readout.unit && <span className="instrument-panel__unit">{readout.unit}</span>}
       <Sparkline values={trend} />
       <span className="instrument-panel__reading-label">{readout.label}</span>
@@ -104,11 +106,13 @@ const Reading: React.FC<{
 /** One group of readouts, each reading carrying its own recent history. */
 const ReadoutGroupView: React.FC<{
   busy: boolean;
+  /** Columns of controls the readings are to sit over, one reading to a column. */
+  columns?: number;
   group: ReadoutGroup;
   history: Array<Record<string, number>>;
   onRefresh?: () => void;
   state: Record<string, unknown>;
-}> = ({ busy, group, history, onRefresh, state }) => (
+}> = ({ busy, columns, group, history, onRefresh, state }) => (
   <section className="instrument-panel__group">
     {(group.name || onRefresh) && (
       <h3 className="instrument-panel__group-name">
@@ -130,7 +134,15 @@ const ReadoutGroupView: React.FC<{
     )}
     <div className="instrument-panel__display">
       {group.headline.length > 0 && (
-        <div className="instrument-panel__readings">
+        <div
+          className={clsx(
+            "instrument-panel__readings",
+            columns !== undefined && "instrument-panel__readings--aligned"
+          )}
+          style={
+            columns === undefined ? undefined : ({ "--columns": columns } as React.CSSProperties)
+          }
+        >
           {group.headline.map((entry, index) => (
             <Reading
               history={history}
@@ -298,9 +310,14 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
       .filter((command) => command.refreshes !== undefined && command.fields.length === 0)
       .map((command) => [command.refreshes as string, command])
   );
+  // A setting with a drop-down of choices lives in the heading, not the deck.
+  const headerSettings = instrument.commands.filter(
+    (command) => command.role === "header" && command.fields.length === 1
+  );
   const others = instrument.commands.filter(
     (command) =>
       command !== viewer &&
+      !headerSettings.includes(command) &&
       !viewerActions.includes(command) &&
       !refreshers.has(command.refreshes ?? "")
   );
@@ -309,6 +326,25 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
   const footer = rest.filter((command) => command.fields.length === 0);
   const rows = rest.filter((command) => command.fields.length > 0);
   const deck = deckItems([...footer, ...rows, ...(primary ? [primary] : [])], others);
+  // Where a command settles several things at once, the commands that take
+  // nothing are drawn on the row of the key that applies it, which is what
+  // leaves a lone button from taking a row of its own.
+  const tableItem = deck.find(
+    (item): item is { command: InstrumentCommand } =>
+      !("group" in item) && (item.command.rows ?? []).length > 0
+  );
+  const companions = tableItem
+    ? deck.filter(
+        (item): item is { command: InstrumentCommand } =>
+          !("group" in item) &&
+          item !== tableItem &&
+          (item.command !== primary || item.command.fields.length === 0)
+      )
+    : [];
+  const alongItems = companions.filter((item) => item.command.fields.length === 0);
+  const remaining = deck.filter(
+    (item) => item !== tableItem && !alongItems.includes(item as (typeof alongItems)[number])
+  );
   const subtitle = [instrument.instance_id, instrument.connection].filter(Boolean).join(" · ");
 
   return (
@@ -334,6 +370,42 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
           )}
         </div>
         <div className="instrument-panel__status">
+          {headerSettings.map((command) => {
+            const field = command.fields[0];
+            const listed = field.choices_from
+              ? valueAt(instrument.state, field.choices_from)
+              : null;
+            const choices = (Array.isArray(listed) ? listed : field.choices).map(String);
+            const chosen = String(valueAt(instrument.state, command.selected ?? "") ?? "");
+            const now = command.current ? valueAt(instrument.state, command.current) : undefined;
+            return (
+              <span className="instrument-panel__setting" key={command.name}>
+                <span className="instrument-panel__setting-label">{command.label}</span>
+                <Select
+                  aria-label={command.label}
+                  disabled={disabled}
+                  id={`${fieldId}-${command.name}`}
+                  onChange={(event) =>
+                    onCommand(command.name, { [field.name]: event.target.value })
+                  }
+                  options={choices.map((choice) => ({
+                    label:
+                      choice === "auto"
+                        ? "Auto"
+                        : `${choice}${command.unit ? ` ${command.unit}` : ""}`,
+                    value: choice,
+                  }))}
+                  value={chosen}
+                />
+                {now !== undefined && (
+                  <span className="instrument-panel__setting-now">
+                    {readingText(now, null)}
+                    {command.unit && ` ${command.unit}`}
+                  </span>
+                )}
+              </span>
+            );
+          })}
           <span
             aria-live="polite"
             className={clsx(
@@ -393,6 +465,12 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
             return (
               <ReadoutGroupView
                 busy={busy}
+                columns={
+                  tableItem !== undefined &&
+                  group.headline.length === tableItem.command.rows?.length
+                    ? group.headline.length
+                    : undefined
+                }
                 group={group}
                 history={history}
                 key={group.name}
@@ -428,9 +506,33 @@ export const InstrumentPanel: React.FC<InstrumentPanelProps> = ({
                 with the same `group` — a write and a read of the same
                 address — collapse into one card, so their shared fields are
                 entered once rather than once per command. */}
-            {deck.length > 0 && (
+            {tableItem !== undefined && (
+              <div className="instrument-panel__command instrument-panel__channels">
+                <CommandForm
+                  actions={alongItems.map((item) => (
+                    <Button
+                      className="instrument-panel__go"
+                      color="transparent"
+                      disabled={disabled}
+                      key={item.command.name}
+                      onClick={() => onCommand(item.command.name, {})}
+                      size="small"
+                      type="button"
+                    >
+                      {item.command.label || item.command.name}
+                    </Button>
+                  ))}
+                  bare
+                  command={tableItem.command}
+                  disabled={disabled}
+                  onSubmit={(args) => onCommand(tableItem.command.name, args)}
+                  state={instrument.state}
+                />
+              </div>
+            )}
+            {remaining.length > 0 && (
               <div className="instrument-panel__modules">
-                {deck.map((item) => {
+                {remaining.map((item) => {
                   if ("group" in item) {
                     return (
                       <CommandGroup

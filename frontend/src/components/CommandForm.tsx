@@ -17,8 +17,12 @@ export interface CommandFormProps {
   /** A run is driving the instrument, so its latching key cannot be unlocked. */
   held?: boolean;
   onSubmit: (args: Record<string, unknown>) => void;
+  /** Drawn without a card of its own, for a form that sits inside another's. */
+  bare?: boolean;
   /** Spans the panel and carries the emphasis, for the instrument's main action. */
   primary?: boolean;
+  /** Further keys on the row of the one that sends this command, for a table of controls. */
+  actions?: React.ReactNode;
   /** The instrument's current state, for a field whose choices come from it. */
   state?: Record<string, unknown>;
 }
@@ -43,6 +47,8 @@ function initialRows(command: InstrumentCommand): Record<string, Record<string, 
 
 /** One declared command: its controls, then the key that sends them. */
 const CommandForm: React.FC<CommandFormProps> = ({
+  actions,
+  bare,
   command,
   disabled,
   held = false,
@@ -56,6 +62,14 @@ const CommandForm: React.FC<CommandFormProps> = ({
     initialRows(command)
   );
   const [locked, setLocked] = useState(true);
+  // What a table's controls hold that the instrument does not yet: each is a
+  // change waiting to be applied, and putting one back is no change at all.
+  const baseline = initialRows(command);
+  const changes = Object.entries(rows).reduce(
+    (total, [key, values]) =>
+      total + Object.keys(values).filter((name) => values[name] !== baseline[key]?.[name]).length,
+    0
+  );
 
   // A command settling several things at once is a table, and never a latching
   // key: the key stands for one boolean, and there are as many here as rows.
@@ -150,7 +164,9 @@ const CommandForm: React.FC<CommandFormProps> = ({
     <form
       className={clsx(
         "instrument-panel__command",
-        latch !== null && "instrument-panel__command--primary"
+        latch !== null && "instrument-panel__command--primary",
+        rowwise && "instrument-panel__command--rows",
+        bare && "instrument-panel__command--bare"
       )}
       onSubmit={submit}
     >
@@ -176,15 +192,23 @@ const CommandForm: React.FC<CommandFormProps> = ({
       )}
 
       {latch === null ? (
-        <Button
-          className={clsx("instrument-panel__go", command.danger && "instrument-panel__go--danger")}
-          color="transparent"
-          disabled={disabled}
-          size="small"
-          type="submit"
-        >
-          {command.label || command.name}
-        </Button>
+        <div className={clsx(actions && "instrument-panel__actions")}>
+          <Button
+            className={clsx(
+              "instrument-panel__go",
+              command.danger && "instrument-panel__go--danger",
+              rowwise && changes > 0 && "instrument-panel__go--pending"
+            )}
+            color="transparent"
+            disabled={disabled || (rowwise && changes === 0)}
+            size="small"
+            type="submit"
+          >
+            {command.label || command.name}
+            {rowwise && changes > 0 && ` · ${changes} ${changes === 1 ? "change" : "changes"}`}
+          </Button>
+          {actions}
+        </div>
       ) : (
         <div className="instrument-panel__latch">
           <Button
