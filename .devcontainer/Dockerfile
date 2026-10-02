@@ -59,6 +59,21 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - && \
     apt-get install -y --no-install-recommends nodejs
 
+# The GitHub CLI, which opens pull requests. It comes from GitHub's own
+# repository because bookworm ships a version too old for `gh pr create`'s
+# current flags. The host's ~/.config/gh is mounted onto dev's home, so a
+# sign-in made there is the one used in here.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    mkdir -p -m 755 /etc/apt/keyrings && \
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        -o /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
+    chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends gh
+
 # uv builds .venv and installs both packages. `make` calls it unconditionally,
 # so it is part of the image rather than something a create hook adds.
 RUN pip install --no-cache-dir --upgrade pip uv

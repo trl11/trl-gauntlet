@@ -41,6 +41,12 @@ aliases and global excludes are the host's and commits made inside the
 container are attributed the same way. Both are writable, so
 `git config --global` in here reaches the file the host reads.
 
+The GitHub CLI, `gh`, is installed from GitHub's own repository and opens pull
+requests. `~/.config/gh` is mounted too, so signing in once on the host
+(`gh auth login`) signs it in here, and the directory is created on a host that
+has none. Until the container is rebuilt to pick the mount up, sign in inside it
+with `gh auth login`, or set `GH_TOKEN`.
+
 `git-lfs` is installed because a host config declaring the lfs filter with
 `required = true` fails every checkout when the binary is absent.
 
