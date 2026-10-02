@@ -246,5 +246,63 @@ describe("SystemPage host telemetry", () => {
 
       expect(await screen.findByRole("alert")).toHaveTextContent("alpha is running");
     });
+
+    it("reboots once the operator confirms, and says it is rebooting", async () => {
+      powerHost.mockResolvedValue({ action: "reboot", status: "accepted" });
+      renderSettings();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Reboot" }));
+      expect(screen.getByText("Reboot bench-01?")).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+      expect(powerHost).toHaveBeenCalledWith("reboot");
+      expect(await screen.findByRole("status")).toHaveTextContent("Rebooting\u2026");
+    });
+
+    it("says it is shutting down once the host accepts", async () => {
+      renderSettings();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Shut down" }));
+      await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+      expect(await screen.findByRole("status")).toHaveTextContent("Shutting down\u2026");
+    });
+
+    it("leaves the host alone when the operator dismisses the question", async () => {
+      renderSettings();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Reboot" }));
+      await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+
+      expect(screen.queryByText("Reboot bench-01?")).not.toBeInTheDocument();
+      expect(powerHost).not.toHaveBeenCalled();
+    });
+
+    it("names the host generically when its facts could not be read", async () => {
+      getSystemInfo.mockRejectedValue(new Error("no uname"));
+      renderSettings();
+
+      await userEvent.click(await screen.findByRole("button", { name: "Reboot" }));
+
+      expect(screen.getByText("Reboot this host?")).toBeInTheDocument();
+    });
+  });
+
+  it("shows a dash for each figure the host could not report", async () => {
+    getSystemData.mockResolvedValue({
+      ...systemData(),
+      cpu_per_core: [],
+      load_avg: null,
+      process_count: null,
+      temperatures: [],
+    });
+    renderSettings();
+
+    await screen.findByText("42.5%");
+    const figures = screen.getByText("cpu").closest("dl");
+    expect(figures).toHaveTextContent("cores-");
+    expect(figures).toHaveTextContent("load average-");
+    expect(figures).toHaveTextContent("processes-");
+    expect(figures).toHaveTextContent("hottest zoneno sensors");
   });
 });

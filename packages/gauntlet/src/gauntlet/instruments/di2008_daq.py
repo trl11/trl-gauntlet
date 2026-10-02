@@ -30,14 +30,16 @@ actually delivers.
 from __future__ import annotations
 
 import logging
+import math
 import struct
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from typing import Any, Protocol
 
 from gauntlet.capabilities.declare import command_field, command_row, readout
-from gauntlet.capabilities.registry import CommandRejected
+from gauntlet.capabilities.registry import CommandRejected, StreamSlice
 
 log = logging.getLogger("gauntlet.instruments.di2008")
 
@@ -53,7 +55,24 @@ _START_ECHO = b"start\r"
 # run whatever the configured rate. Two scans mean a reading is never the one
 # in progress when the capture opened.
 _CAPTURE_SCANS = 2
-_CAPTURE_LIMIT_S = 2.0
+_CAPTURE_LIMIT_S = 30.0
+
+# How much scan history a stream keeps, and how long it may deliver nothing
+# before the unit is taken to have stopped answering. The longest gap measured
+# between packets is 45 ms.
+_STREAM_HISTORY_S = 35.0
+_STREAM_STALL_S = 1.0
+
+# How long one read of the stream waits. The reader holds the lock across it,
+# so this is the longest a command or a panel poll can be kept waiting.
+_STREAM_READ_MS = 25
+
+# The unit sends samples in packets of this many words however slowly it scans,
+# which is why a slow scan arrives in bursts minutes apart.
+_PACKET_WORDS = 8
+
+# The slowest the unit can be told to scan: srate counts down from here.
+_MAX_SRATE = 2232
 
 # Longest channel label kept, in characters. Enough to name what is wired to a
 # channel, short enough to sit under the reading without crowding its neighbours.
@@ -161,8 +180,8 @@ def strip_echo(buf: bytes) -> bytes:
     return buf[len(_START_ECHO) :] if buf.startswith(_START_ECHO) else buf
 
 
-def open_usb(serial_filter: str = "") -> UsbTransport:
-    """Claim the first DI-2008 on the bus, or one matching ``serial_filter``.
+def _find_units() -> list[Any]:
+    """Every DI-2008 on the bus.
 
     pyusb is imported here rather than at module scope so that a host without
     a usable libusb reports an unavailable instrument instead of failing to
@@ -171,7 +190,6 @@ def open_usb(serial_filter: str = "") -> UsbTransport:
     try:
         import usb.backend.libusb1
         import usb.core
-        import usb.util
     except ImportError as exc:
         raise Di2008Error(f"pyusb is not importable: {exc}") from exc
 
@@ -185,6 +203,30 @@ def open_usb(serial_filter: str = "") -> UsbTransport:
     found = list(usb.core.find(find_all=True, idVendor=VENDOR_ID, idProduct=PRODUCT_ID) or [])
     if not found:
         raise Di2008Error("no DI-2008 on the USB bus")
+    return found
+
+
+def candidate_serials() -> list[str]:
+    """USB serial numbers of every DI-2008 on the bus, in order.
+
+    Empty when there is none or pyusb cannot look, so a bench without the
+    hardware is not an error. The order is by serial number, which makes the
+    unit called ``daq0`` the same one on every scan whatever order the bus
+    enumerates them in.
+    """
+    try:
+        found = _find_units()
+    except Di2008Error:
+        return []
+    import usb.util
+
+    return sorted(_usb_string(usb.util, unit, unit.iSerialNumber) for unit in found)
+
+
+def open_usb(serial_filter: str = "") -> UsbTransport:
+    """Claim the first DI-2008 on the bus, or one matching ``serial_filter``."""
+    found = _find_units()
+    import usb.util
 
     device = None
     if serial_filter:
@@ -285,6 +327,11 @@ class Di2008Daq:
         self._sample_interval_s = sample_interval_s
         self._serial_filter = serial_filter
         self._srate = srate
+        self._min_srate = srate
+        # Which channels are in the scan list. A shorter list scans faster, so
+        # the rate follows this unless an operator asked for a slower one.
+        self._active = dict.fromkeys(self._modes, True)
+        self._rate_request: float | None = None
         self._transport: UsbTransport | None = None
         # Replaced by what the device reports once a scan list is loaded.
         self._clock_hz = float(_BASE_CLOCK_HZ)
@@ -295,6 +342,19 @@ class Di2008Daq:
         self._last_probe = clock() - probe_interval_s
         self._last_sample = clock() - sample_interval_s
         self._unavailable_reason = "not yet probed"
+        # A stream runs while a caller holds a lease. A reader thread ends when
+        # the generation it was started under is no longer the current one.
+        self._leases = 0
+        self._reader: threading.Thread | None = None
+        self._ring: deque[tuple[int, float, float, list[float | None]]] = deque()
+        self._seq = 0
+        self._stream_gen = 0
+        self._stream_buf = bytearray()
+        self._echo_pending = True
+        self._last_data = 0.0
+        self._count = 0
+        self._mono0 = 0.0
+        self._wall0 = 0.0
 
     def available(self) -> bool:
         """Is the unit answering right now.
@@ -320,6 +380,8 @@ class Di2008Daq:
                 return self._configure_channels(args)
             if name == "sample":
                 return {"channels": self._acquire()}
+            if name == "scan_rate":
+                return self._set_scan_rate(args)
             raise CommandRejected(f"daq has no command {name!r}")
 
     def commands(self) -> list[dict[str, Any]]:
@@ -331,7 +393,9 @@ class Di2008Daq:
         """
         with self._lock:
             rows = [
-                command_row(name, f"CH {name}", {"label": self._labels[name], "mode": mode})
+                command_row(
+                    name, f"CH {name}", {"enabled": self._active[name], "label": self._labels[name], "mode": mode}
+                )
                 for name, mode in self._modes.items()
             ]
         return [
@@ -343,7 +407,17 @@ class Di2008Daq:
                 "fields": [
                     command_field("mode", "Mode", "string", choices=MODES),
                     command_field("label", "Label", "string"),
+                    command_field("enabled", "Enabled", "boolean"),
                 ],
+            },
+            {
+                "name": "scan_rate",
+                "label": "Scan rate",
+                "role": "header",
+                "selected": "scan.selected",
+                "current": "scan.rate_hz",
+                "unit": "Hz",
+                "fields": [command_field("rate", "Scan rate", "string", choices_from="scan.choices")],
             },
             {"name": "sample", "label": "Sample", "fields": []},
         ]
@@ -397,6 +471,14 @@ class Di2008Daq:
             for name, mode in modes.items()
         ]
 
+    def trace_only(self) -> list[str]:
+        """What is recorded for the trace and left out of what an operator is shown.
+
+        Which channels are scanning and at what rate explain the readings rather
+        than being readings, so they stay in the trace for whoever reads it later.
+        """
+        return ["scan.auto", "scan.max_hz", "scan.rate_hz", *(f"channels.{name}.enabled" for name in self._modes)]
+
     def scan_rate_hz(self) -> float:
         """Scans per second, shared across every channel in the list.
 
@@ -404,7 +486,11 @@ class Di2008Daq:
         which is an order of magnitude lower for a list of more than one
         channel than the base clock alone would suggest.
         """
-        return self._clock_hz / float(self._srate * self._dec * len(self._modes))
+        return self._clock_hz / float(self._srate * self._dec * len(self._scan_names()))
+
+    def max_scan_rate_hz(self) -> float:
+        """The fastest the current scan list can run, which ``auto`` selects."""
+        return self._clock_hz / float(self._min_srate * self._dec * len(self._scan_names()))
 
     def state(self) -> dict[str, Any]:
         """Every channel's label and mode, and its latest reading.
@@ -423,17 +509,91 @@ class Di2008Daq:
                 values = dict(self._reading)
             modes = dict(self._modes)
             labels = {name: self._label(name) for name in modes}
+            active = dict(self._active)
+            scan = self._scan_state()
         return {
+            "scan": scan,
             "channels": {
                 name: {
+                    "enabled": active[name],
                     "label": labels[name],
                     "mode": mode,
                     "unit": mode_unit(mode),
                     "value": values.get(name),
                 }
                 for name, mode in modes.items()
-            }
+            },
         }
+
+    def stream_channels(self) -> list[dict[str, Any]]:
+        """Every channel, whether or not it is in the scan list, with the range it can read."""
+        with self._lock:
+            return [
+                {
+                    "enabled": self._active[name],
+                    "key": name,
+                    "label": self._label(name),
+                    "max": value_from_code(32767, mode),
+                    "min": value_from_code(-32768, mode),
+                    "unit": mode_unit(mode),
+                }
+                for name, mode in self._modes.items()
+            ]
+
+    def stream_enable(self, enabled: dict[str, bool]) -> None:
+        """Put channels in or out of the scan list, refused if none would be left."""
+        with self._lock:
+            if not self._connect():
+                raise CommandRejected(f"daq is unavailable: {self._unavailable_reason}")
+            self._configure_channels({"rows": {key: {"enabled": value} for key, value in enabled.items()}})
+
+    def stream_close(self) -> None:
+        """Release a lease; the last one stops the scan and the reader."""
+        with self._lock:
+            self._leases = max(0, self._leases - 1)
+            if self._leases:
+                return
+            self._stream_gen += 1
+            reader, self._reader = self._reader, None
+            if self._transport is not None:
+                self._stop_quietly()
+        if reader is not None:
+            reader.join(timeout=1.0)
+
+    def stream_open(self) -> bool:
+        """Take a lease, starting the scan if none is running."""
+        with self._lock:
+            if not self._connect():
+                return False
+            if not self._streaming() and not self._stream_begin():
+                return False
+            self._leases += 1
+            return True
+
+    def stream_since(self, seq: int, limit: int) -> StreamSlice:
+        """At most ``limit`` buffered scans numbered ``seq`` or more, oldest first."""
+        with self._lock:
+            newer: list[tuple[int, float, float, list[float | None]]] = []
+            for scan in reversed(self._ring):
+                if scan[0] < seq:
+                    break
+                newer.append(scan)
+            scans = newer[::-1][:limit]
+            return StreamSlice(
+                channels=[
+                    {
+                        "key": name,
+                        "label": self._label(name),
+                        "max": value_from_code(32767, self._modes[name]),
+                        "min": value_from_code(-32768, self._modes[name]),
+                        "unit": mode_unit(self._modes[name]),
+                    }
+                    for name in self._scan_names()
+                ],
+                rate_hz=self.scan_rate_hz(),
+                next_seq=scans[-1][0] + 1 if scans else seq,
+                scans=scans,
+            )
 
     def write(self, values: dict[str, Any]) -> dict[str, Any]:
         """Run a command given as ``{"command": ..., "args": {...}}``."""
@@ -450,8 +610,18 @@ class Di2008Daq:
         transport = self._transport
         if transport is None:
             return dict(self._reading)
-        names = list(self._modes)
+        names = self._scan_names()
         self._last_sample = self._clock()
+        if self._streaming():
+            # A restarted stream has no scan yet and the reader is waiting on
+            # the lock this holds, so the first one is read here. Answering
+            # with the reading from before would be the old scan list's.
+            deadline = self._clock() + self._capture_window_s()
+            while not self._ring and self._clock() < deadline and self._stream_step():
+                pass
+            if self._ring:
+                self._reading = self._reading_of(names, self._ring[-1][3])
+            return dict(self._reading)
         try:
             self._drain(timeout_ms=5)
             transport.write(_START_ECHO)
@@ -466,8 +636,94 @@ class Di2008Daq:
             log.debug("di2008 returned no complete scan at %.2f Hz", self.scan_rate_hz())
             return dict(self._reading)
         latest = scans[-1]
-        self._reading = {name: value_from_code(latest[at], self._modes[name]) for at, name in enumerate(names)}
+        values: list[float | None] = [value_from_code(latest[at], self._modes[name]) for at, name in enumerate(names)]
+        self._reading = self._reading_of(names, values)
         return dict(self._reading)
+
+    def _packet_period_s(self) -> float:
+        """Seconds the unit takes to fill one packet at the current scan list and rate."""
+        return _PACKET_WORDS / (len(self._scan_names()) * self.scan_rate_hz())
+
+    def _stream_begin(self) -> bool:
+        """Start the scan and the thread reading it, with an empty history."""
+        transport = self._transport
+        if transport is None:
+            return False
+        self._stream_gen += 1
+        self._ring = deque(maxlen=int(_STREAM_HISTORY_S * self.scan_rate_hz()) + 1)
+        self._stream_buf = bytearray()
+        self._echo_pending = True
+        self._last_data = self._clock()
+        self._count = 0
+        self._mono0 = self._last_data
+        self._wall0 = time.time()
+        try:
+            self._drain(timeout_ms=5)
+            transport.write(_START_ECHO)
+        except OSError as exc:
+            self._fail(f"acquisition failed: {exc}")
+            return False
+        self._reader = threading.Thread(
+            target=self._stream_loop, args=(self._stream_gen,), daemon=True, name=f"{self._instance}-stream"
+        )
+        self._reader.start()
+        return True
+
+    def _stream_ingest(self, buf: bytearray) -> None:
+        """Move every complete scan in ``buf`` into the history.
+
+        A scan is timed by how many the unit has made since the stream began, at
+        the rate it runs at, and not by when it was read. A read can be late and
+        brings what the unit held meanwhile, so reading times would bunch up
+        after a delay and leave a hole before it.
+        """
+        names = self._scan_names()
+        channels = len(names)
+        count = len(buf) // (2 * channels)
+        if not count:
+            return
+        scans = decode_scans(bytes(buf[: count * 2 * channels]), channels)
+        del buf[: count * 2 * channels]
+        period = 1.0 / self.scan_rate_hz()
+        for codes in scans:
+            self._seq += 1
+            self._count += 1
+            values: list[float | None] = [
+                value_from_code(code, self._modes[name]) for code, name in zip(codes, names, strict=True)
+            ]
+            offset = self._count * period
+            self._ring.append((self._seq, self._mono0 + offset, self._wall0 + offset, values))
+
+    def _stream_loop(self, generation: int) -> None:
+        """Read packets until the stream is stopped, replaced, or the unit goes quiet."""
+        while True:
+            with self._lock:
+                if generation != self._stream_gen or not self._stream_step():
+                    return
+            # Gives a command waiting on the lock its turn.
+            time.sleep(0.001)
+
+    def _stream_step(self) -> bool:
+        """Read one packet into the history. False once the stream has failed."""
+        transport = self._transport
+        if transport is None:
+            return False
+        chunk = transport.read(_PACKET_BYTES, _STREAM_READ_MS)
+        now = self._clock()
+        if chunk:
+            self._last_data = now
+            if self._echo_pending:
+                chunk, self._echo_pending = strip_echo(chunk), False
+            self._stream_buf += chunk
+            self._stream_ingest(self._stream_buf)
+        elif now - self._last_data > max(_STREAM_STALL_S, 3.0 * self._packet_period_s()):
+            self._fail("the stream stopped delivering scans")
+            return False
+        return True
+
+    def _streaming(self) -> bool:
+        """Is a reader running under the current generation."""
+        return self._reader is not None and self._reader.is_alive()
 
     def _capture(self, transport: UsbTransport, per_scan: int) -> bytes:
         """Read samples until enough scans are in hand or the window closes.
@@ -502,7 +758,7 @@ class Di2008Daq:
             return _CAPTURE_LIMIT_S
         # Room for the scans wanted, plus one for the scan already in progress
         # when the capture opened.
-        return min(_CAPTURE_LIMIT_S, max(0.05, (_CAPTURE_SCANS + 1) / rate))
+        return min(_CAPTURE_LIMIT_S, max(0.05, (_CAPTURE_SCANS + 1) / rate, self._packet_period_s()))
 
     def _command(self, line: str, *, timeout_ms: int = 150) -> bytes:
         """Send one ASCII command and collect whatever it echoes back."""
@@ -522,15 +778,22 @@ class Di2008Daq:
     def _configure(self) -> None:
         """Load the scan list and the rate the current modes call for."""
         self._stop_quietly()
-        for slot, (name, mode) in enumerate(self._modes.items()):
-            self._command(f"slist {slot} {slist_word(int(name) - 1, mode)}")
-        self._command(f"srate {self._srate}")
+        names = self._scan_names()
+        for slot, name in enumerate(names):
+            self._command(f"slist {slot} {slist_word(int(name) - 1, self._modes[name])}")
+        if len(names) < _ANALOG_COUNT:
+            # A list shorter than the eight slots needs an end marker.
+            self._command(f"slist {len(names)} 65535")
         self._command(f"dec {self._dec}")
-        # Without this the device withholds samples until it has a full packet.
-        self._command("ps 0")
-        # Read back last: the clock the device reports is the one for the list
-        # it is now holding, not the one it held before.
+        # The clock the device reports is the one for the list it is now
+        # holding, and the rate is worked out from it, so it is read before
+        # srate is sent. It does not depend on srate.
         self._clock_hz = self._read_clock_hz()
+        self._srate = self._choose_srate(len(names))
+        self._command(f"srate {self._srate}")
+        # Without this the device withholds samples until it has a full packet.
+        # After srate, which puts the packet size back.
+        self._command("ps 0")
 
     def _connect(self) -> bool:
         """Claim the device if it is not already claimed, at most once per interval."""
@@ -604,6 +867,7 @@ class Di2008Daq:
         rows = args.get("rows")
         if not isinstance(rows, dict) or not rows:
             raise CommandRejected("daq: 'rows' must name at least one channel")
+        active: dict[str, bool] = {}
         labels: dict[str, str] = {}
         modes: dict[str, str] = {}
         for key, values in rows.items():
@@ -619,16 +883,90 @@ class Di2008Daq:
                 if mode not in MODES:
                     raise CommandRejected(f"daq: 'mode' must be one of {', '.join(MODES)}")
                 modes[channel] = mode
+            if "enabled" in values:
+                if not isinstance(values["enabled"], bool):
+                    raise CommandRejected("daq: 'enabled' must be true or false")
+                active[channel] = values["enabled"]
+        if not any({**self._active, **active}.values()):
+            raise CommandRejected("daq: at least one channel must stay enabled")
         self._labels.update(labels)
-        if modes:
+        if modes or active:
             self._modes.update(modes)
-            self._configure()
+            self._active.update(active)
+            self._reload()
         return {"channels": {name: self._channel_state(name) for name in self._modes}}
 
     def _channel_state(self, name: str) -> dict[str, Any]:
         """One channel's label, mode and unit, without its reading."""
         mode = self._modes[name]
-        return {"label": self._label(name), "mode": mode, "unit": mode_unit(mode)}
+        return {"enabled": self._active[name], "label": self._label(name), "mode": mode, "unit": mode_unit(mode)}
+
+    def _choose_srate(self, channels: int) -> int:
+        """The ``srate`` that gives the requested rate, or the fastest for ``auto``.
+
+        Rounded up, so the unit never scans faster than asked.
+        """
+        if self._rate_request is None:
+            return self._min_srate
+        wanted = math.ceil(self._clock_hz / (self._dec * channels * self._rate_request))
+        return min(_MAX_SRATE, max(self._min_srate, wanted))
+
+    def _reading_of(self, names: list[str], values: list[float | None]) -> dict[str, float | None]:
+        """Readings for every channel, empty for one that is not in the scan list."""
+        reading: dict[str, float | None] = dict.fromkeys(self._modes)
+        reading.update(zip(names, values, strict=True))
+        return reading
+
+    def _reload(self) -> None:
+        """Load the scan list again, restarting the stream if one is running."""
+        streaming = self._streaming()
+        self._stream_gen += 1
+        self._configure()
+        if streaming:
+            self._stream_begin()
+
+    def _scan_names(self) -> list[str]:
+        """The channels in the scan list, in scan order."""
+        return [name for name in self._modes if self._active[name]]
+
+    def _set_scan_rate(self, args: dict[str, Any]) -> dict[str, Any]:
+        """Ask for ``auto`` or a rate in Hz no faster than the list can run."""
+        text = str(args.get("rate", "")).strip().lower()
+        slowest = self._clock_hz / (_MAX_SRATE * self._dec * len(self._scan_names()))
+        fastest = self.max_scan_rate_hz()
+        request: float | None = None
+        if text != "auto":
+            try:
+                request = float(text)
+            except ValueError:
+                request = math.nan
+            if not slowest <= request <= fastest:
+                raise CommandRejected(f"daq: 'rate' must be auto or between {slowest:.2f} and {fastest:.2f} Hz")
+        self._rate_request = request
+        self._reload()
+        return self._scan_state()
+
+    def _scan_state(self) -> dict[str, Any]:
+        """The scan rate now, the most the list allows, whether it is ``auto``, and the rates on offer."""
+        selected = "auto" if self._rate_request is None else f"{self._rate_request:g}"
+        choices = ["auto", *self._rate_choices()]
+        if selected not in choices:
+            choices.append(selected)
+        return {
+            "auto": self._rate_request is None,
+            "choices": choices,
+            "max_hz": self.max_scan_rate_hz(),
+            "rate_hz": self.scan_rate_hz(),
+            "selected": selected,
+        }
+
+    def _rate_choices(self) -> list[str]:
+        """Rates the unit can run the current list at, fastest first, each a step of ``srate``."""
+        divisors = (1, 2, 4, 5, 10, 20, 40, 100, 200, 400, 1000)
+        fastest = self.max_scan_rate_hz()
+        slowest = self._clock_hz / (_MAX_SRATE * self._dec * len(self._scan_names()))
+        rates = [fastest / divisor for divisor in divisors]
+        return [f"{rate:g}" for rate in rates if rate >= slowest]
 
     def _label(self, channel: str) -> str:
         """What a channel's readings are called, its number until it is named."""
@@ -670,8 +1008,14 @@ class Di2008Daq:
 
     def _stop_quietly(self) -> None:
         """Halt a scan, ignoring a unit that has already stopped."""
+        transport = self._transport
         try:
-            self._command("stop", timeout_ms=80)
+            if transport is None:
+                raise Di2008Error("not connected")
+            # Written before anything is drained: a unit that is scanning
+            # never goes quiet, so draining first would not end.
+            transport.write(b"stop\r")
+            self._drain(timeout_ms=80)
         except (Di2008Error, OSError) as exc:
             log.debug("di2008 stop ignored: %s", exc)
 

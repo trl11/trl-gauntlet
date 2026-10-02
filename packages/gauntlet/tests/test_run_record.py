@@ -113,6 +113,13 @@ class TestNotesFile:
             ("second\n\n### not a heading\nstill the second", "Grace", None, None),
         ]
 
+    def test_a_note_whose_marker_was_mangled_by_hand_keeps_its_body(self, tmp_path: Path) -> None:
+        (tmp_path / "notes.md").write_text(
+            "# Notes on r1\n\n<!-- note {author: Ada -->\n### 2026-01-01 · Ada\n\nreseated the cable\n"
+        )
+        read = read_notes_file(tmp_path)
+        assert [(n.body, n.author) for n in read] == [("reseated the cable", None)]
+
     def test_a_run_left_with_no_notes_has_no_file(self, tmp_path: Path) -> None:
         write_notes_file(tmp_path, "r1", [_note(1, "first")])
         write_notes_file(tmp_path, "r1", [])

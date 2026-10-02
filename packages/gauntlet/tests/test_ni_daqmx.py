@@ -93,6 +93,19 @@ def _daq(module: _FakeModule, clock: _Clock, **kwargs: Any) -> NiDaqmxDaq:
     return NiDaqmxDaq(clock=clock, open_module=lambda _: module, **kwargs)
 
 
+class _ShortModule(_FakeModule):
+    """A module that answers for its first channel only."""
+
+    def read(
+        self,
+        channels: tuple[tuple[str, float], ...],
+        rate_hz: float,
+        samples: int,
+        timeout_s: float = 2.0,
+    ) -> list[list[float]]:
+        return super().read(channels[:1], rate_hz, samples, timeout_s)
+
+
 class _Options:
     """A gRPC session, reduced to the channel the driver closes."""
 
@@ -130,6 +143,9 @@ class _FakeDevice:
         self.ai_physical_chans = [_FakeChannel(f"{name}/{channel}") for channel in channels]
         self.product_type = product_type
         self.serial_num = serial_num
+        self.ai_min_rate = 1613.0
+        self.ai_max_multi_chan_rate = 50000.0
+        self.ai_voltage_rngs = [-0.5, 0.5, -10.0, 10.0, 0.0, 0.0]
         self._chassis = chassis
 
     @property
@@ -139,6 +155,47 @@ class _FakeDevice:
         if not self._chassis:
             raise ni_daqmx.nidaqmx.errors.DaqError("Requested property is not supported", -200452)
         return _FakeDevice(self._chassis, ())
+
+
+class _SilentDevice:
+    """A device NI-DAQmx lists but that errors when asked for its channels."""
+
+    name = "Dev9"
+
+    @property
+    def ai_physical_chans(self) -> Any:
+        from gauntlet.instruments import ni_daqmx
+
+        raise ni_daqmx.nidaqmx.errors.DaqError("Device not available", -201003)
+
+
+class _FakeTask:
+    """An NI-DAQmx task, recording how it was set up and answering one read."""
+
+    def __init__(self, answer: list[Any]) -> None:
+        self.added: list[tuple[str, float, float]] = []
+        self.clocked: tuple[float, Any, int] | None = None
+        self.read_with: tuple[int, float] | None = None
+        self._answer = answer
+        # The driver reaches both through the task, as NI-DAQmx lays them out.
+        self.ai_channels = self
+        self.timing = self
+
+    def __enter__(self) -> _FakeTask:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+    def add_ai_voltage_chan(self, physical: str, *, min_val: float, max_val: float) -> None:
+        self.added.append((physical, min_val, max_val))
+
+    def cfg_samp_clk_timing(self, rate: float, *, sample_mode: Any, samps_per_chan: int) -> None:
+        self.clocked = (rate, sample_mode, samps_per_chan)
+
+    def read(self, *, number_of_samples_per_channel: int, timeout: float) -> list[Any]:
+        self.read_with = (number_of_samples_per_channel, timeout)
+        return self._answer
 
 
 class TestModeNames:
@@ -229,6 +286,31 @@ class TestNiDaqmxDaq:
         daq.state()
         assert len(module.reads) == taken + 1
 
+    def test_a_reading_missing_a_channel_keeps_the_last_one(self) -> None:
+        clock = _Clock()
+        module = _FakeModule(samples={"ai0": [0.2], "ai1": [0.4]})
+        daq = _daq(module, clock)
+        daq.command("sample", {})
+
+        short = _ShortModule()
+        daq._module = short
+        clock.advance(1.0)
+
+        assert daq.command("sample", {})["channels"] == {"ai0": 0.2, "ai1": 0.4}
+        assert short.reads
+
+    def test_acquiring_without_a_module_answers_the_last_reading(self) -> None:
+        daq = NiDaqmxDaq(clock=_Clock(), open_module=lambda _: _FakeModule())
+
+        assert daq._acquire() == {}
+
+    def test_it_names_itself_and_reads_as_its_state(self) -> None:
+        daq = _daq(_FakeModule(), _Clock(), instance="daq-ni")
+
+        assert daq.instance_id() == "daq-ni"
+        assert daq.primary_command() == "sample"
+        assert daq.read() == daq.state()
+
     def test_it_describes_the_module_rather_than_the_chassis(self) -> None:
         daq = _daq(_FakeModule(), _Clock())
         daq.available()
@@ -287,6 +369,13 @@ class TestConfigure:
 
         with pytest.raises(CommandRejected, match="no channel 'ai9'"):
             daq.command("configure", {"rows": {"ai9": {"label": "x"}}})
+
+    def test_a_row_that_is_not_an_object_is_rejected(self) -> None:
+        daq = _daq(_FakeModule(), _Clock())
+        daq.available()
+
+        with pytest.raises(CommandRejected, match="settings for channel 'ai0' must be an object"):
+            daq.command("configure", {"rows": {"ai0": "500mv"}})
 
     def test_rows_are_required(self) -> None:
         daq = _daq(_FakeModule(), _Clock())
@@ -378,6 +467,40 @@ class TestCapture:
         written = daq.write({"command": "capture", "args": {"rate_hz": 25000.0, "samples": 2}})
 
         assert written["channels"]["ai0"]["values"] == [0.1, 0.3]
+
+    def test_a_channel_that_answered_nothing_measures_nothing(self) -> None:
+        daq = self._daq_with({"ai0": [], "ai1": [0.2]})
+
+        captured = daq.command("capture", {"rate_hz": 25000.0, "samples": 1})
+
+        assert captured["channels"]["ai0"]["values"] == []
+        assert captured["channels"]["ai0"]["mean"] is None
+        assert captured["channels"]["ai0"]["peak_to_peak"] is None
+        assert daq.state()["channels"]["ai0"]["value"] is None
+
+    def test_a_failed_capture_is_rejected_and_drops_the_module(self) -> None:
+        module = _FakeModule()
+        daq = _daq(module, _Clock())
+        daq.available()
+        module.fail_with = OSError("the module went away")
+
+        with pytest.raises(CommandRejected, match="daq capture failed: the module went away"):
+            daq.command("capture", {"rate_hz": 25000.0, "samples": 2})
+        assert module.closed
+        assert "capture failed" in daq.describe()["unavailable_reason"]
+
+    def test_a_capture_missing_a_channel_is_rejected(self) -> None:
+        daq = _daq(_ShortModule(), _Clock())
+        daq.available()
+
+        with pytest.raises(CommandRejected, match="answered with 1 channels of 2"):
+            daq.command("capture", {"rate_hz": 25000.0, "samples": 2})
+
+    def test_a_capture_without_a_module_is_rejected(self) -> None:
+        daq = NiDaqmxDaq(clock=_Clock(), open_module=lambda _: _FakeModule())
+
+        with pytest.raises(CommandRejected, match="daq is unavailable: not yet probed"):
+            daq._capture({"rate_hz": 0.0, "samples": 1})
 
     def test_the_capture_command_offers_the_module_s_own_rates(self) -> None:
         daq = self._daq_with({"ai0": [0.1], "ai1": [0.1]})
@@ -488,6 +611,11 @@ class TestOpenDaqmx:
 
         assert open_daqmx(DaqmxTarget()).name() == "cDAQ1Mod1"
 
+    def test_a_device_that_will_not_describe_itself_is_passed_over(self, monkeypatch: Any) -> None:
+        self._system(monkeypatch, [_SilentDevice(), _FakeDevice("cDAQ1Mod1", ("ai0",))])
+
+        assert open_daqmx(DaqmxTarget()).name() == "cDAQ1Mod1"
+
     def test_a_named_device_is_the_one_taken(self, monkeypatch: Any) -> None:
         self._system(monkeypatch, [_FakeDevice("cDAQ1Mod1", ("ai0",)), _FakeDevice("Dev2", ("ai0",))])
 
@@ -547,6 +675,40 @@ class TestIdentity:
 
         assert identity["serial"] == ""
 
+    def test_rate_limits_are_the_module_s_slowest_and_fastest(self) -> None:
+        assert self._module(_FakeDevice("cDAQ1Mod1", ("ai0",))).rate_limits() == (1613.0, 50000.0)
+
+    def test_voltage_ranges_are_the_positive_maximums_of_each_pair(self) -> None:
+        assert self._module(_FakeDevice("cDAQ1Mod1", ("ai0",))).voltage_ranges() == (0.5, 10.0)
+
+    def test_a_read_is_one_finite_task_over_every_channel(self, monkeypatch: Any) -> None:
+        from gauntlet.instruments import ni_daqmx
+
+        task = _FakeTask([[0.1, 0.2], [0.3, 0.4]])
+        monkeypatch.setattr(ni_daqmx.nidaqmx, "Task", lambda grpc_options: task)
+        module = self._module(_FakeDevice("cDAQ1Mod1", ("ai0", "ai1")))
+
+        data = module.read((("ai0", 0.5), ("ai1", 10.0)), 1613.0, 2)
+
+        assert data == [[0.1, 0.2], [0.3, 0.4]]
+        assert task.added == [("cDAQ1Mod1/ai0", -0.5, 0.5), ("cDAQ1Mod1/ai1", -10.0, 10.0)]
+        assert task.clocked == (1613.0, ni_daqmx.nidaqmx.constants.AcquisitionType.FINITE, 2)
+        # A short read is still given half a second, not the few milliseconds
+        # its samples take.
+        assert task.read_with == (2, 0.5)
+
+    def test_a_long_read_is_held_to_the_limit_it_was_given(self, monkeypatch: Any) -> None:
+        from gauntlet.instruments import ni_daqmx
+
+        task = _FakeTask([0.1, 0.2, 0.3])
+        monkeypatch.setattr(ni_daqmx.nidaqmx, "Task", lambda grpc_options: task)
+        module = self._module(_FakeDevice("cDAQ1Mod1", ("ai0",)))
+
+        data = module.read((("ai0", 0.5),), 1613.0, 16130, timeout_s=3.0)
+
+        assert data == [[0.1, 0.2, 0.3]]
+        assert task.read_with == (16130, 3.0)
+
     def test_channels_are_named_without_their_device(self) -> None:
         assert self._module(_FakeDevice("cDAQ1Mod1", ("ai0", "ai1"))).channels() == ("ai0", "ai1")
 
@@ -603,6 +765,13 @@ class TestGrpcServer:
         open_daqmx(DaqmxTarget(server="bench:31763")).close()
 
         assert [channel.closed for channel in channels] == [True]
+
+    def test_a_server_target_without_grpc_installed_says_so(self, monkeypatch: Any) -> None:
+        import sys
+
+        monkeypatch.setitem(sys.modules, "grpc", None)
+        with pytest.raises(NiDaqmxError, match="grpc is not importable"):
+            open_daqmx(DaqmxTarget(server="bench:31763"))
 
     def test_a_server_that_is_not_listening_says_so(self, monkeypatch: Any) -> None:
         from gauntlet.instruments import ni_daqmx

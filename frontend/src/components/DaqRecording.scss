@@ -1,0 +1,58 @@
+@use "@trl11/styles/theme.scss" as *;
+@use "@styles/chart";
+
+.daq-recording {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__spinner {
+    margin: 24px auto;
+  }
+
+  &__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  &__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  &__note {
+    color: $trl-gray;
+    font-size: 13px;
+  }
+
+  &__plot {
+    @include chart.chrome;
+
+    position: relative;
+    border: 1px solid $trl-dark-gray;
+    background-color: $trl-dark;
+    cursor: crosshair;
+    padding: 10px 0 4px;
+    touch-action: none;
+    user-select: none;
+  }
+
+  &__panel {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  &__selection {
+    position: absolute;
+    top: 10px;
+    bottom: 30px;
+    background-color: rgba($indicator-blue, 0.2);
+    border: 1px solid $indicator-blue;
+    pointer-events: none;
+  }
+}

@@ -76,6 +76,23 @@ describe("parseCaptures", () => {
     expect(parseCaptures(JSON.stringify({ channels: ["A"], rate_hz: 1 })).islands).toEqual([]);
   });
 
+  it("reads a header that will not parse as nothing", () => {
+    const text = ["{not json", JSON.stringify({ samples_base64: encode([1]) })].join("\n");
+    expect(parseCaptures(text)).toEqual({ channels: [], islands: [] });
+  });
+
+  it("skips a line holding no samples and fills what a capture leaves out", () => {
+    const text = [
+      JSON.stringify({}),
+      JSON.stringify({ iteration: 3 }),
+      JSON.stringify({ samples_base64: encode([1, 0]) }),
+    ].join("\n");
+    const captures = parseCaptures(text);
+    expect(captures.channels).toEqual([]);
+    expect(captures.islands).toHaveLength(1);
+    expect(captures.islands[0]).toMatchObject({ iteration: 0, rateHz: 0, startS: 0 });
+  });
+
   it("reads an empty file as nothing", () => {
     expect(parseCaptures("")).toEqual({ channels: [], islands: [] });
   });

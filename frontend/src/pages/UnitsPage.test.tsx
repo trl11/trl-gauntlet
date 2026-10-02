@@ -198,3 +198,146 @@ describe("UnitsPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("already exists");
   });
 });
+
+describe("UnitsPage list", () => {
+  /** The serials in the order the table shows them. */
+  function serials(): string[] {
+    const table = screen.getByRole("table");
+    return within(table)
+      .getAllByRole("button", { name: /^HC-/ })
+      .map((button) => button.textContent ?? "");
+  }
+
+  it("sorts by pass rate, best first, and flips on a second press", async () => {
+    const fresh: Unit = { ...unit("HC-003", 0, 0, 0), last_run: null };
+    listUnits.mockResolvedValue({
+      units: [unit("HC-002", 2, 0, 2), fresh, unit("HC-001", 4, 3, 1)],
+    });
+    renderUnits();
+    await screen.findByText("HC-001");
+
+    await userEvent.click(screen.getByRole("button", { name: /pass rate/i }));
+    expect(serials()).toEqual(["HC-001", "HC-002", "HC-003"]);
+
+    await userEvent.click(screen.getByRole("button", { name: /pass rate/i }));
+    expect(serials()).toEqual(["HC-003", "HC-002", "HC-001"]);
+    expect(screen.getByRole("columnheader", { name: /pass rate/i })).toHaveAttribute(
+      "aria-sort",
+      "ascending"
+    );
+  });
+
+  it("shows a dash for a unit with no runs to rate and no last run", async () => {
+    listUnits.mockResolvedValue({ units: [{ ...unit("HC-003", 0, 0, 0), last_run: null }] });
+    renderUnits();
+    const row = (await screen.findByRole("button", { name: "HC-003" })).closest("tr");
+
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).getAllByText("-")).toHaveLength(2);
+  });
+
+  it("sorts by run count and by when a unit was first seen", async () => {
+    listUnits.mockResolvedValue({
+      units: [
+        { ...unit("HC-001", 4, 3, 1), first_seen: "2026-02-01T00:00:00Z" },
+        { ...unit("HC-002", 9, 9, 0), first_seen: null },
+      ],
+    });
+    renderUnits();
+    await screen.findByText("HC-001");
+
+    await userEvent.click(screen.getByRole("button", { name: /^runs/i }));
+    expect(serials()).toEqual(["HC-002", "HC-001"]);
+
+    await userEvent.click(screen.getByRole("button", { name: /first seen/i }));
+    expect(serials()).toEqual(["HC-001", "HC-002"]);
+  });
+
+  it("selects every unit at once, and clears them again", async () => {
+    renderUnits();
+    await screen.findByText("HC-001");
+
+    await userEvent.click(screen.getByLabelText("Select every unit"));
+    expect(screen.getByLabelText("Select unit HC-001")).toBeChecked();
+    expect(screen.getByLabelText("Select unit HC-002")).toBeChecked();
+
+    await userEvent.click(screen.getByLabelText("Select every unit"));
+    expect(screen.getByLabelText("Select unit HC-001")).not.toBeChecked();
+
+    await userEvent.click(screen.getByLabelText("Select unit HC-002"));
+    await userEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(screen.getByLabelText("Select unit HC-002")).not.toBeChecked();
+  });
+
+  it("opens a unit from its serial", async () => {
+    renderUnits();
+
+    await userEvent.click(await screen.findByRole("button", { name: "HC-001" }));
+
+    expect(await screen.findByRole("heading", { name: "HC-001" })).toBeInTheDocument();
+  });
+
+  it("counts a single run in the singular", async () => {
+    listUnits.mockResolvedValue({ units: [unit("HC-001", 1, 1, 0)] });
+    renderUnits();
+    await screen.findByText("HC-001");
+    await userEvent.click(screen.getByRole("button", { name: "Actions for unit HC-001" }));
+    const menu = document.querySelector(".row-menu") as HTMLElement;
+
+    await userEvent.click(within(menu).getByRole("button", { name: "Delete" }));
+
+    expect(screen.getByText(/Delete unit HC-001 and 1 run\?/)).toBeInTheDocument();
+  });
+
+  it("deletes nothing when the confirmation is dismissed", async () => {
+    renderUnits();
+    await screen.findByText("HC-001");
+    await userEvent.click(screen.getByLabelText("Select unit HC-001"));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+
+    expect(screen.queryByText(/Delete unit HC-001/)).not.toBeInTheDocument();
+    expect(deleteUnit).not.toHaveBeenCalled();
+  });
+
+  it("reports the units the server refused to delete, and keeps them selected", async () => {
+    deleteUnit.mockImplementation((serial: string) =>
+      serial === "HC-002" ? Promise.reject(new Error("run in flight")) : Promise.resolve()
+    );
+    renderUnits();
+    await screen.findByText("HC-001");
+    await userEvent.click(screen.getByLabelText("Select every unit"));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not delete 1 unit.");
+    expect(screen.getByLabelText("Select unit HC-002")).toBeChecked();
+    expect(screen.getByLabelText("Select unit HC-001")).not.toBeChecked();
+  });
+
+  it("counts several refusals in the plural", async () => {
+    deleteUnit.mockRejectedValue(new Error("run in flight"));
+    renderUnits();
+    await screen.findByText("HC-001");
+    await userEvent.click(screen.getByLabelText("Select every unit"));
+    await userEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirm" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not delete 2 units.");
+  });
+
+  it("says no unit matches a session nothing was run in", async () => {
+    renderUnits();
+    await screen.findByText("HC-001");
+    listUnits.mockResolvedValue({ units: [] });
+    await userEvent.click(document.querySelector(".fa-filter")!.closest("button")!);
+
+    await userEvent.selectOptions(screen.getAllByRole("combobox")[2], "week 1");
+
+    expect(await screen.findByText("No units match")).toBeInTheDocument();
+    expect(listUnits).toHaveBeenCalledWith({ location: null, session: "week 1" });
+  });
+});

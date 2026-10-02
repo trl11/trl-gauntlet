@@ -46,6 +46,7 @@ class MockLogic:
     name = "logic"
 
     def __init__(self, *, instance: str = "logic-sim") -> None:
+        self._instance = instance
         self._lock = threading.RLock()
         self._labels = {str(number): "" for number in range(1, waveform.CHANNEL_COUNT + 1)}
         self._captures = 0
@@ -104,7 +105,7 @@ class MockLogic:
 
     def instance_id(self) -> str:
         """Identifier the suite addresses through the API."""
-        return "logic-sim"
+        return self._instance
 
     def primary_command(self) -> str:
         """Taking one window of samples is what this panel is for."""

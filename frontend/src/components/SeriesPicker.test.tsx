@@ -103,4 +103,118 @@ describe("SeriesPicker", () => {
     await open();
     expect(screen.getByText("other")).toBeInTheDocument();
   });
+
+  it("selects a whole group at once", async () => {
+    const onChange = vi.fn();
+    render(<SeriesPicker names={LARGE} selected={["cpu.per_core.cpu0"]} onChange={onChange} />);
+    await open();
+    await userEvent.click(screen.getByText("memory"));
+
+    await userEvent.click(screen.getByRole("button", { name: "Select group" }));
+
+    expect(onChange).toHaveBeenCalledWith([
+      "cpu.per_core.cpu0",
+      "memory.field0",
+      "memory.field1",
+      "memory.field2",
+      "memory.field3",
+      "memory.field4",
+    ]);
+  });
+
+  it("offers the rest of a group that is partly picked, and adds only what is missing", async () => {
+    const onChange = vi.fn();
+    render(<SeriesPicker names={LARGE} selected={["memory.field3"]} onChange={onChange} />);
+    await open();
+    await userEvent.click(screen.getByText("memory"));
+
+    expect(screen.getByText("1/5")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Select rest" }));
+
+    const picked = onChange.mock.calls[0][0];
+    expect([...picked].sort()).toEqual([
+      "memory.field0",
+      "memory.field1",
+      "memory.field2",
+      "memory.field3",
+      "memory.field4",
+    ]);
+  });
+
+  it("clears a group that is wholly picked, leaving the other groups alone", async () => {
+    const memory = LARGE.filter((name) => name.startsWith("memory."));
+    const onChange = vi.fn();
+    render(
+      <SeriesPicker names={LARGE} selected={["cpu.per_core.cpu4", ...memory]} onChange={onChange} />
+    );
+    await open();
+    await userEvent.click(screen.getByText("memory"));
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear group" }));
+
+    expect(onChange).toHaveBeenCalledWith(["cpu.per_core.cpu4"]);
+  });
+
+  it("unpicks a name found by searching", async () => {
+    const onChange = vi.fn();
+    render(<SeriesPicker names={LARGE} selected={["memory.field2"]} onChange={onChange} />);
+    await open();
+    await userEvent.type(screen.getByPlaceholderText("Measurements"), "FIELD2");
+
+    const match = screen.getByLabelText("memory.field2");
+    expect(match).toBeChecked();
+    await userEvent.click(match);
+
+    expect(onChange).toHaveBeenCalledWith([]);
+  });
+
+  it("says so when a search across groups matches nothing", async () => {
+    render(<SeriesPicker names={LARGE} selected={[]} onChange={vi.fn()} />);
+    await open();
+
+    await userEvent.type(screen.getByPlaceholderText("Measurements"), "fan");
+
+    expect(screen.getByText('No series match "fan".')).toBeInTheDocument();
+  });
+
+  describe("with a handful too few to group", () => {
+    const MEDIUM = Array.from({ length: 8 }, (_, i) => `rail${i}`);
+
+    it("still offers a search, which narrows the flat list", async () => {
+      render(<SeriesPicker names={MEDIUM} selected={[]} onChange={vi.fn()} />);
+      await open();
+
+      await userEvent.type(screen.getByPlaceholderText("Measurements"), "rail3");
+
+      expect(screen.getByLabelText("rail3")).toBeInTheDocument();
+      expect(screen.queryByLabelText("rail4")).not.toBeInTheDocument();
+    });
+
+    it("says so when the search matches nothing", async () => {
+      render(<SeriesPicker names={MEDIUM} selected={[]} onChange={vi.fn()} />);
+      await open();
+
+      await userEvent.type(screen.getByPlaceholderText("Measurements"), "temp");
+
+      expect(screen.getByText('No series match "temp".')).toBeInTheDocument();
+    });
+
+    it("clears every pick from beside the search", async () => {
+      const onChange = vi.fn();
+      render(<SeriesPicker names={MEDIUM} selected={["rail1", "rail5"]} onChange={onChange} />);
+      await open();
+
+      await userEvent.click(screen.getByRole("button", { name: "Clear all" }));
+
+      expect(onChange).toHaveBeenCalledWith([]);
+    });
+  });
+
+  it("shows no search at all for a short list", async () => {
+    render(<SeriesPicker names={SMALL} selected={["temp_c"]} onChange={vi.fn()} />);
+    await open();
+
+    expect(screen.queryByPlaceholderText("Measurements")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
+  });
 });

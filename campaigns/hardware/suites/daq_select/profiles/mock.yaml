@@ -1,0 +1,12 @@
+description: No instrument required. Two DAQs are simulated. What `gauntlet verify --run` executes.
+driver: mock
+daqs: "daq.0,daq.1"
+duration_s: 3
+sample_period_s: 0.5
+channels:
+  - channel: "1"
+    mode: 10v
+    label: Rail 3V3
+  - channel: "4"
+    mode: tc_k
+    label: Ambient

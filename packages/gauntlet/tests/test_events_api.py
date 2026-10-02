@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import textwrap
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -11,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from gauntlet.api import runs as runs_api
 from gauntlet.app import create_app
+from gauntlet.supervisor.events import EventBus
 
 # Emits one log line per phase, then a verdict, over about half a second.
 _SLOW_SCRIPT = textwrap.dedent(
@@ -112,3 +115,31 @@ class TestEventStream:
                 if line.startswith("data: ") and json.loads(line[len("data: ") :])["type"] == "end":
                     break
         assert ": keepalive" in comments
+
+
+class _DisconnectingRequest:
+    """A client that hangs up just as one more event is published."""
+
+    def __init__(self, bus: EventBus) -> None:
+        self._bus = bus
+
+    async def is_disconnected(self) -> bool:
+        await self._bus.publish("log", message="nobody is listening")
+        return True
+
+
+class TestDisconnect:
+    def test_a_client_that_hangs_up_gets_no_more_and_lets_go_of_the_bus(self) -> None:
+        async def _consume() -> tuple[list[str], EventBus]:
+            bus = EventBus()
+            await bus.publish("log", message="before")
+            handle = SimpleNamespace(bus=bus, run_id="r1")
+            frames = [frame async for frame in runs_api._events(_DisconnectingRequest(bus), handle, 0)]
+            return frames, bus
+
+        frames, bus = asyncio.run(_consume())
+
+        assert len(frames) == 1
+        data = frames[0].split("data: ", 1)[1]
+        assert json.loads(data)["message"] == "before"
+        assert bus._subscribers == []

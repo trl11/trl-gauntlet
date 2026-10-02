@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 from gauntlet.campaigns.manifest import MANIFEST_NAME, CampaignError, LoadedCampaign, load_campaign
 
@@ -51,12 +50,6 @@ class CampaignCatalog:
             if campaign.owns(suite_directory):
                 return campaign
         return None
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "campaigns": [self.campaigns[key].to_dict() for key in sorted(self.campaigns)],
-            "errors": list(self.errors),
-        }
 
 
 def discover_campaigns(roots: list[Path]) -> CampaignCatalog:

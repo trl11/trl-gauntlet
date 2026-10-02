@@ -1,6 +1,10 @@
 @use "@trl11/styles/theme.scss" as *;
+
 @use "@styles/display";
 @use "@styles/table";
+
+// Width the controls table keeps for the names of its rows.
+$row-names: 76px;
 
 .instrument-panel {
   display: flex;
@@ -16,7 +20,7 @@
 
   &__name {
     font-family: $font-mono;
-    font-size: 15px;
+    font-size: 20px;
     font-weight: 500;
     color: $trl-light-gray;
   }
@@ -166,6 +170,19 @@
       font-size: 19px;
     }
 
+    // Over a table of controls, one reading to a column: the room the table
+    // keeps for its row names on the left is left empty here, and nothing
+    // between columns, so each channel reads straight down.
+    &--aligned {
+      grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
+      gap: 10px 0;
+      padding-left: $row-names;
+
+      > * {
+        padding: 0 6px;
+      }
+    }
+
     &--small {
       border-top: 1px solid rgba($trl-dark-gray, 0.7);
       padding-top: 8px;
@@ -205,9 +222,15 @@
     color: $trl-light-gray;
   }
 
+  // A reading with nothing to show, such as a channel that is off, stays
+  // where it is but is not mistaken for a live one.
+  &__reading--idle {
+    filter: brightness(0.45);
+  }
+
   &__reading-label {
     flex-basis: 100%;
-    font-size: 10px;
+    font-size: 12px;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: $trl-gray;
@@ -324,6 +347,13 @@
     .instrument-panel__command--primary {
       grid-column: 1 / -1;
     }
+
+    // A table of controls, one column to a channel, is as wide as the things
+    // it settles are many. Squeezed into one card of the row it would hide
+    // most of them behind a scroll, so it takes the whole row.
+    .instrument-panel__command--rows {
+      grid-column: 1 / -1;
+    }
   }
 
   &__command {
@@ -334,6 +364,49 @@
     padding: 10px 12px;
     border: 1px solid $trl-dark-gray;
     background-color: rgba($trl-dark, 0.6);
+  }
+
+  // A table of per-channel controls and the keys that go with it, one card.
+  &__channels {
+    grid-column: 1 / -1;
+  }
+
+  // A setting that lives in the heading: its drop-down, and what it is now.
+  &__setting {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  &__setting-label {
+    color: $trl-gray;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  &__setting-now {
+    font-family: $font-mono;
+    font-size: 15px;
+    color: $indicator-green;
+    white-space: nowrap;
+  }
+
+  // Cards inside a card carry no border or background of their own.
+  &__command--bare {
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+
+  // The key that applies a table's rows and the keys beside it, on one row.
+  &__actions {
+    display: flex;
+    gap: 10px;
+
+    // Each key takes an equal share of the row, over the keycap's own size.
+    > .instrument-panel__go {
+      flex: 1;
+    }
   }
 
   &__group-actions {
@@ -409,6 +482,9 @@
   &__rows-table {
     @include table.base;
 
+    table-layout: fixed;
+    width: 100%;
+
     font-size: 12px;
 
     th,
@@ -424,7 +500,7 @@
       text-transform: uppercase;
       color: $trl-gray;
       white-space: nowrap;
-      width: 1%;
+      width: $row-names;
       padding-left: 0;
     }
 
@@ -449,8 +525,9 @@
       width: 100%;
     }
 
-    td {
-      min-width: 96px;
+    // A key fills its column like the controls above it.
+    .instrument-panel__toggle {
+      width: 100%;
     }
 
     input,
@@ -564,6 +641,14 @@
     background: linear-gradient(180deg, rgba($indicator-yellow, 0.3), rgba($indicator-yellow, 0.1));
     color: $indicator-yellow;
     text-shadow: 0 0 8px rgba($indicator-yellow, 0.6);
+  }
+
+  // A table with changes waiting to be applied: the key that applies them is
+  // the one to press.
+  &__go--pending {
+    border-color: rgba($trl-amber, 0.8);
+    background: linear-gradient(180deg, rgba($trl-amber, 0.5), rgba($trl-amber, 0.2));
+    color: $trl-light-gray;
   }
 
   &__go--danger {

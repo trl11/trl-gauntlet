@@ -266,6 +266,39 @@ describe("InstrumentPanel shows an image a command answered with", () => {
     expect(mode("Stop")).toBeInTheDocument();
   });
 
+  it("goes back to single captures when snapshot is picked again", async () => {
+    const onCommand = vi.fn();
+    render(<InstrumentPanel instrument={camera()} onCommand={onCommand} preview={shot} />);
+
+    await userEvent.click(mode("Continuous"));
+    await userEvent.click(mode("Start"));
+    await userEvent.click(mode("Snapshot"));
+
+    expect(mode("Snapshot")).toHaveAttribute("aria-pressed", "true");
+    expect(mode("Capture")).toBeInTheDocument();
+  });
+
+  it("shows a reading pinned to the viewer beside its controls", () => {
+    const withPinned = camera({
+      readouts: [
+        {
+          group: "",
+          key: "sensor.temp_c",
+          label: "Sensor",
+          precision: 1,
+          role: "viewer",
+          unit: "°C",
+        },
+      ],
+      state: { sensor: { temp_c: 41.26 } },
+    });
+    render(<InstrumentPanel instrument={withPinned} onCommand={vi.fn()} />);
+
+    const reading = screen.getByText("Sensor").closest(".instrument-panel__pinned");
+    expect(reading).toHaveTextContent("Sensor41.3 °C");
+    expect(reading?.closest(".instrument-panel__modes")).not.toBeNull();
+  });
+
   it("asks for the next image only once the last one has arrived", async () => {
     const onCommand = vi.fn();
     const { rerender } = render(
@@ -528,6 +561,42 @@ describe("InstrumentPanel lays out declared readouts", () => {
     expect(screen.getByText("Main rail")).toBeInTheDocument();
     expect(screen.getByText("4.99")).toBeInTheDocument();
     expect(screen.getByText("V")).toBeInTheDocument();
+  });
+
+  it("keeps a number's place for a sign, so the digits do not move as it crosses zero", () => {
+    const { container, rerender } = render(
+      <InstrumentPanel
+        instrument={withReadouts({ state: { rails: { main: 4.987 } } })}
+        onCommand={vi.fn()}
+      />
+    );
+    const cells = () =>
+      container.querySelectorAll(".instrument-panel__readings .seven-segment__cell").length;
+    const positive = cells();
+    rerender(
+      <InstrumentPanel
+        instrument={withReadouts({ state: { rails: { main: -4.987 } } })}
+        onCommand={vi.fn()}
+      />
+    );
+    expect(cells()).toBe(positive);
+  });
+
+  it("dims a reading the instrument has no value for", () => {
+    const { container } = render(
+      <InstrumentPanel
+        instrument={withReadouts({ state: { rails: { main: null } } })}
+        onCommand={vi.fn()}
+      />
+    );
+    expect(container.querySelector(".instrument-panel__reading--idle")).not.toBeNull();
+  });
+
+  it("does not dim one it has", () => {
+    const { container } = render(
+      <InstrumentPanel instrument={withReadouts()} onCommand={vi.fn()} />
+    );
+    expect(container.querySelector(".instrument-panel__reading--idle")).toBeNull();
   });
 
   it("shows a summary reading in the compact strip", () => {
@@ -825,6 +894,143 @@ describe("InstrumentPanel, a command that settles several things at once", () =>
     expect(screen.getByRole("rowheader", { name: "Label" })).toBeInTheDocument();
   });
 
+  describe("beside the keys that apply it", () => {
+    const rate = {
+      name: "scan_rate",
+      label: "Scan rate",
+      role: "header" as const,
+      selected: "scan.selected",
+      current: "scan.rate_hz",
+      unit: "Hz",
+      fields: [
+        {
+          name: "rate",
+          label: "Scan rate",
+          type: "string" as const,
+          unit: "",
+          min: null,
+          max: null,
+          choices: [],
+          choices_from: "scan.choices",
+        },
+      ],
+    };
+    const sample = { name: "sample", label: "Sample", fields: [] };
+    const scan = { choices: ["auto", "25", "12.5"], rate_hz: 25, selected: "auto" };
+
+    const withCompanions = (onCommand = vi.fn(), primary_command = "") => {
+      render(
+        <InstrumentPanel
+          instrument={instrument({
+            commands: [sample, rate, configure],
+            primary_command,
+            state: { scan },
+          })}
+          onCommand={onCommand}
+        />
+      );
+      return onCommand;
+    };
+
+    it("shows the setting in the header, with what it is now and a drop-down to change it", () => {
+      withCompanions();
+      const choice = screen.getByRole("combobox", { name: "Scan rate" });
+      expect(choice).toHaveValue("auto");
+      expect(choice.closest(".instrument-panel__head")).not.toBeNull();
+      expect(
+        screen.getByText("25 Hz", { selector: ".instrument-panel__setting-now" })
+      ).toBeInTheDocument();
+      expect([...(choice as HTMLSelectElement).options].map((option) => option.value)).toEqual([
+        "auto",
+        "25",
+        "12.5",
+      ]);
+    });
+
+    it("sends the choice as that command, without a button of its own", async () => {
+      const onCommand = withCompanions();
+      await userEvent.selectOptions(screen.getByRole("combobox", { name: "Scan rate" }), "12.5");
+      expect(onCommand).toHaveBeenCalledWith("scan_rate", { rate: "12.5" });
+      expect(screen.queryByRole("button", { name: "Scan rate" })).not.toBeInTheDocument();
+    });
+
+    it("keeps the setting out of the deck", () => {
+      withCompanions();
+      expect(screen.getAllByRole("combobox", { name: "Scan rate" })).toHaveLength(1);
+    });
+
+    it("puts the command with no fields on the row of the key that applies the channels", () => {
+      withCompanions();
+      const apply = screen.getByRole("button", { name: "Apply" });
+      const sampleKey = screen.getByRole("button", { name: "Sample" });
+      expect(apply.parentElement).toBe(sampleKey.parentElement);
+    });
+
+    it("does the same when the command with no fields is the instrument's main action", () => {
+      withCompanions(vi.fn(), "sample");
+      expect(screen.getByRole("button", { name: "Apply" }).parentElement).toBe(
+        screen.getByRole("button", { name: "Sample" }).parentElement
+      );
+    });
+
+    it("still sends the sample as its own command", async () => {
+      const onCommand = withCompanions();
+      await userEvent.click(screen.getByRole("button", { name: "Sample" }));
+      expect(onCommand).toHaveBeenCalledWith("sample", {});
+    });
+
+    it("leaves a command in the deck when nothing settles several things", () => {
+      render(
+        <InstrumentPanel instrument={instrument({ commands: [sample] })} onCommand={vi.fn()} />
+      );
+      expect(
+        screen.getByRole("button", { name: "Sample" }).closest(".instrument-panel__channels")
+      ).toBeNull();
+    });
+  });
+
+  it("lines the readings up over the channels, one column to a channel", () => {
+    const { container } = render(
+      <InstrumentPanel
+        instrument={instrument({
+          commands: [configure],
+          readouts: [
+            { group: "A", key: "x", label: "X", precision: 1, role: "headline", unit: "V" },
+            { group: "A", key: "y", label: "Y", precision: 1, role: "headline", unit: "V" },
+          ],
+          state: { x: 1, y: 2 },
+        })}
+        onCommand={vi.fn()}
+      />
+    );
+    const readings = container.querySelector(".instrument-panel__readings--aligned") as HTMLElement;
+    expect(readings).not.toBeNull();
+    expect(readings.style.getPropertyValue("--columns")).toBe("2");
+  });
+
+  it("leaves the readings as they are where there is no table to line up with", () => {
+    const { container } = render(
+      <InstrumentPanel
+        instrument={instrument({
+          commands: [],
+          readouts: [
+            { group: "A", key: "x", label: "X", precision: 1, role: "headline", unit: "V" },
+          ],
+          state: { x: 1 },
+        })}
+        onCommand={vi.fn()}
+      />
+    );
+    expect(container.querySelector(".instrument-panel__readings--aligned")).toBeNull();
+  });
+
+  it("takes the whole row of cards, so every channel is in view", () => {
+    rowwise();
+    expect(screen.getByRole("button", { name: "Apply" }).closest("form")).toHaveClass(
+      "instrument-panel__command--rows"
+    );
+  });
+
   it("starts each control at what that row is set to now", () => {
     rowwise();
     expect(screen.getByRole("combobox", { name: "CH 1 Mode" })).toHaveValue("10v");
@@ -838,7 +1044,7 @@ describe("InstrumentPanel, a command that settles several things at once", () =>
 
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "CH 2 Mode" }), "tc_k");
     await userEvent.type(screen.getByRole("textbox", { name: "CH 2 Label" }), "Ambient");
-    await userEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Apply/ }));
 
     expect(onCommand).toHaveBeenCalledWith("configure", {
       rows: {
@@ -846,6 +1052,23 @@ describe("InstrumentPanel, a command that settles several things at once", () =>
         "2": { mode: "tc_k", label: "Ambient" },
       },
     });
+  });
+
+  it("has nothing to apply until a control has been changed", () => {
+    rowwise();
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+  });
+
+  it("says how many changes are waiting to be applied, and sends none that were put back", async () => {
+    const onCommand = rowwise();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "CH 2 Mode" }), "tc_k");
+    await userEvent.type(screen.getByRole("textbox", { name: "CH 2 Label" }), "A");
+    expect(screen.getByRole("button", { name: "Apply · 2 changes" })).toBeEnabled();
+    await userEvent.clear(screen.getByRole("textbox", { name: "CH 2 Label" }));
+    expect(screen.getByRole("button", { name: "Apply · 1 change" })).toBeEnabled();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "CH 2 Mode" }), "5v");
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+    expect(onCommand).not.toHaveBeenCalled();
   });
 
   it("keeps a row-wise command off the latching key", async () => {
@@ -942,5 +1165,127 @@ describe("InstrumentPanel offers a numeric field's declared control", () => {
       />
     );
     expect(document.querySelector(".instrument-panel__picks")).toBeNull();
+  });
+});
+
+describe("InstrumentPanel draws commands that share a group as one card", () => {
+  const address = {
+    name: "address",
+    label: "Address",
+    type: "integer" as const,
+    unit: "",
+    min: null,
+    max: null,
+    choices: [],
+    format: "hex",
+    choices_from: "found",
+  };
+  const register = {
+    name: "register",
+    label: "Register",
+    type: "integer" as const,
+    unit: "",
+    min: null,
+    max: null,
+    choices: [],
+  };
+  const bus = instrument({
+    commands: [
+      { name: "write", label: "Write", group: "bus", fields: [address, register] },
+      { name: "detect", label: "Detect", fields: [] },
+      { name: "read", label: "Read", group: "bus", fields: [address] },
+    ],
+    state: { found: [0x10] },
+  });
+
+  it("enters a shared field once, with a key per command", () => {
+    render(<InstrumentPanel instrument={bus} onCommand={vi.fn()} />);
+
+    expect(screen.getAllByLabelText("Address")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Write" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Read" })).toBeInTheDocument();
+  });
+
+  it("sends the key's command with the fields it declares", async () => {
+    const onCommand = vi.fn();
+    render(<InstrumentPanel instrument={bus} onCommand={onCommand} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "10" }));
+    await userEvent.type(screen.getByLabelText("Register"), "3");
+    await userEvent.click(screen.getByRole("button", { name: "Read" }));
+
+    expect(onCommand).toHaveBeenCalledWith("read", { address: 16 });
+  });
+
+  it("puts a command with no fields ahead of the card that uses what it finds", () => {
+    render(<InstrumentPanel instrument={bus} onCommand={vi.fn()} />);
+
+    const detect = screen.getByRole("button", { name: "Detect" });
+    const write = screen.getByRole("button", { name: "Write" });
+    expect(detect.compareDocumentPosition(write) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("draws a group of one as an ordinary command", () => {
+    const lone = instrument({
+      commands: [{ name: "read", label: "Read", group: "bus", fields: [register] }],
+    });
+    render(<InstrumentPanel instrument={lone} onCommand={vi.fn()} />);
+
+    expect(document.querySelector(".instrument-panel__command--group")).toBeNull();
+    expect(screen.getByRole("button", { name: "Read" })).toBeInTheDocument();
+  });
+});
+
+describe("InstrumentPanel summarises a collapsed instrument", () => {
+  it("carries the identifying details into the collapsed line", async () => {
+    const meter = instrument({
+      readouts: [
+        { group: "Rail", key: "volts", label: "Volts", precision: 2, role: "headline", unit: "V" },
+        {
+          group: "Format",
+          key: "width",
+          label: "Width",
+          precision: 0,
+          role: "summary",
+          unit: "px",
+        },
+        { group: "Format", key: "mode", label: "Mode", precision: null, role: "summary", unit: "" },
+      ],
+      state: { mode: "raw", volts: 3.3049, width: 3840 },
+    });
+    render(<InstrumentPanel instrument={meter} onCommand={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Collapse thing" }));
+
+    // Only a group with nothing to burn large is identifying detail; the
+    // rail's reading is what the expanded panel is for.
+    expect(screen.getByText("Collapsed · Width 3840 px · Mode raw")).toBeInTheDocument();
+  });
+
+  it("says only that it is collapsed when nothing is declared", async () => {
+    render(<InstrumentPanel instrument={instrument({ readouts: [] })} onCommand={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Collapse thing" }));
+
+    expect(screen.getByText("Collapsed")).toBeInTheDocument();
+  });
+
+  it("still collapses and expands where storage is blocked", async () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    render(<InstrumentPanel instrument={instrument()} onCommand={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Collapse thing" }));
+    expect(screen.queryByRole("button", { name: "Set Level" })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Expand thing" }));
+    expect(screen.getByRole("button", { name: "Set Level" })).toBeInTheDocument();
   });
 });

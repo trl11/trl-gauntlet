@@ -102,6 +102,17 @@ class TestPower:
         refused = client.post("/api/system/power", json={"action": "poweroff"})
         assert refused.json()["detail"] == "Failed to start poweroff.target."
 
+    def test_a_systemctl_that_hangs_is_reported_as_a_timeout(self, client, monkeypatch):
+        self._spy(monkeypatch)
+
+        def hang(argv, **kwargs):
+            raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+
+        monkeypatch.setattr(system.subprocess, "run", hang)
+        stalled = client.post("/api/system/power", json={"action": "reboot"})
+        assert stalled.status_code == 504
+        assert stalled.json()["detail"] == "reboot did not answer in time"
+
     def test_a_host_without_systemctl_says_so(self, client, monkeypatch):
         self._spy(monkeypatch)
         monkeypatch.setattr(system.shutil, "which", lambda _name: None)

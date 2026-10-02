@@ -7,6 +7,7 @@ hardware attached.
 from __future__ import annotations
 
 import base64
+import sys
 from typing import Any
 
 import pytest
@@ -502,3 +503,288 @@ class TestMockLogic:
 
     def test_it_is_a_simulation(self) -> None:
         assert MockLogic().describe()["driver"] == "mock"
+
+
+class TestWaveformDigits:
+    def test_a_digit_with_no_glyph_draws_nothing(self) -> None:
+        # Only the digits a channel number is spelled with have a glyph, so
+        # anything else leaves the plot as it was rather than failing.
+        pixels = bytearray(3 * 20 * 20)
+        waveform._draw_digit(pixels, 20, "9", 0, 0)
+        assert pixels == bytearray(3 * 20 * 20)
+
+
+class _FakeUsbDevice:
+    """Enough of a pyusb device for the transport the driver wraps it in."""
+
+    def __init__(self, *, fail: bool = False, vendor: int = 0x0925, product: int = 0x3881) -> None:
+        self.fail = fail
+        self.idProduct = product
+        self.idVendor = vendor
+        self.iManufacturer = 1
+        self.iProduct = 2
+        self.iSerialNumber = 3
+        self.transfers: list[tuple[int, int, int, int, Any, int]] = []
+
+    def ctrl_transfer(self, request_type: int, request: int, value: int, index: int, data: Any, timeout: int) -> bytes:
+        if self.fail:
+            raise OSError("pipe error")
+        self.transfers.append((request_type, request, value, index, data, timeout))
+        return bytes([1, 3])
+
+    def read(self, endpoint: int, size: int, timeout_ms: int) -> bytes:
+        if self.fail:
+            raise OSError("timed out")
+        return bytes([endpoint]) * size
+
+
+def _fake_bus(monkeypatch: Any, devices: dict[tuple[int, int], list[_FakeUsbDevice]], strings: dict[int, str]) -> None:
+    """Put stand-in devices on the bus pyusb searches, answering ``strings``."""
+    import usb.backend.libusb1
+    import usb.core
+    import usb.util
+
+    def find(*, find_all: bool, idVendor: int, idProduct: int) -> list[_FakeUsbDevice]:
+        return devices.get((idVendor, idProduct), [])
+
+    def get_string(device: _FakeUsbDevice, index: int) -> str:
+        if index not in strings:
+            raise ValueError("no such string")
+        return strings[index]
+
+    monkeypatch.setattr(usb.backend.libusb1, "get_backend", lambda: object())
+    monkeypatch.setattr(usb.core, "find", find)
+    monkeypatch.setattr(usb.util, "get_string", get_string)
+
+
+class TestOpenUsb:
+    def test_the_first_known_board_is_opened_with_its_descriptors(self, monkeypatch: Any) -> None:
+        _fake_bus(monkeypatch, {(0x0925, 0x3881): [_FakeUsbDevice()]}, {1: "sigrok", 2: "fx2lafw", 3: "A1"})
+        transport = fx2_logic.open_usb()
+        assert transport.identity() == {
+            "manufacturer": "sigrok",
+            "model": "Saleae Logic",
+            "product": "fx2lafw",
+            "product_id": "3881",
+            "serial": "A1",
+            "vendor_id": "0925",
+        }
+        assert transport.loaded() is True
+
+    def test_a_board_whose_descriptors_are_not_fx2lafw_is_not_loaded(self, monkeypatch: Any) -> None:
+        _fake_bus(monkeypatch, {(0x0925, 0x3881): [_FakeUsbDevice()]}, {1: "Saleae", 2: "Logic", 3: "A1"})
+        assert fx2_logic.open_usb().loaded() is False
+
+    def test_a_string_the_board_will_not_give_up_reads_as_empty(self, monkeypatch: Any) -> None:
+        _fake_bus(monkeypatch, {(0x0925, 0x3881): [_FakeUsbDevice()]}, {1: "sigrok", 2: "fx2lafw"})
+        assert fx2_logic.open_usb().identity()["serial"] == ""
+
+    def test_a_serial_filter_skips_the_boards_it_does_not_match(self, monkeypatch: Any) -> None:
+        first = _FakeUsbDevice()
+        second = _FakeUsbDevice()
+        first.iSerialNumber = 3
+        second.iSerialNumber = 4
+        _fake_bus(monkeypatch, {(0x0925, 0x3881): [first, second]}, {1: "", 2: "", 3: "A1", 4: "B2"})
+        assert fx2_logic.open_usb("B2").identity()["serial"] == "B2"
+
+    def test_a_serial_nothing_matches_is_named_in_the_error(self, monkeypatch: Any) -> None:
+        _fake_bus(monkeypatch, {(0x0925, 0x3881): [_FakeUsbDevice()]}, {1: "", 2: "", 3: "A1"})
+        with pytest.raises(Fx2LogicError, match="'Z9'"):
+            fx2_logic.open_usb("Z9")
+
+    def test_an_empty_bus_is_an_error(self, monkeypatch: Any) -> None:
+        _fake_bus(monkeypatch, {}, {})
+        with pytest.raises(Fx2LogicError, match="no logic analyzer on the USB bus"):
+            fx2_logic.open_usb()
+
+    def test_no_libusb_backend_says_what_to_install(self, monkeypatch: Any) -> None:
+        import usb.backend.libusb1
+
+        monkeypatch.setattr(usb.backend.libusb1, "get_backend", lambda: None)
+        with pytest.raises(Fx2LogicError, match="install libusb"):
+            fx2_logic.open_usb()
+
+    def test_a_backend_that_fails_to_load_is_an_error(self, monkeypatch: Any) -> None:
+        import usb.backend.libusb1
+
+        def broken() -> None:
+            raise OSError("libusb-1.0.so: cannot open shared object file")
+
+        monkeypatch.setattr(usb.backend.libusb1, "get_backend", broken)
+        with pytest.raises(Fx2LogicError, match="backend unusable"):
+            fx2_logic.open_usb()
+
+    def test_a_host_without_pyusb_is_an_error_rather_than_a_crash(self, monkeypatch: Any) -> None:
+        monkeypatch.setitem(sys.modules, "usb.backend.libusb1", None)
+        with pytest.raises(Fx2LogicError, match="pyusb is not importable"):
+            fx2_logic.open_usb()
+
+
+class TestLibusbTransport:
+    def _transport(self, device: _FakeUsbDevice) -> Any:
+        return fx2_logic._LibusbTransport(
+            device, model="Saleae Logic", product="fx2lafw", manufacturer="sigrok", serial="A1"
+        )
+
+    def test_a_vendor_write_goes_out_as_a_host_to_device_transfer(self) -> None:
+        device = _FakeUsbDevice()
+        self._transport(device).control_out(CMD_START, 0, b"\x40\x00\x2f")
+        assert device.transfers == [(0x40, CMD_START, 0, 0, b"\x40\x00\x2f", 100)]
+
+    def test_a_vendor_read_answers_what_the_board_sent(self) -> None:
+        device = _FakeUsbDevice()
+        assert self._transport(device).control_in(CMD_GET_FW_VERSION, 2) == b"\x01\x03"
+        assert device.transfers[0][:2] == (0xC0, CMD_GET_FW_VERSION)
+
+    def test_a_vendor_read_the_board_refuses_is_empty(self) -> None:
+        assert self._transport(_FakeUsbDevice(fail=True)).control_in(CMD_GET_FW_VERSION, 2) == b""
+
+    def test_samples_are_read_from_the_sample_endpoint(self) -> None:
+        assert self._transport(_FakeUsbDevice()).read(4, 100) == bytes([fx2_logic.SAMPLE_ENDPOINT]) * 4
+
+    def test_a_read_that_times_out_is_empty(self) -> None:
+        assert self._transport(_FakeUsbDevice(fail=True)).read(512, 100) == b""
+
+    def test_the_identity_is_a_copy(self) -> None:
+        transport = self._transport(_FakeUsbDevice())
+        transport.identity()["serial"] = "changed"
+        assert transport.identity()["serial"] == "A1"
+
+    def test_closing_releases_the_device(self, monkeypatch: Any) -> None:
+        import usb.util
+
+        released: list[Any] = []
+        monkeypatch.setattr(usb.util, "dispose_resources", released.append)
+        device = _FakeUsbDevice()
+        self._transport(device).close()
+        assert released == [device]
+
+    def test_a_release_that_fails_is_not_raised(self, monkeypatch: Any) -> None:
+        import usb.util
+
+        def broken(device: Any) -> None:
+            raise OSError("no such device")
+
+        monkeypatch.setattr(usb.util, "dispose_resources", broken)
+        self._transport(_FakeUsbDevice()).close()
+
+
+class _BrokenAnalyzer(_FakeAnalyzer):
+    """A board that answers the probe and then stops answering."""
+
+    def control_out(self, request: int, value: int, payload: bytes) -> None:
+        raise OSError("device disconnected")
+
+
+class TestFx2LogicEdges:
+    def test_a_read_at_no_rate_waits_the_floor(self) -> None:
+        assert read_timeout_ms(16384, 0) == 100
+
+    def test_nothing_probed_yet_is_no_analyzer(self) -> None:
+        assert _analyzer(_FakeAnalyzer()).connection() == "no analyzer"
+
+    def test_it_is_addressed_by_the_instance_it_was_given(self) -> None:
+        assert _analyzer(_FakeAnalyzer(), instance="logic7").instance_id() == "logic7"
+
+    def test_a_suite_reads_the_state(self) -> None:
+        analyzer = _analyzer(_FakeAnalyzer())
+        analyzer.available()
+        assert analyzer.read() == analyzer.state()
+        assert analyzer.read()["connected"] is True
+
+    def test_an_open_board_is_not_opened_again(self) -> None:
+        opened = []
+
+        def open_board(_serial: str) -> Any:
+            opened.append(_serial)
+            return _FakeAnalyzer()
+
+        clock = _Clock()
+        analyzer = Fx2Logic(clock=clock, open_transport=open_board)
+        assert analyzer.available() is True
+        clock.advance(10.0)
+        assert analyzer.available() is True
+        assert len(opened) == 1
+
+    def test_a_board_that_stops_answering_mid_capture_is_let_go(self) -> None:
+        board = _BrokenAnalyzer(stream=pattern(2000))
+        analyzer = _analyzer(board)
+        with pytest.raises(CommandRejected, match="capture failed"):
+            analyzer.command("capture", {"rate": "1mhz", "window": "1ms"})
+        assert board.closed is True
+        assert analyzer.state()["connected"] is False
+        assert "stopped answering" in analyzer.describe()["unavailable_reason"]
+
+    def test_a_firmware_write_that_fails_is_the_reason(self, tmp_path: Any) -> None:
+        (tmp_path / "fx2lafw-saleae-logic.fw").write_bytes(b"\xaa" * 32)
+        board = _BrokenAnalyzer(loaded=False)
+        analyzer = _analyzer(board, firmware=str(tmp_path))
+        assert analyzer.available() is False
+        assert "failed: device disconnected" in analyzer.describe()["unavailable_reason"]
+        assert analyzer.describe()["firmware"] == ""
+        assert board.closed is True
+
+    def test_configuring_with_no_rows_is_refused(self) -> None:
+        with pytest.raises(CommandRejected, match="at least one channel"):
+            _analyzer(_FakeAnalyzer()).command("configure", {"rows": {}})
+
+    def test_a_row_that_is_not_an_object_is_refused_and_nothing_is_applied(self) -> None:
+        analyzer = _analyzer(_FakeAnalyzer())
+        with pytest.raises(CommandRejected, match="must be an object"):
+            analyzer.command("configure", {"rows": {"1": {"label": "SDA"}, "2": "SCL"}})
+        assert analyzer.state()["channels"]["1"]["label"] == "CH 1"
+
+
+class TestMockLogicEdges:
+    def test_no_samples_asked_for_is_an_empty_pattern(self) -> None:
+        assert pattern(0) == b""
+
+    def test_it_is_always_available_and_simulated(self) -> None:
+        analyzer = MockLogic()
+        assert analyzer.available() is True
+        assert analyzer.connection() == "simulated"
+        assert analyzer.state()["connected"] is True
+
+    def test_it_is_addressed_as_the_simulated_analyzer(self) -> None:
+        assert MockLogic().instance_id() == "logic-sim"
+
+    def test_it_is_addressed_by_the_instance_it_was_registered_under(self) -> None:
+        assert MockLogic(instance="logic.dut").instance_id() == "logic.dut"
+
+    def test_capture_is_what_the_panel_is_for(self) -> None:
+        assert MockLogic().primary_command() == "capture"
+
+    def test_a_suite_reads_the_state(self) -> None:
+        analyzer = MockLogic()
+        analyzer.command("capture", {})
+        assert analyzer.read() == analyzer.state()
+        assert analyzer.read()["captures"] == 1
+
+    def test_its_readouts_match_the_real_analyzer(self) -> None:
+        analyzer = MockLogic()
+        analyzer.command("configure", {"rows": {"2": {"label": "SDA"}}})
+        readouts = analyzer.readouts()
+        real_keys = [entry["key"] for entry in _analyzer(_FakeAnalyzer()).readouts()]
+        assert [entry["key"] for entry in readouts] == real_keys
+        assert [entry["label"] for entry in readouts if entry["key"] == "channels.2.frequency"] == ["SDA"]
+        assert readouts[-1]["key"] == "captures"
+
+    def test_an_unknown_rate_is_refused(self) -> None:
+        with pytest.raises(CommandRejected, match="rate"):
+            MockLogic().command("capture", {"rate": "99mhz"})
+
+    def test_an_unknown_window_is_refused(self) -> None:
+        with pytest.raises(CommandRejected, match="window"):
+            MockLogic().command("capture", {"window": "1s"})
+
+    def test_configuring_with_no_rows_is_refused(self) -> None:
+        with pytest.raises(CommandRejected, match="at least one channel"):
+            MockLogic().command("configure", {})
+
+    def test_an_unknown_channel_is_refused(self) -> None:
+        with pytest.raises(CommandRejected, match="no channel"):
+            MockLogic().command("configure", {"rows": {"0": {"label": "SDA"}}})
+
+    def test_a_row_that_is_not_an_object_is_refused(self) -> None:
+        with pytest.raises(CommandRejected, match="must be an object"):
+            MockLogic().command("configure", {"rows": {"1": "SDA"}})

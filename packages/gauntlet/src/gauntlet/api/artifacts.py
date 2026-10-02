@@ -23,7 +23,7 @@ _MAX_INLINE_BYTES = 2 * 1024 * 1024
 _TEXT_SUFFIXES = {".csv", ".json", ".jsonl", ".log", ".md", ".txt", ".xml", ".yaml", ".yml"}
 
 
-def _run_dir(request: Request, run_id: str) -> Path:
+def run_directory(request: Request, run_id: str) -> Path:
     supervisor = request.app.state.supervisor
     handle = supervisor.get(run_id)
     raw = handle.run_dir if handle is not None else None
@@ -52,7 +52,7 @@ def _resolve(run_dir: Path, relative: str) -> Path:
 @router.get("/runs/{run_id}/artifacts")
 async def list_artifacts(request: Request, run_id: str) -> dict[str, Any]:
     """Every file in the run directory, with sizes."""
-    run_dir = _run_dir(request, run_id)
+    run_dir = run_directory(request, run_id)
     entries = []
     for path in sorted(run_dir.rglob("*")):
         if not path.is_file():
@@ -70,7 +70,7 @@ async def list_artifacts(request: Request, run_id: str) -> dict[str, Any]:
 @router.get("/runs/{run_id}/artifacts/{relative:path}")
 async def get_artifact(request: Request, run_id: str, relative: str) -> Any:
     """One artifact. Text is returned inline, anything else as a file."""
-    path = _resolve(_run_dir(request, run_id), relative)
+    path = _resolve(run_directory(request, run_id), relative)
     if path.suffix in _TEXT_SUFFIXES and path.stat().st_size <= _MAX_INLINE_BYTES:
         return PlainTextResponse(path.read_text(errors="replace"))
     return FileResponse(path)
@@ -82,7 +82,7 @@ async def get_metrics(request: Request, run_id: str, limit: int = 5000) -> dict[
 
     Live runs stream the same records over SSE.
     """
-    path = _resolve(_run_dir(request, run_id), "metrics.jsonl")
+    path = _resolve(run_directory(request, run_id), "metrics.jsonl")
     records: list[dict[str, Any]] = []
     with path.open(encoding="utf-8") as handle:
         for line in handle:

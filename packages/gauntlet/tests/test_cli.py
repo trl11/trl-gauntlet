@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import runpy
 import sys
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -175,6 +176,17 @@ class TestModuleEntryPoint:
         assert exit_code.value.code == 0
         assert "python" in capsys.readouterr().out
 
+    def test_the_cli_module_runs_as_a_script(self, capsys, monkeypatch) -> None:
+        monkeypatch.setattr(sys, "argv", ["gauntlet", "templates"])
+        # Already imported by this file; runpy warns about re-running it.
+        monkeypatch.delitem(sys.modules, "gauntlet.cli")
+
+        with pytest.raises(SystemExit) as exit_code:
+            runpy.run_module("gauntlet.cli", run_name="__main__")
+
+        assert exit_code.value.code == 0
+        assert set(capsys.readouterr().out.split()) == {"python", "shell"}
+
 
 class TestServe:
     def test_passes_the_settings_to_uvicorn(self, capsys, monkeypatch, suite_root: Path) -> None:
@@ -263,6 +275,16 @@ class TestExportImport:
         cli.main(["export", "r1", "-o", str(tmp_path)])
 
         assert cli.main(["import", str(tmp_path / "r1.gauntlet-run.zip"), "--overwrite"]) == 0
+
+    def test_an_archive_escaping_the_run_directory_is_rejected(self, capsys, run_on_disk, tmp_path: Path) -> None:
+        cli.main(["export", "r1", "-o", str(tmp_path)])
+        archive = tmp_path / "r1.gauntlet-run.zip"
+        with zipfile.ZipFile(archive, "a") as opened:
+            opened.writestr("run/../../escaped.txt", "gotcha")
+
+        assert cli.main(["import", str(archive), "--overwrite"]) == 2
+        assert "escapes the run directory" in capsys.readouterr().err
+        assert (run_on_disk / "verdict.json").is_file()
 
     def test_something_that_is_not_an_export_is_rejected(self, capsys, tmp_path: Path) -> None:
         (tmp_path / "notes.txt").write_text("this is not an archive")

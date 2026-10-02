@@ -1,0 +1,61 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.daq-limits {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 720px;
+
+  &__table {
+    border-collapse: collapse;
+    width: 100%;
+
+    th,
+    td {
+      border-bottom: 1px solid $trl-dark-gray;
+      font-size: 13px;
+      padding: 6px 10px;
+      text-align: left;
+    }
+
+    th {
+      color: $trl-gray;
+      font-weight: 500;
+    }
+
+    td {
+      font-family: $font-mono;
+    }
+  }
+
+  &__unit {
+    color: $trl-gray;
+    font-size: 11px;
+  }
+
+  &__window {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+
+    > div {
+      flex: 0 1 160px;
+    }
+  }
+}
+
+.daq-limits__on {
+  width: 48px;
+  vertical-align: middle;
+
+  // The kit's checkbox reserves room for a label this one does not have, so
+  // its box would sit off the row's centre.
+  .checkbox label {
+    display: block;
+    height: 32px;
+    line-height: 32px;
+    padding: 0;
+    width: 32px;
+  }
+}

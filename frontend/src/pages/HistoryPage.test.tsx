@@ -484,3 +484,19 @@ describe("HistoryPage importing", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("not a readable zip archive");
   });
 });
+
+describe("HistoryPage filters", () => {
+  it("asks the server for the status picked in the filter menu, from the first page", async () => {
+    renderHistory("/history?page=3");
+    await screen.findByRole("combobox", { name: "Items per page" });
+    await userEvent.click(document.querySelector(".fa-filter")!.closest("button")!);
+
+    await userEvent.selectOptions(screen.getByDisplayValue("Any status"), "failed");
+
+    await waitFor(() =>
+      expect(listRuns).toHaveBeenLastCalledWith(
+        expect.objectContaining({ offset: 0, status: ["failed"] })
+      )
+    );
+  });
+});

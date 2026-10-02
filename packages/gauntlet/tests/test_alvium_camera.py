@@ -18,7 +18,7 @@ import vmbpy
 
 from gauntlet.capabilities import CapabilityRegistry, CommandRejected
 from gauntlet.config import Settings
-from gauntlet.instruments import detect_instruments, is_simulated
+from gauntlet.instruments import alvium_camera, detect_instruments, is_simulated
 from gauntlet.instruments.alvium_camera import AlviumCamera
 from gauntlet.instruments.imaging import ImageError, scale_rgb
 
@@ -803,3 +803,167 @@ def _present_alvium(**kwargs: Any) -> Any:
 
 def _present_uvc(**kwargs: Any) -> Any:
     return _stub("uvc")
+
+
+def usb_device(root: Path, name: str, attributes: dict[str, str]) -> None:
+    """One USB device as sysfs lays it out: a directory of one-line files."""
+    device = root / name
+    device.mkdir()
+    for attribute, value in attributes.items():
+        (device / attribute).write_text(f"{value}\n")
+
+
+class TestCandidateCameras:
+    """What sysfs says is plugged in, read without starting a transport layer."""
+
+    def test_only_allied_vision_cameras_with_an_address_are_candidates(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        camera = {"idVendor": "1ab2", "idProduct": "0001"}
+        usb_device(tmp_path, "2-1", {**camera, "busnum": "2", "devnum": "5", "speed": "5000", "serial": _SERIAL})
+        # The same camera while its firmware is being written is not a camera.
+        usb_device(tmp_path, "2-2", {"idVendor": "1ab2", "idProduct": "ff01", "busnum": "2", "devnum": "6"})
+        usb_device(tmp_path, "2-3", {**camera, "serial": "NOADDRESS"})
+        usb_device(tmp_path, "3-1", {**camera, "busnum": "3", "devnum": "12", "serial": "NOSPEED"})
+        usb_device(tmp_path, "1-1", {"idVendor": "046d", "idProduct": "0825", "busnum": "1", "devnum": "2"})
+        monkeypatch.setattr(alvium_camera, "_USB_DEVICES", tmp_path)
+
+        assert alvium_camera.candidate_cameras() == [
+            (_SERIAL, Path("/dev/bus/usb/002/005"), 5000),
+            ("NOSPEED", Path("/dev/bus/usb/003/012"), 0),
+        ]
+
+
+class TestSurface:
+    """What the panel and a suite read off the provider, owned or not."""
+
+    def test_an_owned_camera_is_available_without_looking_at_the_bus(self) -> None:
+        looked: list[int] = []
+        system = _FakeSystem(_FakeCamera())
+
+        def presence() -> list[tuple[str, Path, int]]:
+            looked.append(1)
+            return [(_SERIAL, _NODE, _SUPERSPEED)]
+
+        camera = AlviumCamera(presence=presence, system=lambda: system)
+        camera.own()
+        looked.clear()
+        assert camera.available() is True
+        assert looked == []
+
+    def test_closing_releases_both_the_camera_and_the_layer(self) -> None:
+        fake = _FakeCamera()
+        system = _FakeSystem(fake)
+        camera = camera_with(system)
+        camera.own()
+        camera.close()
+        assert fake.exited is True
+        assert system.exited == 1
+        assert camera.owned() is False
+
+    def test_connection_names_the_serial_and_the_node(self) -> None:
+        camera = camera_with(_FakeSystem(_FakeCamera()))
+        assert camera.connection() == "no camera"
+        camera.own()
+        assert camera.connection() == f"{_SERIAL} {_NODE}"
+
+    def test_the_instance_is_the_one_it_was_built_with(self) -> None:
+        assert camera_with(_FakeSystem(), instance="camera.dut").instance_id() == "camera.dut"
+
+    def test_owning_is_the_primary_command(self) -> None:
+        assert camera_with(_FakeSystem()).primary_command() == "set_owned"
+
+    def test_read_is_the_state(self) -> None:
+        camera = camera_with(_FakeSystem(_FakeCamera()))
+        camera.own()
+        assert camera.read() == camera.state()
+
+
+class TestReleaseFailures:
+    def test_a_camera_that_will_not_close_does_not_keep_the_layer_open(self) -> None:
+        class _StuckCamera(_FakeCamera):
+            def __exit__(self, *args: Any) -> None:
+                raise vmbpy.VmbCameraError("stuck")
+
+        system = _FakeSystem(_StuckCamera())
+        camera = camera_with(system)
+        camera.own()
+        camera.disown()
+        assert system.exited == 1
+        assert camera.owned() is False
+
+    def test_a_layer_that_cannot_list_cameras_finds_none(self) -> None:
+        class _BrokenListing(_FakeSystem):
+            def get_all_cameras(self) -> tuple[_FakeCamera, ...]:
+                raise vmbpy.VmbTransportLayerError("bus gone")
+
+        system = _BrokenListing(_FakeCamera())
+        camera = camera_with(system)
+        assert camera.own() is False
+        assert "no Allied Vision camera" in camera.describe()["unavailable_reason"]
+        assert system.exited == 1
+
+
+class TestExposureFailures:
+    def test_a_camera_that_refuses_the_exposure_is_rejected_and_kept(self) -> None:
+        fake = _FakeCamera()
+        camera = camera_with(_FakeSystem(fake))
+        camera.own()
+        fake.features["ExposureAuto"].error = vmbpy.VmbFeatureError("Invalid access")
+        with pytest.raises(CommandRejected, match="Invalid access"):
+            camera.command("set_exposure", {"exposure_us": 45_000})
+        assert camera.owned() is True
+
+    def test_an_exposure_that_cannot_be_read_back_after_metering_is_rejected(self) -> None:
+        fake = _FakeCamera()
+        camera = camera_with(_FakeSystem(fake))
+        camera.own()
+        fake.features["ExposureTime"].error = vmbpy.VmbFeatureError("gone")
+        with pytest.raises(CommandRejected, match="gone"):
+            camera.command("set_auto_exposure", {})
+
+
+class TestSnapshotFailures:
+    def test_a_short_buffer_is_rejected_without_dropping_the_camera(self) -> None:
+        fake = _FakeCamera()
+        fake.frame = _Frame(64, 48, b"\x00" * 10)
+        camera = camera_with(_FakeSystem(fake))
+        camera.own()
+        with pytest.raises(CommandRejected, match="bytes"):
+            camera.command("snapshot", {})
+        assert camera.owned() is True
+
+    def test_a_width_that_is_a_flag_is_rejected(self) -> None:
+        camera = camera_with(_FakeSystem(_FakeCamera()))
+        camera.own()
+        with pytest.raises(CommandRejected, match="must be a number"):
+            camera.command("snapshot", {"max_width": True})
+
+    def test_a_frame_larger_than_the_usbfs_limit_says_so(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        limit = tmp_path / "usbfs_memory_mb"
+        limit.write_text("16\n")
+        monkeypatch.setattr(alvium_camera, "_USBFS_LIMIT_MB", limit)
+        fake = _FakeCamera()
+        fake.features["PayloadSize"].value = 64_000_000
+        fake.frame = _Frame(64, 48, b"", status=vmbpy.FrameStatus.Incomplete)
+        camera = camera_with(_FakeSystem(fake))
+        camera.own()
+        with pytest.raises(CommandRejected, match="64 MB frame does not fit the 16 MB usbfs buffer limit"):
+            camera.command("snapshot", {})
+
+    @pytest.mark.parametrize("content", [None, "unlimited"])
+    def test_a_limit_the_kernel_does_not_state_adds_nothing(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, content: str | None
+    ) -> None:
+        limit = tmp_path / "usbfs_memory_mb"
+        if content is not None:
+            limit.write_text(content)
+        monkeypatch.setattr(alvium_camera, "_USBFS_LIMIT_MB", limit)
+        fake = _FakeCamera()
+        fake.features["PayloadSize"].value = 64_000_000
+        fake.frame = _Frame(64, 48, b"", status=vmbpy.FrameStatus.Incomplete)
+        camera = camera_with(_FakeSystem(fake))
+        camera.own()
+        with pytest.raises(CommandRejected) as rejected:
+            camera.command("snapshot", {})
+        assert str(rejected.value) == "camera: frame arrived incomplete"

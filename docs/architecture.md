@@ -148,6 +148,7 @@ The web UI renders suite-agnostic forms and views from these endpoints:
 | History | `GET /api/runs`, filtered by `suite`, `unit_serial`, repeated `status`, `after`, `before`, `has_notes`, `favorite`, `location`, `session`, `q` (a case-insensitive search of run id, suite, profile, unit, target, status, failure reason, operator, location and session), and sorted by `sort` and `direction` |
 | Check-in completions and the location and session filters | `GET /api/runs/provenance`: every operator, location and session a run was recorded with |
 | Finished-run charts | `GET /api/runs/{id}/metrics` |
+| DAQ events | `GET /api/runs/{id}/upsets` (thresholds and events, live or finished), `PUT /api/runs/{id}/upsets/thresholds`, `GET /api/runs/{id}/upsets/trace?instrument=&since=` (live), `GET /api/runs/{id}/upsets/{index}` (the capture, as CSV) |
 | Run artifacts | `GET /api/runs/{id}/artifacts` and `/artifacts/{path}`, the one way to read a run's files |
 | Favorite runs | `PUT|DELETE /api/runs/{id}/favorite` |
 | Run and unit notes | `GET|POST /api/{runs,units}/{id}/notes`, `DELETE .../notes/{note_id}` |
@@ -157,7 +158,8 @@ The web UI renders suite-agnostic forms and views from these endpoints:
 | Settings | `GET /api/settings`, `GET /api/system/info`, `GET /api/health` |
 
 SSE event types are `status`, `log`, `metrics`, `phase`, `iteration`,
-`anomaly`, `verdict`, and `end`.
+`anomaly`, `upset`, `verdict`, and `end`. `upset` is published by Gauntlet's
+DAQ monitor, never by a suite, and carries one `upsets.json` entry.
 
 `GET /api/runs` returns `total` alongside `runs`, counting every run matching
 the filters rather than the page, so the history view can page server-side.
@@ -286,3 +288,11 @@ when the run is read, so a run whose suite is not installed on the importing
 instance still lists, still serves its artifacts, and reports no campaign. Its
 unit appears on the Units page with correct counters, because a unit is an
 aggregate over the runs table rather than a record of its own.
+
+## Reporting a run
+
+`GET /api/runs/{id}/report` answers one finished run as a single HTML page, `<run-id>.report.html`, for someone who does not have Gauntlet. The run page offers it as "Download report" beside "Export run". `gauntlet.report` is the whole implementation.
+
+The page holds the run's row and campaign, its verdict with results and tests, every numeric metric summarised and charted against run time where it changed, the failed iterations, the instruments recorded, the notes, the profile one setting to a row, the provenance from `manifest.json` and a list of the artifacts. No file is shown raw: `summary.md` is left out because the SDK writes it from `verdict.json` and `manifest.json`, which the report already lays out. It is built from the row, the notes and the run directory alone, so an imported run reports the same as it did where it ran. A missing or unreadable file leaves its section out rather than failing the report.
+
+Nothing is fetched when the page is opened: the charts are inline SVG and the styles are in the page, so it can be mailed, archived or printed to PDF as it is. It is light, not dark like the UI, because it is read on paper as often as on a screen. Images and traces are listed but not embedded, which keeps a long run's report small; the export archive is what carries them. A chart thins a long series to a few hundred points, and the summary table still counts every sample.

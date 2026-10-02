@@ -170,6 +170,13 @@ class TestEventsSink:
         sink.close()
         sink.close()
 
+    def test_the_database_is_created_where_asked_including_its_parents(self, tmp_path):
+        sink = EventsSink(tmp_path / "nested" / "events.sqlite")
+        sink.close()
+
+        assert sink.path == tmp_path / "nested" / "events.sqlite"
+        assert sink.path.is_file()
+
     def test_a_live_record_is_stored(self, tmp_path):
         sink = EventsSink(tmp_path / "events.sqlite")
         sink.record({"kind": "live", "timestamp": 1.0, "elapsed_run_s": 12.0, "metrics": {"uut": {"load": 0.5}}})
@@ -247,6 +254,9 @@ class TestMetricLeaves:
 
     def test_a_missing_value_is_neither(self):
         assert list(metric_leaves({"v": None})) == [("v", None, None)]
+
+    def test_a_bare_scalar_has_no_key_and_yields_nothing(self):
+        assert list(metric_leaves(3.5)) == []
 
 
 class TestMirroredJsonlSink:

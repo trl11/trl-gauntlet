@@ -209,4 +209,13 @@ describe("CampaignDetail optional columns", () => {
     expect(await screen.findByRole("columnheader", { name: "Fixture" })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Component" })).not.toBeInTheDocument();
   });
+
+  it("reports a campaign that could not be read", async () => {
+    getCampaign.mockRejectedValue(new Error("campaign.yaml is not valid YAML"));
+    renderDetail();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("campaign.yaml is not valid YAML");
+    // With nothing read, the section is named by the key it was asked for.
+    expect(screen.getByRole("region", { name: "bench" })).toBeInTheDocument();
+  });
 });

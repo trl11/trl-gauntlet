@@ -12,7 +12,7 @@
   // Bind mounts fail on a host where the source is absent, so create them.
   // /tmp/.X11-unix is already there on a host running X11; the mkdir is for one
   // that is not, where the mount then carries nothing and DISPLAY is empty.
-  "initializeCommand": "mkdir -p ${localEnv:HOME}/.claude ${localEnv:HOME}/.codex ${localEnv:HOME}/.config/git /tmp/.X11-unix && touch ${localEnv:HOME}/.gitconfig",
+  "initializeCommand": "mkdir -p ${localEnv:HOME}/.claude ${localEnv:HOME}/.codex ${localEnv:HOME}/.config/git ${localEnv:HOME}/.config/gh /tmp/.X11-unix && touch ${localEnv:HOME}/.gitconfig",
 
   // Mounted onto dev's home, the account everything in the container runs as.
   //
@@ -25,6 +25,7 @@
   // host's credentials so neither has to be signed in again.
   "mounts": [
     "source=${localEnv:HOME}/.config/git,target=/home/dev/.config/git,type=bind",
+    "source=${localEnv:HOME}/.config/gh,target=/home/dev/.config/gh,type=bind",
     "source=${localEnv:HOME}/.gitconfig,target=/home/dev/.gitconfig,type=bind",
     "source=${localEnv:HOME}/.ssh,target=/home/dev/.ssh,type=bind",
     "source=${localEnv:HOME}/.claude,target=/home/dev/.claude,type=bind",

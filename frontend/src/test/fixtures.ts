@@ -37,6 +37,8 @@ import type {
   UnitDetail,
   UnitHistory,
   UnitList,
+  UpsetSummary,
+  UpsetTrace,
   Verdict,
 } from "@api/types";
 
@@ -177,3 +179,7 @@ export const campaign: Campaign = {
 };
 export const systemInfo: SystemInfo = captured.system_info;
 export const systemData: SystemData = captured.system_data;
+
+export const runUpsets: UpsetSummary = captured.run_upsets as UpsetSummary;
+export const upsetTrace: UpsetTrace = captured.upset_trace as UpsetTrace;
+export const upsetCaptureCsv: string = captured.upset_capture_csv;

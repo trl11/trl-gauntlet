@@ -339,6 +339,106 @@ describe("RunStartModal", () => {
     expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ observe: ["chamber"] }));
   });
 
+  describe("DAQ limits", () => {
+    const streaming = {
+      ...instrument("daq.0"),
+      stream: {
+        channels: [
+          { key: "1", label: "Rail", max: 10, min: -10, unit: "V" },
+          { key: "2", label: "Aux", max: 5, min: -5, unit: "V" },
+        ],
+        rate_hz: 25,
+      },
+    };
+
+    beforeEach(() => {
+      listInstruments.mockResolvedValue({ instruments: [streaming, instrument("chamber")] });
+    });
+
+    it("offers limits for a DAQ once it is picked, starting at the range it can read", async () => {
+      const user = userEvent.setup();
+      renderModal(suite({ overrides: [], requires: ["psu"] }));
+      expect(screen.queryByRole("region", { name: "DAQ limits" })).not.toBeInTheDocument();
+      await user.click(
+        within(await screen.findByRole("region", { name: "Recording" })).getByLabelText("daq.0")
+      );
+      const limits = await screen.findByRole("region", { name: "DAQ limits" });
+      expect(within(limits).getByLabelText("Rail low limit")).toHaveValue("-10");
+      expect(within(limits).getByLabelText("Rail high limit")).toHaveValue("10");
+      expect(within(limits).getByLabelText("Aux high limit")).toHaveValue("5");
+    });
+
+    it("offers limits for a DAQ the suite drives without being asked to", async () => {
+      renderModal(suite({ overrides: [], requires: ["daq"] }));
+      expect(await screen.findByRole("region", { name: "DAQ limits" })).toBeInTheDocument();
+    });
+
+    it("sends no limits while every one is at the end of its range", async () => {
+      const user = userEvent.setup();
+      renderModal(suite({ overrides: [], requires: ["daq"] }));
+      await screen.findByRole("region", { name: "DAQ limits" });
+      await user.click(screen.getByRole("button", { name: "Start run" }));
+      await waitFor(() => expect(startRun).toHaveBeenCalled());
+      expect(startRun.mock.calls[0][0]).not.toHaveProperty("upsets");
+    });
+
+    it("sends a limit moved inside the range, with the window and stop_after", async () => {
+      const user = userEvent.setup();
+      renderModal(suite({ overrides: [], requires: ["daq"] }));
+      await user.click(await screen.findByLabelText("Rail enabled"));
+      const high = screen.getByLabelText("Rail high limit");
+      await user.clear(high);
+      await user.type(high, "3.3");
+      await user.clear(screen.getByLabelText("Stop after (0 = never)"));
+      await user.type(screen.getByLabelText("Stop after (0 = never)"), "2");
+      await user.click(screen.getByRole("button", { name: "Start run" }));
+      await waitFor(() => expect(startRun).toHaveBeenCalled());
+      expect(startRun.mock.calls[0][0].upsets).toEqual({
+        instruments: {
+          "daq.0": {
+            channels: { "1": { high: 3.3, low: null } },
+            enabled: { "1": true, "2": false },
+            post_s: 2,
+            pre_s: 2,
+          },
+        },
+        stop_after: 2,
+      });
+    });
+
+    it("starts with no channel picked, which leaves the DAQ as it is", async () => {
+      const user = userEvent.setup();
+      renderModal(suite({ overrides: [], requires: ["daq"] }));
+      expect(await screen.findByLabelText("Rail enabled")).not.toBeChecked();
+      expect(screen.getByLabelText("Aux enabled")).not.toBeChecked();
+      await user.click(screen.getByRole("button", { name: "Start run" }));
+      await waitFor(() => expect(startRun).toHaveBeenCalled());
+      expect(startRun.mock.calls[0][0]).not.toHaveProperty("upsets");
+    });
+
+    it("scans only the channels picked", async () => {
+      const user = userEvent.setup();
+      renderModal(suite({ overrides: [], requires: ["daq"] }));
+      await user.click(await screen.findByLabelText("Rail enabled"));
+      await user.click(screen.getByRole("button", { name: "Start run" }));
+      await waitFor(() => expect(startRun).toHaveBeenCalled());
+      expect(startRun.mock.calls[0][0].upsets.instruments["daq.0"].enabled).toEqual({
+        "1": true,
+        "2": false,
+      });
+    });
+
+    it("does not start a run whose limit is not a number", async () => {
+      const user = userEvent.setup();
+      renderModal(suite({ overrides: [], requires: ["daq"] }));
+      await user.click(await screen.findByLabelText("Aux enabled"));
+      await user.type(screen.getByLabelText("Aux low limit"), "x");
+      await user.click(screen.getByRole("button", { name: "Start run" }));
+      expect(await screen.findByText("Aux: a limit must be a number")).toBeInTheDocument();
+      expect(startRun).not.toHaveBeenCalled();
+    });
+  });
+
   it("offers no recording section on a bench with nothing to record", async () => {
     listInstruments.mockResolvedValue({ instruments: [] });
     renderModal();
@@ -356,5 +456,48 @@ describe("RunStartModal", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "capability 'chamber' is unavailable"
     );
+  });
+
+  it("records nothing the operator ticked and then unticked", async () => {
+    const user = userEvent.setup();
+    renderModal(suite({ overrides: [], requires: ["psu"] }));
+    const recording = await screen.findByRole("region", { name: "Recording" });
+    const chamber = within(recording).getByLabelText("chamber");
+
+    await user.click(chamber);
+    await user.click(chamber);
+    await user.click(screen.getByRole("button", { name: "Start run" }));
+
+    await waitFor(() => expect(startRun).toHaveBeenCalled());
+    expect(startRun).toHaveBeenCalledWith(expect.objectContaining({ observe: [] }));
+  });
+
+  it("says why every instrument picked is recorded when the suite drives none", async () => {
+    renderModal(suite({ requires: [] }));
+    const recording = await screen.findByRole("region", { name: "Recording" });
+
+    expect(recording).toHaveTextContent(
+      "Every instrument picked here is read for as long as the run lasts."
+    );
+  });
+
+  it("names the instruments recorded because the suite drives them", async () => {
+    renderModal(suite({ requires: ["psu", "i2c"] }));
+    const recording = await screen.findByRole("region", { name: "Recording" });
+
+    expect(recording).toHaveTextContent("psu, i2c are recorded because this suite drives them.");
+  });
+
+  it("says so when the suite offers no profiles", async () => {
+    renderModal(suite({ profiles_available: [] }));
+
+    expect(await screen.findByText("This suite offers no profiles.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Profile")).not.toBeInTheDocument();
+  });
+
+  it("marks a profile the operator has edited", async () => {
+    renderModal();
+
+    expect(await screen.findByRole("option", { name: "Long (edited)" })).toBeInTheDocument();
   });
 });

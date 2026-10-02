@@ -73,6 +73,50 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+describe("RecordedInstruments trace-only readings", () => {
+  const reading = (key: string, label: string, traceOnly: boolean) => ({
+    count: 10,
+    group: "",
+    key,
+    label,
+    last: 1,
+    max: 1,
+    mean: 1,
+    min: 1,
+    precision: null,
+    trace_only: traceOnly,
+    unit: "",
+  });
+
+  it("shows what the provider wants shown and not what it keeps for the trace", async () => {
+    getRunInstruments.mockResolvedValue({
+      ...record,
+      instruments: [
+        {
+          description: "",
+          kind: "daq",
+          name: "daq.0",
+          readings: [
+            reading("channels.1.value", "CH 1", false),
+            reading("channels.1.enabled", "CH 1 enabled", true),
+            reading("scan.rate_hz", "scan rate_hz", true),
+          ],
+        },
+      ],
+    });
+    renderPanel();
+    expect(await screen.findByText("CH 1")).toBeInTheDocument();
+    expect(screen.queryByText("CH 1 enabled")).not.toBeInTheDocument();
+    expect(screen.queryByText("scan rate_hz")).not.toBeInTheDocument();
+  });
+
+  it("offers no link to the trace, which is among the artifacts", async () => {
+    renderPanel();
+    await screen.findByText("Voltage");
+    expect(screen.queryByRole("link", { name: /download the trace/i })).not.toBeInTheDocument();
+  });
+});
+
 describe("RecordedInstruments", () => {
   it("shows each reading under the label its instrument gave it", async () => {
     renderPanel();
@@ -150,5 +194,39 @@ describe("RecordedInstruments", () => {
     renderPanel();
     await userEvent.click(await screen.findByRole("button", { name: /Voltage/ }));
     expect(await screen.findByText(/kept no trace/)).toBeInTheDocument();
+  });
+
+  it("names the group a reading belongs to, and a single reading in the singular", async () => {
+    getRunInstruments.mockResolvedValue({
+      ...record,
+      instruments: [
+        {
+          ...record.instruments[0],
+          readings: [{ ...record.instruments[0].readings[0], group: "CH1", precision: null }],
+        },
+      ],
+      ticks: 1,
+    });
+    renderPanel();
+
+    const button = await screen.findByRole("button", { name: /Voltage/ });
+    expect(button).toHaveTextContent("CH1VoltageV");
+    expect(screen.getByText(/1 time over the run/)).toBeInTheDocument();
+    // A reading that asked for no particular precision is shown to three places.
+    expect(screen.getByText("4.980")).toBeInTheDocument();
+  });
+
+  it("says so when the trace holds nothing of the reading opened", async () => {
+    getRunInstrumentTrace.mockResolvedValue([
+      { at: "2026-01-01T00:00:00.000Z", instrument: "logic", t: 0, values: { voltage: 1 } },
+      { at: "2026-01-01T00:00:00.000Z", instrument: "psu", t: 0, values: { current: 0.2 } },
+    ]);
+    renderPanel();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Voltage/ }));
+
+    expect(
+      await screen.findByText("The trace holds no samples of this reading.")
+    ).toBeInTheDocument();
   });
 });

@@ -1,0 +1,24 @@
+@use "@trl11/styles/theme.scss" as *;
+
+.daq-window {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+
+  &__spinner {
+    margin: 48px auto;
+  }
+
+  &__title {
+    font-size: 20px;
+  }
+
+  &__status {
+    color: $trl-gray;
+    font-family: $font-mono;
+    font-size: 12px;
+    margin-left: 8px;
+    text-transform: uppercase;
+  }
+}

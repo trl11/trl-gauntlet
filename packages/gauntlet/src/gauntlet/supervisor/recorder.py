@@ -163,6 +163,7 @@ class InstrumentRecorder:
         provider = self._registry.provider(key)
         detail = provider.describe() if provider is not None else {}
         declared = _declared(provider)
+        hidden = _trace_only(provider)
         with self._lock:
             recorded = dict(self._readings[key])
             named = dict(self._labels[key])
@@ -177,6 +178,7 @@ class InstrumentRecorder:
                     "unit": meta.get("unit", ""),
                     "precision": meta.get("precision"),
                     "group": meta.get("group", ""),
+                    "trace_only": name in hidden,
                     **series.summary(),
                 }
             )
@@ -257,6 +259,12 @@ def labels(state: Mapping[str, Any], prefix: str = "") -> dict[str, str]:
         for leaf in leaves:
             found[f"{path}.{leaf}"] = name if len(leaves) == 1 else f"{name} {leaf}"
     return found
+
+
+def _trace_only(provider: Any) -> set[str]:
+    """The readings a provider wants in the trace but not in the summary shown to an operator."""
+    declare = getattr(provider, "trace_only", None)
+    return set(declare()) if callable(declare) else set()
 
 
 def _declared(provider: Any) -> dict[str, dict[str, Any]]:

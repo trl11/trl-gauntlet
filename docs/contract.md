@@ -107,7 +107,8 @@ downloads:
 ```
 
 Each is fetched from `GET /api/suites/{key}/downloads/{path}`. `label`
-defaults to the filename.
+defaults to the filename. A `path` with a leading slash or a `..` segment is
+a manifest error, reported by discovery like any other.
 
 `requires` lists capabilities the suite needs. Gauntlet checks each against its
 capability registry before spawning and rejects the run when one is
@@ -153,11 +154,14 @@ Paths are relative to `GAUNTLET_RUN_DIR`.
 | `profile.yaml` | no | Gauntlet at start, the suite at exit | The profile as run: every field, defaults and overrides included. |
 | `test.log` | no | Gauntlet | Captured stdout and stderr, each line prefixed with the UTC time Gauntlet read it, as `2026-01-01T00:00:00.000Z`. |
 | `instruments.jsonl` | no | Gauntlet, during the run | What the bench's instruments read, one line per instrument per second. |
-| `instruments.json` | no | Gauntlet, at exit | The same readings summarised: count, extremes, mean and last. |
+| `instruments.json` | no | Gauntlet, at exit | The same readings summarised: count, extremes, mean and last. A reading a provider keeps only for the trace, such as a DAQ's scan rate and which channels are enabled, is flagged `trace_only` and not shown on the run page. |
+| `daq/` | no | Gauntlet, during the run | Every scan of each streaming instrument the run watched, at the rate it scanned. Per segment, a new one when the scan list changes: `<instrument>.<n>.json` (channels and rate), `.t` (one float64 UTC time per scan) and `.v` (one float32 per channel per scan, NaN where none was given). Read through `GET /api/runs/{id}/daq` and `/daq/data`. |
+| `upsets.json` | no | Gauntlet, during the run | The upset thresholds, `stop_after`, every upset recorded and whether the monitor stopped the run. Absent until an operator sets a threshold or an upset happens. |
+| `upsets/` | no | Gauntlet, during the run | One `upset_NNNN.csv` per upset: `t_s` (negative before the crossing) and a column per channel of the streaming instrument. |
 | `run.json` | no | Gauntlet, at start and whenever the run's record changes | The run as Gauntlet indexes it: status, verdict, times, profile, target, unit, and who started it where. |
 | `notes.md` | no | Gauntlet, whenever a note is added or deleted | The operators' notes on the run, oldest first. Absent while there are none. |
 
-The last four are Gauntlet's own and a suite neither writes nor reads them: it is not told which instruments are being recorded, and a run is identical whether they are or not. `run.json` and `notes.md` are there so the directory alone rebuilds the run and its notes.
+The last seven are Gauntlet's own and a suite neither writes nor reads them: it is not told which instruments are being recorded or watched, and a run is identical whether they are or not. `run.json` and `notes.md` are there so the directory alone rebuilds the run and its notes.
 
 `profile.yaml` starts as the file the run was handed and is replaced at exit
 with the profile the suite resolved — every field, the defaults the model

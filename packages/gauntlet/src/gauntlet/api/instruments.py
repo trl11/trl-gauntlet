@@ -19,6 +19,7 @@ from gauntlet.capabilities import (
     CommandableCapability,
     CommandRejected,
     PresentableCapability,
+    StreamingCapability,
     current_state,
 )
 
@@ -104,7 +105,15 @@ def _describe(
         "state": current_state(provider),
         "commands": _commands(provider),
         **_presentation(provider),
+        **_stream(provider),
     }
+
+
+def _stream(provider: CapabilityProvider) -> dict[str, Any]:
+    """The channels and rate of a provider that streams, so a run can be given limits for them."""
+    if not isinstance(provider, StreamingCapability) or not provider.available():
+        return {}
+    return {"stream": {"channels": provider.stream_channels(), "rate_hz": provider.stream_since(1, 0).rate_hz}}
 
 
 def _presentation(provider: CapabilityProvider) -> dict[str, Any]:

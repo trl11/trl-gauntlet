@@ -116,3 +116,15 @@
     }
   }
 }
+
+.run-start-modal__daq {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.run-start-modal__daq-name {
+  font-family: $font-mono;
+  font-size: 13px;
+  font-weight: 500;
+}

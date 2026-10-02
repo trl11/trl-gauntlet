@@ -177,6 +177,43 @@ class OwnableCapability(Protocol):
         """Close the device."""
 
 
+@dataclass(frozen=True)
+class StreamSlice:
+    """Scans a streaming provider has buffered, from a sequence number on.
+
+    Each scan is ``(seq, monotonic_s, wall_s, values)``, with one value per
+    entry of ``channels`` in order. A channel is ``{key, label, unit}`` and may
+    add ``min`` and ``max``, the range the instrument can read it over. ``seq`` starts at 1 and rises by 1 per scan
+    for the life of the provider, so a caller passes the ``next_seq`` it last
+    received to get exactly the scans it has not seen.
+    """
+
+    channels: list[dict[str, Any]]
+    rate_hz: float
+    next_seq: int
+    scans: list[tuple[int, float, float, list[float | None]]]
+
+
+@runtime_checkable
+class StreamingCapability(Protocol):
+    """A provider that keeps scanning while someone holds a lease on its stream."""
+
+    def stream_channels(self) -> list[dict[str, Any]]:
+        """Every channel the provider has, each with its ``enabled`` flag and the range it can read."""
+
+    def stream_enable(self, enabled: dict[str, bool]) -> None:
+        """Put channels in or out of the stream. Raises ``ValueError`` when it cannot."""
+
+    def stream_open(self) -> bool:
+        """Take a lease, starting the stream if it is not running. False when it cannot."""
+
+    def stream_close(self) -> None:
+        """Release a lease. The last one stops the stream."""
+
+    def stream_since(self, seq: int, limit: int) -> StreamSlice:
+        """At most ``limit`` buffered scans with a sequence number of ``seq`` or more."""
+
+
 def current_state(provider: CapabilityProvider) -> dict[str, Any]:
     """Structured state, falling back to a plain read for providers without it."""
     if isinstance(provider, StatefulCapability):

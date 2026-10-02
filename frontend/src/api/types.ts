@@ -327,8 +327,19 @@ export interface RunList {
   total: number;
 }
 
+/** The limits and capture window one streaming instrument starts a run with. */
+export interface StartUpsetInstrument {
+  channels: Record<string, UpsetLimits>;
+  /** Channels to put in or out of the scan list before the run starts. */
+  enabled?: Record<string, boolean>;
+  post_s?: number;
+  pre_s?: number;
+}
+
 /** Body of `POST /api/runs`. */
 export interface StartRunBody extends Partial<Provenance> {
+  /** Limits for the streaming instruments the run records, in force from its first scan. */
+  upsets?: { instruments: Record<string, StartUpsetInstrument>; stop_after?: number };
   /** Instruments to record alongside the ones the suite requires, by instance key. */
   observe?: string[];
   overrides?: Record<string, unknown>;
@@ -352,6 +363,8 @@ export interface RecordedReading {
   min: number;
   /** Decimals the provider asks the reading to be shown to. */
   precision: number | null;
+  /** Recorded in the trace but not shown to an operator. Absent in a run older than this. */
+  trace_only?: boolean;
   unit: string;
 }
 
@@ -595,6 +608,11 @@ export interface RunAnomalyEvent extends RunEventBase {
   type: "anomaly";
 }
 
+/** A reading left its limits; the same fields as one entry of `upsets.json`. */
+export interface RunUpsetEvent extends RunEventBase, UpsetEntry {
+  type: "upset";
+}
+
 /** The final outcome. */
 export interface RunVerdictEvent extends RunEventBase {
   reason: string;
@@ -620,7 +638,121 @@ export type RunEvent =
   | RunMetricsEvent
   | RunPhaseEvent
   | RunStatusEvent
+  | RunUpsetEvent
   | RunVerdictEvent;
+
+/* -------------------------------------------------------------------------
+ * Upsets
+ * ---------------------------------------------------------------------- */
+
+/** One channel's limits. A limit that is null is not watched. */
+export interface UpsetLimits {
+  high: number | null;
+  low: number | null;
+}
+
+/** The limits and capture window of one streaming instrument. */
+export interface UpsetThreshold {
+  /** Limits by channel key; a channel with none is not watched. */
+  channels: Record<string, UpsetLimits>;
+  /** Seconds kept after a crossing. */
+  post_s: number;
+  /** Seconds kept before a crossing. */
+  pre_s: number;
+}
+
+/** One recorded upset. */
+export interface UpsetEntry {
+  /** UTC time of the crossing. */
+  at: string;
+  channel: string;
+  direction: "high" | "low";
+  /** Seconds from the start of the run to the crossing. */
+  elapsed_s: number;
+  /** Artifact path of the captured window, as CSV. */
+  file: string;
+  index: number;
+  instance_id: string;
+  /** Instance key of the instrument that streamed it. */
+  instrument: string;
+  label: string;
+  limit: number;
+  post_s: number;
+  pre_s: number;
+  /** True when the run or the stream ended inside the post window. */
+  truncated: boolean;
+  unit: string;
+  value: number;
+}
+
+/** `GET /api/runs/{id}/upsets` */
+export interface UpsetSummary {
+  events: UpsetEntry[];
+  /** Streaming instruments a run in flight is watching; empty for a finished run. */
+  instruments: string[];
+  stop_after: number;
+  stopped_run: boolean;
+  thresholds: Record<string, UpsetThreshold>;
+}
+
+/** One scan: its sequence number, UTC seconds, and a value per channel. */
+export type UpsetScan = [number, number, (number | null)[]];
+
+/** One channel of a streaming instrument. */
+export interface StreamChannel {
+  /** Whether the channel is in the scan list. Absent means it is. */
+  enabled?: boolean;
+  key: string;
+  label: string;
+  /** The most the instrument can read on this channel. */
+  max?: number;
+  /** The least the instrument can read on this channel. */
+  min?: number;
+  unit: string;
+}
+
+/** One instrument's recording: every scan it gave during the run. */
+export interface DaqRecordedInstrument {
+  channels: StreamChannel[];
+  /** Seconds from the run's first scan to this instrument's last. */
+  end_s: number;
+  instrument: string;
+  rate_hz: number;
+  rows: number;
+  start_s: number;
+}
+
+/** `GET /api/runs/{id}/daq` */
+export interface DaqRecording {
+  instruments: DaqRecordedInstrument[];
+  /** UTC seconds of the run's first scan. Null when nothing was recorded. */
+  origin: number | null;
+}
+
+/** One stretch of a window recorded with one set of channels. */
+export interface DaqWindowSegment {
+  channels: StreamChannel[];
+  /** `raw` rows are `[t, ...readings]`; `envelope` rows are `[t, ...lowest, ...highest]`. */
+  kind: "envelope" | "raw";
+  points: number[][];
+  rate_hz: number;
+}
+
+/** `GET /api/runs/{id}/daq/data` */
+export interface DaqWindow {
+  instrument: string;
+  origin: number;
+  segments: DaqWindowSegment[];
+}
+
+/** `GET /api/runs/{id}/upsets/trace` */
+export interface UpsetTrace {
+  channels: StreamChannel[];
+  instrument: string;
+  next_seq: number;
+  rate_hz: number;
+  scans: UpsetScan[];
+}
 
 /* -------------------------------------------------------------------------
  * Capabilities and instruments
@@ -703,8 +835,18 @@ export interface InstrumentCommand {
    * Where the panel puts the command, when its place is not the deck.
    * `"viewer"` sits it with the controls of the command that answers with a
    * picture, for one an operator reaches for while looking at what it drew.
+   * `"header"` makes it a drop-down in the instrument's heading, for a setting
+   * with one field whose choices the instrument lists in its state: `selected`
+   * names the state value that is the choice now, `current` the one shown
+   * beside it, in `unit`.
    */
-  role?: "viewer";
+  role?: "header" | "viewer";
+  /** For a `"header"` command: the state value shown beside the drop-down. */
+  current?: string;
+  /** For a `"header"` command: the state value that is the choice now. */
+  selected?: string;
+  /** For a `"header"` command: the unit `current` is read in. */
+  unit?: string;
   /** Heading for the column naming each row, when the command carries rows. */
   row_label?: string;
   /**
@@ -767,6 +909,8 @@ export interface Instrument {
   state: Record<string, unknown>;
   /** Why the provider reports itself unusable. Empty when it is available. */
   unavailable_reason: string;
+  /** Present for an instrument that streams: what a run can be given limits for. */
+  stream?: { channels: StreamChannel[]; rate_hz: number };
 }
 
 /** `GET /api/instruments` and `POST /api/instruments/scan`. */
