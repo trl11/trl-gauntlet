@@ -1,15 +1,10 @@
-"""Total ionising dose characterisation of the TMP100AQDBVRQ1.
+"""Total ionising dose characterisation of a TMP100.
 
 The sensor is read directly over I2C. Setup puts it in 12-bit continuous
 conversion and writes both comparator limits; every iteration then reads the
 temperature, fails it outside the profile's bounds, and checks that the
 configuration and both limits still read back as written, which is where a
 dosed register file shows itself first.
-
-Component      TMP100AQDBVRQ1
-Test vehicle   PRE-10161
-Host           Raspberry Pi
-Fixture        1-1
 
 Not yet measured: the comparison against a thermocouple in the same chamber,
 which is what separates drift in the part from a chamber that changed

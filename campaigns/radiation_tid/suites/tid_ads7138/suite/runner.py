@@ -1,4 +1,4 @@
-"""Total ionising dose characterisation of the ADS7138QRTERQ1.
+"""Total ionising dose characterisation of an ADS7138.
 
 The part's eight channels are split three ways, as the board wires them:
 

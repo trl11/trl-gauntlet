@@ -23,7 +23,7 @@ class TidTmp100Profile(BaseModel):
         default=0x48,
         ge=0x48,
         le=0x4F,
-        description="The part's 7-bit I2C address, selected by the board's ADD0 and ADD1 straps.",
+        description="The part's 7-bit I2C address, selected by the part's ADD0 and ADD1 pins.",
     )
     min_c: float = Field(default=-55.0, description="Lowest temperature a sample may read before it fails, in °C.")
     max_c: float = Field(default=125.0, description="Highest temperature a sample may read before it fails, in °C.")

@@ -4,16 +4,14 @@ key: tid_tmp100
 title: TMP100 Temperature Sensor
 category: radiation
 description: >
-  Total ionising dose characterisation of the TMP100AQDBVRQ1 on PRE-10161.
+  Total ionising dose characterisation of a TMP100 temperature sensor.
   Each sample reads the temperature over I2C, fails it outside the profile's
   bounds, and checks that the configuration and both comparator limits still
   read back as written. The thermocouple comparison is not implemented yet.
 
 setup: |
-  The sensor is on PRE-10161 and the host reads it directly over I2C, through
-  the i2c capability; nothing goes through the ADS7138 on the same board. The
-  device address is set by the board's ADD0 and ADD1 straps, 0x48 with both
-  low.
+  The host reads the sensor directly over I2C, through the i2c capability. Its
+  address is set by the part's ADD0 and ADD1 pins, 0x48 with both low.
 
       +--------------+          +--------------+           +----------------+
       |     Host     |   USB    |    CP2112    |    I2C    |     TMP100     |

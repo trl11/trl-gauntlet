@@ -4,7 +4,7 @@ key: tid_ads7138
 title: ADS7138 12-Bit ADC
 category: radiation
 description: >
-  Total ionising dose characterisation of the ADS7138QRTERQ1. Each sample
+  Total ionising dose characterisation of an ADS7138. Each sample
   converts the two analog inputs and holds them to a window, checks the part
   reads its two digital inputs as wired (a 1 and a 0), drives its four
   outputs (a 0, a 1, a toggled pin and a slow pulse) and checks the logic

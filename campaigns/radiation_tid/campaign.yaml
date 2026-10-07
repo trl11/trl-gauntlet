@@ -27,9 +27,8 @@ members:
   test_vehicle: PRE-10161
   host: Raspberry Pi
   fixture: 1-1
-  notes: Waiting on PRE-10161. Read directly over I2C, not through the ADS7138. A
-    thermocouple is to be added to the BOM; until it is, the profile's bounds are
-    the only check on the reading.
+  notes: Read directly over I2C. A thermocouple is to be added to the BOM; until it
+    is, the profile's bounds are the only check on the reading.
 - suite: tid_max96793
   component: MAX96793GTJ/VY+
   test_vehicle: LI-IMX728-GMSL3-070H
