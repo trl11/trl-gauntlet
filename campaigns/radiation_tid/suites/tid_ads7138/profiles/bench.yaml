@@ -1,0 +1,7 @@
+description: >
+  Half a minute on the real part, for checking the bench before a beam
+  session.
+driver: real
+address: 16
+duration_s: 30.0
+sample_period_s: 1.0

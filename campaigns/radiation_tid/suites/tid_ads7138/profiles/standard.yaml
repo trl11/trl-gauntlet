@@ -1,0 +1,5 @@
+description: Five minutes on the real part.
+driver: real
+address: 16
+duration_s: 300.0
+sample_period_s: 1.0
