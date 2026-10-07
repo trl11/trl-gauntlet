@@ -6,19 +6,19 @@ category: radiation
 description: >
   Total ionising dose characterisation of the ADS7138QRTERQ1. Each sample
   converts the two analog inputs and holds them to a window, checks the part
-  reads its three digital inputs as wired (a 1, a 0 and a clock), drives its
-  three outputs (a 0, a 1 and a slow pulse) and checks the logic analyzer saw
-  them, and checks the configuration and SYSTEM_STATUS still read as written.
+  reads its two digital inputs as wired (a 1 and a 0), drives its four
+  outputs (a 0, a 1, a toggled pin and a slow pulse) and checks the logic
+  analyzer saw them, and checks the configuration and SYSTEM_STATUS still read as written.
 
 setup: |
   The part reaches the host over a CP2112 USB-to-I2C bridge, through the i2c
-  capability, and three of its outputs run to the logic analyzer.
+  capability, and four of its outputs run to the logic analyzer.
 
       pin 15  AIN0   analog input      converted, held to a window
       pin 16  AIN1   analog input      converted, held to a window
       pin 1   GPIO2  input, tied to 1  the part must read 1
-      pin 2   GPIO3  input, a clock    the part must see it change
       pin 4   GPIO5  input, tied to 0  the part must read 0
+      pin 2   GPIO3  output, toggled   analyzer probe 2, flips every sample
       pin 3   GPIO4  output, 0         analyzer probe 3
       pin 5   GPIO6  output, 1         analyzer probe 5
       pin 6   GPIO7  output, a pulse   analyzer probe 6, flips every sample
@@ -27,7 +27,7 @@ setup: |
       |     Host     |-------->|    CP2112    |---------->|    ADS7138     |
       +--------------+         +--------------+  SDA SCL  +----------------+
              ^                                                    |
-             |   USB           +--------------+   pins 3, 5, 6    |
+             |   USB           +--------------+   pins 2,3,5,6    |
              +-----------------|   analyzer   |<------------------+
                                +--------------+
 

@@ -5,16 +5,15 @@ The part's eight channels are split three ways, as the board wires them:
     pin 15  AIN0   analog input     the part converts it, held to a window
     pin 16  AIN1   analog input     the part converts it, held to a window
     pin 1   GPIO2  input, tied to 1 the part must read 1
-    pin 2   GPIO3  input, a clock   the part must see both levels
     pin 4   GPIO5  input, tied to 0 the part must read 0
+    pin 2   GPIO3  output, toggled  flips each sample; the analyzer must follow
     pin 3   GPIO4  output, 0        the analyzer must see 0
     pin 5   GPIO6  output, 1        the analyzer must see 1
     pin 6   GPIO7  output, a pulse  flips each sample; the analyzer must follow
 
 Each sample drives the outputs, captures them, reads the inputs and both
 analog channels, and checks that the configuration and SYSTEM_STATUS still
-read as written. An I2C read is far slower than the clock, so the clock check
-is only that it moves, not how fast.
+read as written.
 """
 
 from __future__ import annotations
@@ -54,12 +53,12 @@ from suite.analyzer import Analyzer, AnalyzerError, MockAnalyzer
 from suite.profile import TidAds7138Profile
 
 AIN0, AIN1 = 0, 1
-INPUT_HIGH, CLOCK, INPUT_LOW = 2, 3, 5
-OUTPUT_LOW, OUTPUT_HIGH, PULSE = 4, 6, 7
-_OUTPUTS = (1 << OUTPUT_LOW) | (1 << OUTPUT_HIGH) | (1 << PULSE)
+INPUT_HIGH, INPUT_LOW = 2, 5
+TOGGLE, OUTPUT_LOW, OUTPUT_HIGH, PULSE = 3, 4, 6, 7
+_OUTPUTS = (1 << TOGGLE) | (1 << OUTPUT_LOW) | (1 << OUTPUT_HIGH) | (1 << PULSE)
 
 # What setup writes, and what every sample reads back. AIN0 and AIN1 stay
-# analog, the rest are GPIO, and the three outputs are push-pull because an
+# analog, the rest are GPIO, and the four outputs are push-pull because an
 # analyzer probe offers no pullup for an open drain. SEQUENCE_CFG at zero is
 # manual mode, where CHANNEL_SEL picks what the next read converts.
 _CONFIGURATION = {
@@ -81,8 +80,12 @@ _ANALYZER = "analyzer"
 
 
 def driven_for(iteration: int) -> int:
-    """The GPO_VALUE byte for one sample: GPIO4 low, GPIO6 high, GPIO7 flipping."""
-    return (1 << OUTPUT_HIGH) | ((iteration & 1) << PULSE)
+    """The GPO_VALUE byte for one sample: GPIO4 low, GPIO6 high, GPIO3 and GPIO7 flipping.
+
+    GPIO3 flips opposite to GPIO7, so a short between the two cannot pass.
+    """
+    flip = iteration & 1
+    return (1 << OUTPUT_HIGH) | ((1 - flip) << TOGGLE) | (flip << PULSE)
 
 
 def volts(code: int, avdd_v: float) -> float:
@@ -90,18 +93,15 @@ def volts(code: int, avdd_v: float) -> float:
     return code * avdd_v / FULL_SCALE
 
 
-def input_faults(reads: list[int], driven: int) -> list[str]:
-    """What the part's own GPI_VALUE reads say is out of spec."""
+def input_faults(read: int, driven: int) -> list[str]:
+    """What the part's own GPI_VALUE says is out of spec."""
     faults = []
-    if any(not read & (1 << INPUT_HIGH) for read in reads):
+    if not read & (1 << INPUT_HIGH):
         faults.append("GPIO2 (pin 1) read 0, not 1")
-    if any(read & (1 << INPUT_LOW) for read in reads):
+    if read & (1 << INPUT_LOW):
         faults.append("GPIO5 (pin 4) read 1, not 0")
-    if len({(read >> CLOCK) & 1 for read in reads}) < 2:
-        level = (reads[0] >> CLOCK) & 1
-        faults.append(f"GPIO3 (pin 2) held {level} for {len(reads)} reads; the clock is not reaching the part")
-    if any((read ^ driven) & _OUTPUTS for read in reads):
-        faults.append("the part read its own outputs back as something other than what it drives")
+    if (read ^ driven) & _OUTPUTS:
+        faults.append(f"the part read its outputs as 0x{read & _OUTPUTS:02x}, not 0x{driven:02x}")
     return faults
 
 
@@ -109,6 +109,7 @@ def pin_faults(captured: dict[int, tuple[int, int]], profile: TidAds7138Profile,
     """What the analyzer saw on the outputs that is out of spec."""
     faults = []
     for name, channel, probe in (
+        ("GPIO3 (pin 2)", TOGGLE, profile.toggle_probe),
         ("GPIO4 (pin 3)", OUTPUT_LOW, profile.low_probe),
         ("GPIO6 (pin 5)", OUTPUT_HIGH, profile.high_probe),
         ("GPIO7 (pin 6)", PULSE, profile.pulse_probe),
@@ -138,12 +139,15 @@ def analog_faults(readings: dict[int, float], profile: TidAds7138Profile) -> lis
 def _setup(ctx: SuiteContext) -> None:
     """Take both instruments and put the part into the state under test."""
     profile: TidAds7138Profile = ctx.profile
-    probes = {OUTPUT_LOW: profile.low_probe, OUTPUT_HIGH: profile.high_probe, PULSE: profile.pulse_probe}
+    probes = {
+        TOGGLE: profile.toggle_probe,
+        OUTPUT_LOW: profile.low_probe,
+        OUTPUT_HIGH: profile.high_probe,
+        PULSE: profile.pulse_probe,
+    }
     if profile.driver == "mock":
         mid_window = (profile.ain0_min_v + profile.ain0_max_v) / 2
-        adc: Any = MockAdc(
-            high=INPUT_HIGH, low=INPUT_LOW, clock=CLOCK, code=round(mid_window * FULL_SCALE / profile.avdd_v)
-        )
+        adc: Any = MockAdc(high=INPUT_HIGH, low=INPUT_LOW, code=round(mid_window * FULL_SCALE / profile.avdd_v))
         ctx.extras[_ANALYZER] = MockAnalyzer(adc, probes)
         info("driver=mock — no instrument contacted, the part is a register model")
     else:
@@ -189,7 +193,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
         with PhaseTimer("capture", phases):
             captured = analyzer.capture(_RATE, _WINDOW)
         with PhaseTimer("read", phases) as phase:
-            reads = [adc.read_register(GPI_VALUE) for _ in range(profile.clock_reads)]
+            read = adc.read_register(GPI_VALUE)
             readings = {channel: volts(adc.convert(channel), profile.avdd_v) for channel in (AIN0, AIN1)}
             registers = {register: adc.read_register(register) for register in _CONFIGURATION}
             status = adc.read_register(SYSTEM_STATUS)
@@ -203,7 +207,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
             summary="an instrument stopped answering",
         )
 
-    faults = pin_faults(captured, profile, driven) + input_faults(reads, driven) + analog_faults(readings, profile)
+    faults = pin_faults(captured, profile, driven) + input_faults(read, driven) + analog_faults(readings, profile)
     changed = [f"0x{register:02x}" for register, value in registers.items() if value != _CONFIGURATION[register]]
     if changed:
         faults.append(f"register {', '.join(changed)} no longer reads as it was written")
@@ -218,7 +222,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
                 "ain0_v": round(readings[AIN0], 4),
                 "ain1_v": round(readings[AIN1], 4),
                 "faults": len(faults),
-                "gpi": reads[-1],
+                "gpi": read,
                 "pulse": (driven >> PULSE) & 1,
                 "status": status,
             }

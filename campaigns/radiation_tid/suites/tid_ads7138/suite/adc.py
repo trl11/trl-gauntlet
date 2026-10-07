@@ -110,18 +110,15 @@ class Adc:
 class MockAdc:
     """The part on its board as a register file, for a run that contacts no bridge.
 
-    The inputs read as the board wires them, the clock input changing on every
-    read, an output reads back what it drives, and every analog channel
-    converts to ``code``.
+    The inputs read as the board wires them, an output reads back what it
+    drives, and every analog channel converts to ``code``.
     """
 
-    def __init__(self, *, high: int, low: int, clock: int, code: int) -> None:
-        self._clock = clock
+    def __init__(self, *, high: int, low: int, code: int) -> None:
         self._code = code
         self._high = high
         self._low = low
         self._registers = {SYSTEM_STATUS: STATUS_HEALTHY}
-        self._ticks = 0
 
     def convert(self, channel: int) -> int:
         """Every channel converts to the same code."""
@@ -131,10 +128,8 @@ class MockAdc:
     def read_register(self, register: int) -> int:
         """One register's contents."""
         if register == GPI_VALUE:
-            self._ticks += 1
             outputs = self._registers.get(GPIO_CFG, 0)
-            inputs = (1 << self._high) | ((self._ticks & 1) << self._clock)
-            return (self._registers.get(GPO_VALUE, 0) & outputs) | (inputs & ~outputs & ~(1 << self._low))
+            return (self._registers.get(GPO_VALUE, 0) & outputs) | ((1 << self._high) & ~outputs)
         return self._registers.get(register, 0)
 
     def write_register(self, register: int, value: int) -> None:

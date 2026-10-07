@@ -9,12 +9,12 @@ from suite.analyzer import MockAnalyzer, levels_and_edges
 from suite.profile import TidAds7138Profile
 from suite.runner import (
     _CONFIGURATION,
-    CLOCK,
     INPUT_HIGH,
     INPUT_LOW,
     OUTPUT_HIGH,
     OUTPUT_LOW,
     PULSE,
+    TOGGLE,
     analog_faults,
     driven_for,
     input_faults,
@@ -22,13 +22,8 @@ from suite.runner import (
     volts,
 )
 
-# GPIO2 high, GPIO5 low, the clock at each level, and the outputs as driven.
+# GPIO2 tied high; GPIO5 tied low reads as nothing.
 HIGH = 1 << INPUT_HIGH
-TICK = 1 << CLOCK
-
-
-def _reads(driven: int) -> list[int]:
-    return [HIGH | driven, HIGH | TICK | driven]
 
 
 class TestProfile:
@@ -55,41 +50,46 @@ class TestDrive:
     def test_the_pulse_flips_every_sample(self) -> None:
         assert [(driven_for(i) >> PULSE) & 1 for i in range(4)] == [0, 1, 0, 1]
 
+    def test_the_toggled_pin_flips_opposite_the_pulse(self) -> None:
+        assert [(driven_for(i) >> TOGGLE) & 1 for i in range(4)] == [1, 0, 1, 0]
+
 
 class TestInputs:
     def test_inputs_as_wired_have_no_fault(self) -> None:
-        assert input_faults(_reads(driven_for(1)), driven_for(1)) == []
-
-    def test_a_stopped_clock_is_named(self) -> None:
-        driven = driven_for(0)
-        (fault,) = input_faults([HIGH | TICK | driven] * 4, driven)
-        assert "GPIO3 (pin 2) held 1" in fault
+        assert input_faults(HIGH | driven_for(1), driven_for(1)) == []
 
     def test_a_tied_high_input_reading_low_is_named(self) -> None:
-        driven = driven_for(0)
-        reads = [read & ~HIGH for read in _reads(driven)]
-        assert input_faults(reads, driven) == ["GPIO2 (pin 1) read 0, not 1"]
+        assert input_faults(driven_for(0), driven_for(0)) == ["GPIO2 (pin 1) read 0, not 1"]
 
     def test_a_tied_low_input_reading_high_is_named(self) -> None:
         driven = driven_for(0)
-        reads = [read | (1 << INPUT_LOW) for read in _reads(driven)]
-        assert input_faults(reads, driven) == ["GPIO5 (pin 4) read 1, not 0"]
+        assert input_faults(HIGH | (1 << INPUT_LOW) | driven, driven) == ["GPIO5 (pin 4) read 1, not 0"]
+
+    def test_a_toggled_pin_that_did_not_follow_in_the_part_is_named(self) -> None:
+        driven = driven_for(0)
+        (fault,) = input_faults(HIGH | (driven & ~(1 << TOGGLE)), driven)
+        assert fault == "the part read its outputs as 0x40, not 0x48"
 
 
 class TestPins:
     def test_outputs_seen_as_driven_have_no_fault(self) -> None:
         profile = TidAds7138Profile()
-        captured = {3: (0, 0), 5: (1, 0), 6: (1, 0)}
+        captured = {2: (0, 0), 3: (0, 0), 5: (1, 0), 6: (1, 0)}
         assert pin_faults(captured, profile, driven_for(1)) == []
 
     def test_a_pulse_that_did_not_follow_is_named(self) -> None:
         profile = TidAds7138Profile()
-        captured = {3: (0, 0), 5: (1, 0), 6: (0, 0)}
+        captured = {2: (0, 0), 3: (0, 0), 5: (1, 0), 6: (0, 0)}
         assert pin_faults(captured, profile, driven_for(1)) == ["GPIO7 (pin 6) sat at 0 on probe 6, not 1"]
+
+    def test_a_toggled_pin_that_did_not_follow_on_the_probe_is_named(self) -> None:
+        profile = TidAds7138Profile()
+        captured = {2: (0, 0), 3: (0, 0), 5: (1, 0), 6: (0, 0)}
+        assert pin_faults(captured, profile, driven_for(0)) == ["GPIO3 (pin 2) sat at 0 on probe 2, not 1"]
 
     def test_a_glitch_on_a_held_output_is_named(self) -> None:
         profile = TidAds7138Profile()
-        captured = {3: (0, 2), 5: (1, 0), 6: (0, 0)}
+        captured = {2: (1, 0), 3: (0, 2), 5: (1, 0), 6: (0, 0)}
         assert pin_faults(captured, profile, driven_for(0)) == [
             "GPIO4 (pin 3) changed 2 times on probe 3 while held at 0"
         ]
@@ -111,14 +111,13 @@ class TestAnalog:
 class TestMock:
     def test_the_mock_part_on_its_board_passes_every_check(self) -> None:
         profile = TidAds7138Profile()
-        adc = MockAdc(high=INPUT_HIGH, low=INPUT_LOW, clock=CLOCK, code=2296)
+        adc = MockAdc(high=INPUT_HIGH, low=INPUT_LOW, code=2296)
         for register, value in _CONFIGURATION.items():
             adc.write_register(register, value)
-        analyzer = MockAnalyzer(adc, {OUTPUT_LOW: 3, OUTPUT_HIGH: 5, PULSE: 6})
+        analyzer = MockAnalyzer(adc, {TOGGLE: 2, OUTPUT_LOW: 3, OUTPUT_HIGH: 5, PULSE: 6})
         for iteration in range(2):
             driven = driven_for(iteration)
             adc.write_register(0x0B, driven)
-            reads = [adc.read_register(GPI_VALUE) for _ in range(4)]
-            assert input_faults(reads, driven) == []
+            assert input_faults(adc.read_register(GPI_VALUE), driven) == []
             assert pin_faults(analyzer.capture("1mhz", "10ms"), profile, driven) == []
             assert analog_faults({0: volts(adc.convert(0), 3.3), 1: volts(adc.convert(1), 3.3)}, profile) == []

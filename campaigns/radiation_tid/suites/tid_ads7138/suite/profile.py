@@ -30,11 +30,7 @@ class TidAds7138Profile(BaseModel):
     ain0_max_v: float = Field(default=1.95, description="Highest in-spec reading of AIN0, pin 15.")
     ain1_min_v: float = Field(default=1.75, description="Lowest in-spec reading of AIN1, pin 16.")
     ain1_max_v: float = Field(default=1.95, description="Highest in-spec reading of AIN1, pin 16.")
-    clock_reads: int = Field(
-        default=8,
-        ge=2,
-        description="Reads of the clock input, pin 2, per sample. It must be seen at both levels.",
-    )
+    toggle_probe: int = Field(default=2, description="The analyzer probe on GPIO3, pin 2, toggled every sample.")
     low_probe: int = Field(default=3, description="The analyzer probe on GPIO4, pin 3, held at 0.")
     high_probe: int = Field(default=5, description="The analyzer probe on GPIO6, pin 5, held at 1.")
     pulse_probe: int = Field(default=6, description="The analyzer probe on GPIO7, pin 6, the slow pulse.")
@@ -44,12 +40,12 @@ class TidAds7138Profile(BaseModel):
     sample_period_s: float = Field(
         default=1.0,
         gt=0,
-        description="Seconds between samples. The pulse changes level once a sample, so its period is twice this.",
+        description="Seconds between samples. Pins 2 and 6 change level once a sample, so their period is twice this.",
     )
 
     @model_validator(mode="after")
     def _consistent(self) -> TidAds7138Profile:
-        probes = [self.low_probe, self.high_probe, self.pulse_probe]
+        probes = [self.toggle_probe, self.low_probe, self.high_probe, self.pulse_probe]
         for probe in probes:
             if not 1 <= probe <= 8:
                 raise ValueError(f"probe {probe} is not one of the analyzer's eight")
