@@ -22,8 +22,6 @@ import logging
 import os
 import re
 import threading
-import time
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -125,34 +123,29 @@ class Cp2112I2c:
         self,
         node: str,
         *,
-        clock: Callable[[], float] = time.monotonic,
         instance: str = "i2c0",
-        probe_interval_s: float = 3.0,
     ) -> None:
-        self._clock = clock
         self._fd: int | None = None
         self._instance = instance
         self._known: list[int] = []
         self._last: dict[str, Any] = {}
-        self._last_probe = clock() - probe_interval_s
         self._lock = threading.Lock()
         self._node = node
-        self._probe_interval_s = probe_interval_s
-        self._unavailable_reason = "not yet probed"
+        self._unavailable_reason = ""
 
     def available(self) -> bool:
-        """Is the adapter node open right now.
+        """Could the adapter node be opened right now.
 
-        Polled by the UI on every refresh, so a missing bridge is re-probed at
-        most once per ``probe_interval_s``.
+        Polled by the UI on every refresh, so it asks the filesystem rather
+        than opening the node. Nothing holds the node open between commands:
+        hid-cp2112 cannot finish removing an unplugged bridge while a handle
+        on its adapter is open, and USB hotplug on the whole host waits for it.
         """
-        with self._lock:
-            return self._connect()
-
-    def close(self) -> None:
-        """Drop the adapter file descriptor."""
-        with self._lock:
-            self._disconnect()
+        if os.access(self._node, os.R_OK | os.W_OK):
+            self._unavailable_reason = ""
+            return True
+        self._unavailable_reason = f"cannot open {self._node}"
+        return False
 
     def command(self, name: str, args: dict[str, Any]) -> dict[str, Any]:
         """Carry out one I2C transaction and return what it moved."""
@@ -161,34 +154,37 @@ class Cp2112I2c:
         with self._lock:
             if not self._connect():
                 raise CommandRejected(f"i2c is unavailable: {self._unavailable_reason}")
-            if name == "scan":
-                self._known = self._scan()
-                return {"known_addresses": list(self._known)}
-            address = int(number_arg("i2c", args, "address", 0, _ADDRESS_MAX))
-            if name == "write":
-                data = _parse_hex(args, "data")
-                self._transfer([(address, 0, data)])
-                result = {"address": address, "data_hex": _to_hex(data), "direction": "write", "length": len(data)}
-            elif name == "read":
-                length = int(number_arg("i2c", args, "length", 1, _LENGTH_MAX))
-                (read,) = self._transfer([(address, _I2C_M_RD, bytes(length))])
-                result = {"address": address, "data_hex": _to_hex(read), "direction": "read", "length": length}
-            else:
-                data = _parse_hex(args, "data")
-                # Its own length, independent of how many bytes "data" wrote:
-                # the common case is one byte naming a register and several
-                # read back, so the two counts are typed separately rather
-                # than tied together.
-                length = int(number_arg("i2c", args, "read_length", 1, _LENGTH_MAX))
-                _, read = self._transfer([(address, 0, data), (address, _I2C_M_RD, bytes(length))])
-                result = {
-                    "address": address,
-                    "data_hex": _to_hex(read),
-                    "direction": "write_read",
-                    "length": length,
-                }
-            self._last = result
-            return result
+            try:
+                if name == "scan":
+                    self._known = self._scan()
+                    return {"known_addresses": list(self._known)}
+                address = int(number_arg("i2c", args, "address", 0, _ADDRESS_MAX))
+                if name == "write":
+                    data = _parse_hex(args, "data")
+                    self._transfer([(address, 0, data)])
+                    result = {"address": address, "data_hex": _to_hex(data), "direction": "write", "length": len(data)}
+                elif name == "read":
+                    length = int(number_arg("i2c", args, "length", 1, _LENGTH_MAX))
+                    (read,) = self._transfer([(address, _I2C_M_RD, bytes(length))])
+                    result = {"address": address, "data_hex": _to_hex(read), "direction": "read", "length": length}
+                else:
+                    data = _parse_hex(args, "data")
+                    # Its own length, independent of how many bytes "data" wrote:
+                    # the common case is one byte naming a register and several
+                    # read back, so the two counts are typed separately rather
+                    # than tied together.
+                    length = int(number_arg("i2c", args, "read_length", 1, _LENGTH_MAX))
+                    _, read = self._transfer([(address, 0, data), (address, _I2C_M_RD, bytes(length))])
+                    result = {
+                        "address": address,
+                        "data_hex": _to_hex(read),
+                        "direction": "write_read",
+                        "length": length,
+                    }
+                self._last = result
+                return result
+            finally:
+                self._disconnect()
 
     def commands(self) -> list[dict[str, Any]]:
         """The commands this instrument offers."""
@@ -288,7 +284,7 @@ class Cp2112I2c:
         address field's quick-pick choices.
         """
         with self._lock:
-            connected = self._connect()
+            connected = self.available()
             known = list(self._known)
         if not connected or not self._last:
             return {"address": None, "data_hex": None, "direction": None, "length": None, "known_addresses": known}
@@ -300,13 +296,7 @@ class Cp2112I2c:
         return self.state()
 
     def _connect(self) -> bool:
-        """Open the adapter node if it is not already open."""
-        if self._fd is not None:
-            return True
-        now = self._clock()
-        if now - self._last_probe < self._probe_interval_s:
-            return False
-        self._last_probe = now
+        """Open the adapter node for one command."""
         try:
             self._fd = os.open(self._node, os.O_RDWR)
         except OSError as exc:
@@ -330,8 +320,7 @@ class Cp2112I2c:
         Reserved addresses (below 0x08 and above 0x77) are skipped, same as
         every other bus scanner. A probe that gets no acknowledgement is the
         expected outcome for most of the range, not a wire fault, so this
-        does not go through ``_transfer``: that disconnects the adapter on
-        any I/O error, which a bare NAK must not trigger.
+        does not go through ``_transfer``, which raises on any I/O error.
         """
         found = []
         for address in range(0x08, 0x78):
@@ -386,7 +375,5 @@ class Cp2112I2c:
             # 64-bit heap, raising OverflowError before the ioctl even runs.
             fcntl.ioctl(fd, _I2C_RDWR, request)
         except OSError as exc:
-            self._unavailable_reason = f"I2C transfer failed: {exc}"
-            self._disconnect()
             raise CommandRejected(f"i2c: transfer failed: {exc}") from exc
         return [bytes(buf) for buf in buffers]
