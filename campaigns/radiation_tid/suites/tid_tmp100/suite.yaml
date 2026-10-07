@@ -5,19 +5,24 @@ title: TMP100 Temperature Sensor
 category: radiation
 description: >
   Total ionising dose characterisation of the TMP100AQDBVRQ1 on PRE-10161.
-  Read temperature from the chamber and compare it against a thermocouple.
-  Placeholder: the measurement is not implemented yet.
+  Each sample reads the temperature over I2C, fails it outside the profile's
+  bounds, and checks that the configuration and both comparator limits still
+  read back as written. The thermocouple comparison is not implemented yet.
 
 setup: |
-  The sensor is on PRE-10161, and a Raspberry Pi reads it over I2C. A
-  thermocouple reads the same chamber, and the two readings are compared. That
-  is what separates drift in the part from a chamber that really did change
-  temperature.
+  The sensor is on PRE-10161 and the host reads it directly over I2C, through
+  the i2c capability; nothing goes through the ADS7138 on the same board. The
+  device address is set by the board's ADD0 and ADD1 straps, 0x48 with both
+  low.
 
-  The board has not arrived, the thermocouple is still to be added to the BOM,
-  and the measurement is not implemented. This is the bench the suite is
-  written for rather than one that is wired. The suite runs and passes without
-  any of it.
+      +--------------+          +--------------+           +----------------+
+      |     Host     |   USB    |    CP2112    |    I2C    |     TMP100     |
+      |  /dev/i2c-N  |--------->|  USB-to-I2C  |---------->|  12 bit, temp  |
+      +--------------+          +--------------+  SDA SCL  +----------------+
+
+  A thermocouple reading the same chamber is what will separate drift in the
+  part from a chamber that changed temperature. It is still to be added to the
+  BOM, so for now the bounds in the profile are the only check on the reading.
 
 exec:
   command: ["python", "-m", "suite.cli"]
@@ -32,11 +37,13 @@ profiles: ./profiles
 conformance_profile: smoke.yaml
 
 produces: [events, junit, manifest, metrics, summary, verdict]
-requires: []
+requires: [i2c]
 
 supports:
-  target: true
+  target: false
   unit_serial: true
+
+default_metrics: [tmp100.temperature_c, tmp100.faults]
 
 overrides:
   - name: duration_s
@@ -44,8 +51,16 @@ overrides:
     type: number
     label: Duration
     unit: s
+    minimum: 0
   - name: sample_period_s
     flag: --sample-period-s
     type: number
     label: Sample period
     unit: s
+    minimum: 0.1
+  - name: driver
+    flag: --driver
+    type: string
+    label: Driver
+    choices: [real, mock]
+    help: mock reads a register model of the part and contacts no instrument.

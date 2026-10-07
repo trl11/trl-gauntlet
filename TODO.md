@@ -28,12 +28,12 @@ the error the catalog collects. Two campaigns shipping the same suite key is
 reported and then the second is ignored.
 
 **Some TID suites are still placeholders.** `tid_lan7430`, `tid_max96793`,
-`tid_max96792` and `tid_ads7138` measure. The rest — `tid_tmp100` and
-`tid_pic18f26k83` — render from the python template: they run,
-write a verdict and pass without hardware, and measure nothing at all. Each
-`runner.py` opens with the component, test vehicle, host and fixture it is for,
-and the measurements it has to grow into, so a green `radiation_tid` says only
-that those scaffolds still execute.
+`tid_max96792`, `tid_ads7138` and `tid_tmp100` measure, though `tid_tmp100`
+does not yet compare against a thermocouple. `tid_pic18f26k83` renders from the
+python template: it runs, writes a verdict and passes without hardware, and
+measures nothing at all. Its `runner.py` opens with the component, test vehicle,
+host and fixture it is for, and the measurements it has to grow into, so a green
+`radiation_tid` says only that the scaffold still executes.
 
 `tid_pic18f26k83` is TBD in the test matrix with no test vehicle or approach
 agreed, and is scaffolded anyway so the gap is visible in the campaign. The

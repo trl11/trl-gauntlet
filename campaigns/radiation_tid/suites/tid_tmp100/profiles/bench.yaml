@@ -1,6 +1,9 @@
 description: >
-  Half a minute for checking the bench before a beam session. The
-  TMP100AQDBVRQ1 measurement is not written yet, so this runs the same
-  scaffold the beam-line profile does.
+  Half a minute on the real part at room temperature, for checking the bench
+  before a beam session.
+driver: real
+address: 72
+min_c: 10.0
+max_c: 40.0
 duration_s: 30.0
 sample_period_s: 1.0
