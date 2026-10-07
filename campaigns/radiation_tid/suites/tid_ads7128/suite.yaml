@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
 apiVersion: 1
-key: tid_ads7138
-title: ADS7138 12-Bit ADC
+key: tid_ads7128
+title: ADS7128 12-Bit ADC
 category: radiation
 description: >
-  Total ionising dose characterisation of the ADS7138QRTERQ1 on PRE-10161.
+  Total ionising dose characterisation of an ADS7128 on an Adafruit breakout.
   Each sample drives a pattern on the eight digital outputs and checks it four
   ways: what the logic analyzer saw on the pins, what the part reports its own
   inputs are, whether the configuration registers still read back as written,

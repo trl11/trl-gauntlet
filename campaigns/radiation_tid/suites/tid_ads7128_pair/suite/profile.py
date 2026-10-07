@@ -1,4 +1,4 @@
-"""Profile model for the paired ADS7138 total ionising dose suite."""
+"""Profile model for the paired ADS7128 total ionising dose suite."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ PATTERN_SETS: dict[str, tuple[int, ...]] = {
 }
 
 
-class TidAds7138PairProfile(BaseModel):
+class TidAds7128PairProfile(BaseModel):
     """What an operator can configure.
 
     Every field becomes a form control in the UI; ``description`` is its label.
@@ -92,7 +92,7 @@ class TidAds7138PairProfile(BaseModel):
     sample_period_s: float = Field(default=5.0, gt=0, description="Seconds between samples.")
 
     @model_validator(mode="after")
-    def _every_channel_once(self) -> TidAds7138PairProfile:
+    def _every_channel_once(self) -> TidAds7128PairProfile:
         """Eight distinct reference channels, one per channel under test.
 
         Two wires landing on one reference channel would compare one twice and

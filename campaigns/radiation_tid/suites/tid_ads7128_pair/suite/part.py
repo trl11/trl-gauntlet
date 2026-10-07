@@ -1,4 +1,4 @@
-"""One ADS7138 driven as a whole, rather than a register at a time.
+"""One ADS7128 driven as a whole, rather than a register at a time.
 
 Both parts on this bench take the same sequences, so the sequences live here
 once and the runner holds two of these. Everything a check needs of a part is
@@ -64,7 +64,7 @@ class Transport(Protocol):
 
 
 class Part:
-    """One ADS7138, addressed through the bridge it is wired to."""
+    """One ADS7128, addressed through the bridge it is wired to."""
 
     def __init__(self, adc: Transport, name: str, *, settle_s: float = 0.002, vref_v: float = 3.3) -> None:
         self._adc = adc

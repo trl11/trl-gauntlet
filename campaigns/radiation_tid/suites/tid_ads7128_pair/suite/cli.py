@@ -1,4 +1,4 @@
-"""Command-line entry point for Tid Ads7138 Pair.
+"""Command-line entry point for Tid Ads7128 Pair.
 
 ``make_suite_cli`` supplies every flag the contract names, plus
 ``--print-profile-schema`` so Gauntlet can render a profile form.
@@ -30,7 +30,7 @@ def _extra_overrides(args: argparse.Namespace) -> dict[str, object]:
 
 main = make_suite_cli(
     SPEC,
-    prog="tid_ads7138_pair",
+    prog="tid_ads7128_pair",
     extra_args=_extra_args,
     extra_overrides=_extra_overrides,
 )

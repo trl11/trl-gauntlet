@@ -1,4 +1,4 @@
-"""Profile model for the ADS7138 total ionising dose suite."""
+"""Profile model for the ADS7128 total ionising dose suite."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ RATES = (
 WINDOWS = ("1ms", "10ms", "100ms")
 
 
-class TidAds7138Profile(BaseModel):
+class TidAds7128Profile(BaseModel):
     """What an operator can configure.
 
     Every field becomes a form control in the UI; ``description`` is its label.
@@ -87,7 +87,7 @@ class TidAds7138Profile(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def _every_probe_once(self) -> TidAds7138Profile:
+    def _every_probe_once(self) -> TidAds7128Profile:
         """Eight distinct probes, one per output.
 
         Two outputs sharing a probe would compare one line twice and never

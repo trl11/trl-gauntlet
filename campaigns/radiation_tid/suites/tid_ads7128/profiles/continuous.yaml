@@ -1,5 +1,5 @@
 description: >
-  The beam-line profile for the ADS7138QRTERQ1. Runs until the operator stops
+  The beam-line profile for the ADS7128. Runs until the operator stops
   it.
 driver: real
 duration_s: 0

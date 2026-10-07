@@ -1,4 +1,4 @@
-"""Total ionising dose characterisation of the ADS7138QRTERQ1.
+"""Total ionising dose characterisation of the ADS7128.
 
 Every channel of the part is configured as a push-pull digital output and
 wired to a probe of the logic analyzer. One iteration drives a pattern on
@@ -53,7 +53,7 @@ from suite.adc import (
     MockAdc,
 )
 from suite.analyzer import Analyzer, AnalyzerError, MockAnalyzer
-from suite.profile import TidAds7138Profile
+from suite.profile import TidAds7128Profile
 
 # Where the granted instruments are kept for the length of the run.
 _ADC = "adc"
@@ -114,7 +114,7 @@ def named_bits(value: int) -> str:
 
 def _setup(ctx: SuiteContext) -> None:
     """Take both instruments and put the part into the state under test."""
-    profile: TidAds7138Profile = ctx.profile
+    profile: TidAds7128Profile = ctx.profile
     if profile.driver == "mock":
         adc: Any = MockAdc()
         ctx.extras[_ADC] = adc
@@ -152,7 +152,7 @@ def _teardown(ctx: SuiteContext) -> None:
 
 def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     """Drive one pattern and check what the part and the pins did with it."""
-    profile: TidAds7138Profile = ctx.profile
+    profile: TidAds7128Profile = ctx.profile
     adc = ctx.extras[_ADC]
     analyzer = ctx.extras[_ANALYZER]
     pattern = pattern_for(ictx.iteration)
@@ -268,7 +268,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     )
 
 
-def _evaluate(outcomes: list[IterationOutcome], profile: TidAds7138Profile) -> tuple[bool, str] | None:
+def _evaluate(outcomes: list[IterationOutcome], profile: TidAds7128Profile) -> tuple[bool, str] | None:
     """Aggregate pass criteria: nothing failed, and something ran."""
     if not outcomes:
         return False, "no samples collected"
@@ -279,7 +279,7 @@ def _results(
     ctx: SuiteContext,
     outcomes: list[IterationOutcome],
     result: RunResult,
-    profile: TidAds7138Profile,
+    profile: TidAds7128Profile,
 ) -> list[dict[str, Any]]:
     """Headline figures shown at the top of the run summary."""
     failed = sum(1 for outcome in outcomes if not outcome.success)
@@ -292,8 +292,8 @@ def _results(
 
 
 SPEC = SuiteSpec(
-    name="tid_ads7138",
-    profile_model=TidAds7138Profile,
+    name="tid_ads7128",
+    profile_model=TidAds7128Profile,
     iterate=_iterate,
     evaluate=_evaluate,
     setup=_setup,

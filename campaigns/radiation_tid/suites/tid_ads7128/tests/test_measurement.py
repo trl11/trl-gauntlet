@@ -8,7 +8,7 @@ import pytest
 from pydantic import ValidationError
 from suite.adc import GPI_VALUE, GPIO_CFG, GPO_VALUE, PIN_CFG, MockAdc
 from suite.analyzer import MockAnalyzer
-from suite.profile import TidAds7138Profile
+from suite.profile import TidAds7128Profile
 from suite.runner import _PATTERNS, channel_labels, named_bits, pattern_for, probes_to_byte
 
 # The wiring of the bench this suite was written against: the probe each
@@ -19,23 +19,23 @@ BENCH_MAP = [5, 3, 1, 7, 8, 6, 4, 2]
 class TestProfile:
     def test_an_unknown_rate_is_refused(self) -> None:
         with pytest.raises(ValidationError, match="rate must be one of"):
-            TidAds7138Profile(rate="99mhz")
+            TidAds7128Profile(rate="99mhz")
 
     def test_an_unknown_window_is_refused(self) -> None:
         with pytest.raises(ValidationError, match="window must be one of"):
-            TidAds7138Profile(window="1s")
+            TidAds7128Profile(window="1s")
 
     def test_a_probe_named_twice_is_refused(self) -> None:
         with pytest.raises(ValidationError, match="more than once"):
-            TidAds7138Profile(probe_map=[1, 1, 2, 3, 4, 5, 6, 7])
+            TidAds7128Profile(probe_map=[1, 1, 2, 3, 4, 5, 6, 7])
 
     def test_a_probe_the_analyzer_does_not_have_is_refused(self) -> None:
         with pytest.raises(ValidationError, match="not one of the analyzer's eight"):
-            TidAds7138Profile(probe_map=[1, 2, 3, 4, 5, 6, 7, 9])
+            TidAds7128Profile(probe_map=[1, 2, 3, 4, 5, 6, 7, 9])
 
     def test_an_address_outside_the_bus_is_refused(self) -> None:
         with pytest.raises(ValidationError):
-            TidAds7138Profile(address=0x80)
+            TidAds7128Profile(address=0x80)
 
 
 class TestPatterns:

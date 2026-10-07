@@ -1,6 +1,6 @@
-"""Total ionising dose characterisation of an ADS7138 against an identical part.
+"""Total ionising dose characterisation of an ADS7128 against an identical part.
 
-Two ADS7138s are wired channel to channel, each on its own CP2112 bridge. One
+Two ADS7128s are wired channel to channel, each on its own CP2112 bridge. One
 sits in the beam and one does not, so the two are the same part under two
 doses and the pair is its own control: what moves on the irradiated part and
 not on the reference is the dose, with the supply, the room and the harness
@@ -47,7 +47,7 @@ from gauntlet_sdk import (
 
 from suite.adc import CODE_MAX, STATUS_ALIVE, STATUS_FAULT_NAMES, STATUS_FAULTS, Adc, AdcError, MockAdc, MockBench
 from suite.part import Part, cal_timeout_ms
-from suite.profile import OVERSAMPLING, PATTERN_SETS, TidAds7138PairProfile
+from suite.profile import OVERSAMPLING, PATTERN_SETS, TidAds7128PairProfile
 
 # Where the two parts are kept for the length of the run.
 _DUT = "dut"
@@ -157,7 +157,7 @@ def oversampling_spreads(part: Part, channel: int, samples: int) -> list[float]:
 
 def _setup(ctx: SuiteContext) -> None:
     """Take both bridges and put both parts into the state under test."""
-    profile: TidAds7138PairProfile = ctx.profile
+    profile: TidAds7128PairProfile = ctx.profile
     if profile.driver == "mock":
         bench = MockBench(profile.channel_map, vref_v=profile.vref_v)
         dut_adc: Any = MockAdc(bench, "dut")
@@ -207,7 +207,7 @@ def _teardown(ctx: SuiteContext) -> None:
 
 def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     """Put the pair through every check once and report what each part did."""
-    profile: TidAds7138PairProfile = ctx.profile
+    profile: TidAds7128PairProfile = ctx.profile
     dut: Part = ctx.extras[_DUT]
     ref: Part = ctx.extras[_REF]
     forward = profile.channel_map
@@ -304,7 +304,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
             faults.append(f"{part.name} did not finish calibrating")
 
     metrics: dict[str, Any] = {
-        "ads7138": {
+        "ads7128": {
             "faults": len(faults),
             "pattern": pattern,
             "dut_drive": {"vol_mv": round(vol_mv, 2), "voh_mv": round(voh_mv, 2)},
@@ -341,7 +341,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     )
 
 
-def _evaluate(outcomes: list[IterationOutcome], profile: TidAds7138PairProfile) -> tuple[bool, str] | None:
+def _evaluate(outcomes: list[IterationOutcome], profile: TidAds7128PairProfile) -> tuple[bool, str] | None:
     """Aggregate pass criteria: nothing failed, and something ran."""
     if not outcomes:
         return False, "no samples collected"
@@ -352,7 +352,7 @@ def _results(
     ctx: SuiteContext,
     outcomes: list[IterationOutcome],
     result: RunResult,
-    profile: TidAds7138PairProfile,
+    profile: TidAds7128PairProfile,
 ) -> list[dict[str, Any]]:
     """Headline figures shown at the top of the run summary."""
     failed = sum(1 for outcome in outcomes if not outcome.success)
@@ -389,7 +389,7 @@ def _results(
 
 def _metric(outcome: IterationOutcome, group: str, name: str) -> float | None:
     """One figure out of an iteration's metrics, for a run summarising them."""
-    values = outcome.metrics.get("ads7138")
+    values = outcome.metrics.get("ads7128")
     if not isinstance(values, dict):
         return None
     inner = values.get(group)
@@ -400,8 +400,8 @@ def _metric(outcome: IterationOutcome, group: str, name: str) -> float | None:
 
 
 SPEC = SuiteSpec(
-    name="tid_ads7138_pair",
-    profile_model=TidAds7138PairProfile,
+    name="tid_ads7128_pair",
+    profile_model=TidAds7128PairProfile,
     iterate=_iterate,
     evaluate=_evaluate,
     setup=_setup,

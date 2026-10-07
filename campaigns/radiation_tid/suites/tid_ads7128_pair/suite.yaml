@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
 apiVersion: 1
-key: tid_ads7138_pair
-title: ADS7138 Pair, Beam Against Reference
+key: tid_ads7128_pair
+title: ADS7128 Pair, Beam Against Reference
 category: radiation
 description: >
-  Total ionising dose characterisation of an ADS7138QRTERQ1 against an
+  Total ionising dose characterisation of an ADS7128 against an
   identical part outside the beam, wired to it channel for channel. CH0 to
   CH7 all take the same turns — outputs while their part drives, analog
   inputs while it listens — so an iteration drives a byte from each part in
@@ -96,10 +96,10 @@ supports:
   unit_serial: true
 
 default_metrics:
-  - ads7138.faults
-  - ads7138.dut_drive.voh_mv
-  - ads7138.dut_drive.vol_mv
-  - ads7138.delta.noise_lsb
+  - ads7128.faults
+  - ads7128.dut_drive.voh_mv
+  - ads7128.dut_drive.vol_mv
+  - ads7128.delta.noise_lsb
 
 overrides:
   - name: duration_s
