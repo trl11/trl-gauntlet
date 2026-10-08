@@ -1,110 +1,123 @@
-"""What the profile refuses, and what one pattern is judged against."""
+"""What the profile refuses, and what one sample is judged against."""
 
 from __future__ import annotations
 
-import base64
-
 import pytest
 from pydantic import ValidationError
-from suite.adc import GPI_VALUE, GPIO_CFG, GPO_VALUE, PIN_CFG, MockAdc
-from suite.analyzer import MockAnalyzer
+from suite.adc import GPI_VALUE, MockAdc
+from suite.analyzer import MockAnalyzer, levels_and_edges
 from suite.profile import TidAds7138Profile
-from suite.runner import _PATTERNS, channel_labels, named_bits, pattern_for, probes_to_byte
+from suite.runner import (
+    _CONFIGURATION,
+    INPUT_HIGH,
+    INPUT_LOW,
+    OUTPUT_HIGH,
+    OUTPUT_LOW,
+    PULSE,
+    TOGGLE,
+    analog_faults,
+    driven_for,
+    input_faults,
+    pin_faults,
+    volts,
+)
 
-# The wiring of the bench this suite was written against: the probe each
-# output is clipped to, in the scrambled order the ribbon gives.
-BENCH_MAP = [5, 3, 1, 7, 8, 6, 4, 2]
+# GPIO2 tied high; GPIO5 tied low reads as nothing.
+HIGH = 1 << INPUT_HIGH
 
 
 class TestProfile:
-    def test_an_unknown_rate_is_refused(self) -> None:
-        with pytest.raises(ValidationError, match="rate must be one of"):
-            TidAds7138Profile(rate="99mhz")
-
-    def test_an_unknown_window_is_refused(self) -> None:
-        with pytest.raises(ValidationError, match="window must be one of"):
-            TidAds7138Profile(window="1s")
-
-    def test_a_probe_named_twice_is_refused(self) -> None:
-        with pytest.raises(ValidationError, match="more than once"):
-            TidAds7138Profile(probe_map=[1, 1, 2, 3, 4, 5, 6, 7])
+    def test_two_outputs_on_one_probe_are_refused(self) -> None:
+        with pytest.raises(ValidationError, match="same probe"):
+            TidAds7138Profile(low_probe=3, high_probe=3)
 
     def test_a_probe_the_analyzer_does_not_have_is_refused(self) -> None:
-        with pytest.raises(ValidationError, match="not one of the analyzer's eight"):
-            TidAds7138Profile(probe_map=[1, 2, 3, 4, 5, 6, 7, 9])
+        with pytest.raises(ValidationError, match="analyzer's eight"):
+            TidAds7138Profile(pulse_probe=9)
 
-    def test_an_address_outside_the_bus_is_refused(self) -> None:
-        with pytest.raises(ValidationError):
-            TidAds7138Profile(address=0x80)
-
-
-class TestPatterns:
-    def test_both_rails_and_both_alternations_are_driven(self) -> None:
-        assert {0x00, 0xFF, 0xAA, 0x55} <= set(_PATTERNS)
-
-    def test_every_output_is_driven_high_and_low_on_its_own(self) -> None:
-        for bit in range(8):
-            assert 1 << bit in _PATTERNS
-            assert 0xFF ^ (1 << bit) in _PATTERNS
-
-    def test_the_patterns_cycle(self) -> None:
-        assert pattern_for(0) == pattern_for(len(_PATTERNS))
+    def test_an_analog_window_upside_down_is_refused(self) -> None:
+        with pytest.raises(ValidationError, match="below its maximum"):
+            TidAds7138Profile(ain1_min_v=2.0, ain1_max_v=1.0)
 
 
-class TestProbes:
-    def test_the_scrambled_probes_read_back_as_the_driven_byte(self) -> None:
-        levels = {5: 1, 3: 0, 1: 0, 7: 1, 8: 0, 6: 0, 4: 0, 2: 0}
-        assert probes_to_byte(levels, BENCH_MAP) == 0b00001001
+class TestDrive:
+    def test_the_low_output_is_low_and_the_high_output_is_high(self) -> None:
+        for iteration in range(4):
+            driven = driven_for(iteration)
+            assert not driven & (1 << OUTPUT_LOW)
+            assert driven & (1 << OUTPUT_HIGH)
 
-    def test_a_probe_the_capture_missed_reads_low(self) -> None:
-        assert probes_to_byte({}, BENCH_MAP) == 0x00
+    def test_the_pulse_flips_every_sample(self) -> None:
+        assert [(driven_for(i) >> PULSE) & 1 for i in range(4)] == [0, 1, 0, 1]
 
-    def test_a_difference_names_the_outputs_it_covers(self) -> None:
-        assert named_bits(0b00100100) == "GPO2, GPO5"
-
-
-class TestChannelLabels:
-    def test_each_probe_is_labelled_with_the_output_clipped_to_it(self) -> None:
-        # GPO0 is on probe 5, so probe 5's lane is the one that reads GPO0.
-        assert channel_labels(BENCH_MAP)[4] == "GPO0"
-        assert channel_labels(BENCH_MAP)[0] == "GPO2"
-
-    def test_every_probe_is_named_once(self) -> None:
-        assert sorted(channel_labels(BENCH_MAP)) == [f"GPO{bit}" for bit in range(8)]
+    def test_the_toggled_pin_flips_opposite_the_pulse(self) -> None:
+        assert [(driven_for(i) >> TOGGLE) & 1 for i in range(4)] == [1, 0, 1, 0]
 
 
-class TestMockPart:
-    def test_the_inputs_mirror_what_the_outputs_are_driving(self) -> None:
-        adc = MockAdc()
-        adc.write_register(PIN_CFG, 0xFF)
-        adc.write_register(GPIO_CFG, 0xFF)
-        adc.write_register(GPO_VALUE, 0xA5)
-        assert adc.read_register(GPI_VALUE) == 0xA5
+class TestInputs:
+    def test_inputs_as_wired_have_no_fault(self) -> None:
+        assert input_faults(HIGH | driven_for(1), driven_for(1)) == []
 
-    def test_a_channel_that_is_not_an_output_reads_low(self) -> None:
-        adc = MockAdc()
-        adc.write_register(PIN_CFG, 0xFF)
-        adc.write_register(GPIO_CFG, 0x0F)
-        adc.write_register(GPO_VALUE, 0xFF)
-        assert adc.read_register(GPI_VALUE) == 0x0F
+    def test_a_tied_high_input_reading_low_is_named(self) -> None:
+        assert input_faults(driven_for(0), driven_for(0)) == ["GPIO2 (pin 1) read 0, not 1"]
 
-    def test_the_trace_holds_the_pattern_the_outputs_were_driving(self) -> None:
-        adc = MockAdc()
-        adc.write_register(PIN_CFG, 0xFF)
-        adc.write_register(GPIO_CFG, 0xFF)
-        adc.write_register(GPO_VALUE, 0xA5)
-        captured = MockAnalyzer(adc, BENCH_MAP).capture("1mhz", "1ms")
-        samples = base64.b64decode(captured.samples_base64)
-        assert len(samples) == captured.samples
-        # A sample byte carries probe n in bit n-1, which is the shape the
-        # viewer decodes and the opposite end of the same wiring.
-        levels = {probe: (samples[0] >> (probe - 1)) & 1 for probe in range(1, 9)}
-        assert probes_to_byte(levels, BENCH_MAP) == 0xA5
+    def test_a_tied_low_input_reading_high_is_named(self) -> None:
+        driven = driven_for(0)
+        assert input_faults(HIGH | (1 << INPUT_LOW) | driven, driven) == ["GPIO5 (pin 4) read 1, not 0"]
 
-    def test_the_analyzer_reports_the_pattern_through_the_probe_map(self) -> None:
-        adc = MockAdc()
-        adc.write_register(PIN_CFG, 0xFF)
-        adc.write_register(GPIO_CFG, 0xFF)
-        adc.write_register(GPO_VALUE, 0x81)
-        captured = MockAnalyzer(adc, BENCH_MAP).capture("1mhz", "1ms")
-        assert probes_to_byte(captured.levels(), BENCH_MAP) == 0x81
+    def test_a_toggled_pin_that_did_not_follow_in_the_part_is_named(self) -> None:
+        driven = driven_for(0)
+        (fault,) = input_faults(HIGH | (driven & ~(1 << TOGGLE)), driven)
+        assert fault == "the part read its outputs as 0x40, not 0x48"
+
+
+class TestPins:
+    def test_outputs_seen_as_driven_have_no_fault(self) -> None:
+        profile = TidAds7138Profile()
+        captured = {2: (0, 0), 3: (0, 0), 5: (1, 0), 6: (1, 0)}
+        assert pin_faults(captured, profile, driven_for(1)) == []
+
+    def test_a_pulse_that_did_not_follow_is_named(self) -> None:
+        profile = TidAds7138Profile()
+        captured = {2: (0, 0), 3: (0, 0), 5: (1, 0), 6: (0, 0)}
+        assert pin_faults(captured, profile, driven_for(1)) == ["GPIO7 (pin 6) sat at 0 on probe 6, not 1"]
+
+    def test_a_toggled_pin_that_did_not_follow_on_the_probe_is_named(self) -> None:
+        profile = TidAds7138Profile()
+        captured = {2: (0, 0), 3: (0, 0), 5: (1, 0), 6: (0, 0)}
+        assert pin_faults(captured, profile, driven_for(0)) == ["GPIO3 (pin 2) sat at 0 on probe 2, not 1"]
+
+    def test_a_glitch_on_a_held_output_is_named(self) -> None:
+        profile = TidAds7138Profile()
+        captured = {2: (1, 0), 3: (0, 2), 5: (1, 0), 6: (0, 0)}
+        assert pin_faults(captured, profile, driven_for(0)) == [
+            "GPIO4 (pin 3) changed 2 times on probe 3 while held at 0"
+        ]
+
+    def test_the_capture_is_read_by_probe_number(self) -> None:
+        assert levels_and_edges({"3": {"level": 1, "edges": 4}, "5": {"level": None}}) == {3: (1, 4), 5: (0, 0)}
+
+
+class TestAnalog:
+    def test_a_code_converts_against_avdd(self) -> None:
+        assert volts(2048, 3.3) == pytest.approx(1.65)
+
+    def test_a_reading_outside_its_window_is_named(self) -> None:
+        profile = TidAds7138Profile()
+        (fault,) = analog_faults({0: 1.85, 1: 2.5}, profile)
+        assert fault.startswith("AIN1 (pin 16) read 2.5000 V")
+
+
+class TestMock:
+    def test_the_mock_part_on_its_board_passes_every_check(self) -> None:
+        profile = TidAds7138Profile()
+        adc = MockAdc(high=INPUT_HIGH, low=INPUT_LOW, code=2296)
+        for register, value in _CONFIGURATION.items():
+            adc.write_register(register, value)
+        analyzer = MockAnalyzer(adc, {TOGGLE: 2, OUTPUT_LOW: 3, OUTPUT_HIGH: 5, PULSE: 6})
+        for iteration in range(2):
+            driven = driven_for(iteration)
+            adc.write_register(0x0B, driven)
+            assert input_faults(adc.read_register(GPI_VALUE), driven) == []
+            assert pin_faults(analyzer.capture("1mhz", "10ms"), profile, driven) == []
+            assert analog_faults({0: volts(adc.convert(0), 3.3), 1: volts(adc.convert(1), 3.3)}, profile) == []

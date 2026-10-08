@@ -1,4 +1,4 @@
-"""One ADS7138 as this suite reaches it, and a simulation of a pair of them.
+"""One ADS7128 as this suite reaches it, and a simulation of a pair of them.
 
 Gauntlet owns both bridges. A suite naming ``i2c.dut`` and ``i2c.ref`` in
 ``requires:`` is granted a URL for each and drives them over HTTP, so nothing
@@ -62,7 +62,7 @@ class AdcError(RuntimeError):
 
 
 class Adc:
-    """One ADS7138 on one granted ``i2c`` capability."""
+    """One ADS7128 on one granted ``i2c`` capability."""
 
     def __init__(self, url: str, address: int, *, timeout_s: float = 10.0) -> None:
         self._address = address

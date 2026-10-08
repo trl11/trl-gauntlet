@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 from suite.adc import GPO_VALUE, STATUS_ALIVE, STATUS_FAULTS, MockAdc, MockBench
 from suite.part import Part
-from suite.profile import OVERSAMPLING, PATTERN_SETS, TidAds7138PairProfile
+from suite.profile import OVERSAMPLING, PATTERN_SETS, TidAds7128PairProfile
 from suite.runner import across, invert, levels, link, named_bits, oversampling_spreads, pattern_for, quiet_rail
 
 # A harness whose channels 2 and 3 cross, which is what the maths has to
@@ -188,22 +188,22 @@ class TestHealth:
 class TestProfile:
     def test_a_channel_map_naming_one_channel_twice_is_rejected(self) -> None:
         with pytest.raises(ValueError, match="more than once"):
-            TidAds7138PairProfile(channel_map=[0, 0, 2, 3, 4, 5, 6, 7])
+            TidAds7128PairProfile(channel_map=[0, 0, 2, 3, 4, 5, 6, 7])
 
     def test_a_channel_outside_the_part_is_rejected(self) -> None:
         with pytest.raises(ValueError, match="not one of the part's eight"):
-            TidAds7138PairProfile(channel_map=[0, 1, 2, 3, 4, 5, 6, 8])
+            TidAds7128PairProfile(channel_map=[0, 1, 2, 3, 4, 5, 6, 8])
 
     def test_thresholds_that_no_level_could_pass_are_rejected(self) -> None:
         with pytest.raises(ValueError, match="above vol_max_mv"):
-            TidAds7138PairProfile(vol_max_mv=3000.0, voh_min_mv=2000.0)
+            TidAds7128PairProfile(vol_max_mv=3000.0, voh_min_mv=2000.0)
 
     def test_a_straight_harness_is_the_default(self) -> None:
-        assert TidAds7138PairProfile().channel_map == list(range(8))
+        assert TidAds7128PairProfile().channel_map == list(range(8))
 
     def test_every_pattern_is_the_default(self) -> None:
-        assert TidAds7138PairProfile().patterns == "all"
+        assert TidAds7128PairProfile().patterns == "all"
 
     def test_a_pattern_set_that_is_not_one_of_them_is_rejected(self) -> None:
         with pytest.raises(ValueError, match="not one of the pattern sets"):
-            TidAds7138PairProfile(patterns="walking_two")
+            TidAds7128PairProfile(patterns="walking_two")

@@ -1,9 +1,13 @@
-"""The ADS7138 under test, as this suite reaches it.
+"""The ADS7128 under test, as this suite reaches it.
 
 Gauntlet owns the bridge. A suite naming ``i2c`` in ``requires:`` is granted a
 URL and drives it over HTTP, so nothing here opens a device node or knows what
-a CP2112 is. ``urllib`` rather than a client library, because the SDK depends
-on pydantic and pyyaml and a suite may not add to that.
+a CP2112 is.
+
+The transport is three calls — read a register, write a register, read the
+conversion result — and the sequences built from them live in the runner.
+``urllib`` rather than a client library, because the SDK depends on pydantic
+and pyyaml and a suite may not add to that.
 """
 
 from __future__ import annotations
@@ -13,16 +17,16 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-SYSTEM_STATUS = 0x00
 DATA_CFG = 0x02
-OPMODE_CFG = 0x04
-PIN_CFG = 0x05
+GENERAL_CFG = 0x01
 GPIO_CFG = 0x07
+GPI_VALUE = 0x0D
 GPO_DRIVE_CFG = 0x09
 GPO_VALUE = 0x0B
-GPI_VALUE = 0x0D
+OPMODE_CFG = 0x04
+PIN_CFG = 0x05
 SEQUENCE_CFG = 0x10
-CHANNEL_SEL = 0x11
+SYSTEM_STATUS = 0x00
 
 OP_READ = 0x10
 OP_WRITE = 0x08
@@ -35,7 +39,10 @@ STATUS_HEALTHY = 0x80
 # power-up the part has already had before a run starts.
 STATUS_CLEAR_BOR = 0x01
 
-FULL_SCALE = 4096
+# DATA_CFG bit 7 makes the part answer a conversion read with a fixed code
+# instead of a measurement, and this is that code, left-aligned in 16 bits.
+FIXED_PATTERN = 0xA5A0
+FIXED_PATTERN_ON = 0x80
 
 
 class AdcError(RuntimeError):
@@ -43,20 +50,19 @@ class AdcError(RuntimeError):
 
 
 class Adc:
-    """One ADS7138 on the granted ``i2c`` capability."""
+    """One ADS7128 on the granted ``i2c`` capability."""
 
     def __init__(self, url: str, address: int, *, timeout_s: float = 10.0) -> None:
         self._address = address
         self._timeout_s = timeout_s
         self._url = url
 
-    def convert(self, channel: int) -> int:
-        """One 12-bit conversion of an analog channel, in manual mode."""
-        self.write_register(CHANNEL_SEL, channel)
-        # The frame after a channel change can still carry the previous
-        # channel's result, so it is read and dropped.
-        self._read_word()
-        return self._read_word() >> 4
+    def read_data(self) -> int:
+        """The two bytes of a conversion read, as one 16-bit word."""
+        raw = self._transfer({"command": "read", "args": {"address": self._address, "length": 2}})
+        if len(raw) != 2:
+            raise AdcError(f"a conversion read answered {len(raw)} bytes, not 2")
+        return (raw[0] << 8) | raw[1]
 
     def read_register(self, register: int) -> int:
         """One register's contents."""
@@ -83,12 +89,6 @@ class Adc:
             }
         )
 
-    def _read_word(self) -> int:
-        raw = self._transfer({"command": "read", "args": {"address": self._address, "length": 2}})
-        if len(raw) != 2:
-            raise AdcError(f"a conversion read answered {len(raw)} bytes, not 2")
-        return (raw[0] << 8) | raw[1]
-
     def _transfer(self, body: dict[str, Any]) -> bytes:
         """Run one transaction and return the bytes it read back."""
         request = urllib.request.Request(
@@ -108,28 +108,28 @@ class Adc:
 
 
 class MockAdc:
-    """The part on its board as a register file, for a run that contacts no bridge.
+    """The part as a register file, for a run that contacts no bridge.
 
-    The inputs read as the board wires them, an output reads back what it
-    drives, and every analog channel converts to ``code``.
+    It answers as the real one does for everything the runner asks of it: a
+    written register reads back, the digital inputs mirror the outputs a
+    channel is configured to drive, and a conversion read answers with the
+    fixed code while that is switched on.
     """
 
-    def __init__(self, *, high: int, low: int, code: int) -> None:
-        self._code = code
-        self._high = high
-        self._low = low
+    def __init__(self) -> None:
         self._registers = {SYSTEM_STATUS: STATUS_HEALTHY}
 
-    def convert(self, channel: int) -> int:
-        """Every channel converts to the same code."""
-        self._registers[CHANNEL_SEL] = channel
-        return self._code
+    def read_data(self) -> int:
+        """The fixed code while it is switched on, and zero otherwise."""
+        if self._registers.get(DATA_CFG, 0) & FIXED_PATTERN_ON:
+            return FIXED_PATTERN
+        return 0
 
     def read_register(self, register: int) -> int:
         """One register's contents."""
         if register == GPI_VALUE:
-            outputs = self._registers.get(GPIO_CFG, 0)
-            return (self._registers.get(GPO_VALUE, 0) & outputs) | ((1 << self._high) & ~outputs)
+            driving = self._registers.get(PIN_CFG, 0) & self._registers.get(GPIO_CFG, 0)
+            return self._registers.get(GPO_VALUE, 0) & driving
         return self._registers.get(register, 0)
 
     def write_register(self, register: int, value: int) -> None:

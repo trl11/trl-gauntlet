@@ -2,30 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-
-# The rates and windows the analyzer takes. The instrument is the final
-# authority and refuses anything else; these are here for the error an
-# operator sees when a profile names something it does not offer.
-RATES = (
-    "24mhz",
-    "16mhz",
-    "12mhz",
-    "8mhz",
-    "6mhz",
-    "4mhz",
-    "3mhz",
-    "2mhz",
-    "1mhz",
-    "500khz",
-    "250khz",
-    "200khz",
-    "100khz",
-    "50khz",
-    "25khz",
-    "20khz",
-)
-WINDOWS = ("1ms", "10ms", "100ms")
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class TidAds7138Profile(BaseModel):
@@ -48,54 +25,32 @@ class TidAds7138Profile(BaseModel):
         le=0x77,
         description="The part's 7-bit I2C address, selected by the board's ADDR strap.",
     )
-    probe_map: list[int] = Field(
-        default_factory=lambda: [5, 3, 1, 7, 8, 6, 4, 2],
-        min_length=8,
-        max_length=8,
-        description="The analyzer probe each of GPO0 to GPO7 is clipped to. Bench wiring, not a device setting.",
-    )
-    rate: str = Field(default="1mhz", description=f"Sample rate. One of: {', '.join(RATES)}.")
-    window: str = Field(
-        default="1ms",
-        description=f"How much signal one capture covers. One of: {', '.join(WINDOWS)}.",
-    )
+    avdd_v: float = Field(default=3.3, gt=0, description="AVDD, which is also the ADC's reference.")
+    ain0_min_v: float = Field(default=1.75, description="Lowest in-spec reading of AIN0, pin 15.")
+    ain0_max_v: float = Field(default=1.95, description="Highest in-spec reading of AIN0, pin 15.")
+    ain1_min_v: float = Field(default=1.75, description="Lowest in-spec reading of AIN1, pin 16.")
+    ain1_max_v: float = Field(default=1.95, description="Highest in-spec reading of AIN1, pin 16.")
+    toggle_probe: int = Field(default=2, description="The analyzer probe on GPIO3, pin 2, toggled every sample.")
+    low_probe: int = Field(default=3, description="The analyzer probe on GPIO4, pin 3, held at 0.")
+    high_probe: int = Field(default=5, description="The analyzer probe on GPIO6, pin 5, held at 1.")
+    pulse_probe: int = Field(default=6, description="The analyzer probe on GPIO7, pin 6, the slow pulse.")
     duration_s: float = Field(
         default=60.0, ge=0, description="How long to run. 0 runs until the operator stops the run."
     )
-    sample_period_s: float = Field(default=1.0, gt=0, description="Seconds between samples.")
-    save_traces: bool = Field(
-        default=True,
-        description=(
-            "Keep the samples of every capture, to be looked through afterwards. "
-            "One byte per sample, so rate times window. Off for a long run, "
-            "which would keep thousands."
-        ),
+    sample_period_s: float = Field(
+        default=1.0,
+        gt=0,
+        description="Seconds between samples. Pins 2 and 6 change level once a sample, so their period is twice this.",
     )
 
-    @field_validator("rate")
-    @classmethod
-    def _known_rate(cls, value: str) -> str:
-        if value not in RATES:
-            raise ValueError(f"rate must be one of {', '.join(RATES)}")
-        return value
-
-    @field_validator("window")
-    @classmethod
-    def _known_window(cls, value: str) -> str:
-        if value not in WINDOWS:
-            raise ValueError(f"window must be one of {', '.join(WINDOWS)}")
-        return value
-
     @model_validator(mode="after")
-    def _every_probe_once(self) -> TidAds7138Profile:
-        """Eight distinct probes, one per output.
-
-        Two outputs sharing a probe would compare one line twice and never
-        look at the other.
-        """
-        for probe in self.probe_map:
+    def _consistent(self) -> TidAds7138Profile:
+        probes = [self.toggle_probe, self.low_probe, self.high_probe, self.pulse_probe]
+        for probe in probes:
             if not 1 <= probe <= 8:
                 raise ValueError(f"probe {probe} is not one of the analyzer's eight")
-        if len(set(self.probe_map)) != len(self.probe_map):
-            raise ValueError("probe_map names a probe more than once")
+        if len(set(probes)) != len(probes):
+            raise ValueError("two outputs name the same probe")
+        if self.ain0_min_v >= self.ain0_max_v or self.ain1_min_v >= self.ain1_max_v:
+            raise ValueError("an analog window's minimum must be below its maximum")
         return self

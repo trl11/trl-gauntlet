@@ -1,7 +1,11 @@
 description: >
   Half a minute on the real part, for checking the bench before a beam
-  session.
+  session. The same eight probes the beam-line profile drives.
 driver: real
 address: 16
+probe_map: [5, 3, 1, 7, 8, 6, 4, 2]
+rate: 1mhz
+window: 1ms
 duration_s: 30.0
 sample_period_s: 1.0
+save_traces: true

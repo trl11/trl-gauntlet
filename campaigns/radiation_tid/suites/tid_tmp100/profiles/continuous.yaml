@@ -1,5 +1,7 @@
-description: >
-  TBD — the continuous beam-line profile for the TMP100AQDBVRQ1. Runs until
-  the operator stops it.
+description: The beam-line profile. Runs until the operator stops it.
+driver: real
+address: 72
+min_c: -55.0
+max_c: 125.0
 duration_s: 0
 sample_period_s: 1.0

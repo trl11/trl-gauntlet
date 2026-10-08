@@ -710,13 +710,13 @@ class _FakeI2cBus:
         return 0
 
 
-def _bridge(monkeypatch: Any, bus: _FakeI2cBus, clock: Any = None) -> Cp2112I2c:
-    """A ``Cp2112I2c`` whose node opens and whose ioctls hit ``bus``."""
+def _bridge(monkeypatch: Any, bus: _FakeI2cBus) -> Cp2112I2c:
+    """A ``Cp2112I2c`` whose node is there, opens, and whose ioctls hit ``bus``."""
+    monkeypatch.setattr(cp2112.os, "access", lambda node, mode: True)
     monkeypatch.setattr(cp2112.os, "open", lambda node, flags: 7)
     monkeypatch.setattr(cp2112.os, "close", lambda fd: None)
     monkeypatch.setattr(cp2112.fcntl, "ioctl", bus.ioctl)
-    kwargs = {"clock": clock} if clock is not None else {}
-    return Cp2112I2c("/dev/i2c-9", **kwargs)
+    return Cp2112I2c("/dev/i2c-9")
 
 
 class TestCp2112I2c:
@@ -776,32 +776,38 @@ class TestCp2112I2c:
         with pytest.raises(CommandRejected):
             bridge.command("explode", {"address": 0x48})
 
-    def test_a_transfer_failure_disconnects_and_is_reported(self, monkeypatch: Any) -> None:
+    def test_a_transfer_failure_is_reported_and_closes_the_node(self, monkeypatch: Any) -> None:
         bus = _FakeI2cBus()
         bus.fails = True
         bridge = _bridge(monkeypatch, bus)
         with pytest.raises(CommandRejected):
             bridge.command("read", {"address": 0x48, "length": 1})
-        # Reprobing is on an interval, so the drop stands until it elapses.
-        assert bridge.available() is False
-
-    def test_unavailable_when_the_node_will_not_open(self, monkeypatch: Any) -> None:
-        def refuse(node: str, flags: int) -> int:
-            raise OSError("no such device")
-
-        monkeypatch.setattr(cp2112.os, "open", refuse)
-        bridge = Cp2112I2c("/dev/i2c-9", clock=_Clock())
-        assert bridge.available() is False
-        assert "no such device" in bridge.describe()["unavailable_reason"]
-
-    def test_a_bridge_that_stops_answering_is_reprobed_on_an_interval(self, monkeypatch: Any) -> None:
-        clock = _Clock()
-        bridge = _bridge(monkeypatch, _FakeI2cBus(), clock=clock)
-        assert bridge.available()
-        bridge.close()
-        assert bridge.available() is False
-        clock.advance(3.0)
+        assert bridge._fd is None
+        # A device that does not answer says nothing about the bridge.
         assert bridge.available() is True
+
+    def test_unavailable_when_the_node_cannot_be_opened(self, monkeypatch: Any) -> None:
+        monkeypatch.setattr(cp2112.os, "access", lambda node, mode: False)
+        bridge = Cp2112I2c("/dev/i2c-9")
+        assert bridge.available() is False
+        assert "/dev/i2c-9" in bridge.describe()["unavailable_reason"]
+
+    def test_the_node_is_held_only_for_the_length_of_a_command(self, monkeypatch: Any) -> None:
+        # hid-cp2112 cannot remove an unplugged bridge while its adapter is
+        # open, and USB hotplug on the host stalls until it can.
+        opened: list[str] = []
+        closed: list[int] = []
+        bridge = _bridge(monkeypatch, _FakeI2cBus({0x48: b"\xab"}))
+        monkeypatch.setattr(cp2112.os, "open", lambda node, flags: opened.append(node) or 7)
+        monkeypatch.setattr(cp2112.os, "close", closed.append)
+        assert bridge.available()
+        bridge.state()
+        assert opened == []
+        bridge.command("read", {"address": 0x48, "length": 1})
+        bridge.command("scan", {})
+        assert opened == ["/dev/i2c-9", "/dev/i2c-9"]
+        assert closed == [7, 7]
+        assert bridge._fd is None
 
     def test_connection_names_the_node(self, monkeypatch: Any) -> None:
         bridge = _bridge(monkeypatch, _FakeI2cBus())
@@ -872,7 +878,7 @@ class TestCp2112I2c:
             raise OSError("no such device")
 
         monkeypatch.setattr(cp2112.os, "open", refuse)
-        bridge = Cp2112I2c("/dev/i2c-9", clock=_Clock())
+        bridge = Cp2112I2c("/dev/i2c-9")
         with pytest.raises(CommandRejected, match="i2c is unavailable: cannot open /dev/i2c-9"):
             bridge.command("read", {"address": 0x48, "length": 1})
 
@@ -895,16 +901,14 @@ class TestCp2112I2c:
         assert [entry["key"] for entry in bridge.readouts()] == ["address", "direction", "data_hex", "length"]
 
     def test_a_close_that_fails_still_lets_go_of_the_node(self, monkeypatch: Any) -> None:
-        clock = _Clock()
-        bridge = _bridge(monkeypatch, _FakeI2cBus(), clock=clock)
-        assert bridge.available()
+        bridge = _bridge(monkeypatch, _FakeI2cBus())
 
         def refuse(fd: int) -> None:
             raise OSError("bad file descriptor")
 
         monkeypatch.setattr(cp2112.os, "close", refuse)
-        bridge.close()
-        assert bridge.available() is False
+        bridge.command("write", {"address": 0x48, "data": "00"})
+        assert bridge._fd is None
 
     def test_without_a_node_open_nothing_is_probed_or_transferred(self, monkeypatch: Any) -> None:
         bus = _FakeI2cBus()
@@ -2086,7 +2090,7 @@ class TestDetectionChoices:
         from gauntlet.instruments import detect
 
         monkeypatch.setattr(detect, "candidate_adapters", lambda: [("/dev/i2c-3", "CP-1"), ("/dev/i2c-4", "CP-2")])
-        monkeypatch.setattr(cp2112.os, "open", lambda node, flags: 7)
+        monkeypatch.setattr(cp2112.os, "access", lambda node, mode: True)
         registry = CapabilityRegistry()
         detect_instruments(registry, self._settings(tmp_path, i2c_serial="CP-2", camera_device=""))
         bridge = registry.provider("i2c")
@@ -2096,11 +2100,8 @@ class TestDetectionChoices:
     def test_auto_drops_an_i2c_bridge_when_no_candidate_answers(self, monkeypatch: Any, tmp_path: Any) -> None:
         from gauntlet.instruments import detect
 
-        def refuse(node: str, flags: int) -> int:
-            raise OSError("gone")
-
         monkeypatch.setattr(detect, "candidate_adapters", lambda: [("/dev/i2c-3", "CP-1")])
-        monkeypatch.setattr(cp2112.os, "open", refuse)
+        monkeypatch.setattr(cp2112.os, "access", lambda node, mode: False)
         registry = CapabilityRegistry()
         detect_instruments(registry, self._settings(tmp_path, i2c_serial="auto", camera_device=""))
         assert registry.provider("i2c") is None

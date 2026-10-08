@@ -1,0 +1,78 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
+apiVersion: 1
+key: tid_ads7128
+title: ADS7128 12-Bit ADC
+category: radiation
+description: >
+  Total ionising dose characterisation of an ADS7128 on an Adafruit breakout.
+  Each sample drives a pattern on the eight digital outputs and checks it four
+  ways: what the logic analyzer saw on the pins, what the part reports its own
+  inputs are, whether the configuration registers still read back as written,
+  and whether a conversion read still answers with the fixed code.
+
+setup: |
+  The ADC is an Adafruit ADS7128 breakout: 8 channels, 12 bits, I2C. The host
+  reaches it over a CP2112 USB-to-I2C bridge, which the kernel's hid-cp2112
+  driver registers as a /dev/i2c-N adapter, so the suite drives it through the
+  i2c capability. Power, ground, SDA and SCL run to the board over one 4-wire
+  connection. The device address is set by the board's ADDR strap.
+
+  The eight channel pins are brought out as GPIO and wired to the eight
+  channels of an FX2LP logic analyzer, which records them for the length of
+  the run.
+
+      +--------------+          +--------------+           +----------------+
+      |     Host     |   USB    |    CP2112    |    I2C    |    ADS7128     |
+      |  /dev/i2c-N  |--------->|  USB-to-I2C  |---------->|  8 ch, 12 bit  |
+      +--------------+          +--------------+  SDA SCL  +----------------+
+             ^                                                      |
+             |                                            8x GPIO   |
+             |                  +--------------+                    |
+             |    USB           |    FX2LP     |                    |
+             +------------------|   analyzer   |<-------------------+
+                                +--------------+   8 channels
+
+exec:
+  command: ["python", "-m", "suite.cli"]
+  args:
+    profile: --profile
+    run_dir: --run-dir
+    target: --target
+    unit_serial: --unit-serial
+  profile_schema_command: ["python", "-m", "suite.cli", "--print-profile-schema"]
+
+profiles: ./profiles
+conformance_profile: smoke.yaml
+
+produces: [events, junit, manifest, metrics, summary, verdict]
+requires: [i2c, logic]
+
+supports:
+  target: false
+  unit_serial: true
+
+default_metrics: [ads7128.faults, ads7128.pattern, ads7128.pins]
+
+overrides:
+  - name: duration_s
+    flag: --duration-s
+    type: number
+    label: Duration
+    unit: s
+    # Zero is a duration: it gives the loop no end of its own and the suite
+    # samples until the operator stops the run, which is what `continuous.yaml`
+    # ships. A floor of 1 would reject the value that profile seeds the form
+    # with.
+    minimum: 0
+  - name: sample_period_s
+    flag: --sample-period-s
+    type: number
+    label: Sample period
+    unit: s
+    minimum: 0.1
+  - name: driver
+    flag: --driver
+    type: string
+    label: Driver
+    choices: [real, mock]
+    help: mock drives a register model of the part and contacts no instrument.
