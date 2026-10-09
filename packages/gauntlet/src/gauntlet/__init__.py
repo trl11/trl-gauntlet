@@ -9,9 +9,10 @@ in a ``suite.yaml``, and discovery does the rest.
 from __future__ import annotations
 
 import os
+from importlib.metadata import version
 from pathlib import Path
 
-__version__ = "0.1.0"
+__version__ = version("gauntlet")
 
 
 def git_sha() -> str | None:

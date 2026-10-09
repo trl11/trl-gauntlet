@@ -18,6 +18,8 @@ directly and write the artifacts themselves. Both satisfy the contract; see
 
 from __future__ import annotations
 
+from importlib.metadata import version
+
 from gauntlet_sdk.anomalies import AnomalyLog
 from gauntlet_sdk.cli import make_suite_cli
 from gauntlet_sdk.context import SuiteContext
@@ -55,7 +57,7 @@ from gauntlet_sdk.reporting import (
 )
 from gauntlet_sdk.runner import SuiteSpec, run_suite
 
-__version__ = "0.1.0"
+__version__ = version("gauntlet-sdk")
 
 __all__ = [
     "AnomalyLog",
