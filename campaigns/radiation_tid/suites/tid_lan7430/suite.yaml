@@ -19,6 +19,13 @@ setup: |
   host at the other end of the cable are both outside. Gauntlet reaches the
   unit over SSH with a key. The iperf3 client runs on the lab host.
 
+  Both of the unit's ports go to the lab network: its built-in eth0, which
+  Gauntlet controls it through, and the LAN7430's eth1. The run target is
+  eth0's address, never the LAN7430's, so a part that dies under the beam
+  does not take the record of its failure with it. Before measuring, the
+  suite reads both interfaces and refuses to start unless each has a link and
+  an IPv4 address and the target is eth0's, naming what to fix.
+
   The iperf3 server runs on the unit, bound to the controller's own address.
   That is what forces the traffic across the part rather than out of the
   unit's built-in interface. Every tick also compares the interface's own byte

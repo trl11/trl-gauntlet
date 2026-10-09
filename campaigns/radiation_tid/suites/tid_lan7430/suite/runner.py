@@ -41,6 +41,7 @@ Anomaly kinds: ``collector/*``, ``counters/*``, ``iperf/measurement_failed``,
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -60,9 +61,9 @@ from gauntlet_sdk import (
     make_result,
     warn,
 )
-from gauntlet_sdk.remote import RemoteError, capture_host_facts, connect, is_alive, run, shell_quote
+from gauntlet_sdk.remote import RemoteError, capture_host_facts, connect, is_alive
 
-from suite import arp, iperf, mock, telemetry
+from suite import arp, iperf, mock, preflight, telemetry
 from suite.anomaly import flag
 from suite.profile import TidLan7430Profile
 from suite.psu import PsuReader
@@ -116,6 +117,13 @@ def _ssh_target(profile: TidLan7430Profile, host: str | None) -> RemoteTarget:
     )
 
 
+class BenchNotReady(RemoteError):
+    """The unit is not cabled or addressed the way the measurement needs.
+
+    A ``RemoteError``, so the run ends on this one line rather than a traceback.
+    """
+
+
 class IperfMissing(RuntimeError):
     """The lab host has no iperf3 client, so nothing can be measured."""
 
@@ -128,6 +136,8 @@ class _State:
     telemetry: telemetry.TelemetryState
     address: str = ""
     alive_at_end: bool = False
+    control: preflight.Interface | None = None
+    part: preflight.Interface | None = None
     client: Any = None
     collector_path: str = ""
     link_up_at_end: bool = False
@@ -154,21 +164,6 @@ def _state(ctx: SuiteContext) -> _State:
     if not isinstance(state, _State):
         raise RuntimeError("setup did not populate ctx.extras['state']")
     return state
-
-
-def _resolve_interface_address(client: Any, interface: str, *, timeout: float) -> str:
-    """Ask the unit which address the controller's interface holds.
-
-    Read from the unit rather than configured, so the profile does not have to
-    be edited when the bench hands out a different lease.
-    """
-    command = f"ip -4 -oneline address show dev {shell_quote(interface)}"
-    result = run(client, command, timeout=timeout)
-    for line in result.stdout.splitlines():
-        fields = line.split()
-        if "inet" in fields:
-            return fields[fields.index("inet") + 1].split("/")[0]
-    return ""
 
 
 def _setup_mock(ctx: SuiteContext) -> None:
@@ -201,19 +196,8 @@ def _setup(ctx: SuiteContext) -> None:
     if facts:
         ctx.artifact("uut.json").write_text(json.dumps(facts, indent=2, sort_keys=True) + "\n")
 
-    address = profile.interface.address or _resolve_interface_address(
-        client, profile.interface.name, timeout=profile.ssh_timeout_s
-    )
-    if not address:
-        client.close()
-        raise RemoteError(
-            f"{profile.interface.name} has no IPv4 address on the unit; "
-            "set interface.address in the profile if it is configured elsewhere"
-        )
-    if address == target.host:
-        # Reaching the unit through the part under test means the SSH session
-        # dies with it, taking the measurement of its own failure with it.
-        warn(f"the run target and {profile.interface.name} are both {address}: control traffic shares the part")
+    control, part = _check_bench(client, profile)
+    address = part.address
 
     if profile.interface.strict_arp:
         _enforce_strict_arp(client, profile)
@@ -245,11 +229,36 @@ def _setup(ctx: SuiteContext) -> None:
         address=address,
         anomalies=anomalies,
         client=client,
+        control=control,
+        part=part,
         collector_path=collector_path,
         psu=reader,
         server=server,
         target=target,
         telemetry=telemetry_state,
+    )
+
+
+def _check_bench(client: Any, profile: TidLan7430Profile) -> tuple[preflight.Interface, preflight.Interface]:
+    """Refuse to start unless both interfaces are up and the target is the control interface.
+
+    Read from the unit rather than configured, so the profile does not have to
+    be edited when the bench hands out a different lease.
+    """
+    control, part, reached, via = preflight.read(
+        client, profile.interface.control_name, profile.interface.name, timeout=profile.ssh_timeout_s
+    )
+    if profile.interface.address:
+        part = dataclasses.replace(part, address=profile.interface.address)
+    info(f"control interface  {control.describe()}")
+    info(f"LAN7430 interface  {part.describe()}")
+    info(f"run target reached the unit on {reached or 'an unknown address'}, through {via or 'an unknown interface'}")
+    found = preflight.problems(control, part, reached, via)
+    if not found:
+        return control, part
+    client.close()
+    raise BenchNotReady(
+        f"The bench is not set up for this test. {' '.join(found)} Unit: {control.describe()}; {part.describe()}."
     )
 
 
@@ -707,6 +716,16 @@ def _results(
             format="decimal",
             precision=3,
             highlight=udp_loss > criteria.max_udp_loss_pct,
+        ),
+        make_result(
+            "control_interface",
+            "Control interface",
+            state.control.describe() if state.control else "not read",
+        ),
+        make_result(
+            "lan7430_interface",
+            "LAN7430 interface",
+            state.part.describe() if state.part else "not read",
         ),
         make_result("mac_address", "MAC address", state.telemetry.golden_mac or "unknown"),
         make_result(

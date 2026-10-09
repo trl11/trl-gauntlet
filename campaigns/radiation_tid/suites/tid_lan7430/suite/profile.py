@@ -17,6 +17,10 @@ class InterfaceBlock(BaseModel):
     model_config = ConfigDict(extra="forbid", title="Interface")
 
     name: str = Field(default="eth1", description="Interface the LAN7430 presents on the host.")
+    control_name: str = Field(
+        default="eth0",
+        description="The unit's own interface, which Gauntlet controls it through. The run target must be its address.",
+    )
     address: str = Field(
         default="",
         description="Address on the unit the lab connects to. Empty reads it from the unit's interface.",
