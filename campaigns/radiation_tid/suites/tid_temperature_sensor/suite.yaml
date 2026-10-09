@@ -1,20 +1,22 @@
 # yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
 apiVersion: 1
-key: tid_tmp100
-title: TMP100 Temperature Sensor
+key: tid_temperature_sensor
+title: Temperature Sensor
 category: radiation
 description: >
-  Total ionising dose characterisation of a TMP100 temperature sensor.
+  Total ionising dose characterisation of a TMP100 or TMP112 temperature
+  sensor, chosen on the run form.
   Each sample reads the temperature over I2C, fails it outside the profile's
   bounds, and checks that the configuration and both comparator limits still
   read back as written. The thermocouple comparison is not implemented yet.
 
 setup: |
   The host reads the sensor directly over I2C, through the i2c capability. Its
-  address is set by the part's ADD0 and ADD1 pins, 0x48 with both low.
+  address is set by the part's ADD pins: the TMP100 is at 0x48 with ADD0 and
+  ADD1 low, the TMP112 at 0x49 with ADD0 tied to V+.
 
       +--------------+          +--------------+           +----------------+
-      |     Host     |   USB    |    CP2112    |    I2C    |     TMP100     |
+      |     Host     |   USB    |    CP2112    |    I2C    | TMP100, TMP112 |
       |  /dev/i2c-N  |--------->|  USB-to-I2C  |---------->|  12 bit, temp  |
       +--------------+          +--------------+  SDA SCL  +----------------+
 
@@ -41,7 +43,7 @@ supports:
   target: false
   unit_serial: true
 
-default_metrics: [tmp100.temperature_c, tmp100.faults]
+default_metrics: [sensor.temperature_c, sensor.faults]
 
 overrides:
   - name: duration_s
@@ -56,6 +58,17 @@ overrides:
     label: Sample period
     unit: s
     minimum: 0.1
+  - name: part
+    flag: --part
+    type: string
+    label: Part
+    choices: [tmp100, tmp112]
+  - name: address
+    flag: --address
+    type: string
+    label: I2C address
+    choices: ["0x48", "0x49", "0x4a", "0x4b", "0x4c", "0x4d", "0x4e", "0x4f"]
+    help: The TMP112 answers only 0x48 to 0x4b.
   - name: driver
     flag: --driver
     type: string

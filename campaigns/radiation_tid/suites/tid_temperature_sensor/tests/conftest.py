@@ -1,4 +1,4 @@
-"""Shared setup for the TMP100 suite's tests.
+"""Shared setup for the temperature sensor suite's tests.
 
 The suite package lives beside these tests rather than being installed, so the
 suite directory goes on ``sys.path`` the same way Gauntlet puts it there for a

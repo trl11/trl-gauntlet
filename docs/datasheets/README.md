@@ -11,7 +11,7 @@ supplier moved a PDF.
 
 ## The parts under irradiation
 
-One per suite in the `radiation_tid` campaign, so a beam-line session has the
+One per part in the `radiation_tid` campaign, so a beam-line session has the
 register maps to hand.
 
 | File | Part | Suite | Source |
@@ -19,7 +19,8 @@ register maps to hand.
 | `ADS7138-datasheet.pdf` | TI ADS7138, 8-channel 12-bit ADC | `tid_ads7138` | [ti.com](https://www.ti.com/lit/ds/symlink/ads7138.pdf) |
 | `LAN7430-LAN7431-datasheet.pdf` | Microchip LAN7430, PCIe to Gigabit Ethernet. DS00002631, and covers the LAN7431 too | `tid_lan7430` | [microchip.com](https://ww1.microchip.com/downloads/aemDocuments/documents/UNG/ProductDocuments/DataSheets/LAN7430-LAN7431-Data-Sheet-DS00002631.pdf) |
 | `PIC18F25-26K83-datasheet.pdf` | Microchip PIC18F26K83, 8-bit MCU with CAN. DS40001943C, and covers the 25K83 and the LF parts | `tid_pic18f26k83` | [microchip.com](https://ww1.microchip.com/downloads/en/DeviceDoc/PIC18\(L\)F2526K83-Data-Sheet-DS40001943C.pdf) |
-| `TMP100-datasheet.pdf` | TI TMP100, I2C temperature sensor | `tid_tmp100` | [ti.com](https://www.ti.com/lit/ds/symlink/tmp100.pdf) |
+| `TMP100-datasheet.pdf` | TI TMP100, I2C temperature sensor | `tid_temperature_sensor` | [ti.com](https://www.ti.com/lit/ds/symlink/tmp100.pdf) |
+| `TMP112-Q1-datasheet.pdf` | TI TMP112-Q1, I2C temperature sensor | `tid_temperature_sensor` | [ti.com](https://www.ti.com/lit/ds/symlink/tmp112-q1.pdf) |
 | `max96792a.pdf` | ADI MAX96792A deserializer. The device-specific user guide, which is where the register map is | `tid_max96792` | [analog.com](https://www.analog.com/media/en/technical-documentation/user-guides/max96792a-device-specific-user-guide.pdf) |
 | `ADI-MAX96793-datasheet.pdf` | ADI MAX96793 serializer datasheet | `tid_max96793` | [analog.com](https://www.analog.com/en/products/max96793.html) |
 

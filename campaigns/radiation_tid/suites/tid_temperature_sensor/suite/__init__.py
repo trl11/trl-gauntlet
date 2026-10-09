@@ -1,1 +1,1 @@
-"""Tid Tmp100 suite."""
+"""Tid Temperature Sensor suite."""

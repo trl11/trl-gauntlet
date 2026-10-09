@@ -3,7 +3,7 @@ apiVersion: 1
 key: radiation_tid
 title: Radiation TID
 description: 'Total ionising dose characterisation of the flight component set, one suite
-  per component. The LAN7430, the ADS7138, the TMP100, the SSD and both ends of the GMSL
+  per component. The LAN7430, the ADS7138, the TMP100 and TMP112, the SSD and both ends of the GMSL
   link measure; the remaining suites are placeholders, in whole or in part, that run and
   pass without hardware, so the campaign has a green baseline to fill in.'
 suites: ./suites
@@ -22,12 +22,13 @@ members:
   fixture: 1-1
   notes: The analog windows in the profile are placeholders around the first board's
     readings until the board's own figures replace them.
-- suite: tid_tmp100
-  component: TMP100AQDBVRQ1
+- suite: tid_temperature_sensor
+  component: TMP100AQDBVRQ1, TMP112AQDRLRQ1
   test_vehicle: PRE-10161
   host: Raspberry Pi
   fixture: 1-1
-  notes: Read directly over I2C. A thermocouple is to be added to the BOM; until it
+  notes: Read directly over I2C. Pick the part on the run form; the TMP112 is at 0x49.
+    A thermocouple is to be added to the BOM; until it
     is, the profile's bounds are the only check on the reading.
 - suite: tid_max96793
   component: MAX96793GTJ/VY+
