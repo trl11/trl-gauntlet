@@ -1,9 +1,10 @@
-"""Command-line entry point for Tid Tmp100."""
+"""Command-line entry point for Tid Temperature Sensor."""
 
 from __future__ import annotations
 
 import argparse
 import sys
+from functools import partial
 
 from gauntlet_sdk import make_suite_cli
 
@@ -11,18 +12,20 @@ from suite.runner import SPEC
 
 
 def _extra_args(parser: argparse.ArgumentParser) -> None:
-    # The manifest declares the driver as an override, so Gauntlet forwards it
-    # as a flag and this has to accept one.
+    # The manifest declares these as overrides, so Gauntlet forwards them as
+    # flags and this has to accept them.
     parser.add_argument("--driver", choices=["real", "mock"], default=None)
+    parser.add_argument("--part", choices=["tmp100", "tmp112"], default=None)
+    parser.add_argument("--address", type=partial(int, base=16), default=None)
 
 
 def _extra_overrides(args: argparse.Namespace) -> dict[str, object]:
-    return {"driver": args.driver}
+    return {"address": args.address, "driver": args.driver, "part": args.part}
 
 
 main = make_suite_cli(
     SPEC,
-    prog="tid_tmp100",
+    prog="tid_temperature_sensor",
     extra_args=_extra_args,
     extra_overrides=_extra_overrides,
 )

@@ -28,8 +28,8 @@ the error the catalog collects. Two campaigns shipping the same suite key is
 reported and then the second is ignored.
 
 **Some TID suites are still placeholders.** `tid_lan7430`, `tid_max96793`,
-`tid_max96792`, `tid_ads7138` and `tid_tmp100` measure, though `tid_tmp100`
-does not yet compare against a thermocouple. `tid_pic18f26k83` renders from the
+`tid_max96792`, `tid_ads7138` and `tid_temperature_sensor` measure, though
+`tid_temperature_sensor` does not yet compare against a thermocouple. `tid_pic18f26k83` renders from the
 python template: it runs, writes a verdict and passes without hardware, and
 measures nothing at all. Its `runner.py` opens with the component, test vehicle,
 host and fixture it is for, and the measurements it has to grow into, so a green
