@@ -479,6 +479,17 @@ $row-names: 76px;
     overflow-x: auto;
   }
 
+  &__hint {
+    margin-left: 6px;
+    color: $trl-gray;
+    cursor: help;
+
+    &:hover,
+    &:focus-visible {
+      filter: brightness(1.5);
+    }
+  }
+
   &__rows-table {
     @include table.base;
 

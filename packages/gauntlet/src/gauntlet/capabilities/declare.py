@@ -20,11 +20,15 @@ def command_field(
     kind: str = "number",
     *,
     choices: tuple[str, ...] = (),
+    choices_for: dict[str, tuple[str, ...]] | None = None,
     choices_from: str = "",
+    depends_on: str = "",
     dial: bool = True,
     format: str = "",
+    hint: str = "",
     maximum: float | None = None,
     minimum: float | None = None,
+    shown_for: tuple[str, ...] = (),
     unit: str = "",
 ) -> dict[str, Any]:
     """One argument a command takes, described for the operator UI.
@@ -37,6 +41,15 @@ def command_field(
     ``choices`` when it has none. ``format="hex"`` draws those runtime values
     (and nothing else — an operator still types decimal) as bare hex, with no
     ``0x``, for a value read the way an address is written on a datasheet.
+
+    In a row-wise command, ``depends_on`` names another field of the same row.
+    ``choices_for`` then narrows this field's choices to those listed under
+    that field's value, and ``shown_for`` hides the field unless that value is
+    one of those listed: a shunt is asked for only where a channel reads a
+    current.
+
+    ``hint`` is a sentence or two on what the field is for, shown beside its
+    name for an operator who has not met it before.
     """
     return {
         "name": name,
@@ -46,9 +59,13 @@ def command_field(
         "min": minimum,
         "max": maximum,
         "choices": list(choices),
+        "choices_for": {value: list(entries) for value, entries in (choices_for or {}).items()},
         "choices_from": choices_from,
+        "depends_on": depends_on,
         "dial": dial,
         "format": format,
+        "hint": hint,
+        "shown_for": list(shown_for),
     }
 
 

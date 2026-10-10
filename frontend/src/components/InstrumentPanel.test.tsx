@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -1069,6 +1069,128 @@ describe("InstrumentPanel, a command that settles several things at once", () =>
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "CH 2 Mode" }), "5v");
     expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
     expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it("has nothing left to apply once the instrument reports what was applied", async () => {
+    const scale = {
+      name: "scale",
+      label: "Scale",
+      type: "number" as const,
+      unit: "",
+      min: 0.001,
+      max: 1000,
+      choices: ["1", "5"],
+      dial: false,
+    };
+    const before = { ...configure, fields: [...configure.fields, scale] };
+    before.rows = before.rows.map((row) => ({ ...row, values: { ...row.values, scale: 1 } }));
+    const { rerender } = render(
+      <InstrumentPanel instrument={instrument({ commands: [before] })} onCommand={vi.fn()} />
+    );
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "CH 1 Scale preset" }), "5");
+    await userEvent.type(screen.getByRole("textbox", { name: "CH 2 Label" }), "  Shunt");
+    expect(screen.getByRole("button", { name: "Apply · 2 changes" })).toBeEnabled();
+
+    // The instrument reports the preset as a number and the label trimmed.
+    const after = {
+      ...before,
+      rows: [
+        { key: "1", label: "CH 1", values: { mode: "10v", label: "Rail 3V3", scale: 5 } },
+        { key: "2", label: "CH 2", values: { mode: "5v", label: "Shunt", scale: 1 } },
+      ],
+    };
+    rerender(
+      <InstrumentPanel instrument={instrument({ commands: [after] })} onCommand={vi.fn()} />
+    );
+    expect(screen.getByRole("button", { name: "Apply" })).toBeDisabled();
+  });
+
+  describe("with fields that follow another field of the row", () => {
+    const field = {
+      type: "string" as const,
+      unit: "",
+      min: null,
+      max: null,
+    };
+    const measured = {
+      name: "configure",
+      label: "Apply",
+      row_label: "Channel",
+      rows: [{ key: "1", label: "CH 1", values: { measure: "voltage", mode: "5v", shunt: "0.1" } }],
+      fields: [
+        {
+          ...field,
+          name: "measure",
+          label: "Measure",
+          choices: ["voltage", "current", "temperature"],
+        },
+        {
+          ...field,
+          name: "mode",
+          label: "Mode",
+          choices: ["10v", "5v", "tc_k", "tc_j"],
+          choices_for: {
+            voltage: ["10v", "5v"],
+            current: ["10v", "5v"],
+            temperature: ["tc_k", "tc_j"],
+          },
+          depends_on: "measure",
+        },
+        {
+          ...field,
+          name: "shunt",
+          label: "Shunt",
+          choices: [],
+          depends_on: "measure",
+          shown_for: ["current"],
+        },
+      ],
+    };
+
+    it("offers only the choices the row's value allows, and hides what it does not use", () => {
+      render(
+        <InstrumentPanel instrument={instrument({ commands: [measured] })} onCommand={vi.fn()} />
+      );
+      const mode = screen.getByRole("combobox", { name: "CH 1 Mode" });
+      expect(
+        within(mode)
+          .getAllByRole("option")
+          .map((option) => option.textContent)
+      ).toEqual(["10v", "5v"]);
+      expect(screen.queryByRole("textbox", { name: "CH 1 Shunt" })).toBeNull();
+    });
+
+    it("moves a following field onto a choice the new value offers", async () => {
+      const onCommand = vi.fn();
+      render(
+        <InstrumentPanel instrument={instrument({ commands: [measured] })} onCommand={onCommand} />
+      );
+      await userEvent.selectOptions(
+        screen.getByRole("combobox", { name: "CH 1 Measure" }),
+        "temperature"
+      );
+      expect(screen.getByRole("combobox", { name: "CH 1 Mode" })).toHaveValue("tc_k");
+      await userEvent.selectOptions(
+        screen.getByRole("combobox", { name: "CH 1 Measure" }),
+        "current"
+      );
+      expect(screen.getByRole("combobox", { name: "CH 1 Mode" })).toHaveValue("10v");
+      expect(screen.getByRole("textbox", { name: "CH 1 Shunt" })).toHaveValue("0.1");
+    });
+  });
+
+  it("explains a field that carries a hint beside its name", async () => {
+    const hinted = {
+      ...configure,
+      fields: configure.fields.map((field) =>
+        field.name === "mode" ? { ...field, hint: "The input range." } : field
+      ),
+    };
+    render(<InstrumentPanel instrument={instrument({ commands: [hinted] })} onCommand={vi.fn()} />);
+    const about = screen.getByRole("img", { name: "About Mode: The input range." });
+    await userEvent.hover(about);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("The input range.");
+    expect(screen.queryByRole("img", { name: /^About Label/ })).toBeNull();
   });
 
   it("keeps a row-wise command off the latching key", async () => {

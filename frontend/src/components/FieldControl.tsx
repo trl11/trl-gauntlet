@@ -1,11 +1,16 @@
 import { Button, Input, Select } from "@trl11/components/ui";
 import clsx from "clsx";
+import { useState } from "react";
 
 import type { InstrumentField } from "@api/types";
 import Knob from "@components/Knob";
 import { dialled, isHexField, runtimeChoices, stepOf } from "../utils/commandFields";
 
 import "./InstrumentPanel.scss";
+
+// The dropdown entry that swaps a number's presets for a typed value. Not a
+// number, so it cannot collide with a preset.
+const CUSTOM = "custom";
 
 /** Props {@link FieldControl} takes. */
 export interface FieldControlProps {
@@ -44,6 +49,8 @@ const FieldControl: React.FC<FieldControlProps> = ({
   state,
   value,
 }) => {
+  const [custom, setCustom] = useState(false);
+
   if (field.type === "boolean") {
     const on = value === true;
     return (
@@ -59,20 +66,6 @@ const FieldControl: React.FC<FieldControlProps> = ({
       >
         {on ? "ON" : "OFF"}
       </Button>
-    );
-  }
-
-  if (field.choices.length > 0) {
-    return (
-      <Select
-        aria-label={name}
-        className="instrument-panel__choice"
-        disabled={disabled}
-        id={id}
-        onChange={(event) => onChange(event.target.value)}
-        options={field.choices.map((choice) => ({ value: choice, label: choice }))}
-        value={String(value ?? "")}
-      />
     );
   }
 
@@ -94,6 +87,47 @@ const FieldControl: React.FC<FieldControlProps> = ({
       value={String(value ?? "")}
     />
   );
+
+  if (field.choices.length > 0 && !numeric) {
+    return (
+      <Select
+        aria-label={name}
+        className="instrument-panel__choice"
+        disabled={disabled}
+        id={id}
+        onChange={(event) => onChange(event.target.value)}
+        options={field.choices.map((choice) => ({ value: choice, label: choice }))}
+        value={String(value ?? "")}
+      />
+    );
+  }
+
+  // A number's choices are presets, not the only values it takes: "Custom…"
+  // opens an entry beside them, and a value no preset matches opens it too.
+  if (field.choices.length > 0) {
+    const typed = custom || !field.choices.includes(String(value ?? ""));
+    return (
+      <span className="instrument-panel__field-stack">
+        <Select
+          aria-label={`${name} preset`}
+          className="instrument-panel__choice"
+          disabled={disabled}
+          id={`${id}-preset`}
+          onChange={(event) => {
+            const next = event.target.value;
+            setCustom(next === CUSTOM);
+            if (next !== CUSTOM) onChange(next);
+          }}
+          options={[
+            ...field.choices.map((choice) => ({ value: choice, label: choice })),
+            { value: CUSTOM, label: "Custom…" },
+          ]}
+          value={typed ? CUSTOM : String(value)}
+        />
+        {typed && <span className="instrument-panel__entry">{entry}</span>}
+      </span>
+    );
+  }
 
   // Values discovered at runtime — a scan's addresses — are offered as
   // quick picks beside the entry, so choosing one is a click and typing

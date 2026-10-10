@@ -38,8 +38,13 @@ and the scan list is reloaded once for the lot rather than once per channel.
 A channel is named rather than numbered wherever it is named: its label goes
 into what `readouts()` declares, so the panel, the dashboard tile and the chart
 legend all read "Rail 3V3" in place of "CH 1" without any of them knowing a
-label from a channel number. Labels live in the driver for the session, as
-channel modes do.
+label from a channel number.
+
+A row also takes `scale`, which a voltage reading is multiplied by before anyone sees it: a channel behind a 5:1 divider is given `scale: 5` and reads the 5 V at the source rather than the 1 V at the terminal. It applies everywhere a reading goes — `sample`, `state()`, the stream, a run's `daq/` record — and to the `min` and `max` a stream channel reports, so a limit is set in the scaled unit. It is between 0.001 and 1000, defaults to 5, which suits the 5:1 dividers on this bench, and is ignored on a thermocouple channel, whose temperature no divider sits ahead of.
+
+A row's `measure` says what a channel reports: `voltage`, `current` or `temperature`. A temperature is what a thermocouple mode reads and nothing else does, so a measure its mode cannot read is refused, and a suite that sets only `mode` gets the measure that follows from it. A current channel divides its scaled voltage by `shunt`, the resistor it is measured across, in ohms (0.1 by default, between 0.0001 and 1000). It then reads in `A` wherever its unit appears. 50 mV across 0.1 Ω reads 0.5 A, so a narrow range like `100mv` is the one to pair with a small shunt. `scale` applies to a voltage and to a current, `shunt` only to a current, and neither to a temperature.
+
+Every channel's mode, label, scale, measure, shunt and `enabled`, and the scan rate, outlive a restart. Each change is written to `instruments/<key>.json` in the data directory — `daq.json`, or `daq.dut.json` where `daq_serial` binds roles — and read back when the unit is next registered, so the file follows the instance key and not the unit's serial: a replacement unit on the same role inherits the wiring it is plugged into. A file that cannot be read is logged and ignored, and the unit starts at its defaults. The NI-DAQmx driver keeps its settings for the session only.
 
 The DI-2008 scans at `clock / (srate * dec)` across its whole scan list, and
 the clock is not the fixed 8 kHz the base clock suggests: a list of one channel
@@ -557,6 +562,20 @@ state value, as a flat table of dotted keys.
   `state()` key currently holds — below a group's shared toolbar rather than
   under the entry itself, since it is what pressing one of those keys found,
   not another control beside them.
+- A string field declaring `choices` is a dropdown of exactly those. A number
+  field declaring them gets the same dropdown as presets, plus "Custom…",
+  which opens an entry for any other value in range; a value no preset
+  matches opens it too. The DI-2008's `scale` is one.
+- In a row-wise command a field may follow another field of its row, named by
+  `depends_on`. `choices_for` narrows its choices to the ones listed under
+  that field's value, and moves it to the first of them when what it held is
+  not among them; `shown_for` leaves its cell empty unless that value is
+  listed. The DI-2008 uses both to offer thermocouple types only to a channel
+  measuring a temperature, a scale to a voltage or a current and a shunt
+  only to a current.
+- A field declaring a `hint` gets an (i) beside its name in a row-wise
+  table, which shows the hint on hover or focus: what the setting is for, for
+  an operator meeting it for the first time.
 - Commands are keys. One with no fields is a plain key; `danger` tints it red.
 - The header carries a collapse toggle for every instrument, whatever it
   declares; an operator not using one gets it out of the way, and the panel

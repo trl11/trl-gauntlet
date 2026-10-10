@@ -1,12 +1,19 @@
-import { faLock, faLockOpen } from "@fortawesome/free-solid-svg-icons";
+import { faCircleInfo, faLock, faLockOpen } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { Button } from "@trl11/components/ui";
+import { Button, Tooltip } from "@trl11/components/ui";
 import clsx from "clsx";
 import { useEffect, useId, useState } from "react";
 
 import type { InstrumentCommand } from "@api/types";
 import FieldControl from "@components/FieldControl";
-import { coerce, fieldLabel, initialArgs, initialValue, latchField } from "../utils/commandFields";
+import {
+  coerce,
+  fieldLabel,
+  initialArgs,
+  initialValue,
+  latchField,
+  rowField,
+} from "../utils/commandFields";
 
 import "./InstrumentPanel.scss";
 
@@ -62,12 +69,25 @@ const CommandForm: React.FC<CommandFormProps> = ({
     initialRows(command)
   );
   const [locked, setLocked] = useState(true);
+  // What the instrument reports changes only once a command has settled it, and
+  // then the controls take that up, including any value it normalised.
+  const reported = JSON.stringify(command.rows ?? []);
+  const [seen, setSeen] = useState(reported);
+  if (seen !== reported) {
+    setSeen(reported);
+    setRows(initialRows(command));
+  }
   // What a table's controls hold that the instrument does not yet: each is a
   // change waiting to be applied, and putting one back is no change at all.
+  // Both sides are coerced, since a control holds the text "5" for the 5 the
+  // instrument reports.
   const baseline = initialRows(command);
   const changes = Object.entries(rows).reduce(
     (total, [key, values]) =>
-      total + Object.keys(values).filter((name) => values[name] !== baseline[key]?.[name]).length,
+      total +
+      command.fields.filter(
+        (field) => coerce(field, values[field.name]) !== coerce(field, baseline[key]?.[field.name])
+      ).length,
     0
   );
 
@@ -110,8 +130,19 @@ const CommandForm: React.FC<CommandFormProps> = ({
   const set = (name: string, value: unknown) =>
     setArgs((current) => ({ ...current, [name]: value }));
 
+  // A field whose choices follow the one just changed moves to the first it
+  // now offers, when what it held is not among them.
   const setRow = (key: string, name: string, value: unknown) =>
-    setRows((current) => ({ ...current, [key]: { ...current[key], [name]: value } }));
+    setRows((current) => {
+      const values = { ...current[key], [name]: value };
+      for (const field of command.fields) {
+        const choices = field.depends_on === name ? field.choices_for?.[String(value)] : undefined;
+        if (choices?.length && !choices.includes(String(values[field.name]))) {
+          values[field.name] = choices[0];
+        }
+      }
+      return { ...current, [key]: values };
+    });
 
   // The latching key is the boolean's control, so it does not get one of its
   // own; whatever else the command takes still does.
@@ -136,20 +167,39 @@ const CommandForm: React.FC<CommandFormProps> = ({
         <tbody>
           {command.fields.map((field) => (
             <tr key={field.name}>
-              <th scope="row">{fieldLabel(field)}</th>
-              {(command.rows ?? []).map((row) => (
-                <td key={row.key}>
-                  <FieldControl
-                    disabled={disabled}
-                    field={field}
-                    id={`${fieldId}-${row.key}-${field.name}`}
-                    name={`${row.label} ${fieldLabel(field)}`}
-                    onChange={(next) => setRow(row.key, field.name, next)}
-                    state={state}
-                    value={rows[row.key]?.[field.name]}
-                  />
-                </td>
-              ))}
+              <th scope="row">
+                {fieldLabel(field)}
+                {field.hint && (
+                  <Tooltip content={field.hint} position="right">
+                    <span
+                      aria-label={`About ${fieldLabel(field)}: ${field.hint}`}
+                      className="instrument-panel__hint"
+                      role="img"
+                      tabIndex={0}
+                    >
+                      <FontAwesomeIcon icon={faCircleInfo} />
+                    </span>
+                  </Tooltip>
+                )}
+              </th>
+              {(command.rows ?? []).map((row) => {
+                const shown = rowField(field, rows[row.key] ?? {});
+                return (
+                  <td key={row.key}>
+                    {shown && (
+                      <FieldControl
+                        disabled={disabled}
+                        field={shown}
+                        id={`${fieldId}-${row.key}-${field.name}`}
+                        name={`${row.label} ${fieldLabel(field)}`}
+                        onChange={(next) => setRow(row.key, field.name, next)}
+                        state={state}
+                        value={rows[row.key]?.[field.name]}
+                      />
+                    )}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>

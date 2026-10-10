@@ -29,6 +29,7 @@ actually delivers.
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import struct
@@ -36,9 +37,10 @@ import threading
 import time
 from collections import deque
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any, Protocol
 
-from gauntlet.capabilities.declare import command_field, command_row, readout
+from gauntlet.capabilities.declare import command_field, command_row, number_arg, readout
 from gauntlet.capabilities.registry import CommandRejected, StreamSlice
 
 log = logging.getLogger("gauntlet.instruments.di2008")
@@ -77,6 +79,26 @@ _MAX_SRATE = 2232
 # Longest channel label kept, in characters. Enough to name what is wired to a
 # channel, short enough to sit under the reading without crowding its neighbours.
 _MAX_LABEL = 32
+
+# The range a channel's scale may take. A scale undoes a divider or a probe
+# between the signal and the input, so it is the divider's ratio.
+_DEFAULT_SCALE = 5.0
+_MIN_SCALE = 0.001
+_MAX_SCALE = 1000.0
+
+# Divider ratios offered in the dropdown. Any other scale in range is typed.
+_SCALE_PRESETS = ("0.1", "1", "2", "5", "10", "100")
+
+# What a channel reports. A current is the voltage across a shunt resistor
+# divided by its resistance, and a temperature is a thermocouple's, so
+# "temperature" is what a thermocouple mode reads and nothing else does.
+_MEASURES = ("voltage", "current", "temperature")
+
+# The shunt a current channel divides by, in ohms, and the range it may take.
+_DEFAULT_SHUNT_OHMS = 0.1
+_MIN_SHUNT_OHMS = 0.0001
+_MAX_SHUNT_OHMS = 1000.0
+_SHUNT_PRESETS = ("0.01", "0.1", "1")
 
 # Voltage ranges: mode name -> (slist mode code, full scale in volts). A code
 # maps linearly onto the signed 16-bit range, so volts = code * scale / 32768.
@@ -312,6 +334,7 @@ class Di2008Daq:
         probe_interval_s: float = 3.0,
         sample_interval_s: float = 1.0,
         serial_filter: str = "",
+        settings_path: Path | None = None,
         srate: int = 4,
     ) -> None:
         self._clock = clock
@@ -322,6 +345,11 @@ class Di2008Daq:
         # What is wired to each channel, once someone says. Empty until then,
         # which is what makes a reading fall back to its channel number.
         self._labels = dict.fromkeys(self._modes, "")
+        # What each voltage reading is multiplied by to give the signal ahead of
+        # whatever divides it down onto the input.
+        self._scales = dict.fromkeys(self._modes, _DEFAULT_SCALE)
+        self._measures = dict.fromkeys(self._modes, "voltage")
+        self._shunts = dict.fromkeys(self._modes, _DEFAULT_SHUNT_OHMS)
         self._open_transport = open_transport
         self._probe_interval_s = probe_interval_s
         self._sample_interval_s = sample_interval_s
@@ -355,6 +383,11 @@ class Di2008Daq:
         self._count = 0
         self._mono0 = 0.0
         self._wall0 = 0.0
+        # Where the channel settings and the scan rate outlive a restart. None
+        # keeps them for the session only.
+        self._settings_path = settings_path
+        if settings_path is not None:
+            self._load(settings_path)
 
     def available(self) -> bool:
         """Is the unit answering right now.
@@ -394,7 +427,16 @@ class Di2008Daq:
         with self._lock:
             rows = [
                 command_row(
-                    name, f"CH {name}", {"enabled": self._active[name], "label": self._labels[name], "mode": mode}
+                    name,
+                    f"CH {name}",
+                    {
+                        "enabled": self._active[name],
+                        "label": self._labels[name],
+                        "measure": self._measure(name),
+                        "mode": mode,
+                        "scale": self._scales[name],
+                        "shunt": self._shunts[name],
+                    },
                 )
                 for name, mode in self._modes.items()
             ]
@@ -405,9 +447,68 @@ class Di2008Daq:
                 "row_label": "Channel",
                 "rows": rows,
                 "fields": [
-                    command_field("mode", "Mode", "string", choices=MODES),
-                    command_field("label", "Label", "string"),
-                    command_field("enabled", "Enabled", "boolean"),
+                    command_field(
+                        "label",
+                        "Label",
+                        "string",
+                        hint="What is wired to the channel. It names the reading wherever it appears; "
+                        "empty shows the channel number.",
+                    ),
+                    command_field(
+                        "measure",
+                        "Measure",
+                        "string",
+                        choices=_MEASURES,
+                        hint="What the channel reports: the voltage at its terminals, the current through a "
+                        "shunt resistor across them, or a thermocouple's temperature.",
+                    ),
+                    command_field(
+                        "mode",
+                        "Mode",
+                        "string",
+                        choices=MODES,
+                        hint="The input range: the channel reads up to plus or minus this many volts at its "
+                        "terminals. A narrower range reads in finer steps but clips anything beyond it. "
+                        "For a temperature, the thermocouple type.",
+                        choices_for={
+                            "current": tuple(_VOLTAGE_MODES),
+                            "temperature": tuple(_THERMOCOUPLE_MODES),
+                            "voltage": tuple(_VOLTAGE_MODES),
+                        },
+                        depends_on="measure",
+                    ),
+                    command_field(
+                        "scale",
+                        "Scale",
+                        choices=_SCALE_PRESETS,
+                        depends_on="measure",
+                        dial=False,
+                        hint="What the voltage is multiplied by, to undo a divider or probe ahead of the input: "
+                        "5 behind a 5:1 divider. A current is worked out from the scaled voltage.",
+                        maximum=_MAX_SCALE,
+                        minimum=_MIN_SCALE,
+                        shown_for=("current", "voltage"),
+                    ),
+                    command_field(
+                        "shunt",
+                        "Shunt",
+                        choices=_SHUNT_PRESETS,
+                        depends_on="measure",
+                        dial=False,
+                        hint="The resistor the current flows through, in ohms. The current is the voltage "
+                        "across it divided by this.",
+                        maximum=_MAX_SHUNT_OHMS,
+                        minimum=_MIN_SHUNT_OHMS,
+                        shown_for=("current",),
+                        unit="Ω",
+                    ),
+                    command_field(
+                        "enabled",
+                        "Enabled",
+                        "boolean",
+                        hint="Whether the channel is scanned. Fewer channels scan faster, and a disabled one "
+                        "reads nothing.",
+                    ),
                 ],
             },
             {
@@ -464,11 +565,11 @@ class Di2008Daq:
         what the first row of the table beneath says.
         """
         with self._lock:
-            modes = dict(self._modes)
-            labels = {name: self._label(name) for name in modes}
+            labels = {name: self._label(name) for name in self._modes}
+            units = {name: self._unit(name) for name in self._modes}
         return [
-            readout(f"channels.{name}.value", labels[name], group="Analog", precision=4, unit=mode_unit(mode))
-            for name, mode in modes.items()
+            readout(f"channels.{name}.value", labels[name], group="Analog", precision=4, unit=units[name])
+            for name in labels
         ]
 
     def trace_only(self) -> list[str]:
@@ -507,22 +608,11 @@ class Di2008Daq:
                 if self._clock() - self._last_sample >= self._sample_interval_s:
                     self._acquire()
                 values = dict(self._reading)
-            modes = dict(self._modes)
-            labels = {name: self._label(name) for name in modes}
-            active = dict(self._active)
+            channels = {name: self._channel_state(name) for name in self._modes}
             scan = self._scan_state()
         return {
             "scan": scan,
-            "channels": {
-                name: {
-                    "enabled": active[name],
-                    "label": labels[name],
-                    "mode": mode,
-                    "unit": mode_unit(mode),
-                    "value": values.get(name),
-                }
-                for name, mode in modes.items()
-            },
+            "channels": {name: {**settings, "value": values.get(name)} for name, settings in channels.items()},
         }
 
     def stream_channels(self) -> list[dict[str, Any]]:
@@ -533,11 +623,11 @@ class Di2008Daq:
                     "enabled": self._active[name],
                     "key": name,
                     "label": self._label(name),
-                    "max": value_from_code(32767, mode),
-                    "min": value_from_code(-32768, mode),
-                    "unit": mode_unit(mode),
+                    "max": self._value(32767, name),
+                    "min": self._value(-32768, name),
+                    "unit": self._unit(name),
                 }
-                for name, mode in self._modes.items()
+                for name in self._modes
             ]
 
     def stream_enable(self, enabled: dict[str, bool]) -> None:
@@ -584,9 +674,9 @@ class Di2008Daq:
                     {
                         "key": name,
                         "label": self._label(name),
-                        "max": value_from_code(32767, self._modes[name]),
-                        "min": value_from_code(-32768, self._modes[name]),
-                        "unit": mode_unit(self._modes[name]),
+                        "max": self._value(32767, name),
+                        "min": self._value(-32768, name),
+                        "unit": self._unit(name),
                     }
                     for name in self._scan_names()
                 ],
@@ -636,7 +726,7 @@ class Di2008Daq:
             log.debug("di2008 returned no complete scan at %.2f Hz", self.scan_rate_hz())
             return dict(self._reading)
         latest = scans[-1]
-        values: list[float | None] = [value_from_code(latest[at], self._modes[name]) for at, name in enumerate(names)]
+        values: list[float | None] = [self._value(latest[at], name) for at, name in enumerate(names)]
         self._reading = self._reading_of(names, values)
         return dict(self._reading)
 
@@ -688,9 +778,7 @@ class Di2008Daq:
         for codes in scans:
             self._seq += 1
             self._count += 1
-            values: list[float | None] = [
-                value_from_code(code, self._modes[name]) for code, name in zip(codes, names, strict=True)
-            ]
+            values: list[float | None] = [self._value(code, name) for code, name in zip(codes, names, strict=True)]
             offset = self._count * period
             self._ring.append((self._seq, self._mono0 + offset, self._wall0 + offset, values))
 
@@ -853,7 +941,7 @@ class Di2008Daq:
         self._disconnect()
 
     def _configure_channels(self, args: dict[str, Any]) -> dict[str, Any]:
-        """Set the mode, the label, or both, on any number of channels.
+        """Set the mode, label, scale or scan state of any number of channels.
 
         Every row is checked before any of it is applied, so a bad mode in one
         row leaves the unit as it was rather than half configured. A row may
@@ -867,9 +955,19 @@ class Di2008Daq:
         rows = args.get("rows")
         if not isinstance(rows, dict) or not rows:
             raise CommandRejected("daq: 'rows' must name at least one channel")
+        if self._settle_rows(rows):
+            self._reload()
+        self._save()
+        return {"channels": {name: self._channel_state(name) for name in self._modes}}
+
+    def _settle_rows(self, rows: dict[Any, Any]) -> bool:
+        """Check every row, then apply them all. True when the scan list has to be reloaded."""
         active: dict[str, bool] = {}
         labels: dict[str, str] = {}
         modes: dict[str, str] = {}
+        measures: dict[str, str] = {}
+        scales: dict[str, float] = {}
+        shunts: dict[str, float] = {}
         for key, values in rows.items():
             channel = self._channel({"channel": key})
             if not isinstance(values, dict):
@@ -883,6 +981,19 @@ class Di2008Daq:
                 if mode not in MODES:
                     raise CommandRejected(f"daq: 'mode' must be one of {', '.join(MODES)}")
                 modes[channel] = mode
+            if "scale" in values:
+                scales[channel] = number_arg("daq", values, "scale", _MIN_SCALE, _MAX_SCALE)
+            if "measure" in values:
+                measure = values["measure"]
+                if measure not in _MEASURES:
+                    raise CommandRejected(f"daq: 'measure' must be one of {', '.join(_MEASURES)}")
+                mode = modes.get(channel, self._modes[channel])
+                if (measure == "temperature") != (mode in _THERMOCOUPLE_MODES):
+                    raise CommandRejected(f"daq: channel {channel} cannot measure {measure} in mode {mode}")
+                if measure != "temperature":
+                    measures[channel] = measure
+            if "shunt" in values:
+                shunts[channel] = number_arg("daq", values, "shunt", _MIN_SHUNT_OHMS, _MAX_SHUNT_OHMS)
             if "enabled" in values:
                 if not isinstance(values["enabled"], bool):
                     raise CommandRejected("daq: 'enabled' must be true or false")
@@ -890,16 +1001,92 @@ class Di2008Daq:
         if not any({**self._active, **active}.values()):
             raise CommandRejected("daq: at least one channel must stay enabled")
         self._labels.update(labels)
-        if modes or active:
-            self._modes.update(modes)
-            self._active.update(active)
-            self._reload()
-        return {"channels": {name: self._channel_state(name) for name in self._modes}}
+        self._measures.update(measures)
+        self._scales.update(scales)
+        self._shunts.update(shunts)
+        self._modes.update(modes)
+        self._active.update(active)
+        return bool(modes or active)
+
+    def _load(self, path: Path) -> None:
+        """Take up what an earlier session saved, keeping the defaults when it cannot be read."""
+        try:
+            saved = json.loads(path.read_text())
+            self._settle_rows(saved["channels"])
+            rate = saved.get("rate", "auto")
+            if rate != "auto":
+                rate = float(rate)
+                if not 0 < rate < math.inf:
+                    raise ValueError(f"rate {rate} is not a positive number")
+            self._rate_request = None if rate == "auto" else rate
+        except FileNotFoundError:
+            return
+        except (CommandRejected, KeyError, OSError, TypeError, ValueError) as exc:
+            log.warning("ignoring the saved settings in %s: %s", path, exc)
+
+    def _save(self) -> None:
+        """Write every channel's settings and the scan rate where the next session reads them."""
+        path = self._settings_path
+        if path is None:
+            return
+        saved = {
+            "channels": {
+                name: {
+                    "enabled": self._active[name],
+                    "label": self._labels[name],
+                    "measure": self._measure(name),
+                    "mode": mode,
+                    "scale": self._scales[name],
+                    "shunt": self._shunts[name],
+                }
+                for name, mode in self._modes.items()
+            },
+            "rate": "auto" if self._rate_request is None else self._rate_request,
+        }
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(saved, indent=2) + "\n")
+        except OSError as exc:
+            raise CommandRejected(f"daq: applied, but not saved for the next session: {exc}") from exc
 
     def _channel_state(self, name: str) -> dict[str, Any]:
-        """One channel's label, mode and unit, without its reading."""
+        """One channel's settings and unit, without its reading."""
+        return {
+            "enabled": self._active[name],
+            "label": self._label(name),
+            "measure": self._measure(name),
+            "mode": self._modes[name],
+            "scale": self._scales[name],
+            "shunt": self._shunts[name],
+            "unit": self._unit(name),
+        }
+
+    def _measure(self, name: str) -> str:
+        """What channel ``name`` reports: a thermocouple's temperature, or the voltage or current it was set to."""
+        return "temperature" if self._modes[name] in _THERMOCOUPLE_MODES else self._measures[name]
+
+    def _unit(self, name: str) -> str:
+        """The unit channel ``name`` reads in: amps for a current, otherwise what its mode reads."""
         mode = self._modes[name]
-        return {"enabled": self._active[name], "label": self._label(name), "mode": mode, "unit": mode_unit(mode)}
+        if mode in _VOLTAGE_MODES and self._measures[name] == "current":
+            return "A"
+        return mode_unit(mode)
+
+    def _value(self, code: int, name: str) -> float:
+        """One raw sample on channel ``name``, as the voltage, current or temperature it measures.
+
+        A voltage is scaled, and a current is that scaled voltage divided by
+        its shunt. A thermocouple's temperature, converted on board, is taken
+        as it comes.
+        """
+        mode = self._modes[name]
+        volts = value_from_code(code, mode)
+        measure = self._measure(name)
+        if measure == "current":
+            return round(volts * self._scales[name] / self._shunts[name], 6)
+        if measure == "voltage":
+            return round(volts * self._scales[name], 6)
+        return volts
 
     def _choose_srate(self, channels: int) -> int:
         """The ``srate`` that gives the requested rate, or the fastest for ``auto``.
@@ -944,6 +1131,7 @@ class Di2008Daq:
                 raise CommandRejected(f"daq: 'rate' must be auto or between {slowest:.2f} and {fastest:.2f} Hz")
         self._rate_request = request
         self._reload()
+        self._save()
         return self._scan_state()
 
     def _scan_state(self) -> dict[str, Any]:

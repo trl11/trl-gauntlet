@@ -779,16 +779,24 @@ export interface Capability {
  */
 export interface InstrumentField {
   choices: string[];
+  /** In a row-wise command, the choices offered for each value of the `depends_on` field. */
+  choices_for?: Record<string, string[]>;
   /** State key holding values discovered at runtime, offered as quick picks. */
   choices_from?: string;
+  /** In a row-wise command, the field of the same row that `choices_for` and `shown_for` follow. */
+  depends_on?: string;
   /** Whether a ranged number gets a dial. Absent means yes, same as before this existed. */
   dial?: boolean;
   /** How a runtime-discovered value reads, such as `"hex"` for a bare hex byte. Empty is decimal. */
   format?: string;
+  /** What the field is for, shown beside its name. Empty shows nothing. */
+  hint?: string;
   label: string;
   max: number | null;
   min: number | null;
   name: string;
+  /** In a row-wise command, the `depends_on` values the field is shown for. Empty is always. */
+  shown_for?: string[];
   type: OverrideType;
   unit: string;
 }

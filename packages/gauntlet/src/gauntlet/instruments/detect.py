@@ -25,6 +25,7 @@ import logging
 import socket
 from collections.abc import Callable
 from functools import partial
+from pathlib import Path
 
 from gauntlet.capabilities.registry import (
     CapabilityProvider,
@@ -85,7 +86,9 @@ def detect_instruments(registry: CapabilityRegistry, settings: Settings) -> None
         registry,
         "daq",
         _daq_units(settings.daq_serial),
-        (lambda where, key: MockDaq(instance=key)) if "daq" in simulated else (lambda where, key: _daq(where, key)),
+        (lambda where, key: MockDaq(instance=key))
+        if "daq" in simulated
+        else (lambda where, key: _daq(where, key, settings.data_dir / "instruments" / f"{key}.json")),
     )
     _settle_roles(
         registry,
@@ -189,7 +192,7 @@ def _daq_instance(key: str) -> str:
     return f"daq{role}" if role.isdigit() else f"daq-{role}"
 
 
-def _daq(serial: str, key: str) -> CapabilityProvider | None:
+def _daq(serial: str, key: str, settings_path: Path) -> CapabilityProvider | None:
     """The acquisition unit, if one is asked for and one answers.
 
     Two drivers answer this capability and the setting says which. A
@@ -212,8 +215,8 @@ def _daq(serial: str, key: str) -> CapabilityProvider | None:
     if serial.startswith(_DAQMX_PREFIX):
         return NiDaqmxDaq(target=parse_target(serial[len(_DAQMX_PREFIX) :]))
     if serial != "auto":
-        return Di2008Daq(instance=_daq_instance(key), serial_filter=serial)
-    daq = Di2008Daq()
+        return Di2008Daq(instance=_daq_instance(key), serial_filter=serial, settings_path=settings_path)
+    daq = Di2008Daq(settings_path=settings_path)
     if daq.available():
         return daq
     _close(daq)
