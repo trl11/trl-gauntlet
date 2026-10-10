@@ -40,6 +40,9 @@ from suite.profile import TidMax96793Profile
 # The metric group each end of the link reports under. The part under the
 # beam and its reference are named for what they are, so a chart says which
 # end moved without anyone having to remember an I2C address.
+# The deserializer's eye opening on links A and B, as the instrument reports it.
+_EYE_KEYS = ("eye_a_pct", "eye_b_pct")
+
 PART_ROLE = "serializer"
 FAR_ROLE = "deserializer"
 
@@ -99,7 +102,7 @@ def _setup(ctx: SuiteContext) -> None:
         part = " <- under the beam" if address == profile.part_address else ""
         info(
             f"chip {address} id {chip.get('dev_id', '?')} rev {chip.get('dev_rev', '?')} "
-            f"locked={bool(chip.get('locked'))}{part}"
+            f"locked={bool(chip.get('locked'))}{_eye_text(chip)}{part}"
         )
     if profile.part_address not in reading.chips:
         warn(
@@ -249,17 +252,20 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     ctx.extras[_REPEATS] = repeats
 
     metrics: dict[str, Any] = {
-        PART_ROLE: _link_metrics(part, repeats),
+        PART_ROLE: {**_link_metrics(part, repeats), **_eye_metrics(part)},
         "video": video,
     }
     for address, chip in sorted(far.items()):
         # One chip answers at the far end of a GMSL link, so it reports under
         # its role. The address only joins the name if the bus holds more.
-        name = FAR_ROLE if len(far) == 1 else f"{FAR_ROLE}_{address}"
-        metrics[name] = {
+        metrics[_far_name(address, far)] = {
+            "decode_errors_a": int(chip.get("decode_errors_a") or 0),
+            "decode_errors_b": int(chip.get("decode_errors_b") or 0),
             "errors": int(chip.get("total_errors") or 0),
             "errors_total": int(chip.get("errors_total") or 0),
+            "idle_errors": int(chip.get("idle_errors") or 0),
             "locked": 1 if chip.get("locked") else 0,
+            **_eye_metrics(chip),
         }
     if images:
         metrics["images"] = images
@@ -270,7 +276,7 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
         reason=reason,
         metrics=metrics,
         phase_records=phases,
-        summary=_summary(part, video, shot),
+        summary=_summary(part, far, video),
     )
 
 
@@ -386,16 +392,40 @@ def _fault(
     return ""
 
 
-def _summary(part: dict[str, Any], video: dict[str, Any], shot: Snapshot | None) -> str:
-    """One line for the log, saying what the link did this sample."""
+def _eye_metrics(chip: dict[str, Any]) -> dict[str, float]:
+    """The eye opening of each link a chip measured, in percent. Only the deserializer measures one."""
+    return {key: chip[key] for key in _EYE_KEYS if isinstance(chip.get(key), (int, float))}
+
+
+def _eye_text(chip: dict[str, Any]) -> str:
+    """The eye opening for a log line, empty for a chip that measured none."""
+    return "".join(f" eye_{key[4]}={value:.1f}%" for key, value in _eye_metrics(chip).items())
+
+
+def _far_name(address: str, far: dict[str, dict[str, Any]]) -> str:
+    """What a far-end chip reports under: its role, with its address only if the bus holds more than one."""
+    return FAR_ROLE if len(far) == 1 else f"{FAR_ROLE}_{address}"
+
+
+def _counts_text(chip: dict[str, Any]) -> str:
+    """A chip's error counts this sample and its eye opening, for the log."""
+    return (
+        f"decode_a={int(chip.get('decode_errors_a') or 0)} decode_b={int(chip.get('decode_errors_b') or 0)} "
+        f"idle={int(chip.get('idle_errors') or 0)}{_eye_text(chip)}"
+    )
+
+
+def _summary(part: dict[str, Any], far: dict[str, dict[str, Any]], video: dict[str, Any]) -> str:
+    """One line for the log, saying what the link did this sample at each end."""
     lock = "locked" if part.get("locked") else "UNLOCKED"
-    errors = int(part.get("total_errors") or 0)
+    ends = [(PART_ROLE, part), *((_far_name(address, far), chip) for address, chip in sorted(far.items()))]
+    counts = "".join(f" {name}: {_counts_text(chip)}" for name, chip in ends if chip)
     rate = video.get("mbps")
     tail = f" {rate:.0f}Mbps" if isinstance(rate, (int, float)) else ""
     dropped = video.get("dropped") or 0
     corrupt = video.get("corrupt") or 0
     faults = f" dropped={dropped} corrupt={corrupt}" if (dropped or corrupt) else ""
-    return f"{lock} errors={errors}{faults}{tail}"
+    return f"{lock}{counts}{faults}{tail}"
 
 
 def _series(outcomes: list[IterationOutcome], group: str, key: str) -> list[float]:

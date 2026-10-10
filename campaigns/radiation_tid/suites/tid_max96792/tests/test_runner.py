@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 from suite.link import LinkError, Reading
-from suite.runner import _read_link
+from suite.runner import _eye_metrics, _eye_text, _read_link, _summary
 
 
 class _FakeCamera:
@@ -62,3 +62,19 @@ class TestReadLink:
 
         with pytest.raises(LinkError, match="unavailable"):
             _read_link(_Gone())  # type: ignore[arg-type]
+
+
+def test_the_eye_opening_is_recorded_and_logged_only_where_a_chip_measured_it() -> None:
+    deserializer = {"eye_a_pct": 75.0, "eye_b_pct": None, "locked": True}
+    assert _eye_metrics(deserializer) == {"eye_a_pct": 75.0}
+    assert _eye_text(deserializer) == " eye_a=75.0%"
+    assert _eye_metrics({"locked": True}) == {}
+
+
+def test_the_log_line_names_each_ends_decode_errors_and_eye() -> None:
+    part = {"decode_errors_a": 3, "decode_errors_b": 0, "idle_errors": 1, "locked": True}
+    far = {"0x50": {"decode_errors_a": 34, "decode_errors_b": 0, "eye_a_pct": 18.8, "idle_errors": 0, "locked": True}}
+    line = _summary(part, far, {"mbps": 2574.0})
+    assert "decode_a=3 decode_b=0 idle=1" in line
+    assert "decode_a=34 decode_b=0 idle=0 eye_a=18.8%" in line
+    assert line.startswith("locked ") and line.endswith(" 2574Mbps")

@@ -248,6 +248,8 @@ since the previous one and whoever reads them consumes them. `UvcCamera` is
 the only reader and keeps the running totals, which is what stops a panel
 refresh and a suite's sample stealing counts from each other.
 
+The deserializer (DEV_ID `0xb6`, the MAX96792A) also reports `eye_a_pct` and `eye_b_pct`: the eye opening its monitor last measured on links A and B, read from RLMS7 (`0x1407`, `0x1507`) as a percentage, where 64/64 of the eye is 100. The part measures about once a second while its link is up, and a link it has not measured reads `null`, as does every other chip and a read above 64/64, which is outside the eye and turns up now and then on the bench as 127. `link_register` carries the same two figures when the chip it reads is the deserializer, so a suite staggering one chip a sample still gets them. Analog Devices recommends the monitor for the GMSL2 rates and not the 12Gbps GMSL3 one, so at that rate read the figure as a trend, not as a margin. The bench's LI-IMX728 link runs at that rate: REG1 reads `0x03` (12Gbps) and REG4 has GMSL3 set on both links. `tid_max96792`, `tid_max96793` and `gmsl_camera` record it as `deserializer.eye_a_pct` (`link.eye_a_pct` in `gmsl_camera`) and put it on each sample's log line. The two TID suites also log each end's decode A, decode B and idle error counts by name on that line, and chart the deserializer's decode errors by default whichever end is under the beam, since forward-link video errors are counted where the video is received.
+
 Nothing reads a register with the write bit set. A write can take the link
 down, and a link that drops part-way through an irradiation looks exactly like
 a radiation effect, which costs a run its meaning rather than just its data.

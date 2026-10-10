@@ -846,6 +846,8 @@ class _FakeLink:
         self.locked = True
         self.link_error = False
         self.chips = [0x84]
+        self.dev_id = 0xB7
+        self.eye = (75.0, None)
         self.open_error: Exception | None = None
         self.read_error: Exception | None = None
 
@@ -884,10 +886,20 @@ class _FakeLink:
             raise self.read_error
         return self.locked, self.link_error
 
+    def read_register(self, address: int, register: int) -> int:
+        assert register == gmsl.REG_DEV_ID
+        return self.dev_id
 
-def linked_camera(monkeypatch: pytest.MonkeyPatch, fake: _FakeCamera, **kwargs: Any) -> tuple[UvcCamera, _FakeLink]:
-    """An owned camera with a stand-in GMSL link behind its node."""
+    def eye_opening(self, address: int) -> tuple[float | None, float | None]:
+        return self.eye
+
+
+def linked_camera(
+    monkeypatch: pytest.MonkeyPatch, fake: _FakeCamera, *, dev_id: int = 0xB7, **kwargs: Any
+) -> tuple[UvcCamera, _FakeLink]:
+    """An owned camera with a stand-in GMSL link behind its node, a serializer unless ``dev_id`` says otherwise."""
     link = _FakeLink(fake)
+    link.dev_id = dev_id
     monkeypatch.setattr("gauntlet.instruments.uvc_camera.GmslLink", lambda node: link)
     camera = camera_with(fake, **kwargs)
     assert camera.own() is True
@@ -940,7 +952,22 @@ class TestLinkRegister:
 
         assert link.streaming_when_read == [False]
         assert fake.started is True
-        assert reading == {"address": "0x84", "error": "", "link_error": False, "locked": True}
+        assert reading == {
+            "address": "0x84",
+            "error": "",
+            "eye_a_pct": None,
+            "eye_b_pct": None,
+            "link_error": False,
+            "locked": True,
+        }
+
+    def test_a_deserializer_reports_its_eye_opening_with_its_lock(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera, _ = linked_camera(monkeypatch, fake, dev_id=0xB6)
+
+        reading = camera.command("link_register", {"address": "0x84"})
+
+        assert (reading["eye_a_pct"], reading["eye_b_pct"]) == (75.0, None)
 
     def test_an_unlocked_chip_is_reported_as_such(self, monkeypatch: pytest.MonkeyPatch) -> None:
         fake = _FakeCamera(Path("/dev/video0"))
@@ -1000,7 +1027,14 @@ class TestLinkRegister:
 
         result = camera.write({"command": "link_register", "args": {"address": "0x84"}})
 
-        assert result == {"address": "0x84", "error": "", "link_error": False, "locked": True}
+        assert result == {
+            "address": "0x84",
+            "error": "",
+            "eye_a_pct": None,
+            "eye_b_pct": None,
+            "link_error": False,
+            "locked": True,
+        }
 
 
 def _raise_start() -> None:
@@ -1047,8 +1081,14 @@ def gmsl_link(monkeypatch: pytest.MonkeyPatch, fake: _FakeXu) -> gmsl.GmslLink:
 
 
 def chip(dev_id: int, *, locked: bool = True, decode_a: int = 0, decode_b: int = 0, idle: int = 0) -> dict[int, int]:
-    """One chip's registers, as the scan and the status read them."""
+    """One chip's registers, as the scan and the status read them.
+
+    A deserializer also carries its eye-opening monitor, with link A measured
+    at 48/64 and link B not yet measured.
+    """
+    eye = {gmsl.REG_EOM_A: 0x80 | 48, gmsl.REG_EOM_B: 0x00} if dev_id in gmsl.EYE_MONITOR_IDS else {}
     return {
+        **eye,
         gmsl.REG_ADDRESS: 0,
         gmsl.REG_DEV_ID: dev_id,
         gmsl.REG_DEV_REV: 0x06,
@@ -1096,6 +1136,28 @@ class TestGmslLink:
         link = gmsl_link(monkeypatch, _FakeXu({0x84: chip(0xB7, locked=False)}))
         locked, _ = link.link_state(0x84)
         assert not locked
+
+    def test_a_deserializer_reports_each_links_eye_opening(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        link = gmsl_link(monkeypatch, _FakeXu({0x50: chip(0xB6)}))
+        status = link.status(0x50)
+        assert (status.eye_a_pct, status.eye_b_pct) == (75.0, None)
+        assert status.as_dict()["eye_a_pct"] == 75.0
+
+    def test_an_eye_measurement_in_progress_still_reports_the_last_one(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        registers = chip(0xB6)
+        registers[gmsl.REG_EOM_A] = 12
+        assert gmsl_link(monkeypatch, _FakeXu({0x50: registers})).status(0x50).eye_a_pct == 18.8
+
+    def test_an_eye_reading_outside_the_eye_is_not_a_measurement(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        registers = chip(0xB6)
+        registers[gmsl.REG_EOM_A] = 0xFF
+        assert gmsl_link(monkeypatch, _FakeXu({0x50: registers})).status(0x50).eye_a_pct is None
+
+    def test_a_serializer_is_not_asked_for_an_eye_opening(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # The fake refuses a register the chip does not hold, so a read of the
+        # monitor's registers on the serializer would fail this.
+        status = gmsl_link(monkeypatch, _FakeXu({0x84: chip(0xB7)})).status(0x84)
+        assert (status.eye_a_pct, status.eye_b_pct) == (None, None)
 
     def test_a_counter_at_its_ceiling_is_saturated(self, monkeypatch: pytest.MonkeyPatch) -> None:
         link = gmsl_link(monkeypatch, _FakeXu({0x84: chip(0xB7, decode_a=0xFF)}))

@@ -33,7 +33,7 @@ from typing import Any
 
 from gauntlet.capabilities.declare import command_field, readout
 from gauntlet.capabilities.registry import CommandRejected
-from gauntlet.instruments.gmsl import ChipStatus, GmslError, GmslLink
+from gauntlet.instruments.gmsl import EYE_MONITOR_IDS, REG_DEV_ID, ChipStatus, GmslError, GmslLink
 from gauntlet.instruments.imaging import ENCODING_AUTO, ImageError, encode_frame, image_suffix
 from gauntlet.instruments.v4l2 import (
     SUPPORTED_FORMATS,
@@ -113,6 +113,8 @@ class UvcCamera:
         self._unavailable_reason = _NOT_OWNED
         self._link: GmslLink | None = None
         self._link_addresses: list[int] = []
+        # The chips among them that carry an eye-opening monitor.
+        self._eye_addresses: list[int] = []
         self._link_interval_s = link_interval_s
         self._link_state: dict[str, Any] = {}
         self._link_read_at = 0.0
@@ -377,6 +379,7 @@ class UvcCamera:
         self._format = {}
         link, self._link = self._link, None
         self._link_addresses = []
+        self._eye_addresses = []
         self._link_state = {}
         self._link_totals = {}
         if link is not None:
@@ -399,6 +402,7 @@ class UvcCamera:
         try:
             link.open()
             addresses = link.scan()
+            eyes = [address for address in addresses if link.read_register(address, REG_DEV_ID) in EYE_MONITOR_IDS]
         except (GmslError, OSError) as exc:
             log.debug("no GMSL link behind %s: %s", node, exc)
             link.close()
@@ -408,6 +412,7 @@ class UvcCamera:
             return
         self._link = link
         self._link_addresses = addresses
+        self._eye_addresses = eyes
         self._link_read_at = self._clock() - self._link_interval_s
         log.info("camera %s: GMSL chips at %s", node, ", ".join(f"0x{a:02x}" for a in addresses))
 
@@ -480,6 +485,7 @@ class UvcCamera:
             camera.stop()
         try:
             locked, link_error = link.link_state(address)
+            eye_a, eye_b = link.eye_opening(address) if address in self._eye_addresses else (None, None)
         except (GmslError, OSError) as exc:
             # A link that has stopped answering is the measurement, not a
             # crash, so it is reported in the same shape as a healthy one.
@@ -487,7 +493,14 @@ class UvcCamera:
                 camera.start()
             return {"address": f"0x{address:02x}", "error": str(exc), "link_error": False, "locked": False}
         if camera is None:
-            return {"address": f"0x{address:02x}", "error": "", "link_error": link_error, "locked": locked}
+            return {
+                "address": f"0x{address:02x}",
+                "error": "",
+                "eye_a_pct": eye_a,
+                "eye_b_pct": eye_b,
+                "link_error": link_error,
+                "locked": locked,
+            }
         try:
             camera.start()
         except V4l2Error as exc:
@@ -497,7 +510,14 @@ class UvcCamera:
             log.warning("camera: the stream did not restart after a link read: %s", exc)
             self._disconnect()
             return {"address": f"0x{address:02x}", "error": str(exc), "link_error": False, "locked": False}
-        return {"address": f"0x{address:02x}", "error": "", "link_error": link_error, "locked": locked}
+        return {
+            "address": f"0x{address:02x}",
+            "error": "",
+            "eye_a_pct": eye_a,
+            "eye_b_pct": eye_b,
+            "link_error": link_error,
+            "locked": locked,
+        }
 
     def _read_chips(self, link: GmslLink) -> tuple[dict[str, Any], dict[str, str]]:
         """Every chip's registers, read with the video stopped.

@@ -57,6 +57,21 @@ REG_IDLE_ERRORS = 0x0024
 _CTRL3_LOCKED = 1 << 3
 _CTRL3_ERROR = 1 << 0
 
+# The deserializer's eye-opening monitor result for links A and B (RLMS7 in
+# the MAX96792A register map): the opening in 64ths of the eye from the last
+# completed measurement, which the part takes about once a second while its
+# link is up. The top bit is clear while the next measurement runs, and the
+# result is still the last one's then. A read above 64/64 is outside the eye,
+# and the bench sees 127 now and then, so it is a bad read, not a measurement. Analog Devices recommends the monitor for
+# GMSL2 rates, not the 12Gbps GMSL3 one, so read it as a trend at that rate.
+REG_EOM_A = 0x1407
+REG_EOM_B = 0x1507
+_EOM_DONE = 1 << 7
+_EOM_FULL_EYE = 64
+
+# The parts that carry the monitor, by DEV_ID: the MAX96792A deserializer.
+EYE_MONITOR_IDS = frozenset({0xB6})
+
 # An eight-bit counter that has stopped counting.
 _COUNTER_CEILING = 0xFF
 
@@ -102,6 +117,10 @@ class ChipStatus:
     idle_errors: int
     link_error: bool
     locked: bool
+    # Each link's eye opening as a percentage, None for a link the monitor has
+    # not measured or a part without one.
+    eye_a_pct: float | None = None
+    eye_b_pct: float | None = None
 
     @property
     def saturated(self) -> bool:
@@ -126,6 +145,8 @@ class ChipStatus:
             "decode_errors_b": self.decode_errors_b,
             "dev_id": f"0x{self.dev_id:02x}",
             "dev_rev": f"0x{self.dev_rev:02x}",
+            "eye_a_pct": self.eye_a_pct,
+            "eye_b_pct": self.eye_b_pct,
             "idle_errors": self.idle_errors,
             "link_error": self.link_error,
             "locked": self.locked,
@@ -193,6 +214,10 @@ class GmslLink:
         time.sleep(_TRANSACTION_SETTLE_S)
         return self._query(XU_GENERIC_I2C_RW, _I2C_PAYLOAD_BYTES, _UVC_GET_CUR, request)[6]
 
+    def eye_opening(self, address: int) -> tuple[float | None, float | None]:
+        """Links A and B's last eye opening as a percentage, None for a link not measured."""
+        return _eye_pct(self.read_register(address, REG_EOM_A)), _eye_pct(self.read_register(address, REG_EOM_B))
+
     def scan(self) -> list[int]:
         """Every I2C address a GMSL chip answers on, lowest first.
 
@@ -209,14 +234,18 @@ class GmslLink:
         return found
 
     def status(self, address: int) -> ChipStatus:
-        """Identity, lock state and every error counter from one chip."""
+        """Identity, lock state, every error counter and, on a deserializer, the eye opening."""
         control = self.read_register(address, REG_CTRL3)
+        dev_id = self.read_register(address, REG_DEV_ID)
+        eye_a, eye_b = self.eye_opening(address) if dev_id in EYE_MONITOR_IDS else (None, None)
         return ChipStatus(
             address=address,
             decode_errors_a=self.read_register(address, REG_DECODE_ERRORS_A),
             decode_errors_b=self.read_register(address, REG_DECODE_ERRORS_B),
-            dev_id=self.read_register(address, REG_DEV_ID),
+            dev_id=dev_id,
             dev_rev=self.read_register(address, REG_DEV_REV),
+            eye_a_pct=eye_a,
+            eye_b_pct=eye_b,
             idle_errors=self.read_register(address, REG_IDLE_ERRORS),
             link_error=bool(control & _CTRL3_ERROR),
             locked=bool(control & _CTRL3_LOCKED),
@@ -250,3 +279,11 @@ class GmslLink:
         except OSError as exc:
             raise GmslError(f"{self._path}: extension unit {selector:#04x}: {exc.strerror or exc}") from exc
         return bytes(buffer)
+
+
+def _eye_pct(raw: int) -> float | None:
+    """An RLMS7 reading as a percentage of the eye, None when never measured or outside the eye."""
+    opening = raw & 0x7F
+    if not raw or opening > _EOM_FULL_EYE:
+        return None
+    return round(100.0 * opening / _EOM_FULL_EYE, 1)

@@ -29,7 +29,7 @@ supports:
   target: false
   unit_serial: true
 
-default_metrics: [camera.mean_luma, camera.sharpness, link.locked]
+default_metrics: [camera.mean_luma, camera.sharpness, link.eye_a_pct, link.locked]
 
 overrides:
   - name: duration_s
