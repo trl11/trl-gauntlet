@@ -58,6 +58,13 @@ how a suite asks for one of two identical instruments. A bare name resolves to
 the only instrument of that capability, and is refused where there is more than
 one.
 
+`records` names capabilities whose every instrument the run form ticks for
+recording to begin with, as `records: [daq]`. Nothing is granted and nothing
+reaches the suite: the run records whatever is still ticked when it starts,
+exactly as if the operator had ticked it, so a suite that only needs Gauntlet
+to record the bench drives no instrument at all. An entry is a bare capability
+name, never a role.
+
 `setup` describes how the bench is put together. It is shown under the
 description on the Tests page, and unlike `description` its line breaks and
 indentation survive, so an ASCII diagram of the wiring reads as it was written.

@@ -150,6 +150,8 @@ export interface Suite {
   produces: ArtifactKind[];
   profiles: string;
   profiles_available?: SuiteProfile[];
+  /** Capabilities whose every instrument the run form ticks for recording to begin with. */
+  records?: string[];
   requires: string[];
   setup: string;
   supports: SuiteSupports;

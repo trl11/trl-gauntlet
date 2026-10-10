@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { StreamChannel } from "@api/types";
-import { defaultSettings, limitsOf, pickableSettings, startInstrument } from "./daq_limits";
+import { defaultSettings, limitsOf, startInstrument } from "./daq_limits";
 
 const CHANNELS: StreamChannel[] = [
   { key: "1", label: "Rail", max: 10, min: -10, unit: "V" },
@@ -46,25 +46,9 @@ describe("enabling channels", () => {
     expect(limitsOf(settings, CHANNELS)["2"]).toBeUndefined();
   });
 
-  it("starts with no channel picked", () => {
-    expect(pickableSettings(CHANNELS).enabled).toEqual({ "1": false, "2": false });
-  });
-
-  it("scans only the channels picked, even when nothing is watched", () => {
-    const settings = pickableSettings(CHANNELS);
-    settings.enabled["1"] = true;
-    expect(startInstrument(settings, CHANNELS)).toEqual({
-      channels: {},
-      enabled: { "1": true, "2": false },
-      post_s: 2,
-      pre_s: 2,
-    });
-  });
-
-  it("leaves the instrument as it is while no channel is picked", () => {
-    const settings = pickableSettings(CHANNELS);
-    settings.entries["1"].high = "3";
-    expect(startInstrument(settings, CHANNELS)).toBeNull();
+  it("starts each channel on or off as the instrument reports it", () => {
+    const channels = [CHANNELS[0], { ...CHANNELS[1], enabled: false }];
+    expect(defaultSettings(channels).enabled).toEqual({ "1": true, "2": false });
   });
 });
 
@@ -93,16 +77,20 @@ describe("limitsOf", () => {
 });
 
 describe("startInstrument", () => {
-  it("is null while no channel is picked", () => {
-    expect(startInstrument(pickableSettings(CHANNELS), CHANNELS)).toBeNull();
+  it("refuses an instrument with every channel off", () => {
+    const settings = defaultSettings(CHANNELS);
+    settings.enabled = { "1": false, "2": false };
+    expect(() => startInstrument(settings, CHANNELS, "daq.0")).toThrow(
+      "daq.0: turn on at least one channel, or stop recording it"
+    );
   });
 
   it("sends only the channels that are watched, with the window", () => {
-    const settings = pickableSettings(CHANNELS);
-    settings.enabled["2"] = true;
+    const settings = defaultSettings(CHANNELS);
+    settings.enabled["1"] = false;
     settings.entries["2"].low = "1";
     settings.before = "0.5";
-    expect(startInstrument(settings, CHANNELS)).toEqual({
+    expect(startInstrument(settings, CHANNELS, "daq.0")).toEqual({
       channels: { "2": { high: null, low: 1 } },
       enabled: { "1": false, "2": true },
       post_s: 2,

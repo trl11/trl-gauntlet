@@ -102,10 +102,8 @@ and the rate/count channels 9–10, only the eight analog inputs being in the
 scan list, and averaging — a sample is the last complete scan in the window
 rather than the mean of it.
 
-Channel labels and modes live in the driver for the session. Nothing writes
-them down, so a restart puts every channel back to `10v` under its number. A
-`daq_capture` run sets both from its profile at setup, so a run configures the
-bench it is about to measure and does not depend on what the last one left.
+Channel settings are saved in the data directory and survive a restart; a
+run takes the DAQ as the Instruments page left it.
 
 ## Known gaps
 
@@ -118,9 +116,9 @@ bench it is about to measure and does not depend on what the last one left.
 - The Instruments screen has been driven against two real providers, the PSU
   read-only and the DAQ read and write. Nothing has exercised a provider that
   fails or goes offline mid-command.
-- Only `daq_capture` drives a capability. Every other suite is `requires: []`
-  and reads its own hardware, so an instrument they depend on is neither
-  granted to them nor reported as in use while they run.
+- Most suites are `requires: []` and read their own hardware, so an instrument
+  they depend on is neither granted to them nor reported as in use while they
+  run.
 - `_write_scratch_profile` leaves files under `<runs>/_scratch/`. Nothing prunes
   them.
 - A suite that moves has three places to follow it, and each was found only

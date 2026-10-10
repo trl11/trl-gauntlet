@@ -1,0 +1,2 @@
+description: Record for three seconds. What `gauntlet verify --run` executes.
+duration_s: 3

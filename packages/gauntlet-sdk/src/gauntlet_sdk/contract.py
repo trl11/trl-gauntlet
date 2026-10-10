@@ -36,6 +36,9 @@ StopSignal = Literal["SIGUSR1", "SIGINT", "SIGTERM", "NONE"]
 # variable name that spells the dot as a doubled underscore.
 REQUIREMENT = re.compile(r"^[a-z][a-z0-9]*(_[a-z0-9]+)*(\.[a-z0-9]+)?$")
 
+# A capability on its own, with no role: what `records` names.
+CAPABILITY = re.compile(r"^[a-z][a-z0-9]*(_[a-z0-9]+)*$")
+
 
 class ExecSpec(BaseModel):
     """How to launch the suite process."""
@@ -158,6 +161,13 @@ class SuiteManifest(BaseModel):
             "how a suite asks for one of two identical instruments."
         ),
     )
+    records: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Capabilities whose every instrument the run form offers ticked for recording, as `daq`. "
+            "Nothing is granted: the operator may untick any, and the suite is told nothing of them."
+        ),
+    )
     supports: SupportsSpec = Field(default_factory=SupportsSpec)
     overrides: list[OverrideSpec] = Field(default_factory=list)
     default_metrics: list[str] = Field(
@@ -185,6 +195,17 @@ class SuiteManifest(BaseModel):
                 raise ValueError(f"requires: {entry!r} is not a capability name, optionally with a role, as `i2c.dut`")
         if len(set(value)) != len(value):
             raise ValueError("requires: names the same instrument more than once")
+        return value
+
+    @field_validator("records")
+    @classmethod
+    def _capabilities(cls, value: list[str]) -> list[str]:
+        """Every entry is a bare capability name, none twice."""
+        for entry in value:
+            if not CAPABILITY.match(entry):
+                raise ValueError(f"records: {entry!r} is not a capability name, as `daq`")
+        if len(set(value)) != len(value):
+            raise ValueError("records: names the same capability more than once")
         return value
 
     def override(self, name: str) -> OverrideSpec | None:

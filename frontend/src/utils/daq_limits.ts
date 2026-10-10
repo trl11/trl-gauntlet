@@ -60,18 +60,6 @@ export function defaultSettings(
   };
 }
 
-/**
- * Settings for picking which channels a run scans: none is picked to begin
- * with, and while none is the instrument is left as it is.
- */
-export function pickableSettings(channels: StreamChannel[]): DaqSettings {
-  const settings = defaultSettings(channels);
-  return {
-    ...settings,
-    enabled: Object.fromEntries(channels.map((channel) => [channel.key, false])),
-  };
-}
-
 /** A limit as typed: null when it is empty or still at the end of the range, NaN when it is not a number. */
 function limitOf(text: string, bound: number | undefined): number | null {
   if (text.trim() === "") return null;
@@ -99,18 +87,22 @@ export function limitsOf(
 }
 
 /**
- * What a run is started with for one instrument, or null while no channel is
- * picked and the instrument is left as it is.
+ * What a run is started with for one instrument: the channels it scans and the
+ * limits it watches. Throws when every channel is off, since the instrument
+ * would then have nothing to record.
  */
 export function startInstrument(
   settings: DaqSettings,
-  channels: StreamChannel[]
-): StartUpsetInstrument | null {
+  channels: StreamChannel[],
+  name: string
+): StartUpsetInstrument {
   const limits = limitsOf(settings, channels);
   const watched = Object.fromEntries(
     Object.entries(limits).filter(([, limit]) => limit.high !== null || limit.low !== null)
   );
-  if (!channels.some((channel) => settings.enabled[channel.key])) return null;
+  if (!channels.some((channel) => settings.enabled[channel.key])) {
+    throw new Error(`${name}: turn on at least one channel, or stop recording it`);
+  }
   return {
     channels: watched,
     enabled: settings.enabled,
