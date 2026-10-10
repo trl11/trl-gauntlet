@@ -109,6 +109,8 @@ class _Feed:
     retry_at: float = 0.0
     reported_down: bool = False
     recorder: Recorder | None = None
+    # The lowest and highest reading of each channel since the run began.
+    extremes: dict[str, tuple[float, float]] = field(default_factory=dict)
 
 
 class UpsetMonitor:
@@ -228,6 +230,10 @@ class UpsetMonitor:
         ``display_hz`` keeps every nth scan, chosen by sequence number so two
         polls never disagree about which. ``tail_s`` starts a first request
         from the last seconds rather than the oldest scan held.
+
+        A channel that has read anything this run carries ``seen_min`` and
+        ``seen_max``, so a view holding only the last seconds can still frame
+        the whole run.
         """
         feed = self._feeds.get(instrument)
         if feed is None:
@@ -240,7 +246,15 @@ class UpsetMonitor:
         if display_hz > 0:
             every = max(1, round(streamed.rate_hz / display_hz))
             scans = [scan for scan in scans if scan[0] % every == 0]
-        return StreamSlice(streamed.channels, streamed.rate_hz, streamed.next_seq, scans)
+        with self._lock:
+            extremes = dict(feed.extremes)
+        channels = [
+            {**channel, "seen_max": extremes[channel["key"]][1], "seen_min": extremes[channel["key"]][0]}
+            if channel["key"] in extremes
+            else channel
+            for channel in streamed.channels
+        ]
+        return StreamSlice(channels, streamed.rate_hz, streamed.next_seq, scans)
 
     def _apply_enabled(self) -> None:
         """Put the channels the run was started with in or out of the stream, before it is leased."""
@@ -365,6 +379,11 @@ class UpsetMonitor:
                 self._finish(feed, upset, truncated=False)
         with self._lock:
             limits = dict(feed.limits)
+            for column, channel in enumerate(feed.channels):
+                reading = scan[3][column]
+                if reading is not None:
+                    lowest, highest = feed.extremes.get(channel["key"], (reading, reading))
+                    feed.extremes[channel["key"]] = (min(lowest, reading), max(highest, reading))
         for column, channel in enumerate(feed.channels):
             key = channel["key"]
             bounds = limits.get(key)

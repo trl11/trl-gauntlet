@@ -11,7 +11,7 @@ import {
 
 import type { Layout } from "@hooks/useLayout";
 import { formatNumber } from "../utils/format";
-import { paddedDomain } from "../utils/metrics";
+import { verticalDomain } from "../utils/metrics";
 
 import "./DaqChart.scss";
 
@@ -34,6 +34,10 @@ export interface Point {
 export interface Series {
   band?: Point[];
   instrument: string;
+  /** The highest reading over a longer span than `points` holds, such as the whole run. */
+  max?: number;
+  /** The lowest reading over that span. */
+  min?: number;
   name: string;
   points: Point[];
 }
@@ -110,9 +114,6 @@ export const SeriesChart: React.FC<SeriesChartProps> = ({
   series,
 }) => {
   const drawn = series.filter((line) => !hidden.includes(line.name));
-  const readings = drawn.flatMap((line) =>
-    [...line.points, ...(line.band ?? [])].map((point) => point.v)
-  );
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart margin={{ top: 8, right: RIGHT_MARGIN, bottom: 4 }}>
@@ -125,7 +126,7 @@ export const SeriesChart: React.FC<SeriesChartProps> = ({
           type="number"
         />
         <YAxis
-          domain={paddedDomain(readings)}
+          domain={verticalDomain(drawn)}
           tickFormatter={(value: number) => formatNumber(value, 4)}
           width={AXIS_WIDTH}
         />

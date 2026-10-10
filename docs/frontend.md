@@ -62,6 +62,8 @@ window is the data's range with a tenth of that range as air at each end, from
 its panel is what makes a 95uV ripple on a 2.5mV rail legible, and it needs
 nothing typed to get there.
 
+The live DAQ trace during a run holds only its last seconds, so its range is the whole run's instead: the trace endpoint sends each channel's `seen_min` and `seen_max`, kept by the upset monitor from every scan, and the chart frames those. The axis then holds still as the visible readings move, and a spike earlier in the run keeps its room.
+
 `CaptureViewer` draws a waveform that is far larger than the chart it goes in.
 The whole window is drawn as an envelope — each bucket's lowest and highest
 sample, so a peak survives the thinning — and a window brushed down below the

@@ -28,6 +28,24 @@ export function paddedDomain(values: number[]): [number, number] | undefined {
   return [low - air, high + air];
 }
 
+/**
+ * The vertical axis for the lines drawn: everything they read, including a
+ * line's `min` and `max`, with a tenth of the span as air either side. A live
+ * view passes the whole run's, so the axis does not shrink to the last
+ * seconds and jump when they move.
+ */
+export function verticalDomain(
+  drawn: { band?: { v: number }[]; max?: number; min?: number; points: { v: number }[] }[]
+): [number, number] | undefined {
+  return paddedDomain(
+    drawn.flatMap((line) => [
+      ...[...line.points, ...(line.band ?? [])].map((point) => point.v),
+      ...(line.min != null ? [line.min] : []),
+      ...(line.max != null ? [line.max] : []),
+    ])
+  );
+}
+
 /** Splits `a1 < a2 < a10` the way a person reads it, not the way `localeCompare` does. */
 export function naturalCompare(a: string, b: string): number {
   const chunk = (value: string) => value.match(/\d+|\D+/g) ?? [value];

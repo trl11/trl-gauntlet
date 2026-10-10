@@ -708,6 +708,10 @@ export interface StreamChannel {
   max?: number;
   /** The least the instrument can read on this channel. */
   min?: number;
+  /** The highest reading this run, on a live trace once the channel has read anything. */
+  seen_max?: number;
+  /** The lowest reading this run, on the same terms. */
+  seen_min?: number;
   unit: string;
 }
 

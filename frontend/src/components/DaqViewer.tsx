@@ -313,6 +313,8 @@ const LiveTraces: React.FC<{
     if (!data) return [];
     return data.channels.map((channel, column) => ({
       instrument,
+      max: channel.seen_max,
+      min: channel.seen_min,
       name: several ? `${instrument} · ${channel.label}` : channel.label,
       points: data.scans
         .filter((scan) => scan[2][column] != null)
