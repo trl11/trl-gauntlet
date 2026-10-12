@@ -1,0 +1,8 @@
+description: Five minutes on the real board.
+driver: real
+ads7138_address: 16
+tmp112_address: 73
+min_c: -55.0
+max_c: 125.0
+duration_s: 300.0
+sample_period_s: 1.0
