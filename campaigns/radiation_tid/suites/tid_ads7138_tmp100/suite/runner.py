@@ -1,4 +1,4 @@
-"""Total ionising dose characterisation of the ADS7138 and TMP112 on one board.
+"""Total ionising dose characterisation of the ADS7138 and TMP100 on one board.
 
 Both parts sit on the same DUT board and the same I2C bus, so one sample
 checks both. The ADS7138's eight channels are split as the board wires them:
@@ -12,7 +12,7 @@ checks both. The ADS7138's eight channels are split as the board wires them:
     pin 5   GPIO6  output, 1        the analyzer must see 1
     pin 6   GPIO7  output, a pulse  flips each sample; the analyzer must follow
 
-The TMP112 is read for its temperature, held to the profile's bounds, and its
+The TMP100 is read for its temperature, held to the profile's bounds, and its
 configuration and both comparator limits are read back as written.
 
 Each part is checked whether or not the other answered, so a part that stops
@@ -55,7 +55,7 @@ from suite.adc import (
     MockAdc,
 )
 from suite.analyzer import Analyzer, AnalyzerError, MockAnalyzer
-from suite.profile import TidAds7138Tmp112Profile
+from suite.profile import TidAds7138Tmp100Profile
 from suite.sensor import (
     CONFIGURATION,
     PARTS,
@@ -88,10 +88,10 @@ ADC_CONFIGURATION = {
     SEQUENCE_CFG: 0x00,
 }
 
-TMP112 = PARTS["tmp112"]
+TMP100 = PARTS["tmp100"]
 
-# What setup writes to the TMP112, and what every sample reads back.
-SENSOR_CONFIGURATION = {CONFIGURATION: TMP112.configuration, T_LOW: T_LOW_DEFAULT, T_HIGH: T_HIGH_DEFAULT}
+# What setup writes to the TMP100, and what every sample reads back.
+SENSOR_CONFIGURATION = {CONFIGURATION: TMP100.configuration, T_LOW: T_LOW_DEFAULT, T_HIGH: T_HIGH_DEFAULT}
 
 # Long enough to catch a glitch on a held output, short enough to stay well
 # inside a one-second sample.
@@ -129,7 +129,7 @@ def input_faults(read: int, driven: int) -> list[str]:
     return faults
 
 
-def pin_faults(captured: dict[int, tuple[int, int]], profile: TidAds7138Tmp112Profile, driven: int) -> list[str]:
+def pin_faults(captured: dict[int, tuple[int, int]], profile: TidAds7138Tmp100Profile, driven: int) -> list[str]:
     """What the analyzer saw on the ADS7138's outputs that is out of spec."""
     faults = []
     for name, channel, probe in (
@@ -147,7 +147,7 @@ def pin_faults(captured: dict[int, tuple[int, int]], profile: TidAds7138Tmp112Pr
     return faults
 
 
-def analog_faults(readings: dict[int, float], profile: TidAds7138Tmp112Profile) -> list[str]:
+def analog_faults(readings: dict[int, float], profile: TidAds7138Tmp100Profile) -> list[str]:
     """The ADS7138's analog readings outside their windows."""
     faults = []
     for channel, pin, low, high in (
@@ -161,13 +161,13 @@ def analog_faults(readings: dict[int, float], profile: TidAds7138Tmp112Profile) 
 
 
 def sensor_register_faults(registers: dict[int, int]) -> list[str]:
-    """The TMP112 registers that no longer read as they were written."""
+    """The TMP100 registers that no longer read as they were written."""
     faults = []
     for pointer, expected in SENSOR_CONFIGURATION.items():
         actual = registers[pointer]
         if pointer == CONFIGURATION:
-            actual &= TMP112.configuration_stored
-            expected &= TMP112.configuration_stored
+            actual &= TMP100.configuration_stored
+            expected &= TMP100.configuration_stored
         if actual != expected:
             faults.append(f"register 0x{pointer:02x} reads 0x{actual:x}, not 0x{expected:x}")
     return faults
@@ -175,7 +175,7 @@ def sensor_register_faults(registers: dict[int, int]) -> list[str]:
 
 def _setup(ctx: SuiteContext) -> None:
     """Take the instruments and put both parts into the state under test."""
-    profile: TidAds7138Tmp112Profile = ctx.profile
+    profile: TidAds7138Tmp100Profile = ctx.profile
     probes = {
         TOGGLE: profile.toggle_probe,
         OUTPUT_LOW: profile.low_probe,
@@ -192,11 +192,11 @@ def _setup(ctx: SuiteContext) -> None:
         granted_i2c = ctx.env.capability("i2c")
         granted_logic = ctx.env.capability("logic")
         adc = Adc(granted_i2c.url, profile.ads7138_address)
-        sensor = Sensor(granted_i2c.url, profile.tmp112_address, TMP112)
+        sensor = Sensor(granted_i2c.url, profile.tmp100_address, TMP100)
         ctx.extras[_ANALYZER] = Analyzer(granted_logic.url)
         info(
             f"{granted_i2c.instance_id}: ADS7138 at 0x{profile.ads7138_address:02x}, "
-            f"TMP112 at 0x{profile.tmp112_address:02x}; {granted_logic.instance_id}: probes {probes}"
+            f"TMP100 at 0x{profile.tmp100_address:02x}; {granted_logic.instance_id}: probes {probes}"
         )
     ctx.extras[_ADC] = adc
     ctx.extras[_SENSOR] = sensor
@@ -212,7 +212,7 @@ def _setup(ctx: SuiteContext) -> None:
     # The temperature register holds the last result at the old resolution
     # until the first conversion at the new one completes.
     if profile.driver != "mock":
-        time.sleep(TMP112.conversion_s)
+        time.sleep(TMP100.conversion_s)
 
 
 def _teardown(ctx: SuiteContext) -> None:
@@ -228,7 +228,7 @@ def _teardown(ctx: SuiteContext) -> None:
 
 def _check_adc(ctx: SuiteContext, iteration: int, phases: list[PhaseRecord]) -> tuple[list[str], dict[str, Any]]:
     """Drive the ADS7138's outputs, then check its pins, inputs, analog channels and registers."""
-    profile: TidAds7138Tmp112Profile = ctx.profile
+    profile: TidAds7138Tmp100Profile = ctx.profile
     adc = ctx.extras[_ADC]
     analyzer = ctx.extras[_ANALYZER]
     driven = driven_for(iteration)
@@ -265,16 +265,16 @@ def _check_adc(ctx: SuiteContext, iteration: int, phases: list[PhaseRecord]) -> 
 
 
 def _check_sensor(ctx: SuiteContext, phases: list[PhaseRecord]) -> tuple[list[str], dict[str, Any]]:
-    """Read the TMP112's temperature and check its registers still hold what was written."""
-    profile: TidAds7138Tmp112Profile = ctx.profile
+    """Read the TMP100's temperature and check its registers still hold what was written."""
+    profile: TidAds7138Tmp100Profile = ctx.profile
     sensor = ctx.extras[_SENSOR]
     try:
-        with PhaseTimer("read_tmp112", phases) as phase:
+        with PhaseTimer("read_tmp100", phases) as phase:
             temperature_c = celsius(sensor.read_register(TEMPERATURE))
             registers = {pointer: sensor.read_register(pointer) for pointer in SENSOR_CONFIGURATION}
             phase.set_detail(temperature_c=temperature_c)
     except SensorError as exc:
-        return [f"TMP112: {exc}"], {"answered": 0, "faults": 1}
+        return [f"TMP100: {exc}"], {"answered": 0, "faults": 1}
 
     faults = sensor_register_faults(registers)
     if not profile.min_c <= temperature_c <= profile.max_c:
@@ -285,11 +285,11 @@ def _check_sensor(ctx: SuiteContext, phases: list[PhaseRecord]) -> tuple[list[st
         "faults": len(faults),
         "temperature_c": temperature_c,
     }
-    return [f"TMP112: {fault}" for fault in faults], metrics
+    return [f"TMP100: {fault}" for fault in faults], metrics
 
 
 def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
-    """Check the ADS7138, then the TMP112, and fail the sample on a fault in either."""
+    """Check the ADS7138, then the TMP100, and fail the sample on a fault in either."""
     phases: list[PhaseRecord] = []
     adc_faults, adc_metrics = _check_adc(ctx, ictx.iteration, phases)
     sensor_faults, sensor_metrics = _check_sensor(ctx, phases)
@@ -303,13 +303,13 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     return IterationOutcome(
         success=not faults,
         reason="; ".join(faults),
-        metrics={"ads7138": adc_metrics, "tmp112": sensor_metrics},
+        metrics={"ads7138": adc_metrics, "tmp100": sensor_metrics},
         phase_records=phases,
         summary=", ".join(readings + faults[:1]),
     )
 
 
-def _evaluate(outcomes: list[IterationOutcome], profile: TidAds7138Tmp112Profile) -> tuple[bool, str] | None:
+def _evaluate(outcomes: list[IterationOutcome], profile: TidAds7138Tmp100Profile) -> tuple[bool, str] | None:
     """Aggregate pass criteria: nothing failed, and something ran."""
     if not outcomes:
         return False, "no samples collected"
@@ -320,13 +320,13 @@ def _results(
     ctx: SuiteContext,
     outcomes: list[IterationOutcome],
     result: RunResult,
-    profile: TidAds7138Tmp112Profile,
+    profile: TidAds7138Tmp100Profile,
 ) -> list[dict[str, Any]]:
     """Headline figures shown at the top of the run summary."""
     temperatures = [
-        outcome.metrics["tmp112"]["temperature_c"]
+        outcome.metrics["tmp100"]["temperature_c"]
         for outcome in outcomes
-        if "temperature_c" in outcome.metrics.get("tmp112", {})
+        if "temperature_c" in outcome.metrics.get("tmp100", {})
     ]
     figures = [
         make_result("samples", "Samples", result.total_iterations, format="int"),
@@ -339,9 +339,9 @@ def _results(
             format="int",
         ),
         make_result(
-            "tmp112_failed",
-            "Samples with a TMP112 fault",
-            sum(1 for o in outcomes if o.metrics.get("tmp112", {}).get("faults")),
+            "tmp100_failed",
+            "Samples with a TMP100 fault",
+            sum(1 for o in outcomes if o.metrics.get("tmp100", {}).get("faults")),
             format="int",
         ),
     ]
@@ -355,8 +355,8 @@ def _results(
 
 
 SPEC = SuiteSpec(
-    name="tid_ads7138_tmp112",
-    profile_model=TidAds7138Tmp112Profile,
+    name="tid_ads7138_tmp100",
+    profile_model=TidAds7138Tmp100Profile,
     iterate=_iterate,
     evaluate=_evaluate,
     setup=_setup,

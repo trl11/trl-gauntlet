@@ -9,7 +9,7 @@ import pytest
 from pydantic import ValidationError
 from suite.adc import AdcError, MockAdc
 from suite.analyzer import MockAnalyzer
-from suite.profile import TidAds7138Tmp112Profile
+from suite.profile import TidAds7138Tmp100Profile
 from suite.runner import (
     ADC_CONFIGURATION,
     INPUT_HIGH,
@@ -29,27 +29,27 @@ from suite.sensor import CONFIGURATION, MockSensor, SensorError
 class TestProfile:
     def test_the_two_parts_cannot_share_an_address(self) -> None:
         with pytest.raises(ValidationError, match="cannot share an address"):
-            TidAds7138Tmp112Profile(ads7138_address=0x49, tmp112_address=0x49)
+            TidAds7138Tmp100Profile(ads7138_address=0x49, tmp100_address=0x49)
 
-    def test_an_address_the_tmp112_cannot_be_strapped_to_is_refused(self) -> None:
-        with pytest.raises(ValidationError, match="TMP112 cannot be strapped to 0x4c"):
-            TidAds7138Tmp112Profile(tmp112_address=0x4C)
+    def test_an_address_the_tmp100_cannot_be_strapped_to_is_refused(self) -> None:
+        with pytest.raises(ValidationError, match="TMP100 cannot be strapped to 0x50"):
+            TidAds7138Tmp100Profile(tmp100_address=0x50)
 
     def test_temperature_bounds_out_of_order_are_refused(self) -> None:
         with pytest.raises(ValidationError, match="min_c must be below max_c"):
-            TidAds7138Tmp112Profile(min_c=40.0, max_c=10.0)
+            TidAds7138Tmp100Profile(min_c=40.0, max_c=10.0)
 
 
 class TestSensorRegisters:
     def test_the_live_alert_bit_is_not_a_fault(self) -> None:
         registers = dict(SENSOR_CONFIGURATION)
-        registers[CONFIGURATION] |= 0x0020
+        registers[CONFIGURATION] |= 0x80
         assert sensor_register_faults(registers) == []
 
     def test_a_configuration_that_changed_is_named(self) -> None:
         registers = dict(SENSOR_CONFIGURATION)
         registers[CONFIGURATION] = 0x0000
-        assert sensor_register_faults(registers) == ["register 0x01 reads 0x0, not 0x6080"]
+        assert sensor_register_faults(registers) == ["register 0x01 reads 0x0, not 0x60"]
 
 
 def _no_ack(*args: object) -> int:
@@ -70,7 +70,7 @@ def _board(adc: MockAdc, sensor: MockSensor) -> Any:
         sensor.write_register(pointer, value)
     analyzer = MockAnalyzer(adc, {TOGGLE: 2, OUTPUT_LOW: 3, OUTPUT_HIGH: 5, PULSE: 6})
     return SimpleNamespace(
-        profile=TidAds7138Tmp112Profile(),
+        profile=TidAds7138Tmp100Profile(),
         extras={"adc": adc, "analyzer": analyzer, "sensor": sensor},
     )
 
@@ -99,4 +99,4 @@ class TestSample:
         sensor_faults, _ = _check_sensor(ctx, [])
         assert adc_faults == []
         assert adc_metrics["ain0_v"] == pytest.approx(1.85, abs=0.001)
-        assert sensor_faults == ["TMP112: no ACK"]
+        assert sensor_faults == ["TMP100: no ACK"]

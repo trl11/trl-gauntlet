@@ -1,4 +1,4 @@
-"""Command-line entry point for Tid Ads7138 Tmp112.
+"""Command-line entry point for Tid Ads7138 Tmp100.
 
 ``make_suite_cli`` supplies every flag the contract names, plus
 ``--print-profile-schema`` so Gauntlet can render a profile form.
@@ -26,7 +26,7 @@ def _extra_overrides(args: argparse.Namespace) -> dict[str, object]:
 
 main = make_suite_cli(
     SPEC,
-    prog="tid_ads7138_tmp112",
+    prog="tid_ads7138_tmp100",
     extra_args=_extra_args,
     extra_overrides=_extra_overrides,
 )

@@ -1,20 +1,20 @@
 # yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
 apiVersion: 1
-key: tid_ads7138_tmp112
-title: ADS7138 ADC and TMP112 Temperature Sensor
+key: tid_ads7138_tmp100
+title: ADS7138 ADC and TMP100 Temperature Sensor
 category: radiation
 description: >
-  Total ionising dose characterisation of the ADS7138 and TMP112 on one DUT
+  Total ionising dose characterisation of the ADS7138 and TMP100 on one DUT
   board, both checked every sample. The ADS7138 holds its analog inputs to a
   window, reads its inputs as wired, drives four outputs the analyzer must see,
-  and keeps its registers. The TMP112 reads inside the profile's bounds and
+  and keeps its registers. The TMP100 reads inside the profile's bounds and
   keeps its registers. A fault in either fails the sample, and each part is
   checked even when the other stops answering.
 
 setup: |
   Both parts are on one board and one I2C bus, reached over a CP2112
   USB-to-I2C bridge through the i2c capability: the ADS7138 at 0x10, the
-  TMP112 at 0x49 with ADD0 tied to V+. Four of the ADS7138's outputs run to
+  TMP100 at 0x48 with ADD0 and ADD1 tied to GND. Four of the ADS7138's outputs run to
   the logic analyzer.
 
       pin 15  AIN0   analog input      converted, held to a window
@@ -30,7 +30,7 @@ setup: |
       +--------------+   USB   +----------+   |  +-----------------+  |
       |     Host     |-------->|  CP2112  |---+->| ADS7138 at 0x10 |  |
       +--------------+         +----------+ I2C  +-----------------+  |
-             ^                                |  | TMP112 at 0x49  |  |
+             ^                                |  | TMP100 at 0x48  |  |
              |                                |  +-----------------+  |
              |                                +-----------|-----------+
              |   USB           +----------+  pins 2,3,5,6 |
@@ -59,7 +59,7 @@ supports:
   target: false
   unit_serial: true
 
-default_metrics: [ads7138.ain0_v, ads7138.ain1_v, ads7138.faults, tmp112.faults, tmp112.temperature_c]
+default_metrics: [ads7138.ain0_v, ads7138.ain1_v, ads7138.faults, tmp100.faults, tmp100.temperature_c]
 
 overrides:
   - name: duration_s

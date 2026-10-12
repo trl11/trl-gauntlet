@@ -30,13 +30,13 @@ members:
   notes: Read directly over I2C. Pick the part on the run form; the TMP112 is at 0x49.
     A thermocouple is to be added to the BOM; until it
     is, the profile's bounds are the only check on the reading.
-- suite: tid_ads7138_tmp112
-  component: ADS7138QRTERQ1, TMP112AQDRLRQ1
+- suite: tid_ads7138_tmp100
+  component: ADS7138QRTERQ1, TMP100AQDBVRQ1
   test_vehicle: PRE-10161
   host: Raspberry Pi
   fixture: 1-1
   notes: Both parts on the one board, checked in the same sample. The ADS7138 is at 0x10 and the
-    TMP112 at 0x49; the analog windows are the same placeholders as tid_ads7138's.
+    TMP100 at 0x48; the analog windows are the same placeholders as tid_ads7138's.
 - suite: tid_max96793
   component: MAX96793GTJ/VY+
   test_vehicle: LI-IMX728-GMSL3-070H
