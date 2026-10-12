@@ -940,6 +940,26 @@ class TestLinkReadsAndVideoTakeTurns:
         assert reading["error"]
         assert camera.owned() is False
 
+    def test_a_stream_that_restarts_once_reopened_keeps_the_reading(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        fake = _FakeCamera(Path("/dev/video0"))
+        camera, _ = linked_camera(monkeypatch, fake)
+        starts: list[str] = []
+
+        def start_once_reopened() -> None:
+            starts.append("after close" if fake.closed else "before close")
+            if not fake.closed:
+                _raise_start()
+            fake.started = True
+
+        monkeypatch.setattr(fake, "start", start_once_reopened)
+
+        reading = camera.command("link_status", {})
+
+        assert starts == ["before close", "after close"]
+        assert reading["error"] == ""
+        assert reading["reopened"] is True
+        assert camera.owned() is True
+
 
 class TestLinkRegister:
     """One chip's lock state, read without touching the other five registers."""
@@ -959,6 +979,7 @@ class TestLinkRegister:
             "eye_b_pct": None,
             "link_error": False,
             "locked": True,
+            "reopened": False,
         }
 
     def test_a_deserializer_reports_its_eye_opening_with_its_lock(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1034,6 +1055,7 @@ class TestLinkRegister:
             "eye_b_pct": None,
             "link_error": False,
             "locked": True,
+            "reopened": False,
         }
 
 

@@ -63,9 +63,12 @@ produces: [events, frames, junit, manifest, metrics, summary, verdict]
 # link in use. At the bench's 12Gbps GMSL3 rate it is a trend rather than a
 # margin, and it can narrow before a single error is counted.
 #
-# The deserializer's decode errors are charted beside the serializer's own:
-# forward-link video errors are counted where the video is received, so they
-# show on the deserializer even when the serializer is the part that moved.
+# Only the deserializer's decode errors are charted: forward-link video errors
+# are counted where the video is received, so they show on the deserializer
+# even when the serializer is the part that moved.
+#
+# bench.retries and bench.reopens say how hard the bench worked for a sample:
+# camera calls retried, and stream restarts that needed the node reopened.
 #
 # unlocks and link_error are still absent: they hold a constant until the
 # part is gone, so they make poor charts and belong in the verdict.
@@ -73,11 +76,11 @@ produces: [events, frames, junit, manifest, metrics, summary, verdict]
 # moves is visible on the same series rather than only in the finished verdict.
 default_metrics:
   [
+    bench.reopens,
+    bench.retries,
     deserializer.decode_errors_a,
     deserializer.errors_total,
     deserializer.eye_a_pct,
-    serializer.decode_errors_a,
-    serializer.errors_total,
     serializer.locked,
     video.dropped,
     video.mbps,

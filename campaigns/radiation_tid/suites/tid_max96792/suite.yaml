@@ -67,8 +67,20 @@ produces: [events, frames, junit, manifest, metrics, summary, verdict]
 # part is gone, so they make poor charts and belong in the verdict.
 # locked is charted anyway, alongside the error rate, so the moment either
 # moves is visible on the same series rather than only in the finished verdict.
+#
+# bench.retries and bench.reopens say how hard the bench worked for a sample:
+# camera calls retried, and stream restarts that needed the node reopened.
 default_metrics:
-  [deserializer.decode_errors_a, deserializer.errors_total, deserializer.eye_a_pct, deserializer.locked, video.dropped, video.mbps]
+  [
+    bench.reopens,
+    bench.retries,
+    deserializer.decode_errors_a,
+    deserializer.errors_total,
+    deserializer.eye_a_pct,
+    deserializer.locked,
+    video.dropped,
+    video.mbps,
+  ]
 requires: [camera]
 
 supports:

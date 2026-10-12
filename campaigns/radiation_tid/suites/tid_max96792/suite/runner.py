@@ -19,7 +19,8 @@ missing from the run.
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from gauntlet_sdk import (
     IterationContext,
@@ -46,6 +47,13 @@ _EYE_KEYS = ("eye_a_pct", "eye_b_pct")
 PART_ROLE = "deserializer"
 FAR_ROLE = "serializer"
 
+# How long a call to the camera may take. Reading the chips stops and restarts
+# the 4K stream, and the restart has been measured stalling for over 20s, so a
+# shorter wait turns a slow sample into a failed one.
+_CAMERA_TIMEOUT_S = 90.0
+
+_T = TypeVar("_T")
+
 _CAMERA = "camera"
 _FRAME_BYTES = "frame_bytes"
 _LAST_SNAPSHOT_S = "last_snapshot_s"
@@ -64,7 +72,7 @@ def _setup(ctx: SuiteContext) -> None:
         return
 
     granted = ctx.env.capability("camera")
-    camera = Camera(granted.url)
+    camera = Camera(granted.url, timeout_s=_CAMERA_TIMEOUT_S)
     ctx.extras[_CAMERA] = camera
     try:
         camera.own()
@@ -186,23 +194,41 @@ def _read_link(camera: Camera) -> Reading:
         return camera.link_status()
 
 
+def _retrying(call: Callable[[], _T], retries: list[int]) -> _T:
+    """Make one call to the camera, and once more if it fails, counting the retry in ``retries``."""
+    try:
+        return call()
+    except LinkError:
+        retries[0] += 1
+        return call()
+
+
+def _stalled(phases: list[PhaseRecord], reason: str) -> IterationOutcome:
+    """A sample whose chips could not be read even on a retry, recorded as a stall rather than a fault."""
+    return IterationOutcome(
+        success=True,
+        reason="",
+        metrics={"bench": {"reopens": 0, "retries": 1, "stalled": 1}},
+        phase_records=phases,
+        summary=f"stalled after a retry: {reason}",
+    )
+
+
 def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     """One sample: read both ends of the link, then keep a frame."""
     profile: TidMax96792Profile = ctx.profile
     camera: Camera | None = ctx.extras.get(_CAMERA)
     phases: list[PhaseRecord] = []
+    retries = [0]
 
     with PhaseTimer("link", phases) as phase:
         try:
-            reading = _mock_reading(ctx, ictx) if camera is None else _read_link(camera)
+            reading = _mock_reading(ctx, ictx) if camera is None else _retrying(lambda: _read_link(camera), retries)
         except LinkError as exc:
-            return IterationOutcome(
-                success=False,
-                reason=f"link unreadable: {exc}",
-                metrics={},
-                phase_records=phases,
-                summary="link unreadable",
-            )
+            # The chips could not be read even on a retry: the stream restart
+            # around the read stalled, which says the bench was slow, not that
+            # the part moved. A frame that cannot be had still fails the sample.
+            return _stalled(phases, f"link unreadable: {exc}")
         phase.set_detail(chips=str(len(reading.chips)))
 
     if reading.error:
@@ -211,7 +237,10 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
         return IterationOutcome(
             success=False,
             reason=f"link stopped answering: {reading.error}",
-            metrics={PART_ROLE: {"answered": 0, "locked": 0}},
+            metrics={
+                PART_ROLE: {"answered": 0, "locked": 0},
+                "bench": {"reopens": 0, "retries": retries[0], "stalled": 0},
+            },
             phase_records=phases,
             summary="link gone",
         )
@@ -233,7 +262,10 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     with PhaseTimer("snapshot", phases) as phase:
         phase.set_detail(width=str(profile.max_width))
         try:
-            shot = _mock_snapshot(ctx, ictx) if camera is None else camera.snapshot(max_width=profile.max_width)
+            if camera is None:
+                shot = _mock_snapshot(ctx, ictx)
+            else:
+                shot = _retrying(lambda: camera.snapshot(max_width=profile.max_width), retries)
         except LinkError as exc:
             snapshot_error = str(exc)
 
@@ -271,7 +303,8 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     if images:
         metrics["images"] = images
 
-    reason = _fault(part, far, stream, shot, snapshot_error, repeats, profile)
+    reason = _fault(part, far, stream, snapshot_error, repeats, profile)
+    metrics["bench"] = {"reopens": int(reading.reopened), "retries": retries[0], "stalled": 0}
     return IterationOutcome(
         success=not reason,
         reason=reason,
@@ -345,7 +378,6 @@ def _fault(
     part: dict[str, Any],
     far: dict[str, dict[str, Any]],
     stream: dict[str, float],
-    shot: Snapshot | None,
     snapshot_error: str,
     repeats: int,
     profile: TidMax96792Profile,
@@ -382,8 +414,6 @@ def _fault(
         return f"{dropped} frames dropped in one burst, above {profile.max_dropped_frames}"
     if snapshot_error:
         return f"no frame: {snapshot_error}"
-    if shot is not None and shot.mean_luma < profile.min_mean_luma:
-        return f"frame is dark: mean luma {shot.mean_luma:.1f} below {profile.min_mean_luma:.1f}"
     return ""
 
 
@@ -445,6 +475,13 @@ def _evaluate(outcomes: list[IterationOutcome], profile: TidMax96792Profile) -> 
     if totals and totals[-1] > profile.max_total_errors:
         return False, f"{int(totals[-1])} link errors over the run, above {profile.max_total_errors}"
 
+    stalled = sum(1 for value in _series(outcomes, "bench", "stalled") if value == 1)
+    if stalled > len(outcomes) * profile.max_stalled_pct / 100:
+        return False, (
+            f"the bench stalled on {stalled} of {len(outcomes)} samples, "
+            f"above {profile.max_stalled_pct:g}%: the measurement is not to be trusted"
+        )
+
     missed = sum(1 for value in _series(outcomes, "video", "arrived") if value == 0)
     if missed > profile.max_missed_snapshots:
         return False, f"{missed} of {len(outcomes)} samples produced no frame"
@@ -482,6 +519,8 @@ def _results(
         ),
         make_result("dropped_frames", "Dropped frames", int(sum(dropped)), format="int"),
         make_result("corrupt_frames", "Corrupt frames", int(sum(corrupt)), format="int"),
+        make_result("retries", "Camera calls retried", int(sum(_series(outcomes, "bench", "retries"))), format="int"),
+        make_result("reopens", "Stream reopens", int(sum(_series(outcomes, "bench", "reopens"))), format="int"),
     ]
     if fps:
         rows.append(

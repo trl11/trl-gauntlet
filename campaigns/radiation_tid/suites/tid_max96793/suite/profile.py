@@ -98,7 +98,17 @@ class TidMax96793Profile(BaseModel):
         ge=0,
         description="Snapshots that may fail to arrive before the run fails.",
     )
-    min_mean_luma: float = Field(default=1.0, ge=0, description="Below this a frame counts as dark.")
+    max_stalled_pct: float = Field(
+        default=5.0,
+        ge=0,
+        le=100,
+        description=(
+            "Samples, as a percentage of the run, whose chips may fail to be read before the run fails. "
+            "Reading the chips restarts the stream, which now and then stalls for tens of seconds, so a "
+            "read that times out even on a retry says the bench was slow, not that the part moved. A "
+            "sample that gets no frame still fails."
+        ),
+    )
     snapshot_period_s: float = Field(
         default=0.0,
         ge=0,

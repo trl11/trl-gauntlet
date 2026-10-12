@@ -75,6 +75,23 @@ def _device_present(device: str) -> bool:
     return bool(capture_devices())
 
 
+def _restart(camera: V4l2Camera) -> bool:
+    """Start the stream again after a chip read, reopening the node once if it will not come up; True if it was reopened.
+
+    On the bench a restart now and then never settles, yet reopening the node
+    brings the video straight back, so one stuck restart is not the camera going.
+    """
+    try:
+        camera.start()
+    except V4l2Error as exc:
+        log.info("camera: the stream did not restart after a link read, reopening it: %s", exc)
+        camera.close()
+        camera.open()
+        camera.start()
+        return True
+    return False
+
+
 class UvcCamera:
     """One video capture device, offered as the ``camera`` capability."""
 
@@ -434,7 +451,7 @@ class UvcCamera:
             return dict(self._link_state)
 
         try:
-            chips, identity = self._read_chips(link)
+            chips, identity, reopened = self._read_chips(link)
         except (GmslError, OSError) as exc:
             # A link that has stopped answering is the measurement, not a
             # crash, so it is reported in the same shape as a healthy one.
@@ -453,6 +470,7 @@ class UvcCamera:
             "chips": chips,
             "error": "",
             "identity": identity,
+            "reopened": reopened,
             # One figure the panel can show without knowing how many chips
             # there are: the link is up only while every chip says so.
             "locked": bool(chips) and all(chip["locked"] for chip in chips.values()),
@@ -490,7 +508,7 @@ class UvcCamera:
             # A link that has stopped answering is the measurement, not a
             # crash, so it is reported in the same shape as a healthy one.
             if camera is not None:
-                camera.start()
+                _restart(camera)
             return {"address": f"0x{address:02x}", "error": str(exc), "link_error": False, "locked": False}
         if camera is None:
             return {
@@ -502,7 +520,7 @@ class UvcCamera:
                 "locked": locked,
             }
         try:
-            camera.start()
+            reopened = _restart(camera)
         except V4l2Error as exc:
             # The chip answered but the video would not come back, which is
             # the camera going rather than the link, so the device is dropped
@@ -517,9 +535,10 @@ class UvcCamera:
             "eye_b_pct": eye_b,
             "link_error": link_error,
             "locked": locked,
+            "reopened": reopened,
         }
 
-    def _read_chips(self, link: GmslLink) -> tuple[dict[str, Any], dict[str, str]]:
+    def _read_chips(self, link: GmslLink) -> tuple[dict[str, Any], dict[str, str], bool]:
         """Every chip's registers, read with the video stopped.
 
         The adapter offers one format, 4K YUYV at about 2.6Gbps, which leaves
@@ -540,9 +559,8 @@ class UvcCamera:
             chips = {f"0x{address:02x}": self._accumulate(link.status(address)) for address in self._link_addresses}
             identity = link.identity()
         finally:
-            if camera is not None:
-                camera.start()
-        return chips, identity
+            reopened = _restart(camera) if camera is not None else False
+        return chips, identity, reopened
 
     def _stream_stats(self, args: dict[str, Any]) -> dict[str, Any]:
         """What the link sustained over a short burst of frames.
