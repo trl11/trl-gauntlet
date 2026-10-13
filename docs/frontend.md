@@ -62,7 +62,7 @@ window is the data's range with a tenth of that range as air at each end, from
 its panel is what makes a 95uV ripple on a 2.5mV rail legible, and it needs
 nothing typed to get there.
 
-The live DAQ trace during a run holds only its last seconds, so its range is the whole run's instead: the trace endpoint sends each channel's `seen_min` and `seen_max`, kept by the upset monitor from every scan, and the chart frames those. The axis then holds still as the visible readings move, and a spike earlier in the run keeps its room.
+A DAQ graph, live or recorded, is the exception: where the instrument reports the range it can read on a channel, its `min` and `max`, the vertical axis is fixed to that range. The DI-2008 gives its input range with the channel's scale applied, so a ±0.5 V input behind a 5:1 divider is drawn from −2.5 to 2.5. A stacked graph spans the widest of the ranges drawn on it. Because a small signal reads as flat on its full range, the live trace prints each channel's newest reading beside its name. The recording keeps the range in each segment's `.json`, so a finished run is framed the same way; one recorded before it was kept, and a channel whose instrument gives no range, falls back to the run's own: the live trace frames each channel's `seen_min` and `seen_max`, kept by the upset monitor from every scan, so the axis holds still as the visible readings move, and a recording frames what the window holds. A recording zoomed out past what a graph can draw is still one line a channel, zig-zagging between each stretch's lowest and highest reading.
 
 `CaptureViewer` draws a waveform that is far larger than the chart it goes in.
 The whole window is drawn as an envelope — each bucket's lowest and highest

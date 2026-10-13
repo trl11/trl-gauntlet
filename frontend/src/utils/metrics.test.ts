@@ -120,6 +120,22 @@ describe("verticalDomain", () => {
     expect(high).toBeCloseTo(23);
   });
 
+  it("fixes the axis to the range the instrument can read, whatever the readings", () => {
+    const ranged = { ...line([0.01, 0.02], -0.02, 0.03), range: [-0.5, 0.5] as [number, number] };
+    expect(verticalDomain([ranged])).toEqual([-0.5, 0.5]);
+    expect(verticalDomain([ranged, { ...ranged, range: [0, 2] as [number, number] }])).toEqual([
+      -0.5, 2,
+    ]);
+  });
+
+  it("frames the readings when any line drawn has no range", () => {
+    const [low] = verticalDomain([
+      { ...line([2]), range: [0, 10] as [number, number] },
+      line([4]),
+    ])!;
+    expect(low).toBeCloseTo(1.8);
+  });
+
   it("frames the readings alone when a line carries no extremes", () => {
     const [low, high] = verticalDomain([line([2, 4])])!;
     expect(low).toBeCloseTo(1.8);

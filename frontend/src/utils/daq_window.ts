@@ -8,10 +8,10 @@ import type { Series } from "@components/DaqChart";
 /**
  * One line per channel, joined across the stretches the recording was taken in.
  *
- * A raw window gives each channel one line. An envelope gives it two, the
- * lowest and the highest reading of each stretch, drawn in one colour, so a
- * spike is there however far out the view is. A reading the instrument did
- * not give is left out.
+ * A raw window gives each channel its readings. An envelope gives it the
+ * lowest then the highest reading of each stretch, so the one line zig-zags
+ * across the band between them and a spike is there however far out the view
+ * is. A reading the instrument did not give is left out.
  */
 export function seriesOf(window: DaqWindow, name: (label: string) => string): Series[] {
   const lines = new Map<string, Series>();
@@ -21,13 +21,14 @@ export function seriesOf(window: DaqWindow, name: (label: string) => string): Se
       const label = name(channel.label);
       const line = lines.get(label) ?? { instrument: window.instrument, name: label, points: [] };
       lines.set(label, line);
+      line.unit = channel.unit;
+      if (channel.min != null && channel.max != null) line.range = [channel.min, channel.max];
       for (const row of segment.points) {
         const low = row[1 + column];
         if (Number.isNaN(low)) continue;
         line.points.push({ t: row[0], v: low });
-        if (segment.kind === "envelope") {
-          (line.band ??= []).push({ t: row[0], v: row[1 + count + column] });
-        }
+        if (segment.kind === "envelope")
+          line.points.push({ t: row[0], v: row[1 + count + column] });
       }
     });
   }
