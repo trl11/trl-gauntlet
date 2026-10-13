@@ -32,19 +32,33 @@ describe("seriesOf", () => {
       { t: 0.5, v: 2 },
     ]);
     expect(aux.points).toEqual([{ t: 0, v: -1 }]);
-    expect(rail.band).toBeUndefined();
+    expect(rail.range).toBeUndefined();
   });
 
-  it("makes a band of the highest readings when the window is an envelope", () => {
+  it("draws an envelope as one line through each stretch's lowest then highest reading", () => {
     const window: DaqWindow = {
       ...raw,
       segments: [{ ...raw.segments[0], kind: "envelope", points: [[1, 0, -5, 3, -2]] }],
     };
     const [rail, aux] = seriesOf(window, (label) => label);
-    expect(rail.points).toEqual([{ t: 1, v: 0 }]);
-    expect(rail.band).toEqual([{ t: 1, v: 3 }]);
-    expect(aux.points).toEqual([{ t: 1, v: -5 }]);
-    expect(aux.band).toEqual([{ t: 1, v: -2 }]);
+    expect(rail.points).toEqual([
+      { t: 1, v: 0 },
+      { t: 1, v: 3 },
+    ]);
+    expect(aux.points).toEqual([
+      { t: 1, v: -5 },
+      { t: 1, v: -2 },
+    ]);
+  });
+
+  it("carries the range the instrument can read on a channel, and its unit", () => {
+    const window: DaqWindow = {
+      ...raw,
+      segments: [{ ...raw.segments[0], channels: [{ ...channels[0], max: 0.5, min: -0.5 }] }],
+    };
+    const [rail] = seriesOf(window, (label) => label);
+    expect(rail.range).toEqual([-0.5, 0.5]);
+    expect(rail.unit).toBe("V");
   });
 
   it("joins a channel across the stretches it was recorded in", () => {

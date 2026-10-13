@@ -10,7 +10,8 @@ because a row of values means something only against the channels it was
 taken with. A segment is three files:
 
 ``<instrument>.<n>.json``
-    Which instrument, its channels (``key``, ``label``, ``unit``), its rate.
+    Which instrument, its channels (``key``, ``label``, ``unit``, and ``min``
+    and ``max`` where the instrument gives its range), its rate.
 ``<instrument>.<n>.t``
     One little-endian float64 per scan: the UTC time it was read, in seconds.
 ``<instrument>.<n>.v``
@@ -43,6 +44,10 @@ MAX_POINTS = 20_000
 MIN_POINTS = 50
 
 _BIG_ENDIAN = sys.byteorder != "little"
+
+# What a segment keeps of each channel. ``min`` and ``max`` are the range it can
+# read, which a graph of the run is framed on.
+_DESCRIBED = ("key", "label", "max", "min", "unit")
 
 Scan = tuple[int, float, float, list[float | None]]
 
@@ -105,9 +110,7 @@ class Recorder:
         self._values = _file(stem, ".v").open("ab")
 
     def _describe(self, channels: list[dict[str, Any]], rate_hz: float) -> None:
-        self._channels = [
-            {"key": channel["key"], "label": channel["label"], "unit": channel["unit"]} for channel in channels
-        ]
+        self._channels = [{key: channel[key] for key in _DESCRIBED if key in channel} for channel in channels]
         meta = {"channels": self._channels, "instrument": self._instrument, "rate_hz": rate_hz}
         _file(self._stem(), ".json").write_text(json.dumps(meta) + "\n", encoding="utf-8")
 

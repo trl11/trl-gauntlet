@@ -373,20 +373,24 @@ describe("RunStartModal", () => {
       expect(await screen.findByRole("region", { name: "DAQ limits" })).toBeInTheDocument();
     });
 
-    it("sends no limits while every one is at the end of its range", async () => {
+    it("watches nothing while every limit is at the end of its range", async () => {
       const user = userEvent.setup();
       renderModal(suite({ overrides: [], requires: ["daq"] }));
       await screen.findByRole("region", { name: "DAQ limits" });
       await user.click(screen.getByRole("button", { name: "Start run" }));
       await waitFor(() => expect(startRun).toHaveBeenCalled());
-      expect(startRun.mock.calls[0][0]).not.toHaveProperty("upsets");
+      expect(startRun.mock.calls[0][0].upsets).toEqual({
+        instruments: {
+          "daq.0": { channels: {}, enabled: { "1": true, "2": true }, post_s: 2, pre_s: 2 },
+        },
+        stop_after: 0,
+      });
     });
 
     it("sends a limit moved inside the range, with the window and stop_after", async () => {
       const user = userEvent.setup();
       renderModal(suite({ overrides: [], requires: ["daq"] }));
-      await user.click(await screen.findByLabelText("Rail enabled"));
-      const high = screen.getByLabelText("Rail high limit");
+      const high = await screen.findByLabelText("Rail high limit");
       await user.clear(high);
       await user.type(high, "3.3");
       await user.clear(screen.getByLabelText("Stop after (0 = never)"));
@@ -397,7 +401,7 @@ describe("RunStartModal", () => {
         instruments: {
           "daq.0": {
             channels: { "1": { high: 3.3, low: null } },
-            enabled: { "1": true, "2": false },
+            enabled: { "1": true, "2": true },
             post_s: 2,
             pre_s: 2,
           },
@@ -406,20 +410,25 @@ describe("RunStartModal", () => {
       });
     });
 
-    it("starts with no channel picked, which leaves the DAQ as it is", async () => {
-      const user = userEvent.setup();
+    it("starts each channel on or off as the Instruments page has it", async () => {
+      const [rail, aux] = streaming.stream.channels;
+      listInstruments.mockResolvedValue({
+        instruments: [
+          {
+            ...streaming,
+            stream: { ...streaming.stream, channels: [rail, { ...aux, enabled: false }] },
+          },
+        ],
+      });
       renderModal(suite({ overrides: [], requires: ["daq"] }));
-      expect(await screen.findByLabelText("Rail enabled")).not.toBeChecked();
+      expect(await screen.findByLabelText("Rail enabled")).toBeChecked();
       expect(screen.getByLabelText("Aux enabled")).not.toBeChecked();
-      await user.click(screen.getByRole("button", { name: "Start run" }));
-      await waitFor(() => expect(startRun).toHaveBeenCalled());
-      expect(startRun.mock.calls[0][0]).not.toHaveProperty("upsets");
     });
 
-    it("scans only the channels picked", async () => {
+    it("scans only the channels left on", async () => {
       const user = userEvent.setup();
       renderModal(suite({ overrides: [], requires: ["daq"] }));
-      await user.click(await screen.findByLabelText("Rail enabled"));
+      await user.click(await screen.findByLabelText("Aux enabled"));
       await user.click(screen.getByRole("button", { name: "Start run" }));
       await waitFor(() => expect(startRun).toHaveBeenCalled());
       expect(startRun.mock.calls[0][0].upsets.instruments["daq.0"].enabled).toEqual({
@@ -431,11 +440,45 @@ describe("RunStartModal", () => {
     it("does not start a run whose limit is not a number", async () => {
       const user = userEvent.setup();
       renderModal(suite({ overrides: [], requires: ["daq"] }));
-      await user.click(await screen.findByLabelText("Aux enabled"));
-      await user.type(screen.getByLabelText("Aux low limit"), "x");
+      await user.type(await screen.findByLabelText("Aux low limit"), "x");
       await user.click(screen.getByRole("button", { name: "Start run" }));
       expect(await screen.findByText("Aux: a limit must be a number")).toBeInTheDocument();
       expect(startRun).not.toHaveBeenCalled();
+    });
+
+    it("does not start a run recording a DAQ with every channel off", async () => {
+      const user = userEvent.setup();
+      renderModal(suite({ overrides: [], requires: ["daq"] }));
+      await user.click(await screen.findByLabelText("Rail enabled"));
+      await user.click(screen.getByLabelText("Aux enabled"));
+      await user.click(screen.getByRole("button", { name: "Start run" }));
+      expect(
+        await screen.findByText("daq.0: turn on at least one channel, or stop recording it")
+      ).toBeInTheDocument();
+      expect(startRun).not.toHaveBeenCalled();
+    });
+
+    it("ticks every instrument of a capability the suite records, and only those", async () => {
+      const user = userEvent.setup();
+      renderModal(suite({ overrides: [], records: ["daq"], requires: [] }));
+      const recording = await screen.findByRole("region", { name: "Recording" });
+      expect(await within(recording).findByLabelText("daq.0")).toBeChecked();
+      expect(within(recording).getByLabelText("chamber")).not.toBeChecked();
+      expect(screen.getByRole("region", { name: "DAQ limits" })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Start run" }));
+      await waitFor(() => expect(startRun).toHaveBeenCalled());
+      expect(startRun.mock.calls[0][0].observe).toEqual(["daq.0"]);
+    });
+
+    it("lets a recorded instrument be unticked", async () => {
+      const user = userEvent.setup();
+      renderModal(suite({ overrides: [], records: ["daq"], requires: [] }));
+      const recording = await screen.findByRole("region", { name: "Recording" });
+      await user.click(await within(recording).findByLabelText("daq.0"));
+      expect(screen.queryByRole("region", { name: "DAQ limits" })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Start run" }));
+      await waitFor(() => expect(startRun).toHaveBeenCalled());
+      expect(startRun.mock.calls[0][0].observe).toEqual([]);
     });
   });
 

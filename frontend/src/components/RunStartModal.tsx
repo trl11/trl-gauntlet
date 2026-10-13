@@ -17,13 +17,13 @@ import {
 } from "../utils/overrides";
 
 import DaqLimits from "@components/DaqLimits";
-import { pickableSettings, startInstrument, type DaqSettings } from "../utils/daq_limits";
+import { defaultSettings, startInstrument, type DaqSettings } from "../utils/daq_limits";
 
 import "./RunStartModal.scss";
 
 /**
- * What the run is started with for the DAQs it records: the limits moved inside
- * a channel's range and `stop_after`, or nothing at all when none was set.
+ * What the run is started with for the DAQs it records: the channels each
+ * scans, the limits moved inside a channel's range, and `stop_after`.
  */
 function upsetsOf(
   streaming: Instrument[],
@@ -37,8 +37,11 @@ function upsetsOf(
   const instruments: NonNullable<StartRunBody["upsets"]>["instruments"] = {};
   for (const entry of streaming) {
     const channels = entry.stream?.channels ?? [];
-    const chosen = startInstrument(settings[entry.name] ?? pickableSettings(channels), channels);
-    if (chosen !== null) instruments[entry.name] = chosen;
+    instruments[entry.name] = startInstrument(
+      settings[entry.name] ?? defaultSettings(channels),
+      channels,
+      entry.name
+    );
   }
   if (Object.keys(instruments).length === 0 && stopAfter === 0) return {};
   return { upsets: { instruments, stop_after: stopAfter } };
@@ -88,7 +91,9 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
   const [values, setValues] = useState<OverrideValues>(() =>
     initialOverrideValues(suite.overrides)
   );
-  const [watched, setWatched] = useState<string[]>([]);
+  // Null until the operator ticks or unticks something, so the instruments a
+  // suite records start ticked once the bench has been listed.
+  const [watched, setWatched] = useState<string[] | null>(null);
   const [daq, setDaq] = useState<Record<string, DaqSettings>>({});
   const [daqStop, setDaqStop] = useState("0");
 
@@ -101,10 +106,15 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
   });
   const available = (instruments.data?.instruments ?? []).filter((entry) => entry.available);
   const optional = available.filter((entry) => !isRequired(entry, suite.requires));
+  const picked =
+    watched ??
+    optional
+      .filter((entry) => (suite.records ?? []).includes(entry.name.split(".")[0]))
+      .map((entry) => entry.name);
   // A DAQ the run records, whether the suite drives it or the operator asked
   // for it, can be given limits for what it reads.
   const streaming = available.filter(
-    (entry) => entry.stream && (isRequired(entry, suite.requires) || watched.includes(entry.name))
+    (entry) => entry.stream && (isRequired(entry, suite.requires) || picked.includes(entry.name))
   );
 
   // The selected profile holds the values the run would use, so the override
@@ -148,7 +158,7 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
         target: suite.supports.target ? target.trim() || null : null,
         unit_serial: suite.supports.unit_serial ? unitSerial.trim() || null : null,
         overrides: overridePayload(suite.overrides, values),
-        observe: watched,
+        observe: picked,
         ...upsetsOf(streaming, daq, daqStop),
         ...provenanceOf(checkIn),
       }),
@@ -160,7 +170,7 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
   });
 
   const argv = overrideArgv(suite.overrides, values);
-  const recorded = [...suite.requires, ...watched];
+  const recorded = [...suite.requires, ...picked];
 
   return (
     <Modal title={`Run ${suite.title}`} onClose={onClose} className="run-start-modal">
@@ -258,13 +268,13 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
                   id={`${fieldId}-observe-${entry.name}`}
                   label={entry.name}
                   hint={entry.description || entry.kind}
-                  checked={watched.includes(entry.name)}
+                  checked={picked.includes(entry.name)}
                   disabled={start.isPending}
                   onChange={(event) =>
-                    setWatched((current) =>
+                    setWatched(
                       event.target.checked
-                        ? [...current, entry.name]
-                        : current.filter((name) => name !== entry.name)
+                        ? [...picked, entry.name]
+                        : picked.filter((name) => name !== entry.name)
                     )
                   }
                 />
@@ -277,8 +287,9 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
           <section className="run-start-modal__section" aria-label="DAQ limits">
             <h2 className="run-start-modal__heading">DAQ limits</h2>
             <p className="run-start-modal__note">
-              Each channel starts at the range it can read. Move a limit inside that range to have
-              the run keep what the DAQ read around each time a reading crosses it.
+              Each channel starts on or off as the Instruments page has it, and its limits at the
+              range it can read. Move a limit inside that range to have the run keep what the DAQ
+              read around each time a reading crosses it.
             </p>
             {streaming.map((entry) => (
               <div className="run-start-modal__daq" key={entry.name}>
@@ -289,7 +300,7 @@ export const RunStartModal: React.FC<RunStartModalProps> = ({ initialProfile, on
                   idPrefix={`${fieldId}-daq-${entry.name}`}
                   selectable
                   onChange={(next) => setDaq((current) => ({ ...current, [entry.name]: next }))}
-                  value={daq[entry.name] ?? pickableSettings(entry.stream?.channels ?? [])}
+                  value={daq[entry.name] ?? defaultSettings(entry.stream?.channels ?? [])}
                 />
               </div>
             ))}

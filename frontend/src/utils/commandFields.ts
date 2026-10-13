@@ -79,6 +79,22 @@ export function latchField(command: InstrumentCommand): InstrumentField | null {
   return booleans[0];
 }
 
+/**
+ * A row-wise field as one row has it: `undefined` where the row's
+ * `depends_on` value hides it, and otherwise with only the choices that value
+ * offers.
+ */
+export function rowField(
+  field: InstrumentField,
+  values: Record<string, unknown>
+): InstrumentField | undefined {
+  if (!field.depends_on) return field;
+  const on = String(values[field.depends_on] ?? "");
+  if (field.shown_for?.length && !field.shown_for.includes(on)) return undefined;
+  const choices = field.choices_for?.[on];
+  return choices ? { ...field, choices } : field;
+}
+
 /** The value a field starts at: its lowest setting, its first choice, or empty. */
 export function initialValue(field: InstrumentField): unknown {
   if (field.type === "boolean") return false;

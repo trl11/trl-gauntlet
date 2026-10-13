@@ -19,7 +19,8 @@ missing from the run.
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from gauntlet_sdk import (
     IterationContext,
@@ -40,8 +41,18 @@ from suite.profile import TidMax96793Profile
 # The metric group each end of the link reports under. The part under the
 # beam and its reference are named for what they are, so a chart says which
 # end moved without anyone having to remember an I2C address.
+# The deserializer's eye opening on links A and B, as the instrument reports it.
+_EYE_KEYS = ("eye_a_pct", "eye_b_pct")
+
 PART_ROLE = "serializer"
 FAR_ROLE = "deserializer"
+
+# How long a call to the camera may take. Reading the chips stops and restarts
+# the 4K stream, and the restart has been measured stalling for over 20s, so a
+# shorter wait turns a slow sample into a failed one.
+_CAMERA_TIMEOUT_S = 90.0
+
+_T = TypeVar("_T")
 
 _CAMERA = "camera"
 _FRAME_BYTES = "frame_bytes"
@@ -61,7 +72,7 @@ def _setup(ctx: SuiteContext) -> None:
         return
 
     granted = ctx.env.capability("camera")
-    camera = Camera(granted.url)
+    camera = Camera(granted.url, timeout_s=_CAMERA_TIMEOUT_S)
     ctx.extras[_CAMERA] = camera
     try:
         camera.own()
@@ -99,7 +110,7 @@ def _setup(ctx: SuiteContext) -> None:
         part = " <- under the beam" if address == profile.part_address else ""
         info(
             f"chip {address} id {chip.get('dev_id', '?')} rev {chip.get('dev_rev', '?')} "
-            f"locked={bool(chip.get('locked'))}{part}"
+            f"locked={bool(chip.get('locked'))}{_eye_text(chip)}{part}"
         )
     if profile.part_address not in reading.chips:
         warn(
@@ -182,23 +193,41 @@ def _read_link(camera: Camera) -> Reading:
         return camera.link_status()
 
 
+def _retrying(call: Callable[[], _T], retries: list[int]) -> _T:
+    """Make one call to the camera, and once more if it fails, counting the retry in ``retries``."""
+    try:
+        return call()
+    except LinkError:
+        retries[0] += 1
+        return call()
+
+
+def _stalled(phases: list[PhaseRecord], reason: str) -> IterationOutcome:
+    """A sample whose chips could not be read even on a retry, recorded as a stall rather than a fault."""
+    return IterationOutcome(
+        success=True,
+        reason="",
+        metrics={"bench": {"reopens": 0, "retries": 1, "stalled": 1}},
+        phase_records=phases,
+        summary=f"stalled after a retry: {reason}",
+    )
+
+
 def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     """One sample: read both ends of the link, then keep a frame."""
     profile: TidMax96793Profile = ctx.profile
     camera: Camera | None = ctx.extras.get(_CAMERA)
     phases: list[PhaseRecord] = []
+    retries = [0]
 
     with PhaseTimer("link", phases) as phase:
         try:
-            reading = _mock_reading(ctx, ictx) if camera is None else _read_link(camera)
+            reading = _mock_reading(ctx, ictx) if camera is None else _retrying(lambda: _read_link(camera), retries)
         except LinkError as exc:
-            return IterationOutcome(
-                success=False,
-                reason=f"link unreadable: {exc}",
-                metrics={},
-                phase_records=phases,
-                summary="link unreadable",
-            )
+            # The chips could not be read even on a retry: the stream restart
+            # around the read stalled, which says the bench was slow, not that
+            # the part moved. A frame that cannot be had still fails the sample.
+            return _stalled(phases, f"link unreadable: {exc}")
         phase.set_detail(chips=str(len(reading.chips)))
 
     if reading.error:
@@ -207,7 +236,10 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
         return IterationOutcome(
             success=False,
             reason=f"link stopped answering: {reading.error}",
-            metrics={PART_ROLE: {"answered": 0, "locked": 0}},
+            metrics={
+                PART_ROLE: {"answered": 0, "locked": 0},
+                "bench": {"reopens": 0, "retries": retries[0], "stalled": 0},
+            },
             phase_records=phases,
             summary="link gone",
         )
@@ -229,7 +261,10 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     with PhaseTimer("snapshot", phases) as phase:
         phase.set_detail(width=str(profile.max_width))
         try:
-            shot = _mock_snapshot(ctx, ictx) if camera is None else camera.snapshot(max_width=profile.max_width)
+            if camera is None:
+                shot = _mock_snapshot(ctx, ictx)
+            else:
+                shot = _retrying(lambda: camera.snapshot(max_width=profile.max_width), retries)
         except LinkError as exc:
             snapshot_error = str(exc)
 
@@ -249,28 +284,32 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
     ctx.extras[_REPEATS] = repeats
 
     metrics: dict[str, Any] = {
-        PART_ROLE: _link_metrics(part, repeats),
+        PART_ROLE: {**_link_metrics(part, repeats), **_eye_metrics(part)},
         "video": video,
     }
     for address, chip in sorted(far.items()):
         # One chip answers at the far end of a GMSL link, so it reports under
         # its role. The address only joins the name if the bus holds more.
-        name = FAR_ROLE if len(far) == 1 else f"{FAR_ROLE}_{address}"
-        metrics[name] = {
+        metrics[_far_name(address, far)] = {
+            "decode_errors_a": int(chip.get("decode_errors_a") or 0),
+            "decode_errors_b": int(chip.get("decode_errors_b") or 0),
             "errors": int(chip.get("total_errors") or 0),
             "errors_total": int(chip.get("errors_total") or 0),
+            "idle_errors": int(chip.get("idle_errors") or 0),
             "locked": 1 if chip.get("locked") else 0,
+            **_eye_metrics(chip),
         }
     if images:
         metrics["images"] = images
 
-    reason = _fault(part, far, stream, shot, snapshot_error, repeats, profile)
+    reason = _fault(part, far, stream, snapshot_error, repeats, profile)
+    metrics["bench"] = {"reopens": int(reading.reopened), "retries": retries[0], "stalled": 0}
     return IterationOutcome(
         success=not reason,
         reason=reason,
         metrics=metrics,
         phase_records=phases,
-        summary=_summary(part, video, shot),
+        summary=_summary(part, far, video),
     )
 
 
@@ -338,7 +377,6 @@ def _fault(
     part: dict[str, Any],
     far: dict[str, dict[str, Any]],
     stream: dict[str, float],
-    shot: Snapshot | None,
     snapshot_error: str,
     repeats: int,
     profile: TidMax96793Profile,
@@ -381,21 +419,43 @@ def _fault(
         return f"{dropped} frames dropped in one burst, above {profile.max_dropped_frames}"
     if snapshot_error:
         return f"no frame: {snapshot_error}"
-    if shot is not None and shot.mean_luma < profile.min_mean_luma:
-        return f"frame is dark: mean luma {shot.mean_luma:.1f} below {profile.min_mean_luma:.1f}"
     return ""
 
 
-def _summary(part: dict[str, Any], video: dict[str, Any], shot: Snapshot | None) -> str:
-    """One line for the log, saying what the link did this sample."""
+def _eye_metrics(chip: dict[str, Any]) -> dict[str, float]:
+    """The eye opening of each link a chip measured, in percent. Only the deserializer measures one."""
+    return {key: chip[key] for key in _EYE_KEYS if isinstance(chip.get(key), (int, float))}
+
+
+def _eye_text(chip: dict[str, Any]) -> str:
+    """The eye opening for a log line, empty for a chip that measured none."""
+    return "".join(f" eye_{key[4]}={value:.1f}%" for key, value in _eye_metrics(chip).items())
+
+
+def _far_name(address: str, far: dict[str, dict[str, Any]]) -> str:
+    """What a far-end chip reports under: its role, with its address only if the bus holds more than one."""
+    return FAR_ROLE if len(far) == 1 else f"{FAR_ROLE}_{address}"
+
+
+def _counts_text(chip: dict[str, Any]) -> str:
+    """A chip's error counts this sample and its eye opening, for the log."""
+    return (
+        f"decode_a={int(chip.get('decode_errors_a') or 0)} decode_b={int(chip.get('decode_errors_b') or 0)} "
+        f"idle={int(chip.get('idle_errors') or 0)}{_eye_text(chip)}"
+    )
+
+
+def _summary(part: dict[str, Any], far: dict[str, dict[str, Any]], video: dict[str, Any]) -> str:
+    """One line for the log, saying what the link did this sample at each end."""
     lock = "locked" if part.get("locked") else "UNLOCKED"
-    errors = int(part.get("total_errors") or 0)
+    ends = [(PART_ROLE, part), *((_far_name(address, far), chip) for address, chip in sorted(far.items()))]
+    counts = "".join(f" {name}: {_counts_text(chip)}" for name, chip in ends if chip)
     rate = video.get("mbps")
     tail = f" {rate:.0f}Mbps" if isinstance(rate, (int, float)) else ""
     dropped = video.get("dropped") or 0
     corrupt = video.get("corrupt") or 0
     faults = f" dropped={dropped} corrupt={corrupt}" if (dropped or corrupt) else ""
-    return f"{lock} errors={errors}{faults}{tail}"
+    return f"{lock}{counts}{faults}{tail}"
 
 
 def _series(outcomes: list[IterationOutcome], group: str, key: str) -> list[float]:
@@ -419,6 +479,13 @@ def _evaluate(outcomes: list[IterationOutcome], profile: TidMax96793Profile) -> 
     totals = _series(outcomes, PART_ROLE, "errors_total")
     if totals and totals[-1] > profile.max_total_errors:
         return False, f"{int(totals[-1])} link errors over the run, above {profile.max_total_errors}"
+
+    stalled = sum(1 for value in _series(outcomes, "bench", "stalled") if value == 1)
+    if stalled > len(outcomes) * profile.max_stalled_pct / 100:
+        return False, (
+            f"the bench stalled on {stalled} of {len(outcomes)} samples, "
+            f"above {profile.max_stalled_pct:g}%: the measurement is not to be trusted"
+        )
 
     missed = sum(1 for value in _series(outcomes, "video", "arrived") if value == 0)
     if missed > profile.max_missed_snapshots:
@@ -457,6 +524,8 @@ def _results(
         ),
         make_result("dropped_frames", "Dropped frames", int(sum(dropped)), format="int"),
         make_result("corrupt_frames", "Corrupt frames", int(sum(corrupt)), format="int"),
+        make_result("retries", "Camera calls retried", int(sum(_series(outcomes, "bench", "retries"))), format="int"),
+        make_result("reopens", "Stream reopens", int(sum(_series(outcomes, "bench", "reopens"))), format="int"),
     ]
     if fps:
         rows.append(

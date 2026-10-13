@@ -700,12 +700,27 @@ class TestApi:
         stream.push(2.5, 0.5)
         body = client.get(f"/api/runs/{run_id}/upsets/trace", params={"instrument": "daq", "since": 2}).json()
         assert set(body) == {"channels", "instrument", "next_seq", "rate_hz", "scans"}
-        assert body["channels"] == [
-            {"key": "1", "label": "Rail", "unit": "V"},
-            {"key": "2", "label": "Aux", "unit": "V"},
+        assert [(channel["key"], channel["label"], channel["unit"]) for channel in body["channels"]] == [
+            ("1", "Rail", "V"),
+            ("2", "Aux", "V"),
         ]
         assert body["next_seq"] == 3
         assert [(scan[0], scan[2]) for scan in body["scans"]] == [(2, [2.5, 0.5])]
+
+    def test_the_trace_carries_each_channels_extremes_over_the_whole_run(self, live) -> None:
+        client, run_id, stream = live
+        for value in (3.0, -2.0, 7.5, 1.0):
+            stream.push(value, 0.5)
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            # Asked from the last scan on, so the extremes are not in the scans returned.
+            body = client.get(f"/api/runs/{run_id}/upsets/trace", params={"instrument": "daq", "since": 4}).json()
+            rail, aux = body["channels"]
+            if rail.get("seen_max") == 7.5:
+                break
+            time.sleep(0.05)
+        assert (rail["seen_min"], rail["seen_max"]) == (-2.0, 7.5)
+        assert (aux["seen_min"], aux["seen_max"]) == (0.5, 0.5)
 
     def test_an_upset_is_listed_and_its_capture_is_served(self, live) -> None:
         client, run_id, stream = live

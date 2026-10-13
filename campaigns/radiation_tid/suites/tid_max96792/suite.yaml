@@ -59,12 +59,28 @@ produces: [events, frames, junit, manifest, metrics, summary, verdict]
 # sample period, because the chip's counters clear when they are read. The two
 # video series say whether the link is still carrying what it carried.
 #
+# deserializer.eye_a_pct is the eye opening the deserializer measures on the
+# link in use. At the bench's 12Gbps GMSL3 rate it is a trend rather than a
+# margin, and it can narrow before a single error is counted.
+#
 # unlocks and link_error are still absent: they hold a constant until the
 # part is gone, so they make poor charts and belong in the verdict.
 # locked is charted anyway, alongside the error rate, so the moment either
 # moves is visible on the same series rather than only in the finished verdict.
+#
+# bench.retries and bench.reopens say how hard the bench worked for a sample:
+# camera calls retried, and stream restarts that needed the node reopened.
 default_metrics:
-  [deserializer.decode_errors_a, deserializer.errors_total, deserializer.locked, video.dropped, video.mbps]
+  [
+    bench.reopens,
+    bench.retries,
+    deserializer.decode_errors_a,
+    deserializer.errors_total,
+    deserializer.eye_a_pct,
+    deserializer.locked,
+    video.dropped,
+    video.mbps,
+  ]
 requires: [camera]
 
 supports:

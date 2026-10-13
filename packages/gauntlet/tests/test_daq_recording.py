@@ -79,6 +79,12 @@ class TestWhatIsKept:
         assert len(parts) == 1
         assert parts[0]["channels"][0]["label"] == "Rail 3V3"
 
+    def test_a_channel_keeps_the_range_it_can_read(self, run_dir: Path) -> None:
+        ranged = [{**TWO[0], "enabled": True, "max": 2.5, "min": -2.5}, TWO[1]]
+        record(run_dir, 5, channels=ranged)
+        channel = window(run_dir, "daq.0", 0, 10, 100)["segments"][0]["channels"][0]
+        assert channel == {"key": "1", "label": "Rail", "max": 2.5, "min": -2.5, "unit": "V"}
+
     def test_two_instruments_are_kept_apart(self, run_dir: Path) -> None:
         record(run_dir, 10, "daq.0")
         record(run_dir, 20, "daq.1")

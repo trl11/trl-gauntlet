@@ -11,7 +11,7 @@ import {
 
 import type { Layout } from "@hooks/useLayout";
 import { formatNumber } from "../utils/format";
-import { paddedDomain } from "../utils/metrics";
+import { verticalDomain } from "../utils/metrics";
 
 import "./DaqChart.scss";
 
@@ -30,12 +30,18 @@ export interface Point {
   v: number;
 }
 
-/** One channel of one instrument. `band` is the highest reading in each stretch when `points` holds the lowest. */
+/** One channel of one instrument. */
 export interface Series {
-  band?: Point[];
   instrument: string;
+  /** The highest reading over a longer span than `points` holds, such as the whole run. */
+  max?: number;
+  /** The lowest reading over that span. */
+  min?: number;
   name: string;
   points: Point[];
+  /** The least and most the instrument can read on the channel, which fixes the vertical axis. */
+  range?: [number, number];
+  unit?: string;
 }
 
 /** One button per channel, each lit while its line is drawn. */
@@ -110,9 +116,6 @@ export const SeriesChart: React.FC<SeriesChartProps> = ({
   series,
 }) => {
   const drawn = series.filter((line) => !hidden.includes(line.name));
-  const readings = drawn.flatMap((line) =>
-    [...line.points, ...(line.band ?? [])].map((point) => point.v)
-  );
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart margin={{ top: 8, right: RIGHT_MARGIN, bottom: 4 }}>
@@ -125,7 +128,7 @@ export const SeriesChart: React.FC<SeriesChartProps> = ({
           type="number"
         />
         <YAxis
-          domain={paddedDomain(readings)}
+          domain={verticalDomain(drawn)}
           tickFormatter={(value: number) => formatNumber(value, 4)}
           width={AXIS_WIDTH}
         />
@@ -134,22 +137,20 @@ export const SeriesChart: React.FC<SeriesChartProps> = ({
           .map((at) => (
             <ReferenceLine className="daq-chart__marker" key={at} x={at} />
           ))}
-        {drawn.flatMap((line) =>
-          [line.points, ...(line.band ? [line.band] : [])].map((points, part) => (
-            <Line
-              className={`daq-chart__line daq-chart__line--c${order.indexOf(line.name) % COLOR_COUNT}`}
-              data={points}
-              dataKey="v"
-              dot={false}
-              isAnimationActive={false}
-              key={`${line.name}-${part}`}
-              name={line.name}
-              stroke="currentColor"
-              strokeWidth={1}
-              type="linear"
-            />
-          ))
-        )}
+        {drawn.map((line) => (
+          <Line
+            className={`daq-chart__line daq-chart__line--c${order.indexOf(line.name) % COLOR_COUNT}`}
+            data={line.points}
+            dataKey="v"
+            dot={false}
+            isAnimationActive={false}
+            key={line.name}
+            name={line.name}
+            stroke="currentColor"
+            strokeWidth={1}
+            type="linear"
+          />
+        ))}
       </LineChart>
     </ResponsiveContainer>
   );

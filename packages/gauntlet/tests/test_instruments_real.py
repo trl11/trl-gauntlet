@@ -241,6 +241,16 @@ def _daq(transport: _FakeDaq, clock: _Clock) -> Di2008Daq:
     return Di2008Daq(clock=clock, open_transport=lambda _: transport)
 
 
+def _scaled(code: int, mode: str = "10v") -> float:
+    """A voltage reading at the scale a channel starts at."""
+    return round(value_from_code(code, mode) * 5, 6)
+
+
+def _readout_unit(daq: Di2008Daq, key: str) -> str:
+    """The unit the provider declares for one readout."""
+    return next(entry["unit"] for entry in daq.readouts() if entry["key"] == key)
+
+
 def _readout_label(daq: Di2008Daq, key: str) -> str:
     """The label the provider declares for one readout, as the UI reads it."""
     return next(entry["label"] for entry in daq.readouts() if entry["key"] == key)
@@ -447,7 +457,7 @@ class TestDi2008Daq:
         daq = _daq(_FakeDaq(clock, codes), clock)
         channels = daq.command("sample", {})["channels"]
         assert channels["1"] == 0.0
-        assert channels["2"] == value_from_code(4096, "10v")
+        assert channels["2"] == _scaled(4096)
         assert len(channels) == 8
 
     def test_state_reports_the_mode_and_unit_of_each_channel(self) -> None:
@@ -501,7 +511,16 @@ class TestDi2008Daq:
         daq.command("configure", {"rows": {"1": {"mode": "tc_k"}}})
         daq.command("configure", {"rows": {"1": {"label": "Ambient"}}})
         channel = daq.state()["channels"]["1"]
-        assert channel == {"enabled": True, "label": "Ambient", "mode": "tc_k", "unit": "C", "value": channel["value"]}
+        assert channel == {
+            "enabled": True,
+            "label": "Ambient",
+            "measure": "temperature",
+            "mode": "tc_k",
+            "scale": 5.0,
+            "shunt": 0.1,
+            "unit": "C",
+            "value": channel["value"],
+        }
 
     def test_a_channel_reads_as_its_number_until_it_is_named(self) -> None:
         clock = _Clock()
@@ -576,7 +595,18 @@ class TestDi2008Daq:
         row = next(entry for entry in command["rows"] if entry["key"] == "2")
         # The row is what the operator's controls start at, so an edit to one
         # channel does not blank out what the others are set to.
-        assert row == {"key": "2", "label": "CH 2", "values": {"enabled": True, "label": "Shunt", "mode": "tc_j"}}
+        assert row == {
+            "key": "2",
+            "label": "CH 2",
+            "values": {
+                "enabled": True,
+                "label": "Shunt",
+                "measure": "temperature",
+                "mode": "tc_j",
+                "scale": 5.0,
+                "shunt": 0.1,
+            },
+        }
 
     def test_a_row_offers_an_empty_label_rather_than_the_channel_number(self) -> None:
         clock = _Clock()
@@ -585,6 +615,134 @@ class TestDi2008Daq:
         row = next(entry for entry in command["rows"] if entry["key"] == "1")
         # Offering "CH 1" would have the operator apply it back as a real label.
         assert row["values"]["label"] == ""
+
+    def test_a_scale_multiplies_a_voltage_reading(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(3277 for _ in range(8))), clock)
+        daq.command("configure", {"rows": {"1": {"scale": 1}}})
+        channels = daq.command("sample", {})["channels"]
+        assert channels["1"] == value_from_code(3277, "10v")
+        assert daq.state()["channels"]["1"]["scale"] == 1.0
+
+    def test_a_channel_starts_behind_a_five_to_one_divider(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(3277 for _ in range(8))), clock)
+        # 1 V at the terminal is 5 V at the source.
+        assert daq.command("sample", {})["channels"]["1"] == 5.000305
+        assert daq.state()["channels"]["1"]["scale"] == 5.0
+
+    def test_a_scale_widens_the_range_a_stream_channel_reads(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(range(8))), clock)
+        daq.command("configure", {"rows": {"1": {"scale": 5}}})
+        channel = next(entry for entry in daq.stream_channels() if entry["key"] == "1")
+        assert channel["min"] == -50.0
+
+    def test_a_thermocouple_ignores_its_scale(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(32 * 250 for _ in range(8))), clock)
+        daq.command("configure", {"rows": {"1": {"mode": "tc_k", "scale": 5}}})
+        assert daq.command("sample", {})["channels"]["1"] == 25.0
+
+    def test_scaling_a_channel_reconfigures_nothing(self) -> None:
+        clock = _Clock()
+        transport = _FakeDaq(clock, tuple(range(8)))
+        daq = _daq(transport, clock)
+        assert daq.available()
+        before = list(transport.commands)
+        daq.command("configure", {"rows": {"1": {"scale": 2}}})
+        assert transport.commands == before
+
+    @pytest.mark.parametrize("scale", [0, -5, "5", True, 1e6])
+    def test_a_scale_that_is_not_a_positive_number_in_range_is_refused(self, scale: object) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock), clock)
+        with pytest.raises(CommandRejected, match="'scale'"):
+            daq.command("configure", {"rows": {"1": {"scale": scale}}})
+
+    def test_a_current_channel_reads_its_voltage_over_the_shunt_in_amps(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(16384 for _ in range(8))), clock)
+        daq.command("configure", {"rows": {"1": {"mode": "100mv", "measure": "current", "scale": 1}}})
+        # 50 mV across the default 0.1 ohm shunt is half an amp.
+        assert daq.command("sample", {})["channels"]["1"] == 0.5
+        assert daq.state()["channels"]["1"]["unit"] == "A"
+        assert _readout_unit(daq, "channels.1.value") == "A"
+        channel = next(entry for entry in daq.stream_channels() if entry["key"] == "1")
+        assert (channel["min"], channel["max"], channel["unit"]) == (
+            -1.0,
+            round(value_from_code(32767, "100mv") / 0.1, 6),
+            "A",
+        )
+
+    def test_a_current_channel_divides_by_the_shunt_it_is_given(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(16384 for _ in range(8))), clock)
+        daq.command("configure", {"rows": {"1": {"mode": "100mv", "measure": "current", "scale": 1, "shunt": 0.01}}})
+        assert daq.command("sample", {})["channels"]["1"] == 5.0
+
+    def test_a_thermocouple_measures_temperature(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(32 * 250 for _ in range(8))), clock)
+        daq.command("configure", {"rows": {"1": {"mode": "tc_k", "measure": "temperature", "scale": 5}}})
+        assert daq.command("sample", {})["channels"]["1"] == 25.0
+        assert daq.state()["channels"]["1"]["measure"] == "temperature"
+
+    @pytest.mark.parametrize(
+        "row",
+        [{"mode": "tc_k", "measure": "current"}, {"mode": "10v", "measure": "temperature"}, {"measure": "temperature"}],
+    )
+    def test_a_measure_its_mode_cannot_read_is_refused(self, row: dict[str, object]) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock), clock)
+        with pytest.raises(CommandRejected, match="cannot measure"):
+            daq.command("configure", {"rows": {"1": row}})
+
+    def test_a_current_is_the_scaled_voltage_over_the_shunt(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock, tuple(16384 for _ in range(8))), clock)
+        daq.command("configure", {"rows": {"1": {"mode": "100mv", "measure": "current", "scale": 2}}})
+        # 50 mV, doubled, across 0.1 ohm.
+        assert daq.command("sample", {})["channels"]["1"] == 1.0
+
+    def test_a_channel_set_back_to_a_voltage_range_measures_what_it_did_before(self) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock), clock)
+        daq.command("configure", {"rows": {"1": {"measure": "current"}}})
+        daq.command("configure", {"rows": {"1": {"mode": "tc_k", "measure": "temperature"}}})
+        daq.command("configure", {"rows": {"1": {"mode": "1v"}}})
+        assert daq.state()["channels"]["1"]["measure"] == "current"
+
+    @pytest.mark.parametrize("row", [{"measure": "power"}, {"shunt": 0}, {"shunt": "0.1"}])
+    def test_a_bad_measure_or_shunt_is_refused(self, row: dict[str, object]) -> None:
+        clock = _Clock()
+        daq = _daq(_FakeDaq(clock), clock)
+        with pytest.raises(CommandRejected):
+            daq.command("configure", {"rows": {"1": row}})
+
+    def test_channel_settings_and_rate_outlive_a_restart(self, tmp_path: Path) -> None:
+        clock = _Clock()
+        path = tmp_path / "instruments" / "daq.json"
+        first = Di2008Daq(clock=clock, open_transport=lambda _: _FakeDaq(clock), settings_path=path)
+        first.command(
+            "configure", {"rows": {"1": {"label": "Rail 5V", "mode": "5v", "scale": 5}, "8": {"enabled": False}}}
+        )
+        first.command("configure", {"rows": {"2": {"measure": "current", "shunt": 0.01}}})
+        first.command("scan_rate", {"rate": "12.5"})
+        second = Di2008Daq(clock=clock, open_transport=lambda _: _FakeDaq(clock), settings_path=path)
+        channels = second.state()["channels"]
+        assert (channels["1"]["label"], channels["1"]["mode"], channels["1"]["scale"]) == ("Rail 5V", "5v", 5.0)
+        assert channels["8"]["enabled"] is False
+        assert (channels["2"]["measure"], channels["2"]["shunt"]) == ("current", 0.01)
+        assert second.state()["scan"]["selected"] == "12.5"
+
+    def test_unreadable_saved_settings_leave_the_defaults(self, tmp_path: Path) -> None:
+        clock = _Clock()
+        path = tmp_path / "daq.json"
+        path.write_text('{"channels": {"1": {"mode": "9000v", "label": "Rail"}}}')
+        daq = Di2008Daq(clock=clock, open_transport=lambda _: _FakeDaq(clock), settings_path=path)
+        assert daq.state()["channels"]["1"]["mode"] == "10v"
+        assert daq.state()["channels"]["1"]["label"] == "CH 1"
 
     def test_a_bad_row_leaves_every_channel_as_it_was(self) -> None:
         clock = _Clock()
@@ -660,7 +818,7 @@ class TestDi2008Daq:
         transport.leave_stray(struct.pack("<h", 999))
         channels = daq.command("sample", {})["channels"]
         assert channels["1"] == 0.0
-        assert channels["2"] == value_from_code(4096, "10v")
+        assert channels["2"] == _scaled(4096)
 
     def test_identity_comes_from_the_device(self) -> None:
         clock = _Clock()
@@ -1430,8 +1588,8 @@ class TestDi2008Stream:
         assert [scan[0] for scan in streamed.scans[:5]] == [1, 2, 3, 4, 5]
         assert len(streamed.channels) == 8
         assert len(streamed.scans[0][3]) == 8
-        assert streamed.scans[0][3][0] == value_from_code(0, "10v")
-        assert streamed.scans[1][3][0] == value_from_code(1, "10v")
+        assert streamed.scans[0][3][0] == _scaled(0)
+        assert streamed.scans[1][3][0] == _scaled(1)
 
     def test_each_channel_says_the_range_it_can_read(self) -> None:
         daq, _ = self._streaming()
@@ -1439,8 +1597,8 @@ class TestDi2008Stream:
         daq.stream_open()
         channels = {channel["key"]: channel for channel in daq.stream_since(1, 0).channels}
         daq.stream_close()
-        assert (channels["1"]["min"], channels["1"]["max"]) == (-10.0, pytest.approx(10.0, abs=0.001))
-        assert (channels["2"]["min"], channels["2"]["max"]) == (-5.0, pytest.approx(5.0, abs=0.001))
+        assert (channels["1"]["min"], channels["1"]["max"]) == (-50.0, pytest.approx(50.0, abs=0.005))
+        assert (channels["2"]["min"], channels["2"]["max"]) == (-25.0, pytest.approx(25.0, abs=0.005))
         assert channels["3"]["min"] == value_from_code(-32768, "tc_k")
         assert channels["3"]["max"] == value_from_code(32767, "tc_k")
 
@@ -1451,7 +1609,7 @@ class TestDi2008Stream:
         assert [channel["key"] for channel in channels] == [str(n) for n in range(1, 9)]
         assert {channel["key"]: channel["enabled"] for channel in channels}["3"] is False
         assert channels[0]["enabled"] is True
-        assert (channels[0]["min"], channels[0]["unit"]) == (-10.0, "V")
+        assert (channels[0]["min"], channels[0]["unit"]) == (-50.0, "V")
 
     def test_channels_can_be_enabled_and_disabled_without_a_lease(self) -> None:
         daq, _ = self._streaming()
@@ -1630,8 +1788,8 @@ class TestDi2008ScanRate:
         daq = _daq(_FakeDaq(clock, (10, 20)), clock)
         self._only(daq, "2", "5")
         channels = daq.command("sample", {})["channels"]
-        assert channels["2"] == value_from_code(10, "10v")
-        assert channels["5"] == value_from_code(20, "10v")
+        assert channels["2"] == _scaled(10)
+        assert channels["5"] == _scaled(20)
         assert channels["1"] is None
         assert daq.state()["channels"]["1"]["enabled"] is False
 

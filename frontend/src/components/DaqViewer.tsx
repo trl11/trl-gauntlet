@@ -241,6 +241,12 @@ const EventList: React.FC<{ events: UpsetEntry[]; runId: string; stopAfter: numb
   );
 };
 
+/** A line's newest reading with its unit, which the fixed axis is too coarse to read off. */
+const latest = (line: Series): string => {
+  const newest = line.points.at(-1);
+  return newest ? `${formatNumber(newest.v, 4)} ${line.unit ?? ""}`.trim() : "no reading";
+};
+
 /**
  * The live traces of every instrument the run watches, in one view.
  *
@@ -313,10 +319,14 @@ const LiveTraces: React.FC<{
     if (!data) return [];
     return data.channels.map((channel, column) => ({
       instrument,
+      max: channel.seen_max,
+      min: channel.seen_min,
       name: several ? `${instrument} · ${channel.label}` : channel.label,
       points: data.scans
         .filter((scan) => scan[2][column] != null)
         .map((scan) => ({ t: scan[1] - now, v: scan[2][column] as number })),
+      range: channel.min != null && channel.max != null ? [channel.min, channel.max] : undefined,
+      unit: channel.unit,
     }));
   });
   const names = series.map((line) => line.name);
@@ -366,6 +376,12 @@ const LiveTraces: React.FC<{
       </p>
       {layout === "stacked" ? (
         <div className={clsx("daq-viewer__trace", flash)}>
+          <p className="daq-viewer__note">
+            {series
+              .filter((line) => !hidden.includes(line.name))
+              .map((line) => `${line.name}: ${latest(line)}`)
+              .join(" · ")}
+          </p>
           <SeriesChart domain={LIVE_DOMAIN} hidden={hidden} order={names} series={series} />
         </div>
       ) : (
@@ -373,7 +389,9 @@ const LiveTraces: React.FC<{
           .filter((line) => !hidden.includes(line.name))
           .map((line) => (
             <div className={clsx("daq-viewer__trace", flash)} key={line.name}>
-              <p className="daq-viewer__note">{line.name}</p>
+              <p className="daq-viewer__note">
+                {line.name}: {latest(line)}
+              </p>
               <SeriesChart
                 domain={LIVE_DOMAIN}
                 height={SEPARATE_HEIGHT}

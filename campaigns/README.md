@@ -28,7 +28,7 @@ curl -X POST localhost:7100/api/campaigns/rescan
 | Campaign | Contents |
 |---|---|
 | `examples` | The two reference suites a new suite is copied from, and one that samples the host Gauntlet runs on. None of them needs hardware. |
-| `hardware` | The suites that drive real hardware. Most reach it over a transport of their own; `alvium_camera`, `daq_capture` and `gmsl_camera` are driven through an instrument Gauntlet lends them instead. |
+| `hardware` | The suites that drive real hardware. Most reach it over a transport of their own; `alvium_camera` and `gmsl_camera` are driven through an instrument Gauntlet lends them instead, and `daq_record` drives nothing and has Gauntlet record the DAQs. |
 | `radiation_tid` | One suite per component of the TID campaign. `tid_lan7430`, `tid_max96793`, `tid_max96792`, `tid_ads7138`, `tid_temperature_sensor` and `tid_ssd` measure; `tid_ads7128` and `tid_ads7128_pair` measure ADS7128 breakouts, the part's bench stand-in; the rest are placeholders that run and pass without hardware and measure nothing yet. Each placeholder's `runner.py` opens with the component, test vehicle, host and fixture it is for, and what it has to grow into. |
 
 `examples` keeps what belongs to no programme — the two reference suites and

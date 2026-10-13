@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=http://127.0.0.1:7100/api/schemas/suite
+apiVersion: 1
+key: daq_record
+title: DAQ Record
+category: hardware
+description: >
+  Record the bench's DAQs and nothing else, for a part that needs no software
+  of its own, such as a component under the beam. Every DAQ starts ticked and
+  each channel starts as the Instruments page has it; untick what this run
+  should leave out. Every scan is kept, the live view follows it, and a limit
+  keeps what was read around each crossing.
+
+exec:
+  command: ["python", "-m", "suite.cli"]
+  args:
+    profile: --profile
+    run_dir: --run-dir
+    target: --target
+    unit_serial: --unit-serial
+  profile_schema_command: ["python", "-m", "suite.cli", "--print-profile-schema"]
+
+profiles: ./profiles
+conformance_profile: quick_check.yaml
+
+produces: [events, junit, manifest, metrics, summary, verdict]
+
+# Nothing is granted: the run records the DAQs ticked on the run form, and the
+# suite itself drives no instrument.
+records: [daq]
+
+supports:
+  target: false
+  unit_serial: true
+
+overrides:
+  - name: duration_s
+    flag: --duration-s
+    type: number
+    label: Duration
+    unit: s
+    minimum: 0
+    help: How long to record. Zero records until the run is stopped.

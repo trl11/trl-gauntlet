@@ -69,6 +69,18 @@ class TestSuiteManifest:
         with pytest.raises(ValidationError, match="more than once"):
             SuiteManifest.model_validate(_manifest(requires=["i2c.dut", "i2c.dut"]))
 
+    def test_recording_names_capabilities(self):
+        assert SuiteManifest.model_validate(_manifest(records=["daq"])).records == ["daq"]
+
+    @pytest.mark.parametrize("entry", ["daq.0", "DAQ", "", "daq__x"])
+    def test_recording_an_instance_or_a_malformed_name_is_rejected(self, entry):
+        with pytest.raises(ValidationError):
+            SuiteManifest.model_validate(_manifest(records=[entry]))
+
+    def test_the_same_capability_cannot_be_recorded_twice(self):
+        with pytest.raises(ValidationError):
+            SuiteManifest.model_validate(_manifest(records=["daq", "daq"]))
+
     @pytest.mark.parametrize("path", ["firmware/image.hex", "notes..txt", "a/b/c.pdf"])
     def test_a_download_inside_the_suite_is_accepted(self, path):
         manifest = SuiteManifest.model_validate(_manifest(downloads=[{"path": path}]))

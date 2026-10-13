@@ -125,6 +125,11 @@ describe("DaqViewer live trace", () => {
     expect(screen.queryByRole("button", { name: "Stacked" })).not.toBeInTheDocument();
   });
 
+  it("shows each channel's newest reading, which the fixed axis is too coarse to read off", async () => {
+    renderViewer(runUpsets);
+    expect(await screen.findByText(/CH 1: -0\.001\d* V/)).toBeInTheDocument();
+  });
+
   it("follows every instrument the run watches in one view", async () => {
     renderViewer(TWO);
     await waitFor(() => {

@@ -48,6 +48,7 @@ class Reading:
     chips: dict[str, dict[str, Any]] = field(default_factory=dict)
     error: str = ""
     identity: dict[str, str] = field(default_factory=dict)
+    reopened: bool = False
 
     def chip(self, address: str) -> dict[str, Any]:
         """One chip's figures, or an empty mapping when it did not answer."""
@@ -87,6 +88,7 @@ class Camera:
             chips=dict(chips) if isinstance(chips, dict) else {},
             error=str(payload.get("error") or ""),
             identity=dict(identity) if isinstance(identity, dict) else {},
+            reopened=bool(payload.get("reopened")),
         )
 
     def stream_stats(self, *, frames: int) -> dict[str, float]:

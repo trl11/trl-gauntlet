@@ -4,7 +4,7 @@ import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
 import type { StreamChannel } from "@api/types";
-import { defaultSettings, pickableSettings } from "../utils/daq_limits";
+import { defaultSettings } from "../utils/daq_limits";
 import DaqLimits from "./DaqLimits";
 
 const CHANNELS: StreamChannel[] = [
@@ -13,9 +13,7 @@ const CHANNELS: StreamChannel[] = [
 ];
 
 const Harness: React.FC<{ selectable?: boolean }> = ({ selectable = false }) => {
-  const [value, setValue] = useState(
-    selectable ? pickableSettings(CHANNELS) : defaultSettings(CHANNELS)
-  );
+  const [value, setValue] = useState(defaultSettings(CHANNELS));
   return (
     <DaqLimits
       channels={CHANNELS}
@@ -49,19 +47,14 @@ describe("DaqLimits", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
-  it("lets a channel be picked, which puts its limits within reach", async () => {
+  it("lets a channel be turned off, which takes its limits out of reach", async () => {
     render(<Harness selectable />);
     const box = screen.getByLabelText("Aux enabled");
-    await userEvent.click(box);
     expect(box).toBeChecked();
-    expect(screen.getByLabelText("Aux low limit")).toBeEnabled();
-    expect(screen.getByLabelText("Rail low limit")).toBeDisabled();
-  });
-
-  it("starts with every channel unchecked when they are to be picked", () => {
-    render(<Harness selectable />);
-    expect(screen.getByLabelText("Rail enabled")).not.toBeChecked();
-    expect(screen.getByLabelText("Rail low limit")).toBeDisabled();
+    await userEvent.click(box);
+    expect(box).not.toBeChecked();
+    expect(screen.getByLabelText("Aux low limit")).toBeDisabled();
+    expect(screen.getByLabelText("Rail low limit")).toBeEnabled();
   });
 
   it("offers the window either side of a crossing", () => {

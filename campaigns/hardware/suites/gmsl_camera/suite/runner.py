@@ -98,6 +98,10 @@ def _setup(ctx: SuiteContext) -> None:
         # snapshots are still the whole test for one that is not.
         return
     ctx.extras[_CHIP_ADDRESSES] = addresses
+    for address in addresses:
+        eye = _eye_text(reading.chips[address])
+        if eye:
+            info(f"{granted.instance_id}: chip {address}{eye}")
     info(f"{granted.instance_id}: staggering one register a sample across {', '.join(addresses)}")
 
 
@@ -212,14 +216,26 @@ def _iterate(ctx: SuiteContext, ictx: IterationContext) -> IterationOutcome:
             "address": link.get("address", ""),
             "locked": 1 if link.get("locked") else 0,
             "link_error": 1 if link.get("link_error") else 0,
+            **_eye_metrics(link),
         }
     return IterationOutcome(
         success=not reason,
         reason=reason,
         metrics=metrics,
         phase_records=phases,
-        summary=f"luma={shot.mean_luma:.1f} sharpness={shot.sharpness:.2f} {shot.width}x{shot.height}",
+        summary=f"luma={shot.mean_luma:.1f} sharpness={shot.sharpness:.2f} {shot.width}x{shot.height}"
+        + (_eye_text(link) if link is not None else ""),
     )
+
+
+def _eye_metrics(chip: dict[str, Any]) -> dict[str, float]:
+    """The eye opening of each link a chip measured, in percent. Only a deserializer measures one."""
+    return {key: chip[key] for key in ("eye_a_pct", "eye_b_pct") if isinstance(chip.get(key), (int, float))}
+
+
+def _eye_text(chip: dict[str, Any]) -> str:
+    """The eye opening for a log line, empty for a chip that measured none."""
+    return "".join(f" eye_{key[4]}={value:.1f}%" for key, value in _eye_metrics(chip).items())
 
 
 def _fault(shot: Snapshot, repeats: int, link: dict[str, Any] | None, profile: CameraSnapshotProfile) -> str:

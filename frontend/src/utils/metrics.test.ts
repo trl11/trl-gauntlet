@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { groupSeriesNames, naturalCompare, paddedDomain } from "./metrics";
+import { groupSeriesNames, naturalCompare, paddedDomain, verticalDomain } from "./metrics";
 
 describe("naturalCompare", () => {
   it("sorts numeric suffixes the way a person reads them", () => {
@@ -96,5 +96,49 @@ describe("paddedDomain", () => {
 
   it("gives nothing for no values at all, so the chart decides", () => {
     expect(paddedDomain([])).toBeUndefined();
+  });
+});
+
+const line = (readings: number[], min?: number, max?: number) => ({
+  instrument: "daq",
+  max,
+  min,
+  name: "CH 1",
+  points: readings.map((v, t) => ({ t, v })),
+});
+
+describe("verticalDomain", () => {
+  it("frames the whole run's extremes with a tenth of the span either side", () => {
+    const [low, high] = verticalDomain([line([4.9, 5.1], 0, 10)])!;
+    expect(low).toBeCloseTo(-1);
+    expect(high).toBeCloseTo(11);
+  });
+
+  it("spans every drawn line", () => {
+    const [low, high] = verticalDomain([line([0], -10, 10), line([0], 0, 20)])!;
+    expect(low).toBeCloseTo(-13);
+    expect(high).toBeCloseTo(23);
+  });
+
+  it("fixes the axis to the range the instrument can read, whatever the readings", () => {
+    const ranged = { ...line([0.01, 0.02], -0.02, 0.03), range: [-0.5, 0.5] as [number, number] };
+    expect(verticalDomain([ranged])).toEqual([-0.5, 0.5]);
+    expect(verticalDomain([ranged, { ...ranged, range: [0, 2] as [number, number] }])).toEqual([
+      -0.5, 2,
+    ]);
+  });
+
+  it("frames the readings when any line drawn has no range", () => {
+    const [low] = verticalDomain([
+      { ...line([2]), range: [0, 10] as [number, number] },
+      line([4]),
+    ])!;
+    expect(low).toBeCloseTo(1.8);
+  });
+
+  it("frames the readings alone when a line carries no extremes", () => {
+    const [low, high] = verticalDomain([line([2, 4])])!;
+    expect(low).toBeCloseTo(1.8);
+    expect(high).toBeCloseTo(4.2);
   });
 });
